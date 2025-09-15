@@ -55,7 +55,7 @@ pub async fn check_compaction_needed(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::storage::SessionMetadata>,
+    session_metadata: Option<&crate::session::SessionMetadata>,
 ) -> Result<CompactionCheckResult> {
     // Get threshold from config or use override
     let config = Config::global();
@@ -182,7 +182,7 @@ pub async fn check_and_compact_messages(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::storage::SessionMetadata>,
+    session_metadata: Option<&crate::session::SessionMetadata>,
 ) -> Result<AutoCompactResult> {
     // First check if compaction is needed
     let check_result =
@@ -242,6 +242,7 @@ pub async fn check_and_compact_messages(
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
+    use crate::session::extension_data;
     use crate::{
         agents::Agent,
         model::ModelConfig,
@@ -303,9 +304,9 @@ mod tests {
     fn create_test_session_metadata(
         message_count: usize,
         working_dir: &str,
-    ) -> crate::session::storage::SessionMetadata {
+    ) -> crate::session::SessionMetadata {
         use std::path::PathBuf;
-        crate::session::storage::SessionMetadata {
+        crate::session::SessionMetadata {
             message_count,
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
@@ -316,7 +317,7 @@ mod tests {
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
-            extension_data: crate::session::ExtensionData::new(),
+            extension_data: extension_data::ExtensionData::new(),
             recipe: None,
         }
     }
@@ -540,7 +541,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_uses_session_metadata() {
-        use crate::session::storage::SessionMetadata;
+        use crate::session::SessionMetadata;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
@@ -628,7 +629,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_end_to_end_with_metadata() {
-        use crate::session::storage::SessionMetadata;
+        use crate::session::SessionMetadata;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")

@@ -22,7 +22,7 @@ use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
-use crate::session::storage::SessionMetadata;
+use crate::session::{SessionManager, SessionMetadata};
 
 // Track running tasks with their abort handles
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
@@ -650,37 +650,24 @@ impl Scheduler {
         sched_id: &str,
         limit: usize,
     ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
-        // Changed return type
-        let all_session_files = session::storage::list_sessions()
+        let all_sessions = SessionManager::list_sessions()
+            .await
             .map_err(|e| SchedulerError::StorageError(io::Error::other(e)))?;
 
         let mut schedule_sessions: Vec<(String, SessionMetadata)> = Vec::new();
 
-        for (session_name, session_path) in all_session_files {
-            match session::storage::read_metadata(&session_path).await {
-                Ok(metadata) => {
-                    // metadata is not mutable here, and SessionMetadata is original
-                    if metadata.schedule_id.as_deref() == Some(sched_id) {
-                        schedule_sessions.push((session_name, metadata)); // Keep the tuple
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to read metadata for session file {}: {}. Skipping.",
-                        session_path.display(),
-                        e
-                    );
-                }
+        for session_info in all_sessions {
+            if session_info.metadata.schedule_id.as_deref() == Some(sched_id) {
+                schedule_sessions.push((session_info.id, session_info.metadata));
             }
         }
 
-        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0)); // Sort by session_name (timestamp string)
+        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
 
-        // Keep the tuple, just take the limit
         let result_sessions: Vec<(String, SessionMetadata)> =
             schedule_sessions.into_iter().take(limit).collect();
 
-        Ok(result_sessions) // Return the Vec of tuples
+        Ok(result_sessions)
     }
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
@@ -1066,7 +1053,7 @@ struct JobExecutionError {
 
 async fn run_scheduled_job_internal(
     job: ScheduledJob,
-    provider_override: Option<Arc<dyn GooseProvider>>, // New optional parameter
+    provider_override: Option<Arc<dyn GooseProvider>>,
     jobs_arc: Option<Arc<Mutex<JobsMap>>>,
     job_id: Option<String>,
 ) -> std::result::Result<String, JobExecutionError> {
@@ -1116,7 +1103,7 @@ async fn run_scheduled_job_internal(
 
     let agent: Agent = Agent::new();
 
-    let agent_provider: Arc<dyn GooseProvider>; // Use the aliased GooseProvider
+    let agent_provider: Arc<dyn GooseProvider>;
 
     if let Some(provider) = provider_override {
         agent_provider = provider;
@@ -1155,6 +1142,7 @@ async fn run_scheduled_job_internal(
             ),
         })?;
     }
+
     if let Some(recipe_extensions) = recipe.extensions {
         for extension in recipe_extensions {
             agent
@@ -1175,7 +1163,6 @@ async fn run_scheduled_job_internal(
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
 
-    // Log the execution mode
     let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
     tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
 
@@ -1188,18 +1175,6 @@ async fn run_scheduled_job_internal(
             job_def.current_session_id = Some(session_id_for_return.clone());
         }
     }
-
-    let session_file_path = match crate::session::storage::get_path(
-        crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-    ) {
-        Ok(path) => path,
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to get session file path: {}", e),
-            });
-        }
-    };
 
     if let Some(prompt_text) = recipe.prompt {
         let mut all_session_messages =
@@ -1236,7 +1211,6 @@ async fn run_scheduled_job_internal(
                 use futures::StreamExt;
 
                 while let Some(message_result) = stream.next().await {
-                    // Check if the task has been cancelled
                     tokio::task::yield_now().await;
 
                     match message_result {
@@ -1266,49 +1240,35 @@ async fn run_scheduled_job_internal(
                     }
                 }
 
-                match crate::session::storage::read_metadata(&session_file_path).await {
-                    Ok(mut updated_metadata) => {
-                        updated_metadata.message_count = all_session_messages.len();
-                        if let Err(e) = crate::session::storage::save_messages_with_metadata(
-                            &session_file_path,
-                            &updated_metadata,
-                            &all_session_messages,
-                        ) {
-                            tracing::error!(
-                                "[Job {}] Failed to persist final messages: {}",
-                                job.id,
-                                e
-                            );
-                        }
+                // Save all messages to the session
+                for message in &all_session_messages {
+                    if let Err(e) =
+                        SessionManager::add_message(&session_id_for_return, message).await
+                    {
+                        tracing::error!("[Job {}] Failed to save message: {}", job.id, e);
                     }
-                    Err(e) => {
-                        tracing::error!(
-                            "[Job {}] Failed to read updated metadata before final save: {}",
-                            job.id,
-                            e
-                        );
-                        let fallback_metadata = crate::session::storage::SessionMetadata {
-                            working_dir: current_dir.clone(),
-                            description: String::new(),
-                            schedule_id: Some(job.id.clone()),
-                            message_count: all_session_messages.len(),
-                            total_tokens: None,
-                            input_tokens: None,
-                            output_tokens: None,
-                            accumulated_total_tokens: None,
-                            accumulated_input_tokens: None,
-                            accumulated_output_tokens: None,
-                            extension_data: crate::session::ExtensionData::new(),
-                            recipe: None,
-                        };
-                        if let Err(e_fb) = crate::session::storage::save_messages_with_metadata(
-                            &session_file_path,
-                            &fallback_metadata,
-                            &all_session_messages,
-                        ) {
-                            tracing::error!("[Job {}] Failed to persist final messages with fallback metadata: {}", job.id, e_fb);
-                        }
-                    }
+                }
+
+                // Update session metadata
+                let mut metadata = SessionMetadata {
+                    working_dir: current_dir.clone(),
+                    description: format!("Scheduled job: {}", job.id),
+                    schedule_id: Some(job.id.clone()),
+                    message_count: all_session_messages.len(),
+                    total_tokens: None,
+                    input_tokens: None,
+                    output_tokens: None,
+                    accumulated_total_tokens: None,
+                    accumulated_input_tokens: None,
+                    accumulated_output_tokens: None,
+                    extension_data: crate::session::ExtensionData::new(),
+                    recipe: Some(recipe),
+                };
+
+                if let Err(e) =
+                    SessionManager::update_session_metadata(&session_id_for_return, metadata).await
+                {
+                    tracing::error!("[Job {}] Failed to update session metadata: {}", job.id, e);
                 }
             }
             Err(e) => {
@@ -1324,20 +1284,28 @@ async fn run_scheduled_job_internal(
             job.id,
             job.source
         );
-        let metadata = crate::session::storage::SessionMetadata {
+
+        // Create empty session with metadata for jobs without prompts
+        let metadata = SessionMetadata {
             working_dir: std::env::current_dir().unwrap_or_default(),
             description: "Empty job - no prompt".to_string(),
             schedule_id: Some(job.id.clone()),
             message_count: 0,
-            ..Default::default()
+            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            accumulated_total_tokens: None,
+            accumulated_input_tokens: None,
+            accumulated_output_tokens: None,
+            extension_data: crate::session::ExtensionData::new(),
+            recipe: Some(recipe),
         };
-        if let Err(e) = crate::session::storage::save_messages_with_metadata(
-            &session_file_path,
-            &metadata,
-            &Conversation::new_unvalidated(vec![]),
-        ) {
+
+        if let Err(e) =
+            SessionManager::update_session_metadata(&session_id_for_return, metadata).await
+        {
             tracing::error!(
-                "[Job {}] Failed to persist metadata for empty job: {}",
+                "[Job {}] Failed to create session metadata for empty job: {}",
                 job.id,
                 e
             );
@@ -1359,9 +1327,6 @@ mod tests {
     };
     use rmcp::model::Tool;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
-    // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
-    // `read_metadata` is still used by the test itself, so keep it or its module.
-    use crate::session::storage::read_metadata;
 
     use crate::conversation::message::{Message, MessageContent};
     use std::env;

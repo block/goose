@@ -42,8 +42,6 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
-use crate::session;
-use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -66,6 +64,8 @@ use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
+use crate::session::extension_data::ExtensionState;
+use crate::session::{extension_data, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -506,18 +506,12 @@ impl Agent {
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
-            let session_file_path = if let Some(session_config) = session {
-                session::storage::get_path(session_config.id.clone()).ok()
-            } else {
-                None
-            };
-
-            let todo_content = if let Some(path) = session_file_path {
-                session::storage::read_metadata(&path)
+            let todo_content = if let Some(session_config) = session {
+                SessionManager::get_session_metadata(&session_config.id)
                     .await
                     .ok()
-                    .and_then(|m| {
-                        session::TodoState::from_extension_data(&m.extension_data)
+                    .and_then(|metadata| {
+                        extension_data::TodoState::from_extension_data(&metadata.extension_data)
                             .map(|state| state.content)
                     })
                     .unwrap_or_default()
@@ -552,43 +546,40 @@ impl Agent {
                     None,
                 )))
             } else if let Some(session_config) = session {
-                // Update session metadata with new TODO content
-                match session::storage::get_path(session_config.id.clone()) {
-                    Ok(path) => match session::storage::read_metadata(&path).await {
-                        Ok(mut metadata) => {
-                            let todo_state = session::TodoState::new(content);
-                            todo_state
-                                .to_extension_data(&mut metadata.extension_data)
-                                .ok();
-
-                            let path_clone = path.clone();
-                            let metadata_clone = metadata.clone();
-                            let update_result = tokio::task::spawn(async move {
-                                session::storage::update_metadata(&path_clone, &metadata_clone)
-                                    .await
-                            })
-                            .await;
-
-                            match update_result {
-                                Ok(Ok(_)) => ToolCallResult::from(Ok(vec![Content::text(
-                                    format!("Updated ({} chars)", char_count),
-                                )])),
-                                _ => ToolCallResult::from(Err(ErrorData::new(
+                match SessionManager::get_session_metadata(&session_config.id).await {
+                    Ok(mut metadata) => {
+                        let todo_state = extension_data::TodoState::new(content);
+                        if todo_state
+                            .to_extension_data(&mut metadata.extension_data)
+                            .is_ok()
+                        {
+                            match SessionManager::update_session_metadata(
+                                &session_config.id,
+                                metadata,
+                            )
+                            .await
+                            {
+                                Ok(_) => ToolCallResult::from(Ok(vec![Content::text(format!(
+                                    "Updated ({} chars)",
+                                    char_count
+                                ))])),
+                                Err(_) => ToolCallResult::from(Err(ErrorData::new(
                                     ErrorCode::INTERNAL_ERROR,
                                     "Failed to update session metadata".to_string(),
                                     None,
                                 ))),
                             }
+                        } else {
+                            ToolCallResult::from(Err(ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                "Failed to serialize TODO state".to_string(),
+                                None,
+                            )))
                         }
-                        Err(_) => ToolCallResult::from(Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Failed to read session metadata".to_string(),
-                            None,
-                        ))),
-                    },
+                    }
                     Err(_) => ToolCallResult::from(Err(ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        "Failed to get session path".to_string(),
+                        "Failed to read session metadata".to_string(),
                         None,
                     ))),
                 }
@@ -912,12 +903,9 @@ impl Agent {
     > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
-            match session::storage::get_path(session_config.id.clone()) {
-                Ok(session_file_path) => session::storage::read_metadata(&session_file_path)
-                    .await
-                    .ok(),
-                Err(_) => None,
-            }
+            SessionManager::get_session_metadata(&session_config.id)
+                .await
+                .ok()
         } else {
             None
         };

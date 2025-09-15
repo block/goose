@@ -11,7 +11,7 @@ use tracing::{info, warn};
 
 use crate::scheduler::{normalize_cron_expression, ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::storage::SessionMetadata;
+use crate::session::SessionMetadata;
 
 const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
@@ -699,37 +699,24 @@ impl TemporalScheduler {
         }
     }
 
-    // Note: This method fetches sessions from the session storage directly
-    // since Temporal service doesn't track session metadata
     pub async fn sessions(
         &self,
         sched_id: &str,
         limit: usize,
     ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
-        use crate::session::storage;
+        use crate::session::SessionManager;
 
-        // Get all session files
-        let all_session_files = storage::list_sessions().map_err(|e| {
+        // Get all sessions from the database
+        let all_sessions = SessionManager::list_sessions().await.map_err(|e| {
             SchedulerError::SchedulerInternalError(format!("Failed to list sessions: {}", e))
         })?;
 
         let mut schedule_sessions: Vec<(String, SessionMetadata)> = Vec::new();
 
-        for (session_name, session_path) in all_session_files {
-            match storage::read_metadata(&session_path).await {
-                Ok(metadata) => {
-                    // Check if this session belongs to the requested schedule
-                    if metadata.schedule_id.as_deref() == Some(sched_id) {
-                        schedule_sessions.push((session_name, metadata));
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to read metadata for session file {}: {}. Skipping.",
-                        session_path.display(),
-                        e
-                    );
-                }
+        for session_info in all_sessions {
+            // Check if this session belongs to the requested schedule
+            if session_info.metadata.schedule_id.as_deref() == Some(sched_id) {
+                schedule_sessions.push((session_info.id, session_info.metadata));
             }
         }
 
@@ -740,7 +727,7 @@ impl TemporalScheduler {
         let result_sessions: Vec<(String, SessionMetadata)> =
             schedule_sessions.into_iter().take(limit).collect();
 
-        tracing::info!(
+        info!(
             "Found {} sessions for schedule '{}'",
             result_sessions.len(),
             sched_id
@@ -858,38 +845,41 @@ impl TemporalScheduler {
                 let recent_sessions = self.sessions(&job.id, 3).await?;
                 let mut has_active_session = false;
 
-                for (session_name, _) in recent_sessions {
-                    let session_path = match crate::session::storage::get_path(
-                        crate::session::storage::Identifier::Name(session_name.clone()),
-                    ) {
-                        Ok(path) => path,
+                for (session_id, _) in recent_sessions {
+                    // Get session info from database to check last update time
+                    match SessionManager::list_sessions().await {
+                        Ok(all_sessions) => {
+                            if let Some(session_info) =
+                                all_sessions.iter().find(|s| s.id == session_id)
+                            {
+                                // Parse the updated_at timestamp from the database
+                                if let Ok(modified_dt) = DateTime::parse_from_str(
+                                    &session_info.modified,
+                                    "%Y-%m-%d %H:%M:%S UTC",
+                                ) {
+                                    let modified_utc = modified_dt.with_timezone(&Utc);
+                                    let now = Utc::now();
+                                    let time_diff = now.signed_duration_since(modified_utc);
+
+                                    // Increased tolerance to 5 minutes to reduce false positives
+                                    if time_diff.num_minutes() < 5 {
+                                        has_active_session = true;
+                                        tracing::debug!(
+                                        "Found active session for job '{}' modified {} minutes ago",
+                                        job.id,
+                                        time_diff.num_minutes()
+                                    );
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         Err(e) => {
                             tracing::warn!(
-                                "Failed to get session path for '{}': {}",
-                                session_name,
+                                "Failed to list sessions to check activity for job '{}': {}",
+                                job.id,
                                 e
                             );
-                            continue;
-                        }
-                    };
-
-                    // Check if session file was modified recently (within last 5 minutes instead of 2)
-                    if let Ok(metadata) = std::fs::metadata(&session_path) {
-                        if let Ok(modified) = metadata.modified() {
-                            let modified_dt: DateTime<Utc> = modified.into();
-                            let now = Utc::now();
-                            let time_diff = now.signed_duration_since(modified_dt);
-
-                            // Increased tolerance to 5 minutes to reduce false positives
-                            if time_diff.num_minutes() < 5 {
-                                has_active_session = true;
-                                tracing::debug!(
-                                    "Found active session for job '{}' modified {} minutes ago",
-                                    job.id,
-                                    time_diff.num_minutes()
-                                );
-                                break;
-                            }
                         }
                     }
                 }
@@ -897,9 +887,9 @@ impl TemporalScheduler {
                 // Only mark as completed if both Temporal service check failed AND no recent session activity
                 if !has_active_session {
                     tracing::info!(
-                        "No active sessions found for job '{}' in the last 5 minutes, marking as completed",
-                        job.id
-                    );
+                    "No active sessions found for job '{}' in the last 5 minutes, marking as completed",
+                    job.id
+                );
 
                     let request = JobRequest {
                         action: "mark_completed".to_string(),

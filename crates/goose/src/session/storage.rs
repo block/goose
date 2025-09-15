@@ -44,6 +44,7 @@ fn get_current_working_dir() -> PathBuf {
 
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, ToSchema)]
+
 pub struct SessionMetadata {
     /// Working directory for the session
     #[schema(value_type = String, example = "/home/user/sessions/session1")]

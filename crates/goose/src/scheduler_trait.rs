@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::scheduler::{ScheduledJob, SchedulerError};
-use crate::session::storage::SessionMetadata;
+use crate::session::SessionMetadata;
 
 /// Common trait for all scheduler implementations
 #[async_trait]

@@ -15,7 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::session;
+use crate::session::SessionManager;
 use rmcp::model::Tool;
 
 async fn toolshim_postprocess(
@@ -278,20 +278,13 @@ impl Agent {
         usage: &ProviderUsage,
         messages_length: usize,
     ) -> Result<()> {
-        let session_file_path = match session::storage::get_path(session_config.id.clone()) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get session file path: {}", e));
-            }
-        };
-        let mut metadata = session::storage::read_metadata(&session_file_path).await?;
+        let session_id = session_config.id.as_str();
+        let mut metadata = SessionManager::get_session_metadata(session_id).await?;
 
         metadata.schedule_id = session_config.schedule_id.clone();
-
         metadata.total_tokens = usage.usage.total_tokens;
         metadata.input_tokens = usage.usage.input_tokens;
         metadata.output_tokens = usage.usage.output_tokens;
-
         metadata.message_count = messages_length + 1;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
@@ -300,6 +293,7 @@ impl Agent {
                 _ => a.or(b),
             }
         };
+
         metadata.accumulated_total_tokens =
             accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
         metadata.accumulated_input_tokens =
@@ -309,7 +303,7 @@ impl Agent {
             usage.usage.output_tokens,
         );
 
-        session::storage::update_metadata(&session_file_path, &metadata).await?;
+        SessionManager::update_session_metadata(session_id, metadata).await?;
 
         Ok(())
     }
