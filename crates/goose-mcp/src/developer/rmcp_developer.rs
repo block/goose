@@ -264,11 +264,12 @@ impl ServerHandler for DeveloperServer {
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
 
-                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
-                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
+                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
+                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`
 
-                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-                Not batching file edits using `diff` is an error and wastes context, time, and inference.
+                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
 
                 {}
 
@@ -290,11 +291,12 @@ impl ServerHandler for DeveloperServer {
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
-                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
+                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
+                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`
 
-                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-                Not batching file edits using `diff` is an error and wastes context, time, and inference.
+                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
