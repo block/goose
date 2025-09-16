@@ -336,11 +336,11 @@ goose run --recipe 3-code.yaml --params project_name="test" language="python" de
 
 Always use `{{ recipe_dir }}` for file paths within your recipes. This makes your recipes portable and prevents path issues when someone runs them from a different directory.
 
-### Parameter Validation is Your Friend
+### 3. Parameter Validation is Your Friend
 
 Include clear parameter descriptions and mark required parameters. This prevents confusing errors when someone forgets to pass a needed value.
 
-### 3. Add Retry Logic for Flaky Operations
+### 4. Add Retry Logic for Flaky Operations
 
 Network calls, file operations, and API calls can fail. Add retry logic with proper cleanup:
 
@@ -354,7 +354,7 @@ retry:
   timeout_seconds: 60
 ```
 
-### 4. Monitor Resource Usage
+### 5. Monitor Resource Usage
 
 When running multiple subrecipes in parallel, watch your API rate limits and system resources. You might need to adjust the execution strategy for resource-intensive tasks.
 
