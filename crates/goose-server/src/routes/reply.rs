@@ -476,6 +476,34 @@ pub async fn confirm_permission(
         _ => Permission::DenyOnce,
     };
 
+    // Log all permission confirmations for debugging
+    tracing::info!(
+        "Permission confirmation received - ID: {}, action: {}, principal_type: {:?}",
+        request.id,
+        request.action,
+        request.principal_type
+    );
+
+    // Log user security decision if this is for a security alert
+    let decision = match permission {
+        Permission::AllowOnce => "allow",
+        Permission::DenyOnce => "deny",
+        Permission::Cancel => "cancel",
+        // Note: AlwaysAllow should never occur for security findings
+        // since the UI excludes this option when security message is present
+        Permission::AlwaysAllow => {
+            unreachable!("AlwaysAllow should not be available for security findings")
+        }
+    };
+
+    if let Some(finding_id) = agent.get_security_finding_id(&request.id).await {
+        tracing::info!(
+            "🔒 User security decision: {} for finding ID: {}",
+            decision,
+            finding_id
+        );
+    }
+
     agent
         .handle_confirmation(
             request.id.clone(),

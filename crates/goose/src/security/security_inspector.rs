@@ -2,19 +2,26 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::conversation::message::{Message, ToolRequest};
-use crate::security::{SecurityManager, SecurityResult};
+use crate::security::{context::SecurityContext, SecurityManager, SecurityResult};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 
 /// Security inspector that uses pattern matching to detect malicious tool calls
 pub struct SecurityInspector {
     security_manager: SecurityManager,
+    security_context: SecurityContext,
 }
 
 impl SecurityInspector {
     pub fn new() -> Self {
         Self {
             security_manager: SecurityManager::new(),
+            security_context: SecurityContext::new(),
         }
+    }
+
+    /// Get the security context for accessing finding IDs
+    pub fn get_security_context(&self) -> &SecurityContext {
+        &self.security_context
     }
 
     /// Convert SecurityResult to InspectionResult
@@ -70,6 +77,16 @@ impl ToolInspector for SecurityInspector {
             .analyze_tool_requests(tool_requests, messages)
             .await?;
 
+        // Store security finding IDs in context for later retrieval
+        for security_result in &security_results {
+            self.security_context
+                .store_finding_id(
+                    security_result.tool_request_id.clone(),
+                    security_result.finding_id.clone(),
+                )
+                .await;
+        }
+
         // Convert security results to inspection results
         // The SecurityManager already handles the correlation between tool requests and results
         let inspection_results = security_results
@@ -106,7 +123,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_security_inspector() {
-        let inspector = SecurityInspector::new();
+        let mut inspector = SecurityInspector::new();
 
         // Test with a potentially dangerous tool call
         let tool_requests = vec![ToolRequest {

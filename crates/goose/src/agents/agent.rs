@@ -899,6 +899,17 @@ impl Agent {
         }
     }
 
+    /// Get security finding ID for a tool request ID
+    /// This method is used by the server to include finding IDs in security decision logs
+    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
+        // Delegate to the tool inspection manager
+        self.tool_inspection_manager
+            .lock()
+            .await
+            .get_security_finding_id(request_id)
+            .await
+    }
+
     /// Handle auto-compaction logic and return compacted messages if needed
     async fn handle_auto_compaction(
         &self,

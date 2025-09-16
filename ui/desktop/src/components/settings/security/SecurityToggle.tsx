@@ -21,9 +21,23 @@ export const SecurityToggle = () => {
     if (config && 'security' in config && config.security) {
       const securityConfig = config.security as { enabled?: boolean; threshold?: number };
       setSettings({
-        enabled: securityConfig.enabled || false,
-        threshold: securityConfig.threshold || 0.7,
+        enabled: securityConfig.enabled ?? false, // Use nullish coalescing to handle undefined properly
+        threshold: securityConfig.threshold ?? 0.7,
       });
+    } else if (config) {
+      // Config exists but no security section - check if security.enabled is set via dot notation
+      // This handles the case where the config might have security.enabled but not a nested security object
+      const configRecord = config as Record<string, unknown>;
+      const dotNotationEnabled = configRecord['security.enabled'] as boolean | undefined;
+      const dotNotationThreshold = configRecord['security.threshold'] as number | undefined;
+
+      if (dotNotationEnabled !== undefined || dotNotationThreshold !== undefined) {
+        setSettings({
+          enabled: dotNotationEnabled ?? false,
+          threshold: dotNotationThreshold ?? 0.7,
+        });
+      }
+      // If no security config at all, keep the initialized defaults (enabled: false, threshold: 0.7)
     }
   }, [config]);
 
@@ -110,8 +124,8 @@ export const SecurityToggle = () => {
               disabled={!settings.enabled}
               className={`w-24 px-2 py-1 text-sm border rounded ${
                 settings.enabled
-                  ? 'border-gray-300 bg-white text-text-default'
-                  : 'border-gray-200 bg-gray-100 text-text-muted cursor-not-allowed'
+                  ? 'border-border-default bg-background-default text-text-default'
+                  : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
               }`}
               placeholder="0.70"
             />

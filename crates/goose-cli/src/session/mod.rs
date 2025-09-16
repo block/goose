@@ -980,6 +980,41 @@ impl Session {
                                     }
                                 };
 
+                                // Log user decision if this was a security alert
+                                if confirmation.prompt.is_some() {
+                                    // Extract finding ID from security message if present
+                                    let finding_id = confirmation.prompt.as_ref()
+                                        .and_then(|msg| {
+                                            // Look for "Finding ID: " pattern in the security message
+                                            msg.lines()
+                                                .find(|line| line.trim().starts_with("Finding ID:"))
+                                                .and_then(|line| line.split(':').nth(1))
+                                                .map(|id| id.trim().to_string())
+                                        });
+
+                                    let decision = match permission {
+                                        Permission::AllowOnce => "allow",
+                                        Permission::DenyOnce => "deny",
+                                        Permission::Cancel => "cancel",
+                                        // Note: AlwaysAllow should never occur for security findings
+                                        // since the UI excludes this option when security message is present
+                                        Permission::AlwaysAllow => unreachable!("AlwaysAllow should not be available for security findings"),
+                                    };
+
+                                    if let Some(finding_id) = finding_id {
+                                        tracing::info!(
+                                            "🔒 User security decision: {} for finding ID: {}",
+                                            decision,
+                                            finding_id
+                                        );
+                                    } else {
+                                        tracing::info!(
+                                            "🔒 User security decision: {} (no finding ID found)",
+                                            decision
+                                        );
+                                    }
+                                }
+
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
 

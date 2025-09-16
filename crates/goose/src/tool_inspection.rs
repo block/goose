@@ -175,6 +175,29 @@ impl ToolInspectionManager {
         tracing::warn!("Permission inspector not found for processing inspection results");
         None
     }
+
+    /// Get security finding ID for a tool request ID from any inspector that provides it
+    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
+        // Check all inspectors for finding IDs, prioritizing security inspector
+        for inspector in &self.inspectors {
+            if inspector.name() == "security" {
+                // Downcast to SecurityInspector to access the security context
+                if let Some(security_inspector) =
+                    inspector
+                        .as_any()
+                        .downcast_ref::<crate::security::security_inspector::SecurityInspector>()
+                {
+                    return security_inspector
+                        .get_security_context()
+                        .get_finding_id(request_id)
+                        .await;
+                }
+            }
+        }
+
+        // Could extend this to check other inspectors that might provide finding IDs in the future
+        None
+    }
 }
 
 impl Default for ToolInspectionManager {

@@ -1,3 +1,4 @@
+pub mod context;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
@@ -9,6 +10,7 @@ use scanner::PromptInjectionScanner;
 use std::collections::{hash_map::DefaultHasher, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 /// Simple security manager for the POC
 /// Focuses on tool call analysis with conversation context
@@ -39,8 +41,6 @@ impl SecurityManager {
     pub fn is_enabled(&self) -> bool {
         Self::should_enable_security()
     }
-
-
 
     /// Check if security should be enabled based on config
     fn should_enable_security() -> bool {
@@ -121,9 +121,10 @@ impl SecurityManager {
                 let config_threshold = scanner.get_threshold_from_config();
 
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
-                    // Generate a unique finding ID based on normalized tool call content
-                    // This ensures the same malicious content always gets the same finding ID
-                    // regardless of JSON formatting or tool request ID variations
+                    // Generate a globally unique finding ID for each security finding
+                    let finding_id = format!("SEC-{}", Uuid::new_v4().simple());
+
+                    // Generate content hash for deduplication purposes (separate from finding ID)
                     let normalized_content = format!(
                         "{}:{}",
                         tool_call.name,
@@ -131,23 +132,23 @@ impl SecurityManager {
                     );
                     let mut hasher = DefaultHasher::new();
                     normalized_content.hash(&mut hasher);
-                    let content_hash = hasher.finish();
-                    let finding_id = format!("SEC-{:016x}", content_hash);
+                    let content_hash = format!("CONTENT-{:016x}", hasher.finish());
 
-                    // Check if we've already flagged this exact finding before
+                    // Check if we've already flagged this exact content before
                     let mut flagged_set = self.flagged_findings.lock().unwrap();
-                    if flagged_set.contains(&finding_id) {
+                    if flagged_set.contains(&content_hash) {
                         tracing::debug!(
                             tool_name = %tool_call.name,
                             tool_request_id = %tool_request.id,
                             finding_id = %finding_id,
-                            "🔄 Skipping already flagged security finding - preventing re-flagging"
+                            content_hash = %content_hash,
+                            "🔄 Skipping already flagged security content - preventing re-flagging"
                         );
                         continue;
                     }
 
-                    // Mark this finding as flagged
-                    flagged_set.insert(finding_id.clone());
+                    // Mark this content as flagged (using content hash, not finding ID)
+                    flagged_set.insert(content_hash.clone());
                     drop(flagged_set); // Release the lock
 
                     tracing::warn!(
