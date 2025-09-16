@@ -9,7 +9,7 @@ authors:
 
 Remember when you first learned to cook? You probably started with simple recipes like scrambled eggs or toast. But eventually you wanted to make something more complex, like a full dinner with multiple dishes. That's how subrecipes work in goose: each recipe can run stand-alone for a dedicated task, and a main recipe can orchestrate how they run.
 
-Let's explore goose subrecipes together! You're about to learn know how to orchestrate multiple AI models, coordinate tasks, and build workflows that will turn you into a "head chef" user with goose.
+Let's explore [goose subrecipes](/docs/tutorials/sub-recipes-in-parallel) together! You're about to learn know how to orchestrate multiple AI models, coordinate tasks, and build workflows that will turn you into a "head chef" user with goose.
 
 <!--truncate-->
 
@@ -381,35 +381,16 @@ Ready to start building your own subrecipe workflows? The kitchen is open, and a
 
 Make a [pull request to goose](https://github.com/block/goose) to include your recipe ideas with other goose users! Add them to the `documentation/src/pages/recipes/data/recipes` path in the goose GitHub repo.
 
----
-
-## FAQ
-
-**Q: Can subrecipes call other subrecipes?**
-A: No, a recipe running as a subrecipe cannot itself call other subrecipes. This keeps the workflow manageable and avoids deep nesting or looping recipes ending in infinite recursion.
-
-**Q: How do I debug a failing subrecipe workflow?**
-A: Test each subrecipe individually first, check parameter passing, and use the retry logic with proper checks.
-
-**Q: Can I use different AI models in different subrecipes?**
-A: Absolutely! This is one of the main benefits -- use the best model for each specific task.
-
-**Q: What happens if one subrecipe fails?**
-A: The parent recipe will typically fail too, unless you build in error handling. Always test individual recipes first.
-
-**Q: How do I share data between subrecipes?**
-A: Use the template variable `{{ recipe_dir }}` within each recipe's instructions to share filenames. Just be careful of concurrent writes to the same files if you have some subrecipes running in parallel.
-
 
 <head>
-  <meta property="og:title" content="Building Complex Workflows with Subrecipes in goose" />
+  <meta property="og:title" content="Automate Your Complex Workflows with Sub-Recipes in goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025-09-15-subrecipes-in-goose" />
-  <meta property="og:description" content="Learn how to break down complex tasks into manageable, specialized pieces with goose subrecipes and orchestrate multiple AI models effectively." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-subrecipes.png" />
+  <meta property="og:description" content="Did you know you can call recipes from within other recipes? Learn how to orchestrate multiple AI tasks using goose subrecipes." />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-1ca4aa4dfeff06727aaaadd9b01141fb.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Building Complex Workflows with Subrecipes in goose" />
-  <meta name="twitter:description" content="Learn how to break down complex tasks into manageable, specialized pieces with goose subrecipes and orchestrate multiple AI models effectively." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-subrecipes.png" />
+  <meta name="twitter:title" content="Automate Your Complex Workflows with Sub-Recipes in goose" />
+  <meta name="twitter:description" content="Did you know you can call recipes from within other recipes? Learn how to orchestrate multiple AI tasks using goose subrecipes." />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-1ca4aa4dfeff06727aaaadd9b01141fb.png" />
 </head>
