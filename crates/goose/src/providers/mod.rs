@@ -28,6 +28,7 @@ pub mod provider_registry;
 mod retry;
 pub mod sagemaker_tgi;
 pub mod snowflake;
+pub mod synthetic;
 pub mod testprovider;
 pub mod tetrate;
 pub mod toolshim;
