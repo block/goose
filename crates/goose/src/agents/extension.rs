@@ -184,6 +184,12 @@ pub enum ExtensionConfig {
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
+        /// Optional path to redirect stdout for debugging
+        #[serde(default)]
+        stdout_log_path: Option<String>,
+        /// Optional path to redirect stderr for debugging
+        #[serde(default)]
+        stderr_log_path: Option<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -317,6 +323,8 @@ impl ExtensionConfig {
             timeout: Some(timeout.into()),
             bundled: None,
             available_tools: Vec::new(),
+            stdout_log_path: None,
+            stderr_log_path: None,
         }
     }
 
@@ -362,6 +370,8 @@ impl ExtensionConfig {
                 timeout,
                 bundled,
                 available_tools,
+                stdout_log_path: None,
+                stderr_log_path: None,
             },
             other => other,
         }

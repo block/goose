@@ -212,6 +212,8 @@ impl Session {
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
+            stdout_log_path: None,
+            stderr_log_path: None,
         };
 
         self.agent

@@ -904,6 +904,8 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     timeout: Some(timeout),
                     bundled: None,
                     available_tools: Vec::new(),
+                    stdout_log_path: None,
+                    stderr_log_path: None,
                 },
             })?;
 

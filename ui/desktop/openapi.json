@@ -2148,6 +2148,16 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
+              "stderr_log_path": {
+                "type": "string",
+                "description": "Optional path to redirect stderr for debugging",
+                "nullable": true
+              },
+              "stdout_log_path": {
+                "type": "string",
+                "description": "Optional path to redirect stdout for debugging",
+                "nullable": true
+              },
               "timeout": {
                 "type": "integer",
                 "format": "int64",

@@ -155,6 +155,8 @@ mod tests {
                     description: None,
                     bundled: None,
                     available_tools: Vec::new(),
+                    stdout_log_path: None,
+                    stderr_log_path: None,
                 },
                 ExtensionConfig::Builtin {
                     name: "builtin-ext".to_string(),
@@ -252,6 +254,8 @@ mod tests {
                     description: None,
                     bundled: None,
                     available_tools: Vec::new(),
+                    stdout_log_path: None,
+                    stderr_log_path: None,
                 },
             ]),
             context: None,
