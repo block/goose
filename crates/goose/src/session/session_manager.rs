@@ -269,11 +269,6 @@ impl SessionStorage {
             imported_count, failed_count
         );
 
-        // Move legacy files to backup directory
-        if imported_count > 0 {
-            self.backup_legacy_files(session_dir).await?;
-        }
-
         Ok(())
     }
 
@@ -486,24 +481,6 @@ impl SessionStorage {
         .execute(&self.pool)
         .await?;
 
-        Ok(())
-    }
-
-    async fn backup_legacy_files(&self, session_dir: &PathBuf) -> Result<()> {
-        use crate::session::legacy;
-
-        let backup_dir = session_dir.join("legacy_backup");
-        std::fs::create_dir_all(&backup_dir)?;
-
-        let sessions = legacy::list_sessions()?;
-        for (session_name, session_path) in sessions {
-            let backup_path = backup_dir.join(format!("{}.jsonl", session_name));
-            if let Err(e) = std::fs::rename(&session_path, &backup_path) {
-                println!("Warning: Could not backup {}: {}", session_name, e);
-            }
-        }
-
-        println!("Legacy files backed up to: {:?}", backup_dir);
         Ok(())
     }
 
