@@ -29,9 +29,21 @@ pub async fn run(name: &str) -> Result<()> {
         service.waiting().await?;
         return Ok(());
     }
+
+    if name == "autovisualiser" {
+        let service = AutoVisualiserRouter::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
     let router: Option<Box<dyn BoundedService>> = match name {
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
         "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
         _ => None,
