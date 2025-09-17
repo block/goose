@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use axum::{extract::Query, routing::get, Router};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use goose::config::Config;
 use serde::Deserialize;
 use serde_json::Value;
@@ -23,7 +24,7 @@ fn random_url_safe(len: usize) -> String {
     use rand::RngCore;
     let mut bytes = vec![0u8; len];
     rand::thread_rng().fill_bytes(&mut bytes);
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+    URL_SAFE_NO_PAD.encode(bytes)
 }
 
 pub async fn ensure_authenticated() -> Result<()> {
