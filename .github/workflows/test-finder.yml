@@ -24,7 +24,7 @@ jobs:
       options: --user root
       env:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-4o' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5' }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         HOME: /tmp/goose-home
 
@@ -34,10 +34,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install analysis tools
+      - name: Install build and analysis tools
         run: |
           apt-get update
-          apt-get install -y jq ripgrep
+          apt-get install -y jq ripgrep build-essential
 
       - name: Find untested code and create working test
         id: find_untested
