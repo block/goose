@@ -38,7 +38,6 @@ impl SecurityContext {
         let map = self.finding_map.read().await;
         map.get(request_id).cloned()
     }
-
 }
 
 impl Default for SecurityContext {
