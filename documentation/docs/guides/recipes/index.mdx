@@ -6,6 +6,9 @@ description: Reusable and shareable AI workflows
 
 import Card from '@site/src/components/Card';
 import styles from '@site/src/components/Card/styles.module.css';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import VideoCarousel from '@site/src/components/VideoCarousel';
 
 <h1 className={styles.pageTitle}>Recipes</h1>
 <p className={styles.pageDescription}>
@@ -22,7 +25,7 @@ import styles from '@site/src/components/Card/styles.module.css';
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
     allowFullScreen
   ></iframe>
-</div> 
+</div>
 
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
@@ -90,4 +93,28 @@ import styles from '@site/src/components/Card/styles.module.css';
       link="/blog/2025/05/06/recipe-for-success"
     />
   </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/1szmJSKInnU',
+      title: 'Advanced Tips for Recipes/Sub-Recipes in Goose',
+      description: 'Advanced tips for using recipes and sub-recipes in goose',
+      duration: '10:07'
+    },
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/gvg7DomaJuA',
+      title: 'Headless Goose, Scheduling a Parallel-Subagent Recipe',
+      description: 'Schedule a recipe to run two subagents in parallel',
+      duration: '5:50'
+    }
+  ]}
+/>
 </div>
