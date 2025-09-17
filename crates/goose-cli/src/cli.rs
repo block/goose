@@ -4,6 +4,7 @@ use clap::{Args, Parser, Subcommand};
 use goose::config::{Config, ExtensionConfig};
 
 use crate::commands::acp::run_acp_agent;
+use crate::commands::auth;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
@@ -276,6 +277,12 @@ enum RecipeCommand {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Authenticate with GitHub (OAuth2 PKCE)
+    #[command(about = "Authenticate with GitHub (OAuth2 PKCE)")]
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommand,
+    },
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
     Configure {},
@@ -680,6 +687,16 @@ enum Command {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum AuthCommand {
+    #[command(about = "Start OAuth2 login flow (PKCE)")]
+    Login,
+    #[command(about = "Show authentication status")]
+    Status,
+    #[command(about = "Remove local credentials")]
+    Logout,
+}
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
     OpenAi,
@@ -711,6 +728,7 @@ pub async fn cli() -> Result<()> {
     }
 
     let command_name = match &cli.command {
+        Some(Command::Auth { .. }) => "auth",
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
@@ -734,6 +752,14 @@ pub async fn cli() -> Result<()> {
     );
 
     match cli.command {
+        Some(Command::Auth { command }) => {
+            match command {
+                AuthCommand::Login => auth::login().await?,
+                AuthCommand::Status => auth::status().await?,
+                AuthCommand::Logout => auth::logout().await?,
+            }
+            return Ok(());
+        }
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
             return Ok(());
@@ -762,6 +788,7 @@ pub async fn cli() -> Result<()> {
             streamable_http_extensions,
             builtins,
         }) => {
+            auth::ensure_authenticated().await?;
             return match command {
                 Some(SessionCommand::List {
                     verbose,
@@ -908,6 +935,7 @@ pub async fn cli() -> Result<()> {
             provider,
             model,
         }) => {
+            auth::ensure_authenticated().await?;
             let (input_config, recipe_info) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
@@ -1161,6 +1189,7 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Web { port, host, open }) => {
+            auth::ensure_authenticated().await?;
             crate::commands::web::handle_web(port, host, open).await?;
             return Ok(());
         }
@@ -1169,6 +1198,7 @@ pub async fn cli() -> Result<()> {
                 let _ = handle_configure().await;
                 Ok(())
             } else {
+                auth::ensure_authenticated().await?;
                 // Run session command by default
                 let mut session = build_session(SessionBuilderConfig {
                     identifier: None,
