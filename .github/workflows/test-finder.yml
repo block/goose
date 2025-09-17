@@ -178,7 +178,7 @@ jobs:
           PATCH_CREATED: ${{ steps.find_untested.outputs.patch_created }}
           FUNCTION_NAME: ${{ steps.find_untested.outputs.function_name }}
         run: |
-          if [ "$PATCH_CREATED" == "true" ]; then
+          if [ "$PATCH_CREATED" = "true" ]; then
             echo "✅ Successfully found untested code and created a test"
             echo "📝 Function tested: $FUNCTION_NAME"
           else
