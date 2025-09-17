@@ -93,6 +93,28 @@ This command regenerates `ui/desktop/openapi.json` and then runs the UI's
 
 Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
 
+### Debugging
+
+To debug the Goose server, you can run it from your preferred IDE with. How to configure the command
+to start the server will depend on your IDE. The command to run is:
+
+```
+export GOOSE_SERVER__SECRET_KEY=test
+cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+```
+
+The server will start listening on port `3000` by default, but this can be changed by setting the
+`GOOSE_PORT` environment variable.
+
+Once the server is running, you can start a UI and connect it to the server by running:
+
+```
+just debug-ui
+```
+
+The UI will now be connected to the server you started in your IDE, allowing you to set breakpoints
+and step through the server code as you interact with the UI.
+
 ## Creating a fork
 
 To fork the repository:
