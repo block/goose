@@ -58,7 +58,7 @@ jobs:
           5. Focus on the goose crate first, then goose-cli, then others
 
           Process:
-          1. Find a suitable untested function
+          1. Find a suitable untested function (use your `analyze` tool and ripgrep)
           2. Write a comprehensive unit test for it
           3. Apply your changes to the codebase
           4. Run the test with: cargo test --test <test_name>
