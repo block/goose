@@ -1,28 +1,21 @@
-use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
-use serde_json::Value;
-use std::borrow::Cow;
-use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
+use rmcp::{
+    handler::server::router::tool::ToolRouter,
+    model::{
+        AnnotateAble, Content, ErrorCode, ErrorData, Implementation, RawResource, Resource,
+        ServerCapabilities, ServerInfo, Tool, ToolAnnotations,
+    },
+    object, schemars::JsonSchema, tool_handler, ServerHandler,
 };
-use tokio::{process::Command, sync::mpsc};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
+use tokio::process::Command;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-
-use mcp_core::{
-    handler::{require_str_parameter, require_u64_parameter, PromptError, ResourceError},
-    protocol::ServerCapabilities,
-};
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::{
-    AnnotateAble, Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, RawResource, Resource,
-    Tool, ToolAnnotations,
-};
-use rmcp::object;
 
 mod docx_tool;
 mod pdf_tool;
@@ -31,10 +24,105 @@ mod xlsx_tool;
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
 
+// Parameter structs for tools
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct WebScrapeParams {
+    /// The URL to fetch content from
+    pub url: String,
+    /// How to interpret and save the content
+    #[serde(default = "default_save_as")]
+    pub save_as: String,
+}
+
+fn default_save_as() -> String {
+    "text".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct AutomationScriptParams {
+    /// The scripting language to use
+    pub language: String,
+    /// The script content
+    pub script: String,
+    /// Whether to save the script output to a file
+    #[serde(default)]
+    pub save_output: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ComputerControlParams {
+    /// The automation script content (PowerShell for Windows, AppleScript for macOS)
+    pub script: String,
+    /// Whether to save the script output to a file
+    #[serde(default)]
+    pub save_output: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CacheParams {
+    /// The command to perform
+    pub command: String,
+    /// Path to the cached file for view/delete commands
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PdfToolParams {
+    /// Path to the PDF file
+    pub path: String,
+    /// Operation to perform on the PDF
+    pub operation: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct DocxToolParams {
+    /// Path to the DOCX file
+    pub path: String,
+    /// Operation to perform on the DOCX
+    pub operation: String,
+    /// Content to write (required for update_doc operation)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Additional parameters for update_doc operation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct XlsxToolParams {
+    /// Path to the XLSX file
+    pub path: String,
+    /// Operation to perform on the XLSX file
+    pub operation: String,
+    /// Worksheet name (if not provided, uses first worksheet)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worksheet: Option<String>,
+    /// Cell range in A1 notation (e.g., 'A1:C10') for get_range operation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<String>,
+    /// Text to search for in find_text operation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_text: Option<String>,
+    /// Whether search should be case-sensitive
+    #[serde(default)]
+    pub case_sensitive: bool,
+    /// Row number for update_cell and get_cell operations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub row: Option<u64>,
+    /// Column number for update_cell and get_cell operations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col: Option<u64>,
+    /// New value for update_cell operation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
 /// An extension designed for non-developers to help them with common tasks like
 /// web scraping, data processing, and automation.
 #[derive(Clone)]
 pub struct ComputerControllerRouter {
+    tool_router: ToolRouter<Self>,
     tools: Vec<Tool>,
     cache_dir: PathBuf,
     active_resources: Arc<Mutex<HashMap<String, Resource>>>,
@@ -540,6 +628,7 @@ impl ComputerControllerRouter {
         };
 
         Self {
+            tool_router: ToolRouter::new(),
             tools: vec![
                 web_scrape_tool,
                 quick_script_tool,
@@ -572,22 +661,22 @@ impl ComputerControllerRouter {
         extension: &str,
     ) -> Result<PathBuf, ErrorData> {
         let cache_path = self.get_cache_path(prefix, extension);
-        fs::write(&cache_path, content).map_err(|e| ErrorData {
-            code: ErrorCode::INTERNAL_ERROR,
-            message: Cow::from(format!("Failed to write to cache: {}", e)),
-            data: None,
-        })?;
+        fs::write(&cache_path, content).map_err(|e| ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to write to cache: {}", e),
+            None,
+        ))?;
         Ok(cache_path)
     }
 
     // Helper function to register a file as a resource
     fn register_as_resource(&self, cache_path: &PathBuf, mime_type: &str) -> Result<(), ErrorData> {
         let uri = Url::from_file_path(cache_path)
-            .map_err(|_| ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: Cow::from("Invalid cache path"),
-                data: None,
-            })?
+            .map_err(|_| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Invalid cache path".to_string(),
+                None,
+            ))?
             .to_string();
 
         let mut resource = RawResource::new(uri.clone(), cache_path.to_string_lossy().into_owned());
@@ -607,11 +696,11 @@ impl ComputerControllerRouter {
         let url = params
             .get("url")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'url' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'url' parameter".to_string(),
+                None,
+            ))?;
 
         let save_as = params
             .get("save_as")
@@ -624,62 +713,62 @@ impl ComputerControllerRouter {
             .get(url)
             .send()
             .await
-            .map_err(|e| ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: Cow::from(format!("Failed to fetch URL: {}", e)),
-                data: None,
-            })?;
+            .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to fetch URL: {}", e),
+                None,
+            ))?;
 
         let status = response.status();
         if !status.is_success() {
-            return Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: Cow::from(format!("HTTP request failed with status: {}", status)),
-                data: None,
-            });
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("HTTP request failed with status: {}", status),
+                None,
+            ));
         }
 
         // Process based on save_as parameter
         let (content, extension) = match save_as {
             "text" => {
-                let text = response.text().await.map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to get text: {}", e)),
-                    data: None,
-                })?;
+                let text = response.text().await.map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to get text: {}", e),
+                None,
+            ))?;
                 (text.into_bytes(), "txt")
             }
             "json" => {
-                let text = response.text().await.map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to get text: {}", e)),
-                    data: None,
-                })?;
+                let text = response.text().await.map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to get text: {}", e),
+                None,
+            ))?;
                 // Verify it's valid JSON
-                serde_json::from_str::<Value>(&text).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Invalid JSON response: {}", e)),
-                    data: None,
-                })?;
+                serde_json::from_str::<Value>(&text).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Invalid JSON response: {}", e),
+                None,
+            ))?;
                 (text.into_bytes(), "json")
             }
             "binary" => {
-                let bytes = response.bytes().await.map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to get bytes: {}", e)),
-                    data: None,
-                })?;
+                let bytes = response.bytes().await.map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to get bytes: {}", e),
+                None,
+            ))?;
                 (bytes.to_vec(), "bin")
             }
             _ => {
-                return Err(ErrorData {
-                    code: ErrorCode::INVALID_PARAMS,
-                    message: Cow::from(format!(
+                return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
                         "Invalid 'save_as' parameter: {}. Valid options are: 'text', 'json', 'binary'",
                         save_as
-                    )),
-                    data: None,
-                });
+                    ),
+                None,
+            ));
             }
         };
 
@@ -700,20 +789,20 @@ impl ComputerControllerRouter {
         let language = params
             .get("language")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'language' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'language' parameter".to_string(),
+                None,
+            ))?;
 
         let script = params
             .get("script")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'script' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'script' parameter".to_string(),
+                None,
+            ))?;
 
         let save_output = params
             .get("save_output")
@@ -721,11 +810,11 @@ impl ComputerControllerRouter {
             .unwrap_or(false);
 
         // Create a temporary directory for the script
-        let script_dir = tempfile::tempdir().map_err(|e| ErrorData {
-            code: ErrorCode::INTERNAL_ERROR,
-            message: Cow::from(format!("Failed to create temporary directory: {}", e)),
-            data: None,
-        })?;
+        let script_dir = tempfile::tempdir().map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to create temporary directory: {}", e),
+                None,
+            ))?;
 
         let (shell, shell_arg) = self.system_automation.get_shell_command();
 
@@ -735,58 +824,58 @@ impl ComputerControllerRouter {
                     "script.{}",
                     if cfg!(windows) { "bat" } else { "sh" }
                 ));
-                fs::write(&script_path, script).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to write script: {}", e)),
-                    data: None,
-                })?;
+                fs::write(&script_path, script).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to write script: {}", e),
+                None,
+            ))?;
 
                 // Set execute permissions on Unix systems
                 #[cfg(unix)]
                 {
                     let mut perms = fs::metadata(&script_path)
-                        .map_err(|e| ErrorData {
-                            code: ErrorCode::INTERNAL_ERROR,
-                            message: Cow::from(format!("Failed to get file metadata: {}", e)),
-                            data: None,
-                        })?
+                        .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to get file metadata: {}", e),
+                None,
+            ))?
                         .permissions();
                     perms.set_mode(0o755); // rwxr-xr-x
-                    fs::set_permissions(&script_path, perms).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to set execute permissions: {}", e)),
-                        data: None,
-                    })?;
+                    fs::set_permissions(&script_path, perms).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to set execute permissions: {}", e),
+                None,
+            ))?;
                 }
 
                 script_path.display().to_string()
             }
             "ruby" => {
                 let script_path = script_dir.path().join("script.rb");
-                fs::write(&script_path, script).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to write script: {}", e)),
-                    data: None,
-                })?;
+                fs::write(&script_path, script).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to write script: {}", e),
+                None,
+            ))?;
 
                 format!("ruby {}", script_path.display())
             }
             "powershell" => {
                 let script_path = script_dir.path().join("script.ps1");
-                fs::write(&script_path, script).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to write script: {}", e)),
-                    data: None,
-                })?;
+                fs::write(&script_path, script).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to write script: {}", e),
+                None,
+            ))?;
 
                 script_path.display().to_string()
             }
             _ => {
-                return Err(ErrorData {
-                    code: ErrorCode::INVALID_PARAMS,
-                    message: Cow::from(format!("Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell'", language)),
-                    data: None,
-                });
+                return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell'", language),
+                None,
+            ));
             }
         };
 
@@ -802,11 +891,11 @@ impl ComputerControllerRouter {
                     .env("GOOSE_TERMINAL", "1")
                     .output()
                     .await
-                    .map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to run script: {}", e)),
-                        data: None,
-                    })?
+                    .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to run script: {}", e),
+                None,
+            ))?
             }
             _ => Command::new(shell)
                 .arg(shell_arg)
@@ -814,11 +903,11 @@ impl ComputerControllerRouter {
                 .env("GOOSE_TERMINAL", "1")
                 .output()
                 .await
-                .map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to run script: {}", e)),
-                    data: None,
-                })?,
+                .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to run script: {}", e),
+                None,
+            ))?,
         };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -852,11 +941,11 @@ impl ComputerControllerRouter {
         let script = params
             .get("script")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'script' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'script' parameter".to_string(),
+                None,
+            ))?;
 
         let save_output = params
             .get("save_output")
@@ -867,11 +956,11 @@ impl ComputerControllerRouter {
         let output = self
             .system_automation
             .execute_system_script(script)
-            .map_err(|e| ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: Cow::from(format!("Failed to execute script: {}", e)),
-                data: None,
-            })?;
+            .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute script: {}", e),
+                None,
+            ))?;
 
         let mut result = format!("Script completed successfully.\n\nOutput:\n{}", output);
 
@@ -893,240 +982,261 @@ impl ComputerControllerRouter {
         let path = params
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'path' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'path' parameter".to_string(),
+                None,
+            ))?;
 
         let operation = params
             .get("operation")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'operation' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'operation' parameter".to_string(),
+                None,
+            ))?;
 
         match operation {
             "list_worksheets" => {
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
-                let worksheets = xlsx.list_worksheets().map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
+                let worksheets = xlsx.list_worksheets().map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!("{:#?}", worksheets))])
             }
             "get_columns" => {
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
                 {
-                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 } else {
-                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 };
-                let columns = xlsx.get_column_names(worksheet).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let columns = xlsx.get_column_names(worksheet).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!("{:#?}", columns))])
             }
             "get_range" => {
                 let range = params
                     .get("range")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'range' parameter"),
-                        data: None,
-                    })?;
+                    .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'range' parameter".to_string(),
+                None,
+            ))?;
 
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
                 {
-                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 } else {
-                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 };
-                let range_data = xlsx.get_range(worksheet, range).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let range_data = xlsx.get_range(worksheet, range).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!("{:#?}", range_data))])
             }
             "find_text" => {
                 let search_text = params
                     .get("search_text")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'search_text' parameter"),
-                        data: None,
-                    })?;
+                    .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'search_text' parameter".to_string(),
+                None,
+            ))?;
 
                 let case_sensitive = params
                     .get("case_sensitive")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
                 {
-                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 } else {
-                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 };
                 let matches = xlsx
                     .find_in_worksheet(worksheet, search_text, case_sensitive)
-                    .map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?;
+                    .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!(
                     "Found matches at: {:#?}",
                     matches
                 ))])
             }
             "update_cell" => {
-                let row = require_u64_parameter(&params, "row")?;
-                let col = require_u64_parameter(&params, "col")?;
-                let value = require_str_parameter(&params, "value")?;
+                let row = params
+                    .get("row")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Missing 'row' parameter".to_string(),
+                        None,
+                    ))?;
+                let col = params
+                    .get("col")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Missing 'col' parameter".to_string(),
+                        None,
+                    ))?;
+                let value = params
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Missing 'value' parameter".to_string(),
+                        None,
+                    ))?;
 
                 let worksheet_name = params
                     .get("worksheet")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Sheet1");
 
-                let mut xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let mut xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 xlsx.update_cell(worksheet_name, row as u32, col as u32, value)
-                    .map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?;
-                xlsx.save(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                    .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
+                xlsx.save(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!(
                     "Updated cell ({}, {}) to '{}' in worksheet '{}'",
                     row, col, value, worksheet_name
                 ))])
             }
             "save" => {
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
-                xlsx.save(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
+                xlsx.save(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text("File saved successfully.")])
             }
             "get_cell" => {
                 let row = params
                     .get("row")
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'row' parameter"),
-                        data: None,
-                    })?;
+                    .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'row' parameter".to_string(),
+                None,
+            ))?;
 
                 let col = params
                     .get("col")
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'col' parameter"),
-                        data: None,
-                    })?;
+                    .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'col' parameter".to_string(),
+                None,
+            ))?;
 
-                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(e.to_string()),
-                    data: None,
-                })?;
+                let xlsx = xlsx_tool::XlsxTool::new(path).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
                 {
-                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_name(name).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 } else {
-                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?
+                    xlsx.get_worksheet_by_index(0).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?
                 };
                 let cell_value = xlsx
                     .get_cell_value(worksheet, row as u32, col as u32)
-                    .map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(e.to_string()),
-                        data: None,
-                    })?;
+                    .map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                e.to_string(),
+                None,
+            ))?;
                 Ok(vec![Content::text(format!("{:#?}", cell_value))])
             }
-            _ => Err(ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from(format!("Invalid operation: {}", operation)),
-                data: None,
-            }),
+            _ => Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid operation: {}", operation),
+                None,
+            )),
         }
     }
 
@@ -1135,20 +1245,20 @@ impl ComputerControllerRouter {
         let path = params
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'path' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'path' parameter".to_string(),
+                None,
+            ))?;
 
         let operation = params
             .get("operation")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'operation' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'operation' parameter".to_string(),
+                None,
+            ))?;
 
         crate::computercontroller::docx_tool::docx_tool(
             path,
@@ -1163,20 +1273,20 @@ impl ComputerControllerRouter {
         let path = params
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'path' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'path' parameter".to_string(),
+                None,
+            ))?;
 
         let operation = params
             .get("operation")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'operation' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'operation' parameter".to_string(),
+                None,
+            ))?;
 
         crate::computercontroller::pdf_tool::pdf_tool(path, operation, &self.cache_dir).await
     }
@@ -1185,25 +1295,25 @@ impl ComputerControllerRouter {
         let command = params
             .get("command")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from("Missing 'command' parameter"),
-                data: None,
-            })?;
+            .ok_or_else(|| ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'command' parameter".to_string(),
+                None,
+            ))?;
 
         match command {
             "list" => {
                 let mut files = Vec::new();
-                for entry in fs::read_dir(&self.cache_dir).map_err(|e| ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: Cow::from(format!("Failed to read cache directory: {}", e)),
-                    data: None,
-                })? {
-                    let entry = entry.map_err(|e| ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to read directory entry: {}", e)),
-                        data: None,
-                    })?;
+                for entry in fs::read_dir(&self.cache_dir).map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read cache directory: {}", e),
+                None,
+            ))? {
+                    let entry = entry.map_err(|e| ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read directory entry: {}", e),
+                None,
+            ))?;
                     files.push(format!("{}", entry.path().display()));
                 }
                 files.sort();
@@ -1214,18 +1324,18 @@ impl ComputerControllerRouter {
             }
             "view" => {
                 let path = params.get("path").and_then(|v| v.as_str()).ok_or_else(|| 
-                    ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'path' parameter for view"),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'path' parameter for view".to_string(),
+                None,
+            ))?;
 
                 let content = fs::read_to_string(path).map_err(|e|
-                    ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to read file: {}", e)),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read file: {}", e),
+                None,
+            ))?;
 
                 Ok(vec![Content::text(format!(
                     "Content of {}:\n\n{}",
@@ -1234,18 +1344,18 @@ impl ComputerControllerRouter {
             }
             "delete" => {
                 let path = params.get("path").and_then(|v| v.as_str()).ok_or_else(|| 
-                    ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from("Missing 'path' parameter for delete"),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'path' parameter for delete".to_string(),
+                None,
+            ))?;
 
                 fs::remove_file(path).map_err(|e|
-                    ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to delete file: {}", e)),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to delete file: {}", e),
+                None,
+            ))?;
 
                 // Remove from active resources if present
                 if let Ok(url) = Url::from_file_path(path) {
@@ -1259,146 +1369,48 @@ impl ComputerControllerRouter {
             }
             "clear" => {
                 fs::remove_dir_all(&self.cache_dir).map_err(|e|
-                    ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to clear cache directory: {}", e)),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to clear cache directory: {}", e),
+                None,
+            ))?;
                 fs::create_dir_all(&self.cache_dir).map_err(|e|
-                    ErrorData {
-                        code: ErrorCode::INTERNAL_ERROR,
-                        message: Cow::from(format!("Failed to recreate cache directory: {}", e)),
-                        data: None,
-                    })?;
+                    ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to recreate cache directory: {}", e),
+                None,
+            ))?;
 
                 // Clear active resources
                 self.active_resources.lock().unwrap().clear();
 
                 Ok(vec![Content::text("Cache cleared successfully.")])
             }
-            _ => Err(ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from(format!(
+            _ => Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
                 "Invalid 'command' parameter: {}. Valid options are: 'list', 'view', 'delete', 'clear'",
-                command)),
-                data: None,
-            }),
+                command),
+                None,
+            )),
         }
     }
 }
 
-impl Router for ComputerControllerRouter {
-    fn name(&self) -> String {
-        "ComputerControllerExtension".to_string()
-    }
-
-    fn instructions(&self) -> String {
-        self.instructions.clone()
-    }
-
-    fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new()
-            .with_tools(false)
-            .with_resources(false, false)
-            .build()
-    }
-
-    fn list_tools(&self) -> Vec<Tool> {
-        self.tools.clone()
-    }
-
-    fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Value,
-        _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
-        let this = self.clone();
-        let tool_name = tool_name.to_string();
-        Box::pin(async move {
-            match tool_name.as_str() {
-                "web_scrape" => this.web_scrape(arguments).await,
-                "automation_script" => this.quick_script(arguments).await,
-                "computer_control" => this.computer_control(arguments).await,
-                "cache" => this.cache(arguments).await,
-                "pdf_tool" => this.pdf_tool(arguments).await,
-                "docx_tool" => this.docx_tool(arguments).await,
-                "xlsx_tool" => this.xlsx_tool(arguments).await,
-                _ => Err(ErrorData {
-                    code: ErrorCode::INVALID_REQUEST,
-                    message: Cow::from(format!("Tool {} not found", tool_name)),
-                    data: None,
-                }),
-            }
-        })
-    }
-
-    fn list_resources(&self) -> Vec<Resource> {
-        let active_resources = self.active_resources.lock().unwrap();
-        let resources = active_resources.values().cloned().collect();
-        tracing::info!("Listing resources: {:?}", resources);
-        resources
-    }
-
-    fn read_resource(
-        &self,
-        uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        let uri = uri.to_string();
-        let this = self.clone();
-
-        Box::pin(async move {
-            let active_resources = this.active_resources.lock().unwrap();
-            let resource = active_resources
-                .get(&uri)
-                .ok_or_else(|| ResourceError::NotFound(format!("Resource not found: {}", uri)))?
-                .clone();
-
-            let url = Url::parse(&uri)
-                .map_err(|e| ResourceError::NotFound(format!("Invalid URI: {}", e)))?;
-
-            if url.scheme() != "file" {
-                return Err(ResourceError::NotFound(
-                    "Only file:// URIs are supported".into(),
-                ));
-            }
-
-            let path = url
-                .to_file_path()
-                .map_err(|_| ResourceError::NotFound("Invalid file path in URI".into()))?;
-
-            match resource.raw.mime_type.as_deref() {
-                Some("text") | Some("json") | None => fs::read_to_string(&path).map_err(|e| {
-                    ResourceError::ExecutionError(format!("Failed to read file: {}", e))
-                }),
-                Some("binary") => {
-                    let bytes = fs::read(&path).map_err(|e| {
-                        ResourceError::ExecutionError(format!("Failed to read file: {}", e))
-                    })?;
-                    Ok(base64::prelude::BASE64_STANDARD.encode(bytes))
-                }
-                Some(mime_type) => Err(ResourceError::NotFound(format!(
-                    "Unsupported mime type: {}",
-                    mime_type
-                ))),
-            }
-        })
-    }
-
-    fn list_prompts(&self) -> Vec<Prompt> {
-        vec![]
-    }
-
-    fn get_prompt(
-        &self,
-        prompt_name: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
-        let prompt_name = prompt_name.to_string();
-        Box::pin(async move {
-            Err(PromptError::NotFound(format!(
-                "Prompt {} not found",
-                prompt_name
-            )))
-        })
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for ComputerControllerRouter {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            server_info: Implementation {
+                name: "goose-computercontroller".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            capabilities: ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+            instructions: Some(self.instructions.clone()),
+            ..Default::default()
+        }
     }
 }
