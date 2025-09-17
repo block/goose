@@ -3,7 +3,6 @@ use axum::{extract::Query, routing::get, Router};
 use goose::config::Config;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::process::Command;
 use std::time::Duration;
@@ -102,13 +101,14 @@ pub async fn login() -> Result<()> {
 
     // Start server with shutdown when we get the code or timeout
     let listener = tokio::net::TcpListener::bind(listen_addr).await?;
-    let server = axum::serve(listener, app);
 
     // Open browser
     let _ = webbrowser::open(auth_url.as_str());
 
-    // Wait for callback (up to 60s)
-    let server_task = tokio::spawn(server);
+    // Start server as a background task and wait for callback (up to 60s)
+    let server_task = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
     let result = timeout(Duration::from_secs(60), rx).await;
 
     // Stop server

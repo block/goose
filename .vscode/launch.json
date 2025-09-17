@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Jxs Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/hgs.exe",
+            "args": [
+                //"no_launcher"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/hgs",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "build hgs"
+        }
+    ]
+}
