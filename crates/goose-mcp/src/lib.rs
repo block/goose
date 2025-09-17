@@ -16,5 +16,5 @@ pub mod tutorial;
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerRouter;
 pub use developer::rmcp_developer::DeveloperServer;
-pub use memory::MemoryRouter;
+pub use memory::MemoryServer;
 pub use tutorial::TutorialServer;

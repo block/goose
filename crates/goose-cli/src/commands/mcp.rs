@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryRouter, TutorialServer,
+    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryServer, TutorialServer,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -65,10 +65,27 @@ pub async fn run_server(name: &str) -> Result<()> {
         return Ok(());
     }
 
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    // Handle old MCP-based servers
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+        service.waiting().await?;
+        return Ok(());
+    }
+
     // Handle old MCP-based servers
     let router: Option<Box<dyn BoundedService>> = match name {
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
         _ => None,
     };
 
