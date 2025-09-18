@@ -23,7 +23,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { startGoosed } from './goosed';
+import { checkServerStatus, startGoosed } from './goosed';
 import { expandTilde, getBinaryPath } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
@@ -52,6 +52,7 @@ import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { decodeRecipe } from './api/sdk.gen';
+import { client } from './api/client.gen';
 
 async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
   try {
@@ -706,7 +707,7 @@ const createChat = async (
   // Goose's react app uses HashRouter, so the path + search params follow a #/
   url.hash = `${appPath}?${searchParams.toString()}`;
   let formattedUrl = formatUrl(url);
-  console.log('Opening URL: ', formattedUrl);
+  log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
   // Set up local keyboard shortcuts that only work when the window is focused
@@ -1025,18 +1026,18 @@ process.on('unhandledRejection', (error) => {
 });
 
 ipcMain.on('react-ready', () => {
-  console.log('React ready event received');
+  log.info('React ready event received');
 
   if (pendingDeepLink) {
-    console.log('Processing pending deep link:', pendingDeepLink);
+    log.info('Processing pending deep link:', pendingDeepLink);
     handleProtocolUrl(pendingDeepLink);
   } else {
-    console.log('No pending deep link to process');
+    log.info('No pending deep link to process');
   }
 
   // We don't need to handle pending deep links here anymore
   // since we're handling them in the window creation flow
-  console.log('[main] React ready - window is prepared for deep links');
+  log.info('React ready - window is prepared for deep links');
 });
 
 // Handle external URL opening
@@ -1067,6 +1068,11 @@ ipcMain.handle('get-settings', () => {
 
 ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
+});
+
+ipcMain.handle('get-goosed-host-port', async () => {
+  await checkServerStatus();
+  return client.getConfig().baseUrl || null;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {

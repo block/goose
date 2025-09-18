@@ -28,7 +28,7 @@ export const findAvailablePort = (): Promise<number> => {
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (): Promise<boolean> => {
+export const checkServerStatus = async (): Promise<boolean> => {
   const interval = 100;
   const maxAttempts = 200;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -260,10 +260,6 @@ export const startGoosed = async (
     },
   });
 
-  // Wait for the server to be ready
-  const isReady = await checkServerStatus();
-  log.info(`Goosed isReady ${isReady}`);
-
   const try_kill_goose = () => {
     try {
       if (isWindows) {
@@ -277,14 +273,7 @@ export const startGoosed = async (
     }
   };
 
-  if (!isReady) {
-    log.error(`Goosed server failed to start on port ${port}`);
-    try_kill_goose();
-    throw new Error(`Goosed server failed to start on port ${port}`);
-  }
-
   // Ensure goosed is terminated when the app quits
-  // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
     try_kill_goose();
