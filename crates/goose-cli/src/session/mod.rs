@@ -49,8 +49,6 @@ use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
 
-/// Extract finding ID from security message
-
 pub enum RunMode {
     Normal,
     Plan,
