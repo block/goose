@@ -35,7 +35,6 @@ pub trait ToolInspector: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Inspect tool requests and return results
-    /// Changed to take &self instead of &mut self to make it thread-safe
     async fn inspect(
         &self,
         tool_requests: &[ToolRequest],

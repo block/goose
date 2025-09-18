@@ -43,7 +43,6 @@ impl PromptInjectionScanner {
     ) -> Result<ScanResult> {
         // For Phase 1, focus on tool call content analysis
         // Phase 2 will add conversation context analysis
-
         let tool_content = self.extract_tool_content(tool_call);
         self.scan_for_dangerous_patterns(&tool_content).await
     }

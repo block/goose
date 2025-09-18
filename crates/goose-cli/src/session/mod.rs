@@ -49,6 +49,8 @@ use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
 
+/// Extract finding ID from security message
+
 pub enum RunMode {
     Normal,
     Plan,
@@ -982,26 +984,11 @@ impl Session {
 
                                 // Log user decision if this was a security alert
                                 if confirmation.prompt.is_some() {
-                                    // Extract finding ID from security message if present
-                                    let finding_id = confirmation.prompt.as_ref()
-                                        .and_then(|msg| {
-                                            // Look for "Finding ID: " pattern in the security message
-                                            msg.lines()
-                                                .find(|line| line.trim().starts_with("Finding ID:"))
-                                                .and_then(|line| line.split(':').nth(1))
-                                                .map(|id| id.trim().to_string())
-                                        });
-
-                                    if let Some(finding_id) = finding_id {
+                                    if let Some(finding_id) = self.agent.get_security_finding_id(&confirmation.id).await {
                                         tracing::info!(
                                             "🔒 User security decision: {:?} for finding ID: {}",
                                             permission,
                                             finding_id
-                                        );
-                                    } else {
-                                        tracing::info!(
-                                            "🔒 User security decision: {:?} (no finding ID found)",
-                                            permission
                                         );
                                     }
                                 }

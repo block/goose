@@ -2,36 +2,24 @@ import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
 import { useConfig } from '../../ConfigContext';
 
-interface SecuritySettings {
-  enabled: boolean;
-  threshold: number;
-}
-
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  // Initialize settings with defaults
-  const [settings, setSettings] = useState<SecuritySettings>({
-    enabled: false,
-    threshold: 0.7,
-  });
+  // Derive enabled directly from config
+  const configRecord = config as Record<string, unknown>;
+  const enabled = (configRecord?.['security_enabled'] as boolean) ?? false;
+  const configThreshold = (configRecord?.['security_threshold'] as number) ?? 0.7;
 
+  // Keep local state only for threshold input to handle typing
+  const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
+
+  // Sync local threshold input with config changes
   useEffect(() => {
-    // Load security settings from config when config changes
-    if (config) {
-      const configRecord = config as Record<string, unknown>;
-
-      const enabled = (configRecord['security_enabled'] as boolean) ?? false;
-      const threshold = (configRecord['security_threshold'] as number) ?? 0.7;
-
-      setSettings({ enabled, threshold });
-    }
-  }, [config]);
+    setThresholdInput(configThreshold.toString());
+  }, [configThreshold]);
 
   const handleToggle = async (enabled: boolean) => {
     console.log('Security toggle changed to:', enabled);
-    const newSettings = { ...settings, enabled };
-    setSettings(newSettings);
 
     try {
       // Update the config
@@ -43,9 +31,6 @@ export const SecurityToggle = () => {
   };
 
   const handleThresholdChange = async (threshold: number) => {
-    const newSettings = { ...settings, threshold };
-    setSettings(newSettings);
-
     // Update the config
     await upsert('security_threshold', threshold, false);
   };
@@ -60,21 +45,19 @@ export const SecurityToggle = () => {
           </p>
         </div>
         <div className="flex items-center">
-          <Switch checked={settings.enabled} onCheckedChange={handleToggle} variant="mono" />
+          <Switch checked={enabled} onCheckedChange={handleToggle} variant="mono" />
         </div>
       </div>
 
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          settings.enabled ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          enabled ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
         <div className="space-y-3 px-2 pb-2">
-          <div className={settings.enabled ? '' : 'opacity-50'}>
+          <div className={enabled ? '' : 'opacity-50'}>
             <label
-              className={`text-sm font-medium ${
-                settings.enabled ? 'text-text-default' : 'text-text-muted'
-              }`}
+              className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
             >
               Detection Threshold
             </label>
@@ -86,16 +69,10 @@ export const SecurityToggle = () => {
               min={0.01}
               max={1.0}
               step={0.01}
-              value={settings.threshold}
+              value={thresholdInput}
               onChange={(e) => {
-                // Allow any input during typing, update local state immediately
-                const value = parseFloat(e.target.value);
-                if (!isNaN(value)) {
-                  setSettings((prev) => ({ ...prev, threshold: value }));
-                } else if (e.target.value === '') {
-                  // Allow empty field during editing
-                  setSettings((prev) => ({ ...prev, threshold: 0 }));
-                }
+                // Update local input state immediately for responsive typing
+                setThresholdInput(e.target.value);
               }}
               onBlur={(e) => {
                 // Validate and save to config on blur
@@ -105,12 +82,13 @@ export const SecurityToggle = () => {
                 } else if (value > 1.0) {
                   value = 1.0;
                 }
-                setSettings((prev) => ({ ...prev, threshold: value }));
+                // Update both local state and config
+                setThresholdInput(value.toString());
                 handleThresholdChange(value);
               }}
-              disabled={!settings.enabled}
+              disabled={!enabled}
               className={`w-24 px-2 py-1 text-sm border rounded ${
-                settings.enabled
+                enabled
                   ? 'border-border-default bg-background-default text-text-default'
                   : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
               }`}
