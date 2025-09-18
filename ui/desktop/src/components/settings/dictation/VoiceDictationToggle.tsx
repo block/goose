@@ -66,18 +66,13 @@ export const VoiceDictationToggle = () => {
         </div>
       </div>
 
-      <div 
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          settings.enabled 
-            ? 'max-h-96 opacity-100 mt-2' 
-            : 'max-h-0 opacity-0 mt-0'
+      <div
+        className={`overflow-visible transition-all duration-300 ease-in-out ${
+          settings.enabled ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
         }`}
       >
         <div className="space-y-3 pb-2">
-          <ProviderSelector 
-            settings={settings}
-            onProviderChange={handleProviderChange}
-          />
+          <ProviderSelector settings={settings} onProviderChange={handleProviderChange} />
         </div>
       </div>
     </div>
