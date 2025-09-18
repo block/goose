@@ -10,8 +10,6 @@ use scanner::PromptInjectionScanner;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-/// Simple security manager for the POC
-/// Focuses on tool call analysis with conversation context
 pub struct SecurityManager {
     scanner: OnceLock<PromptInjectionScanner>,
 }
@@ -33,7 +31,7 @@ impl SecurityManager {
         }
     }
 
-    /// Check if security is enabled - reads fresh from config each time
+    /// Check if security is enabled
     pub fn is_enabled(&self) -> bool {
         use crate::config::Config;
         let config = Config::global();
@@ -41,8 +39,6 @@ impl SecurityManager {
         let result = config
             .get_param::<bool>("security_enabled")
             .unwrap_or(false);
-
-        tracing::debug!(enabled = result, "Security configuration check completed");
 
         result
     }
@@ -73,7 +69,7 @@ impl SecurityManager {
             messages.len()
         );
 
-        // Analyze each tool request for security threats
+        // Analyze each tool request
         for (i, tool_request) in tool_requests.iter().enumerate() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(

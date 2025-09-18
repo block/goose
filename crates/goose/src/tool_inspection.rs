@@ -176,12 +176,9 @@ impl ToolInspectionManager {
         None
     }
 
-    /// Get security finding ID for a tool request ID from any inspector that provides it
     pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
-        // Check all inspectors for finding IDs, prioritizing security inspector
         for inspector in &self.inspectors {
             if inspector.name() == "security" {
-                // Downcast to SecurityInspector to access the get_security_finding_id method
                 if let Some(security_inspector) =
                     inspector
                         .as_any()
@@ -192,7 +189,6 @@ impl ToolInspectionManager {
             }
         }
 
-        // Could extend this to check other inspectors that might provide finding IDs in the future
         None
     }
 }

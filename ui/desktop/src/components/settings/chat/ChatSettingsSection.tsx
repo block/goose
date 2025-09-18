@@ -20,6 +20,12 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
+        <CardContent className="px-2">
+          <SecuritySection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Response Styles</CardTitle>
           <CardDescription>Choose how Goose should format and style its responses</CardDescription>
@@ -32,12 +38,6 @@ export default function ChatSettingsSection() {
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />
-        </CardContent>
-      </Card>
-
-      <Card className="pb-2 rounded-lg">
-        <CardContent className="px-2">
-          <SecuritySection />
         </CardContent>
       </Card>
 

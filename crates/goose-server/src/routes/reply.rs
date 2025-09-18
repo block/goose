@@ -462,14 +462,6 @@ pub async fn confirm_permission(
         _ => Permission::DenyOnce,
     };
 
-    // Log all permission confirmations for debugging
-    tracing::info!(
-        "Permission confirmation received - ID: {}, action: {}, principal_type: {:?}",
-        request.id,
-        request.action,
-        request.principal_type
-    );
-
     if let Some(finding_id) = agent.get_security_finding_id(&request.id).await {
         tracing::info!(
             "🔒 User security decision: {} for finding ID: {}",

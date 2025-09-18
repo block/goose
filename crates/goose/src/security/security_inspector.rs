@@ -25,7 +25,6 @@ impl SecurityInspector {
     }
 
     /// Get security finding ID for a tool request ID
-    /// This method is used by the server to include finding IDs in security decision logs
     pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
         self.security_context.get_finding_id(request_id).await
     }
@@ -87,8 +86,8 @@ impl ToolInspector for SecurityInspector {
         for security_result in &security_results {
             self.security_context
                 .store_finding_id(
-                    security_result.tool_request_id.clone(),
-                    security_result.finding_id.clone(),
+                    &security_result.tool_request_id,
+                    &security_result.finding_id,
                 )
                 .await;
         }

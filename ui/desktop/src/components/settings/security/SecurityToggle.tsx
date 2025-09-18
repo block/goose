@@ -5,7 +5,6 @@ import { useConfig } from '../../ConfigContext';
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  // Derive enabled directly from config
   const configRecord = config as Record<string, unknown>;
   const enabled = (configRecord?.['security_enabled'] as boolean) ?? false;
   const configThreshold = (configRecord?.['security_threshold'] as number) ?? 0.7;
