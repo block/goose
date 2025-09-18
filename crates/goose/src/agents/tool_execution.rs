@@ -97,8 +97,6 @@ impl Agent {
                                 // Update the shared permission manager when user selects "Always Allow"
                                 if confirmation.permission == Permission::AlwaysAllow {
                                     self.tool_inspection_manager
-                                        .lock()
-                                        .await
                                         .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
                                         .await;
                                 }

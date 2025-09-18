@@ -274,21 +274,6 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path: {}", e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
         let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
@@ -469,6 +454,7 @@ pub async fn confirm_permission(
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let agent = state.get_agent().await;
+
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -484,22 +470,10 @@ pub async fn confirm_permission(
         request.principal_type
     );
 
-    // Log user security decision if this is for a security alert
-    let decision = match permission {
-        Permission::AllowOnce => "allow",
-        Permission::DenyOnce => "deny",
-        Permission::Cancel => "cancel",
-        // Note: AlwaysAllow should never occur for security findings
-        // since the UI excludes this option when security message is present
-        Permission::AlwaysAllow => {
-            unreachable!("AlwaysAllow should not be available for security findings")
-        }
-    };
-
     if let Some(finding_id) = agent.get_security_finding_id(&request.id).await {
         tracing::info!(
             "🔒 User security decision: {} for finding ID: {}",
-            decision,
+            request.action,
             finding_id
         );
     }

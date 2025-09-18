@@ -35,8 +35,9 @@ pub trait ToolInspector: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Inspect tool requests and return results
+    /// Changed to take &self instead of &mut self to make it thread-safe
     async fn inspect(
-        &mut self,
+        &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>>;
@@ -70,13 +71,13 @@ impl ToolInspectionManager {
 
     /// Run all inspectors on the tool requests
     pub async fn inspect_tools(
-        &mut self,
+        &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>> {
         let mut all_results = Vec::new();
 
-        for inspector in &mut self.inspectors {
+        for inspector in &self.inspectors {
             if !inspector.is_enabled() {
                 continue;
             }
@@ -181,16 +182,13 @@ impl ToolInspectionManager {
         // Check all inspectors for finding IDs, prioritizing security inspector
         for inspector in &self.inspectors {
             if inspector.name() == "security" {
-                // Downcast to SecurityInspector to access the security context
+                // Downcast to SecurityInspector to access the get_security_finding_id method
                 if let Some(security_inspector) =
                     inspector
                         .as_any()
                         .downcast_ref::<crate::security::security_inspector::SecurityInspector>()
                 {
-                    return security_inspector
-                        .get_security_context()
-                        .get_finding_id(request_id)
-                        .await;
+                    return security_inspector.get_security_finding_id(request_id).await;
                 }
             }
         }
@@ -313,7 +311,7 @@ mod tests {
         }
 
         async fn inspect(
-            &mut self,
+            &self,
             _tool_requests: &[ToolRequest],
             _messages: &[Message],
         ) -> Result<Vec<InspectionResult>> {

@@ -24,6 +24,12 @@ impl SecurityInspector {
         &self.security_context
     }
 
+    /// Get security finding ID for a tool request ID
+    /// This method is used by the server to include finding IDs in security decision logs
+    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
+        self.security_context.get_finding_id(request_id).await
+    }
+
     /// Convert SecurityResult to InspectionResult
     fn convert_security_result(
         &self,
@@ -68,7 +74,7 @@ impl ToolInspector for SecurityInspector {
     }
 
     async fn inspect(
-        &mut self,
+        &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>> {
@@ -103,8 +109,11 @@ impl ToolInspector for SecurityInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        // Always read fresh from config to pick up changes
-        self.security_manager.is_enabled()
+        use crate::config::Config;
+        let config = Config::global();
+        config
+            .get_param::<bool>("security_enabled")
+            .unwrap_or(false)
     }
 }
 
@@ -123,7 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_security_inspector() {
-        let mut inspector = SecurityInspector::new();
+        let inspector = SecurityInspector::new();
 
         // Test with a potentially dangerous tool call
         let tool_requests = vec![ToolRequest {

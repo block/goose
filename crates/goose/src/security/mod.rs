@@ -9,13 +9,13 @@ use anyhow::Result;
 use scanner::PromptInjectionScanner;
 use std::collections::{hash_map::DefaultHasher, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use uuid::Uuid;
 
 /// Simple security manager for the POC
 /// Focuses on tool call analysis with conversation context
 pub struct SecurityManager {
-    scanner: Option<PromptInjectionScanner>,
+    scanner: OnceLock<PromptInjectionScanner>,
     flagged_findings: Arc<Mutex<HashSet<String>>>,
 }
 
@@ -32,46 +32,28 @@ pub struct SecurityResult {
 impl SecurityManager {
     pub fn new() -> Self {
         Self {
-            scanner: None, // Initialize lazily
+            scanner: OnceLock::new(),
             flagged_findings: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
     /// Check if security is enabled - reads fresh from config each time
     pub fn is_enabled(&self) -> bool {
-        Self::should_enable_security()
-    }
-
-    /// Check if security should be enabled based on config
-    fn should_enable_security() -> bool {
-        // Check config file for security settings
         use crate::config::Config;
         let config = Config::global();
 
-        // Try to read the nested security config first
-        if let Ok(security_config) = config.get_param::<serde_json::Value>("security") {
-            if let Some(enabled) = security_config.get("enabled").and_then(|v| v.as_bool()) {
-                return enabled;
-            }
-        }
-
-        // Fall back to dot notation (security.enabled)
         let result = config
-            .get_param::<bool>("security.enabled")
+            .get_param::<bool>("security_enabled")
             .unwrap_or(false);
 
-        tracing::debug!(
-            security_config = ?config.get_param::<serde_json::Value>("security"),
-            enabled = result,
-            "Security configuration check completed"
-        );
+        tracing::debug!(enabled = result, "Security configuration check completed");
 
         result
     }
 
     /// New method for tool inspection framework - works directly with tool requests
     pub async fn analyze_tool_requests(
-        &mut self,
+        &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
@@ -82,14 +64,10 @@ impl SecurityManager {
         }
 
         // Initialize scanner if needed
-        if self.scanner.is_none() {
+        let scanner = self.scanner.get_or_init(|| {
             tracing::info!("Security scanner initialized and enabled");
-            self.scanner = Some(PromptInjectionScanner::new());
-        }
-
-        let Some(scanner) = &self.scanner else {
-            return Ok(vec![]);
-        };
+            PromptInjectionScanner::new()
+        });
 
         let mut results = Vec::new();
 

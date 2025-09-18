@@ -18,26 +18,13 @@ export const SecurityToggle = () => {
 
   useEffect(() => {
     // Load security settings from config when config changes
-    if (config && 'security' in config && config.security) {
-      const securityConfig = config.security as { enabled?: boolean; threshold?: number };
-      setSettings({
-        enabled: securityConfig.enabled ?? false, // Use nullish coalescing to handle undefined properly
-        threshold: securityConfig.threshold ?? 0.7,
-      });
-    } else if (config) {
-      // Config exists but no security section - check if security.enabled is set via dot notation
-      // This handles the case where the config might have security.enabled but not a nested security object
+    if (config) {
       const configRecord = config as Record<string, unknown>;
-      const dotNotationEnabled = configRecord['security.enabled'] as boolean | undefined;
-      const dotNotationThreshold = configRecord['security.threshold'] as number | undefined;
 
-      if (dotNotationEnabled !== undefined || dotNotationThreshold !== undefined) {
-        setSettings({
-          enabled: dotNotationEnabled ?? false,
-          threshold: dotNotationThreshold ?? 0.7,
-        });
-      }
-      // If no security config at all, keep the initialized defaults (enabled: false, threshold: 0.7)
+      const enabled = (configRecord['security_enabled'] as boolean) ?? false;
+      const threshold = (configRecord['security_threshold'] as number) ?? 0.7;
+
+      setSettings({ enabled, threshold });
     }
   }, [config]);
 
@@ -48,7 +35,7 @@ export const SecurityToggle = () => {
 
     try {
       // Update the config
-      await upsert('security.enabled', enabled, false);
+      await upsert('security_enabled', enabled, false);
       console.log('Security config updated successfully');
     } catch (error) {
       console.error('Failed to update security config:', error);
@@ -60,7 +47,7 @@ export const SecurityToggle = () => {
     setSettings(newSettings);
 
     // Update the config
-    await upsert('security.threshold', threshold, false);
+    await upsert('security_threshold', threshold, false);
   };
 
   return (

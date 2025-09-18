@@ -15,8 +15,8 @@ export const configLabels: Record<string, string> = {
   GOOSE_RECIPE_GITHUB_REPO: 'Recipe GitHub Repo',
 
   // security settings
-  'security.enabled': 'Security Enabled',
-  'security.threshold': 'Security Threshold',
+  security_enabled: 'Security Enabled',
+  security_threshold: 'Security Threshold',
 
   // openai
   OPENAI_API_KEY: 'OpenAI API Key',

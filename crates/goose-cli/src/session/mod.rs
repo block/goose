@@ -992,25 +992,16 @@ impl Session {
                                                 .map(|id| id.trim().to_string())
                                         });
 
-                                    let decision = match permission {
-                                        Permission::AllowOnce => "allow",
-                                        Permission::DenyOnce => "deny",
-                                        Permission::Cancel => "cancel",
-                                        // Note: AlwaysAllow should never occur for security findings
-                                        // since the UI excludes this option when security message is present
-                                        Permission::AlwaysAllow => unreachable!("AlwaysAllow should not be available for security findings"),
-                                    };
-
                                     if let Some(finding_id) = finding_id {
                                         tracing::info!(
-                                            "🔒 User security decision: {} for finding ID: {}",
-                                            decision,
+                                            "🔒 User security decision: {:?} for finding ID: {}",
+                                            permission,
                                             finding_id
                                         );
                                     } else {
                                         tracing::info!(
-                                            "🔒 User security decision: {} (no finding ID found)",
-                                            decision
+                                            "🔒 User security decision: {:?} (no finding ID found)",
+                                            permission
                                         );
                                     }
                                 }
