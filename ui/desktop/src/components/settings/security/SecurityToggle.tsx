@@ -2,36 +2,38 @@ import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
 import { useConfig } from '../../ConfigContext';
 
+interface SecurityConfig {
+  security_enabled?: boolean;
+  security_threshold?: number;
+}
+
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  const configRecord = config as Record<string, unknown>;
-  const enabled = (configRecord?.['security_enabled'] as boolean) ?? false;
-  const configThreshold = (configRecord?.['security_threshold'] as number) ?? 0.7;
+  const { security_enabled: enabled = false, security_threshold: configThreshold = 0.7 } =
+    (config as SecurityConfig) ?? {};
 
-  // Keep local state only for threshold input to handle typing
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
 
-  // Sync local threshold input with config changes
   useEffect(() => {
     setThresholdInput(configThreshold.toString());
   }, [configThreshold]);
 
   const handleToggle = async (enabled: boolean) => {
-    console.log('Security toggle changed to:', enabled);
-
     try {
-      // Update the config
       await upsert('security_enabled', enabled, false);
-      console.log('Security config updated successfully');
     } catch (error) {
       console.error('Failed to update security config:', error);
     }
   };
 
   const handleThresholdChange = async (threshold: number) => {
-    // Update the config
-    await upsert('security_threshold', threshold, false);
+    const validThreshold = Math.max(0, Math.min(1, threshold));
+    try {
+      await upsert('security_threshold', validThreshold, false);
+    } catch (error) {
+      console.error('Failed to update threshold:', error);
+    }
   };
 
   return (
