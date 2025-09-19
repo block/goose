@@ -1,4 +1,3 @@
-use goose::agents::Agent;
 use goose::execution::manager::AgentManager;
 use goose::execution::{ExecutionMode, SessionId};
 use goose::scheduler_trait::SchedulerTrait;
@@ -9,12 +8,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 
-type AgentRef = Arc<Agent>;
-
 #[derive(Clone)]
 pub struct AppState {
-    // Legacy: single shared agent (will be removed in future)
-    agent: Arc<RwLock<AgentRef>>,
     // New: agent manager for session isolation
     agent_manager: Arc<AgentManager>,
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
@@ -25,21 +20,15 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(agent: AgentRef) -> Arc<AppState> {
+    pub fn new() -> Arc<AppState> {
         let agent_manager = Arc::new(AgentManager::new());
         Arc::new(Self {
-            agent: Arc::new(RwLock::new(agent)),
             agent_manager,
             scheduler: Arc::new(RwLock::new(None)),
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
         })
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_agent(&self) -> AgentRef {
-        self.agent.read().await.clone()
     }
 
     pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
@@ -63,11 +52,6 @@ impl AppState {
         *map = hash_map;
     }
 
-    pub async fn reset(&self) {
-        let mut agent = self.agent.write().await;
-        *agent = Arc::new(Agent::new());
-    }
-
     pub async fn mark_recipe_run_if_absent(&self, session_id: &str) -> bool {
         let mut sessions = self.recipe_session_tracker.lock().await;
         if sessions.contains(session_id) {
@@ -83,7 +67,7 @@ impl AppState {
     pub async fn get_session_agent(
         &self,
         session_id: Option<String>,
-    ) -> Result<AgentRef, anyhow::Error> {
+    ) -> Result<Arc<goose::agents::Agent>, anyhow::Error> {
         let session_id = session_id
             .map(SessionId::from)
             .unwrap_or_else(SessionId::generate);
