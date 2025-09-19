@@ -379,7 +379,12 @@ Ready to start building your own subrecipe workflows? The kitchen is open, and a
 
 ## Share Your Recipes with Us!
 
-Make a [pull request to goose](https://github.com/block/goose) to include your recipe ideas with other goose users! Add them to the `documentation/src/pages/recipes/data/recipes` path in the goose GitHub repo.
+Do you have a recipe you'd like to share with the community? We'd love to feature them in our [Recipe Cookbook](https://block.github.io/goose/recipes/)! 
+**How to contribute:**
+1. [Fork the goose repository](https://github.com/block/goose/fork)
+2. Add your recipe YAML file to the [`documentation/src/pages/recipes/data/recipes/`](https://github.com/block/goose/tree/main/documentation/src/pages/recipes/data/recipes) directory
+3. Create a pull request following our [Recipe Contribution Guide](https://github.com/block/goose/blob/main/CONTRIBUTING_RECIPES.md)
+Browse [existing recipes](https://github.com/block/goose/tree/main/documentation/src/pages/recipes/data/recipes) for inspiration and formatting examples.
 
 
 <head>
