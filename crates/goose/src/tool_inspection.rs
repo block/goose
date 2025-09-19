@@ -175,22 +175,6 @@ impl ToolInspectionManager {
         tracing::warn!("Permission inspector not found for processing inspection results");
         None
     }
-
-    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
-        for inspector in &self.inspectors {
-            if inspector.name() == "security" {
-                if let Some(security_inspector) =
-                    inspector
-                        .as_any()
-                        .downcast_ref::<crate::security::security_inspector::SecurityInspector>()
-                {
-                    return security_inspector.get_security_finding_id(request_id).await;
-                }
-            }
-        }
-
-        None
-    }
 }
 
 impl Default for ToolInspectionManager {
@@ -281,6 +265,19 @@ pub fn apply_inspection_results_to_permissions(
     }
 
     permission_result
+}
+
+/// Helper function to extract security finding ID from inspection results
+pub fn get_security_finding_id_from_results(
+    tool_request_id: &str,
+    inspection_results: &[InspectionResult],
+) -> Option<String> {
+    inspection_results
+        .iter()
+        .find(|result| {
+            result.tool_request_id == tool_request_id && result.inspector_name == "security"
+        })
+        .and_then(|result| result.finding_id.clone())
 }
 
 #[cfg(test)]

@@ -454,21 +454,12 @@ pub async fn confirm_permission(
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let agent = state.get_agent().await;
-
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
         "deny" => Permission::DenyOnce,
         _ => Permission::DenyOnce,
     };
-
-    if let Some(finding_id) = agent.get_security_finding_id(&request.id).await {
-        tracing::info!(
-            "🔒 User security decision: {} for finding ID: {}",
-            request.action,
-            finding_id
-        );
-    }
 
     agent
         .handle_confirmation(

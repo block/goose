@@ -1,4 +1,3 @@
-pub mod context;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
@@ -77,7 +76,7 @@ impl SecurityManager {
                     tool_index = i,
                     tool_request_id = %tool_request.id,
                     tool_args = ?tool_call.arguments,
-                    "🔍 Starting security analysis for tool call"
+                    "🔍 Starting security analysis for current tool call"
                 );
 
                 let analysis_result = scanner
@@ -98,7 +97,7 @@ impl SecurityManager {
                         explanation = %analysis_result.explanation,
                         finding_id = %finding_id,
                         threshold = config_threshold,
-                        "🔒 Tool call flagged as malicious after security analysis (above threshold)"
+                        "🔒 Current tool call flagged as malicious after security analysis (above threshold)"
                     );
 
                     results.push(SecurityResult {
@@ -124,14 +123,14 @@ impl SecurityManager {
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
                         explanation = %analysis_result.explanation,
-                        "✅ Tool call passed security analysis"
+                        "✅ Current tool call passed security analysis"
                     );
                 }
             }
         }
 
         tracing::info!(
-            "🔍 Security analysis complete - found {} security issues",
+            "🔍 Security analysis complete - found {} security issues in current tool requests",
             results.len()
         );
         Ok(results)

@@ -897,12 +897,6 @@ impl Agent {
         }
     }
 
-    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
-        self.tool_inspection_manager
-            .get_security_finding_id(request_id)
-            .await
-    }
-
     /// Handle auto-compaction logic and return compacted messages if needed
     async fn handle_auto_compaction(
         &self,

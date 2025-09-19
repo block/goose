@@ -2,31 +2,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::conversation::message::{Message, ToolRequest};
-use crate::security::{context::SecurityContext, SecurityManager, SecurityResult};
+use crate::security::{SecurityManager, SecurityResult};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 
 /// Security inspector that uses pattern matching to detect malicious tool calls
 pub struct SecurityInspector {
     security_manager: SecurityManager,
-    security_context: SecurityContext,
 }
 
 impl SecurityInspector {
     pub fn new() -> Self {
         Self {
             security_manager: SecurityManager::new(),
-            security_context: SecurityContext::new(),
         }
-    }
-
-    /// Get the security context for accessing finding IDs
-    pub fn get_security_context(&self) -> &SecurityContext {
-        &self.security_context
-    }
-
-    /// Get security finding ID for a tool request ID
-    pub async fn get_security_finding_id(&self, request_id: &str) -> Option<String> {
-        self.security_context.get_finding_id(request_id).await
     }
 
     /// Convert SecurityResult to InspectionResult
@@ -82,23 +70,11 @@ impl ToolInspector for SecurityInspector {
             .analyze_tool_requests(tool_requests, messages)
             .await?;
 
-        // Store security finding IDs in context for later retrieval
-        for security_result in &security_results {
-            self.security_context
-                .store_finding_id(
-                    &security_result.tool_request_id,
-                    &security_result.finding_id,
-                )
-                .await;
-        }
-
         // Convert security results to inspection results
         // The SecurityManager already handles the correlation between tool requests and results
         let inspection_results = security_results
             .into_iter()
             .map(|security_result| {
-                // Extract the tool request ID from the security result's context
-                // The SecurityManager should provide this information
                 let tool_request_id = security_result.tool_request_id.clone();
                 self.convert_security_result(&security_result, tool_request_id)
             })

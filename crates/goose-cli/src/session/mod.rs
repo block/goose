@@ -980,17 +980,6 @@ impl Session {
                                     }
                                 };
 
-                                // Log user decision if this was a security alert
-                                if confirmation.prompt.is_some() {
-                                    if let Some(finding_id) = self.agent.get_security_finding_id(&confirmation.id).await {
-                                        tracing::info!(
-                                            "🔒 User security decision: {:?} for finding ID: {}",
-                                            permission,
-                                            finding_id
-                                        );
-                                    }
-                                }
-
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
 
