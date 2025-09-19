@@ -2,6 +2,7 @@ pub mod agents;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
+pub mod execution;
 pub mod logging;
 pub mod model;
 pub mod oauth;
