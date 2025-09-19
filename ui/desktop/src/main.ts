@@ -25,7 +25,6 @@ import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
 import { expandTilde, getBinaryPath } from './utils/pathUtils';
-import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
@@ -447,46 +446,37 @@ const parseArgs = () => {
   return { dirPath };
 };
 
-const getGooseProvider = () => {
-  loadShellEnv(app.isPackaged);
+interface BundledConfig {
+  defaultProvider?: string;
+  defaultModel?: string;
+  predefinedModels?: string;
+  baseUrlShare?: string;
+  version?: string;
+}
+
+const getBundledConfig = (): BundledConfig => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [
-    process.env.GOOSE_DEFAULT_PROVIDER,
-    process.env.GOOSE_DEFAULT_MODEL,
-    process.env.GOOSE_PREDEFINED_MODELS,
-  ];
+  return {
+    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
+    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
+    predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
+    baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
+    version: process.env.GOOSE_VERSION,
+  };
 };
 
-const getSharingUrl = () => {
-  // checks app env for sharing url
-  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
-  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
-  // to in the env at bundle time
-  return process.env.GOOSE_BASE_URL_SHARE;
-};
-
-const getVersion = () => {
-  // checks app env for sharing url
-  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
-  // to in the env at bundle time
-  return process.env.GOOSE_VERSION;
-};
-
-const [provider, model, predefinedModels] = getGooseProvider();
-
-const sharingUrl = getSharingUrl();
-
-const gooseVersion = getVersion();
+const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
+  getBundledConfig();
 
 const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
   ? 'test'
   : crypto.randomBytes(32).toString('hex');
 
 let appConfig = {
-  GOOSE_DEFAULT_PROVIDER: provider,
-  GOOSE_DEFAULT_MODEL: model,
+  GOOSE_DEFAULT_PROVIDER: defaultProvider,
+  GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
@@ -602,8 +592,8 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
-          GOOSE_BASE_URL_SHARE: sharingUrl,
-          GOOSE_VERSION: gooseVersion,
+          GOOSE_BASE_URL_SHARE: baseUrlShare,
+          GOOSE_VERSION: version,
           recipe: recipe,
         }),
       ],
@@ -1926,7 +1916,7 @@ async function appMain() {
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
-            label: `Version ${gooseVersion || app.getVersion()}`,
+            label: `Version ${version || app.getVersion()}`,
             enabled: false,
           })
         );
