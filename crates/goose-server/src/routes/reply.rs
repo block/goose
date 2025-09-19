@@ -178,9 +178,13 @@ async fn reply_handler(
         "Session started"
     );
 
-    if let (Some(recipe_name), Some(session_id)) =
-        (request.recipe_name.clone(), request.session_id.clone())
-    {
+    // Generate session_id if not provided (backward compatibility)
+    let session_id = request
+        .session_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    if let Some(recipe_name) = request.recipe_name.clone() {
         if state.mark_recipe_run_if_absent(&session_id).await {
             let recipe_version = request
                 .recipe_version
@@ -204,16 +208,26 @@ async fn reply_handler(
 
     let messages = Conversation::new_unvalidated(request.messages);
 
-    let session_id = request.session_id.ok_or_else(|| {
-        tracing::error!("session_id is required but was not provided");
-        StatusCode::BAD_REQUEST
-    })?;
-
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = state.get_agent().await;
+        // Use session-specific agent from AgentManager
+        let agent = match state.get_session_agent(Some(session_id.clone())).await {
+            Ok(agent) => agent,
+            Err(e) => {
+                tracing::error!("Failed to get session agent: {}", e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get session agent: {}", e),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
 
         // Load session metadata to get the working directory and other config
         let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
@@ -453,8 +467,7 @@ pub struct PermissionConfirmationRequest {
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
-    #[allow(dead_code)]
-    session_id: String,
+    session_id: Option<String>,
 }
 
 fn default_principal_type() -> PrincipalType {
@@ -475,7 +488,14 @@ pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let agent = state.get_agent().await;
+    // Use session-specific agent
+    let agent = match state.get_session_agent(request.session_id.clone()).await {
+        Ok(agent) => agent,
+        Err(e) => {
+            tracing::error!("Failed to get session agent: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -499,8 +519,7 @@ pub async fn confirm_permission(
 struct ToolResultRequest {
     id: String,
     result: ToolResult<Vec<Content>>,
-    #[allow(dead_code)]
-    session_id: String,
+    session_id: Option<String>,
 }
 
 async fn submit_tool_result(
@@ -524,7 +543,14 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = state.get_agent().await;
+    // Use session-specific agent
+    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+        Ok(agent) => agent,
+        Err(e) => {
+            tracing::error!("Failed to get session agent: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
