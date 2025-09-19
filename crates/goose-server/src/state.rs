@@ -1,6 +1,6 @@
 use goose::agents::Agent;
 use goose::scheduler_trait::SchedulerTrait;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
@@ -15,6 +15,8 @@ pub struct AppState {
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
+    /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
+    recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
 }
 
 impl AppState {
@@ -24,6 +26,7 @@ impl AppState {
             scheduler: Arc::new(RwLock::new(None)),
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
+            recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -52,5 +55,15 @@ impl AppState {
     pub async fn reset(&self) {
         let mut agent = self.agent.write().await;
         *agent = Arc::new(Agent::new());
+    }
+
+    pub async fn mark_recipe_run_if_absent(&self, session_id: &str) -> bool {
+        let mut sessions = self.recipe_session_tracker.lock().await;
+        if sessions.contains(session_id) {
+            false
+        } else {
+            sessions.insert(session_id.to_string());
+            true
+        }
     }
 }
