@@ -43,10 +43,6 @@ pub async fn run() -> Result<()> {
         .agent_manager()
         .configure_default_provider()
         .await?;
-    app_state
-        .agent_manager()
-        .configure_default_provider()
-        .await?;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
