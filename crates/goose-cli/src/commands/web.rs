@@ -224,20 +224,19 @@ async fn health_check() -> Json<serde_json::Value> {
 async fn list_sessions() -> Json<serde_json::Value> {
     match session::list_sessions() {
         Ok(sessions) => {
-            let session_info: Vec<serde_json::Value> = sessions
-                .into_iter()
-                .filter_map(|(name, path)| {
-                    session::read_metadata(&path).ok().map(|metadata| {
-                        serde_json::json!({
-                            "name": name,
-                            "path": path,
-                            "description": metadata.description,
-                            "message_count": metadata.message_count,
-                            "working_dir": metadata.working_dir
-                        })
-                    })
-                })
-                .collect();
+            let mut session_info: Vec<serde_json::Value> = Vec::new();
+
+            for (name, path) in sessions {
+                if let Ok(metadata) = session::read_metadata(&path).await {
+                    session_info.push(serde_json::json!({
+                        "name": name,
+                        "path": path,
+                        "description": metadata.description,
+                        "message_count": metadata.message_count,
+                        "working_dir": metadata.working_dir
+                    }));
+                }
+            }
 
             Json(serde_json::json!({
                 "sessions": session_info
@@ -267,7 +266,7 @@ async fn get_session(
     };
 
     match session::read_messages(&session_file) {
-        Ok(messages) => match session::read_metadata(&session_file) {
+        Ok(messages) => match session::read_metadata(&session_file).await {
             Ok(metadata) => Json(serde_json::json!({
                 "metadata": metadata,
                 "messages": messages

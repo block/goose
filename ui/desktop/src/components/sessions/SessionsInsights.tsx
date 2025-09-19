@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
-import { getApiUrl } from '../../config';
 import { Greeting } from '../common/Greeting';
 import { fetchSessions, type Session, resumeSession } from '../../sessions';
 import { useNavigate } from 'react-router-dom';
@@ -8,16 +7,10 @@ import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
 import { Goose } from '../icons/Goose';
 import { Skeleton } from '../ui/skeleton';
-
-interface SessionInsightsType {
-  totalSessions: number;
-  mostActiveDirs: [string, number][];
-  avgSessionDuration: number;
-  totalTokens: number;
-}
+import { getSessionInsights, SessionInsights as ApiSessionInsights } from '../../api';
 
 export function SessionInsights() {
-  const [insights, setInsights] = useState<SessionInsightsType | null>(null);
+  const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,22 +22,8 @@ export function SessionInsights() {
 
     const loadInsights = async () => {
       try {
-        const response = await fetch(getApiUrl('/sessions/insights'), {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch insights: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        setInsights(data);
-        // Clear any previous error when insights load successfully
+        const response = await getSessionInsights({ throwOnError: true });
+        setInsights(response.data);
         setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
@@ -53,8 +32,8 @@ export function SessionInsights() {
         setInsights({
           totalSessions: 0,
           mostActiveDirs: [],
-          avgSessionDuration: 0,
           totalTokens: 0,
+          recentActivity: [],
         });
       } finally {
         setIsLoading(false);
@@ -85,6 +64,7 @@ export function SessionInsights() {
             mostActiveDirs: [],
             avgSessionDuration: 0,
             totalTokens: 0,
+            recentActivity: [],
           };
         }
         // If we already have insights, just make sure loading is false
@@ -154,16 +134,6 @@ export function SessionInsights() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Average Duration Card Skeleton */}
-          {/*<Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">*/}
-          {/*  <CardContent className="flex flex-col justify-end h-full p-0">*/}
-          {/*    <div className="flex flex-col justify-end">*/}
-          {/*      <Skeleton className="h-10 w-20 mb-1" />*/}
-          {/*      <span className="text-xs text-text-muted">Avg. chat length</span>*/}
-          {/*    </div>*/}
-          {/*  </CardContent>*/}
-          {/*</Card>*/}
 
           {/* Total Tokens Card Skeleton */}
           <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">

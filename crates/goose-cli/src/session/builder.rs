@@ -307,10 +307,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     if session_config.resume {
         if let Some(session_file) = session_file.as_ref() {
             // Read the session metadata
-            let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read session metadata: {}", e));
-                process::exit(1);
-            });
+            let metadata = session::read_metadata(session_file)
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to read session metadata: {}", e));
+                    process::exit(1);
+                });
 
             let current_workdir =
                 std::env::current_dir().expect("Failed to get current working directory");

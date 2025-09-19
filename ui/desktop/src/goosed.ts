@@ -35,7 +35,8 @@ const checkServerStatus = async (): Promise<boolean> => {
     try {
       await status({ throwOnError: true });
       return true;
-    } catch {
+    } catch (error) {
+      log.error('failure to connect, will retry', error);
       if (attempt === maxAttempts) {
         log.error(`Server failed to respond after ${(interval * maxAttempts) / 1000} seconds`);
       }
@@ -50,12 +51,6 @@ const connectToExternalBackend = async (
   port: number = 3000
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
-
-  const isReady = await checkServerStatus();
-  if (!isReady) {
-    throw new Error(`External goosed server not accessible on port ${port}`);
-  }
-
   const mockProcess = {
     pid: undefined,
     kill: () => {

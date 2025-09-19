@@ -749,7 +749,7 @@ impl Session {
                                     session::storage::Identifier::Path(session_file.to_path_buf()),
                                 )?;
                                 let mut metadata =
-                                    session::storage::read_metadata(&session_file_path)?;
+                                    session::storage::read_metadata(&session_file_path).await?;
 
                                 // Update token counts with the summarization usage
                                 // Use output tokens as total since that's what's actually in the context going forward
@@ -1528,17 +1528,17 @@ impl Session {
         );
     }
 
-    pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
+    pub async fn get_metadata(&self) -> Result<session::SessionMetadata> {
         if !self.session_file.as_ref().is_some_and(|f| f.exists()) {
             return Err(anyhow::anyhow!("Session file does not exist"));
         }
 
-        session::read_metadata(self.session_file.as_ref().unwrap())
+        session::read_metadata(self.session_file.as_ref().unwrap()).await
     }
 
     // Get the session's total token usage
-    pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
-        let metadata = self.get_metadata()?;
+    pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
+        let metadata = self.get_metadata().await?;
         Ok(metadata.total_tokens)
     }
 
@@ -1570,7 +1570,7 @@ impl Session {
             }
         }
 
-        match self.get_metadata() {
+        match self.get_metadata().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
 

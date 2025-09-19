@@ -1500,6 +1500,37 @@
         ]
       }
     },
+    "/sessions/insights": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_insights",
+        "responses": {
+          "200": {
+            "description": "Session insights retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInsights"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -1545,6 +1576,95 @@
         ]
       }
     },
+    "/sessions/{session_id}/delete": {
+      "delete": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "delete_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/metadata": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_metadata",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionMetadataRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session metadata updated successfully"
+          },
+          "400": {
+            "description": "Bad request - Description too long (max 200 characters)"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/status": {
       "get": {
         "tags": [
@@ -1568,6 +1688,28 @@
   },
   "components": {
     "schemas": {
+      "ActivityHeatmapCell": {
+        "type": "object",
+        "required": [
+          "week",
+          "day",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "day": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "week": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "AddSubRecipesRequest": {
         "type": "object",
         "required": [
@@ -3545,6 +3687,63 @@
           }
         }
       },
+      "SessionInsights": {
+        "type": "object",
+        "required": [
+          "totalSessions",
+          "mostActiveDirs",
+          "totalTokens",
+          "recentActivity"
+        ],
+        "properties": {
+          "mostActiveDirs": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                ]
+              }
+            },
+            "description": "Most active working directories with session counts"
+          },
+          "recentActivity": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                ]
+              }
+            },
+            "description": "Activity trend for the last 7 days"
+          },
+          "totalSessions": {
+            "type": "integer",
+            "description": "Total number of sessions",
+            "minimum": 0
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total tokens used across all sessions"
+          }
+        }
+      },
       "SessionListResponse": {
         "type": "object",
         "required": [
@@ -4017,6 +4216,18 @@
         "properties": {
           "cron": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateSessionMetadataRequest": {
+        "type": "object",
+        "required": [
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Updated description (name) for the session (max 200 characters)"
           }
         }
       },

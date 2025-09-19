@@ -486,7 +486,7 @@ impl Agent {
         }
 
         // Read session metadata
-        let metadata = match crate::session::storage::read_metadata(&session_path) {
+        let metadata = match crate::session::storage::read_metadata(&session_path).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(

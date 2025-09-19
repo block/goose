@@ -2,6 +2,8 @@ use crate::session::{self, SessionMetadata};
 use anyhow::Result;
 use serde::Serialize;
 use std::cmp::Ordering;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use utoipa::ToSchema;
 
 #[derive(Clone, Serialize, ToSchema)]
@@ -18,73 +20,60 @@ pub enum SortOrder {
     Descending,
 }
 
-pub fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
-    let sessions = match session::list_sessions() {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to list sessions"));
-        }
-    };
+pub async fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
+    let sessions = session::list_sessions().map_err(|e| {
+        tracing::error!("Failed to list sessions: {:?}", e);
+        anyhow::anyhow!("Failed to list sessions")
+    })?;
 
-    let mut session_infos: Vec<SessionInfo> = Vec::new();
-    let mut corrupted_count = 0;
+    let semaphore = Arc::new(Semaphore::new(100));
+    let tasks: Vec<_> = sessions
+        .into_iter()
+        .map(|(id, path)| {
+            let sem = semaphore.clone();
+            tokio::spawn(async move {
+                let _permit = sem.acquire().await.unwrap();
+                let modified = tokio::fs::metadata(&path)
+                    .await
+                    .and_then(|m| {
+                        m.modified()
+                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                    })
+                    .map(|time| {
+                        chrono::DateTime::<chrono::Utc>::from(time)
+                            .format("%Y-%m-%d %H:%M:%S UTC")
+                            .to_string()
+                    })
+                    .unwrap_or_else(|_| {
+                        tracing::warn!("Failed to get modification time for session: {}", id);
+                        "Unknown".to_string()
+                    });
 
-    for (id, path) in sessions {
-        // Get file modification time with fallback
-        let modified = path
-            .metadata()
-            .and_then(|m| m.modified())
-            .map(|time| {
-                chrono::DateTime::<chrono::Utc>::from(time)
-                    .format("%Y-%m-%d %H:%M:%S UTC")
-                    .to_string()
+                match session::read_metadata(&path).await {
+                    Ok(metadata) => Some(SessionInfo {
+                        id,
+                        path: path.to_string_lossy().to_string(),
+                        modified,
+                        metadata,
+                    }),
+                    Err(_) => None,
+                }
             })
-            .unwrap_or_else(|_| {
-                tracing::warn!("Failed to get modification time for session: {}", id);
-                "Unknown".to_string()
-            });
+        })
+        .collect();
 
-        // Try to read metadata with error handling
-        match session::read_metadata(&path) {
-            Ok(metadata) => {
-                session_infos.push(SessionInfo {
-                    id,
-                    path: path.to_string_lossy().to_string(),
-                    modified,
-                    metadata,
-                });
-            }
-            Err(e) => {
-                corrupted_count += 1;
-                tracing::warn!(
-                    "Failed to read metadata for session '{}': {}. Skipping corrupted session.",
-                    id,
-                    e
-                );
+    let results = futures::future::join_all(tasks).await;
 
-                // Optionally, we could create a placeholder entry for corrupted sessions
-                // to show them in the UI with an error indicator, but for now we skip them
-                continue;
-            }
-        }
-    }
+    let mut session_infos: Vec<SessionInfo> = results
+        .into_iter()
+        .filter_map(|task_result| task_result.ok().flatten())
+        .collect();
 
-    if corrupted_count > 0 {
-        tracing::warn!(
-            "Skipped {} corrupted sessions during listing",
-            corrupted_count
-        );
-    }
-
-    // Sort sessions by modified date
-    // Since all dates are in ISO format (YYYY-MM-DD HH:MM:SS UTC), we can just use string comparison
-    // This works because the ISO format ensures lexicographical ordering matches chronological ordering
     session_infos.sort_by(|a, b| {
         if a.modified == "Unknown" && b.modified == "Unknown" {
             return Ordering::Equal;
         } else if a.modified == "Unknown" {
-            return Ordering::Greater; // Unknown dates go last
+            return Ordering::Greater;
         } else if b.modified == "Unknown" {
             return Ordering::Less;
         }
@@ -97,7 +86,6 @@ pub fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInf
 
     Ok(session_infos)
 }
-
 #[cfg(test)]
 mod tests {
     use crate::session::SessionMetadata;

@@ -232,7 +232,7 @@ async fn reply_handler(
             }
         };
 
-        let session_metadata = match session::read_metadata(&session_path) {
+        let session_metadata = match session::read_metadata(&session_path).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
@@ -385,7 +385,7 @@ async fn reply_handler(
         }
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = session::read_metadata(&session_path) {
+        if let Ok(metadata) = session::read_metadata(&session_path).await {
             let total_tokens = metadata.total_tokens.unwrap_or(0);
             let message_count = metadata.message_count;
 

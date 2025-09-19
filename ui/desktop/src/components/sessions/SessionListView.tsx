@@ -8,7 +8,7 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
-import { fetchSessions, updateSessionMetadata, deleteSession, type Session } from '../../sessions';
+import { fetchSessions, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -21,6 +21,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { deleteSession, updateSessionMetadata } from '../../api';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -56,7 +57,11 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
       setIsUpdating(true);
       try {
-        await updateSessionMetadata(session.id, trimmedDescription);
+        await updateSessionMetadata({
+          path: { session_id: session.id },
+          body: { description: trimmedDescription },
+          throwOnError: true,
+        });
         await onSave(session.id, trimmedDescription);
 
         // Close modal, then show success toast on a timeout to let the UI update complete.
@@ -382,14 +387,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
 
       try {
-        await deleteSession(sessionToDeleteId);
+        await deleteSession({
+          path: { session_id: sessionToDeleteId },
+          throwOnError: true,
+        });
         toast.success('Session deleted successfully');
-        loadSessions();
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         toast.error(`Failed to delete session "${sessionName}": ${errorMessage}`);
       }
+      await loadSessions();
     }, [sessionToDelete, loadSessions]);
 
     const handleCancelDelete = useCallback(() => {

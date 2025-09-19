@@ -71,8 +71,8 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
     Ok(selected_sessions)
 }
 
-pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
-    let all_sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
+pub async fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
+    let all_sessions = match get_valid_sorted_sessions(SortOrder::Descending).await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to retrieve sessions: {:?}", e);
@@ -115,14 +115,14 @@ pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -
     remove_sessions(matched_sessions)
 }
 
-pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
+pub async fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
     let sort_order = if ascending {
         SortOrder::Ascending
     } else {
         SortOrder::Descending
     };
 
-    let sessions = match get_valid_sorted_sessions(sort_order) {
+    let sessions = match get_valid_sorted_sessions(sort_order).await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
@@ -293,9 +293,9 @@ fn export_session_to_markdown(
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one
-pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
+pub async fn prompt_interactive_session_selection() -> Result<session::Identifier> {
     // Get sessions sorted by modification date (newest first)
-    let sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
+    let sessions = match get_valid_sorted_sessions(SortOrder::Descending).await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);

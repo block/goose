@@ -172,7 +172,9 @@ async fn resume_agent(
             Err(_) => return Err(StatusCode::BAD_REQUEST),
         };
 
-    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let metadata = session::read_metadata(&session_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let conversation = match session::read_messages(&session_path) {
         Ok(messages) => messages,

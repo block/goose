@@ -22,7 +22,11 @@ impl BenchBaseSession for Session {
         self.message_history()
     }
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>> {
-        self.get_total_token_usage()
+        // Since the trait requires sync but the session method is async,
+        // we need to block on the async call
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.get_total_token_usage())
+        })
     }
 }
 pub async fn agent_generator(

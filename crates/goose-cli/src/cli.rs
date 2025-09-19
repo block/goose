@@ -768,11 +768,11 @@ pub async fn cli() -> Result<()> {
                     format,
                     ascending,
                 }) => {
-                    handle_session_list(verbose, format, ascending)?;
+                    handle_session_list(verbose, format, ascending).await?;
                     Ok(())
                 }
                 Some(SessionCommand::Remove { id, regex }) => {
-                    handle_session_remove(id, regex)?;
+                    handle_session_remove(id, regex).await?;
                     return Ok(());
                 }
                 Some(SessionCommand::Export { identifier, output }) => {
@@ -780,7 +780,8 @@ pub async fn cli() -> Result<()> {
                         extract_identifier(id)
                     } else {
                         // If no identifier is provided, prompt for interactive selection
-                        match crate::commands::session::prompt_interactive_session_selection() {
+                        match crate::commands::session::prompt_interactive_session_selection().await
+                        {
                             Ok(id) => id,
                             Err(e) => {
                                 eprintln!("Error: {}", e);
@@ -841,6 +842,7 @@ pub async fn cli() -> Result<()> {
 
                     let (total_tokens, message_count) = session
                         .get_metadata()
+                        .await
                         .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
 
@@ -1048,6 +1050,7 @@ pub async fn cli() -> Result<()> {
 
                 let (total_tokens, message_count) = session
                     .get_metadata()
+                    .await
                     .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));
 

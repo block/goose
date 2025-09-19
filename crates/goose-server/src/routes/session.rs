@@ -1,7 +1,3 @@
-use chrono::DateTime;
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use crate::state::AppState;
 use axum::{
     extract::Path,
@@ -9,11 +5,15 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use chrono::DateTime;
 use goose::conversation::message::Message;
 use goose::session;
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
 use tracing::{error, info};
 use utoipa::ToSchema;
 
@@ -51,8 +51,6 @@ pub struct SessionInsights {
     total_sessions: usize,
     /// Most active working directories with session counts
     most_active_dirs: Vec<(String, usize)>,
-    /// Average session duration in minutes
-    avg_session_duration: f64,
     /// Total tokens used across all sessions
     total_tokens: i64,
     /// Activity trend for the last 7 days
@@ -83,6 +81,7 @@ pub struct ActivityHeatmapCell {
 // List all available sessions
 async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     let sessions = get_valid_sorted_sessions(SortOrder::Descending)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SessionListResponse { sessions }))
@@ -114,7 +113,9 @@ async fn get_session_history(
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
 
-    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let metadata = session::read_metadata(&session_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let messages = match session::read_messages(&session_path) {
         Ok(messages) => messages,
@@ -153,20 +154,25 @@ async fn get_session_history(
     tag = "Session Management"
 )]
 async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
-    info!("Received request for session insights");
+    let handler_start = Instant::now();
 
-    let sessions = get_valid_sorted_sessions(SortOrder::Descending).map_err(|e| {
-        error!("Failed to get session info: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let sessions = get_valid_sorted_sessions(SortOrder::Descending)
+        .await
+        .map_err(|e| {
+            error!("Failed to get session info: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     // Filter out sessions without descriptions
     let sessions: Vec<SessionInfo> = sessions
         .into_iter()
         .filter(|session| !session.metadata.description.is_empty())
         .collect();
-
-    info!("Found {} sessions with descriptions", sessions.len());
+    info!(
+        "Found {} sessions with descriptions in {}",
+        sessions.len(),
+        handler_start.elapsed().as_millis()
+    );
 
     // Calculate insights
     let total_sessions = sessions.len();
@@ -178,7 +184,6 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 
     // Track directory usage
     let mut dir_counts: HashMap<String, usize> = HashMap::new();
-    let mut total_duration = 0.0;
     let mut total_tokens = 0;
     let mut activity_by_date: HashMap<String, usize> = HashMap::new();
 
@@ -211,30 +216,12 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
             let date_str = date.format("%Y-%m-%d").to_string();
             *activity_by_date.entry(date_str).or_insert(0) += 1;
         }
-
-        // Calculate session duration from messages
-        let session_path = session::get_path(session::Identifier::Name(session.id.clone()));
-        if let Ok(session_path) = session_path {
-            if let Ok(messages) = session::read_messages(&session_path) {
-                if let (Some(first), Some(last)) = (messages.first(), messages.last()) {
-                    let duration = (last.created - first.created) as f64 / 60.0; // Convert to minutes
-                    total_duration += duration;
-                }
-            }
-        }
     }
 
     // Get top 3 most active directories
     let mut dir_vec: Vec<(String, usize)> = dir_counts.into_iter().collect();
     dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
     let most_active_dirs = dir_vec.into_iter().take(3).collect();
-
-    // Calculate average session duration
-    let avg_session_duration = if total_sessions > 0 {
-        total_duration / total_sessions as f64
-    } else {
-        0.0
-    };
 
     // Get last 7 days of activity
     let mut activity_vec: Vec<(String, usize)> = activity_by_date.into_iter().collect();
@@ -244,12 +231,12 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     let insights = SessionInsights {
         total_sessions,
         most_active_dirs,
-        avg_session_duration,
         total_tokens,
         recent_activity,
     };
 
-    info!("Returning insights: {:?}", insights);
+    let handler_ms = handler_start.elapsed().as_millis();
+    info!("Returning insights: {:?} in {:?}", insights, handler_ms);
     Ok(Json(insights))
 }
 
@@ -286,7 +273,9 @@ async fn update_session_metadata(
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Read current metadata
-    let mut metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let mut metadata = session::read_metadata(&session_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     // Update description
     metadata.description = request.description;
@@ -335,7 +324,6 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
     Ok(StatusCode::OK)
 }
 
-// Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))

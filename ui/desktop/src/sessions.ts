@@ -7,7 +7,6 @@ import {
   SessionMetadata,
 } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
-import { getApiUrl } from './config';
 
 // Helper function to ensure working directory is set
 export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMetadata {
@@ -50,10 +49,6 @@ export function generateSessionId(): string {
   return `${year}${month}${day}_${hours}${minutes}${seconds}`;
 }
 
-/**
- * Fetches all available sessions from the API
- * @returns Promise with sessions data
- */
 /**
  * Fetches all available sessions from the API
  * @returns Promise with an array of Session objects
@@ -114,31 +109,6 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
 }
 
 /**
- * Updates the metadata for a specific session
- * @param sessionId The ID of the session to update
- * @param description The new description (name) for the session
- * @returns Promise that resolves when the update is complete
- */
-export async function updateSessionMetadata(sessionId: string, description: string): Promise<void> {
-  const url = getApiUrl(`/sessions/${sessionId}/metadata`);
-  const secretKey = await window.electron.getSecretKey();
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': secretKey,
-    },
-    body: JSON.stringify({ description }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update session metadata: ${response.statusText} - ${errorText}`);
-  }
-}
-
-/**
  * Resumes a session. Currently, this opens a new window with the session loaded.
  */
 export function resumeSession(session: SessionDetails | Session) {
@@ -155,31 +125,4 @@ export function resumeSession(session: SessionDetails | Session) {
     undefined, // version
     resumedSessionId
   );
-}
-
-/**
- * Deletes a specific session
- * @param sessionId The ID of the session to delete
- * @returns Promise that resolves when the deletion is complete
- */
-export async function deleteSession(sessionId: string): Promise<void> {
-  try {
-    const url = getApiUrl(`/sessions/${sessionId}/delete`);
-    const secretKey = await window.electron.getSecretKey();
-
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'X-Secret-Key': secretKey,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete session: ${response.statusText} - ${errorText}`);
-    }
-  } catch (error) {
-    console.error(`Error deleting session ${sessionId}:`, error);
-    throw error;
-  }
 }
