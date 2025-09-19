@@ -1,4 +1,3 @@
-
 use crate::configuration;
 use crate::state;
 use anyhow::Result;

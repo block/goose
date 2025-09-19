@@ -574,7 +574,6 @@ mod tests {
     use super::*;
     use goose::conversation::message::Message;
     use goose::{
-        agents::Agent,
         model::ModelConfig,
         providers::{
             base::{Provider, ProviderUsage, Usage},
@@ -621,7 +620,7 @@ mod tests {
         #[tokio::test]
         async fn test_reply_endpoint() {
             let mock_model_config = ModelConfig::new("test-model").unwrap();
-            let mock_provider = Arc::new(MockProvider {
+            let _mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
 

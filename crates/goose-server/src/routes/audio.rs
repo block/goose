@@ -401,8 +401,10 @@ mod tests {
         // In production, authentication is handled by middleware
         // applied at the router level, not in individual routes
 
+        // Test without auth header
         let request = Request::builder()
             .uri("/audio/transcribe")
+            .method("POST")
             .header("content-type", "application/json")
             .body(Body::from(
                 serde_json::to_string(&serde_json::json!({
@@ -471,7 +473,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_transcribe_endpoint_validates_mime_type() {
+    async fn test_transcribe_endpoint_validates_base64() {
         let state = AppState::new();
         let app = routes(state);
 
