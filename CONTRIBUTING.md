@@ -95,7 +95,7 @@ Changes to the API should be made in the Rust source under `crates/goose-server/
 
 ### Debugging
 
-To debug the Goose server, you can run it from your preferred IDE with. How to configure the command
+To debug the Goose server, you can run it from your preferred IDE. How to configure the command
 to start the server will depend on your IDE. The command to run is:
 
 ```
