@@ -34,7 +34,6 @@ fn test_format_result_data_for_display() {
     assert_eq!(format_result_data_for_display(&json!(true)), "true");
     assert_eq!(format_result_data_for_display(&json!(false)), "false");
     assert_eq!(format_result_data_for_display(&json!(42)), "42");
-    // Use a different value to avoid PI approximation warning
     assert_eq!(format_result_data_for_display(&json!(3.15)), "3.15");
     assert_eq!(format_result_data_for_display(&json!(null)), "null");
 
