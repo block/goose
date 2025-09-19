@@ -37,6 +37,7 @@ impl AppState {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn get_agent(&self) -> AgentRef {
         self.agent.read().await.clone()
     }
@@ -93,6 +94,7 @@ impl AppState {
     }
 
     /// Get the agent manager for direct access if needed
+    #[allow(dead_code)]
     pub fn agent_manager(&self) -> &Arc<AgentManager> {
         &self.agent_manager
     }

@@ -107,6 +107,19 @@ async fn add_extension(
         serde_json::to_string_pretty(&raw.0).unwrap()
     );
 
+    // Try to extract session_id from the raw JSON
+    let session_id = raw
+        .0
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Remove session_id from the object before parsing the extension config
+    let mut config_json = raw.0.clone();
+    config_json
+        .as_object_mut()
+        .map(|obj| obj.remove("session_id"));
+
     // Try to parse into our enum
     let request: ExtensionConfigRequest = match serde_json::from_value(raw.0.clone()) {
         Ok(req) => req,
@@ -267,7 +280,14 @@ async fn add_extension(
         },
     };
 
-    let agent = state.get_agent().await;
+    // Get session-specific agent
+    let agent = state
+        .get_session_agent(session_id.clone())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get session agent: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -289,13 +309,27 @@ async fn add_extension(
     }
 }
 
+/// Request for removing an extension
+#[derive(Deserialize)]
+struct RemoveExtensionRequest {
+    name: String,
+    session_id: Option<String>,
+}
+
 /// Handler for removing an extension by name
 async fn remove_extension(
     State(state): State<Arc<AppState>>,
-    Json(name): Json<String>,
+    Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    let agent = state.get_agent().await;
-    match agent.remove_extension(&name).await {
+    let agent = state
+        .get_session_agent(request.session_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get session agent: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    match agent.remove_extension(&request.name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
             error: false,
             message: None,
