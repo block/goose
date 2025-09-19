@@ -1,3 +1,5 @@
+#![cfg(any(target_os = "linux", target_os = "android"))]
+
 use super::SystemAutomation;
 use std::io::Result;
 #[cfg(unix)]

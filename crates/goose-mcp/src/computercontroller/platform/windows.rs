@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 use super::SystemAutomation;
 use std::path::PathBuf;
 use std::process::Command;

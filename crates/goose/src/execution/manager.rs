@@ -2,6 +2,8 @@
 
 use super::{ExecutionMode, SessionId};
 use crate::agents::Agent;
+use crate::model::ModelConfig;
+use crate::providers::create;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -20,6 +22,9 @@ pub struct AgentManager {
 
     /// Maximum number of concurrent sessions
     max_sessions: usize,
+
+    /// Default provider configuration (optional)
+    default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
 }
 
 /// Metadata about an active session
@@ -46,6 +51,7 @@ impl AgentManager {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             scheduler: Arc::new(RwLock::new(None)),
             max_sessions: 100, // Default limit
+            default_provider: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -55,6 +61,7 @@ impl AgentManager {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             scheduler: Arc::new(RwLock::new(None)),
             max_sessions,
+            default_provider: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -62,6 +69,36 @@ impl AgentManager {
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         debug!("Setting scheduler on AgentManager");
         *self.scheduler.write().await = Some(scheduler);
+    }
+
+    /// Set a default provider to be used for new agents
+    pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
+        debug!("Setting default provider on AgentManager");
+        *self.default_provider.write().await = Some(provider);
+    }
+
+    /// Configure default provider from environment variables
+    pub async fn configure_default_provider(&self) -> Result<()> {
+        if let Ok(provider_name) = std::env::var("GOOSE_DEFAULT_PROVIDER") {
+            if let Ok(model_name) = std::env::var("GOOSE_DEFAULT_MODEL") {
+                match ModelConfig::new(&model_name) {
+                    Ok(model_config) => match create(&provider_name, model_config) {
+                        Ok(provider) => {
+                            self.set_default_provider(provider).await;
+                            info!(
+                                "Configured default provider: {} with model: {}",
+                                provider_name, model_name
+                            );
+                        }
+                        Err(e) => {
+                            warn!("Failed to create default provider {}: {}", provider_name, e)
+                        }
+                    },
+                    Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Get or create an agent for the given session
@@ -128,6 +165,15 @@ impl AgentManager {
                     session_id
                 );
             }
+        }
+
+        // Set default provider if available
+        if let Some(provider) = &*self.default_provider.read().await {
+            debug!(
+                "Setting default provider on agent for session {}",
+                session_id
+            );
+            let _ = agent.update_provider(Arc::clone(provider)).await;
         }
 
         // Store the new session

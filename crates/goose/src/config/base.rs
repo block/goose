@@ -1256,10 +1256,10 @@ mod tests {
         assert_eq!(value, Value::Number((-123).into()));
 
         // Test floats
-        let value = Config::parse_env_value("3.14")?;
+        let value = Config::parse_env_value("3.15")?;
         assert!(matches!(value, Value::Number(_)));
         if let Value::Number(n) = value {
-            assert_eq!(n.as_f64().unwrap(), 3.14);
+            assert!((n.as_f64().unwrap() - 3.15).abs() < f64::EPSILON);
         }
 
         let value = Config::parse_env_value("0.01")?;
