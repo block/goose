@@ -285,9 +285,25 @@ export const startGoosed = async (
 
   // Ensure goosed is terminated when the app quits
   // TODO will need to do it at tab level next
-  app.on('will-quit', () => {
+  const quitHandler = () => {
     log.info('App quitting, terminating goosed server');
     try_kill_goose();
+  };
+
+  app.on('will-quit', quitHandler);
+  app.on('before-quit', quitHandler);
+
+  // Also handle SIGINT/SIGTERM for development mode when electron-forge kills the process
+  process.on('SIGINT', () => {
+    log.info('Received SIGINT, terminating goosed server');
+    try_kill_goose();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    log.info('Received SIGTERM, terminating goosed server');
+    try_kill_goose();
+    process.exit(0);
   });
 
   log.info(`Goosed server successfully started on port ${port}`);
