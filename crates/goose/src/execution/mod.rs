@@ -12,15 +12,12 @@ use std::fmt;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionMode {
     /// Interactive chat sessions with user
-    /// Future: streaming, confirmations, UI interactions
     Interactive,
 
     /// Background execution (scheduler, automated tasks)
-    /// Future: retry config, scheduling metadata
     Background,
 
     /// Sub-task execution with parent context
-    /// Future: approval bubbling, extension inheritance
     SubTask {
         /// Parent session that spawned this task
         parent_session: String,
@@ -56,7 +53,7 @@ impl fmt::Display for ExecutionMode {
     }
 }
 
-/// Unique session identifier with room for future metadata
+/// Unique session identifier
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SessionId(pub String);
 

@@ -230,30 +230,6 @@ impl AgentManager {
             sessions.remove(&oldest_id);
         }
     }
-
-    /// Future-ready execution method (stub for now)
-    /// This will become the unified pipeline for recipes, tasks, and scheduled jobs
-    pub async fn execute_recipe(
-        &self,
-        session_id: SessionId,
-        _recipe: serde_json::Value,
-        mode: ExecutionMode,
-    ) -> Result<serde_json::Value> {
-        // For now, just ensure agent creation works
-        let _agent = self.get_agent(session_id.clone(), mode).await?;
-
-        // Future: This will become the unified execution pipeline
-        // - Parse recipe
-        // - Configure agent with recipe settings
-        // - Execute recipe steps
-        // - Return results
-
-        Ok(serde_json::json!({
-            "status": "ready_for_future",
-            "agent_created": true,
-            "session_id": session_id.to_string(),
-        }))
-    }
 }
 
 impl Default for AgentManager {

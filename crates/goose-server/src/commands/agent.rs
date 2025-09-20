@@ -39,10 +39,7 @@ pub async fn run() -> Result<()> {
     app_state.set_scheduler(scheduler_instance.clone()).await;
 
     // Configure default provider on the agent manager
-    app_state
-        .agent_manager()
-        .configure_default_provider()
-        .await?;
+    app_state.agent_manager.configure_default_provider().await?;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

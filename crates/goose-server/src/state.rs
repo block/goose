@@ -10,8 +10,8 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
-    // New: agent manager for session isolation
-    agent_manager: Arc<AgentManager>,
+    // Agent manager for session isolation
+    pub(crate) agent_manager: Arc<AgentManager>,
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
@@ -75,11 +75,5 @@ impl AppState {
         self.agent_manager
             .get_agent(session_id, ExecutionMode::Interactive)
             .await
-    }
-
-    /// Get the agent manager for direct access if needed
-    #[allow(dead_code)]
-    pub fn agent_manager(&self) -> &Arc<AgentManager> {
-        &self.agent_manager
     }
 }
