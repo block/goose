@@ -24,11 +24,8 @@ mod execution_tests {
         let id1 = SessionId::generate();
         let id2 = SessionId::generate();
 
-        // Should be unique
         assert_ne!(id1, id2);
-
-        // Should be valid UUIDs
-        assert_eq!(id1.0.len(), 36); // UUID string length
+        assert_eq!(id1.0.len(), 36);
         assert_eq!(id2.0.len(), 36);
     }
 
@@ -64,7 +61,6 @@ mod execution_tests {
         let session1 = SessionId::generate();
         let session2 = SessionId::generate();
 
-        // Get agents for different sessions
         let agent1 = manager
             .get_agent(session1.clone(), ExecutionMode::chat())
             .await
@@ -74,10 +70,8 @@ mod execution_tests {
             .await
             .unwrap();
 
-        // Should be different agents
         assert!(!Arc::ptr_eq(&agent1, &agent2));
 
-        // Getting same session should return same agent
         let agent1_again = manager
             .get_agent(session1, ExecutionMode::chat())
             .await
@@ -89,7 +83,6 @@ mod execution_tests {
     async fn test_session_limit() {
         let manager = AgentManager::with_max_sessions(3);
 
-        // Create 3 sessions
         let sessions: Vec<_> = (0..3)
             .map(|i| SessionId::from(format!("session-{}", i)))
             .collect();
@@ -103,17 +96,13 @@ mod execution_tests {
 
         assert_eq!(manager.session_count().await, 3);
 
-        // Creating 4th should evict oldest
         let new_session = SessionId::from("session-new");
         manager
             .get_agent(new_session, ExecutionMode::chat())
             .await
             .unwrap();
 
-        // Should still have only 3 sessions
         assert_eq!(manager.session_count().await, 3);
-
-        // First session should have been evicted
         assert!(!manager.has_session(&sessions[0]).await);
     }
 
@@ -122,18 +111,15 @@ mod execution_tests {
         let manager = AgentManager::new();
         let session = SessionId::from("remove-test");
 
-        // Create session
         manager
             .get_agent(session.clone(), ExecutionMode::chat())
             .await
             .unwrap();
         assert!(manager.has_session(&session).await);
 
-        // Remove it
         manager.remove_session(&session).await.unwrap();
         assert!(!manager.has_session(&session).await);
 
-        // Removing again should error
         assert!(manager.remove_session(&session).await.is_err());
     }
 
@@ -142,7 +128,6 @@ mod execution_tests {
         let manager = Arc::new(AgentManager::new());
         let session = SessionId::from("concurrent-test");
 
-        // Spawn multiple tasks accessing the same session
         let mut handles = vec![];
         for _ in 0..10 {
             let mgr = Arc::clone(&manager);
@@ -154,19 +139,16 @@ mod execution_tests {
             handles.push(handle);
         }
 
-        // Collect all agents
         let agents: Vec<_> = futures::future::join_all(handles)
             .await
             .into_iter()
             .map(|r| r.unwrap())
             .collect();
 
-        // All should be the same agent
         for agent in &agents[1..] {
             assert!(Arc::ptr_eq(&agents[0], agent));
         }
 
-        // Only one session should exist
         assert_eq!(manager.session_count().await, 1);
     }
 

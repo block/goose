@@ -10,7 +10,6 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
-    // Agent manager for session isolation
     pub(crate) agent_manager: Arc<AgentManager>,
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
@@ -32,9 +31,7 @@ impl AppState {
     }
 
     pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
-        // Set on agent manager for new session-based agents
         self.agent_manager.set_scheduler(sched.clone()).await;
-        // Keep for backward compatibility with legacy code
         let mut guard = self.scheduler.write().await;
         *guard = Some(sched);
     }
@@ -62,8 +59,7 @@ impl AppState {
         }
     }
 
-    /// Get an agent for a specific session using the new AgentManager
-    /// This provides session isolation - each session gets its own agent
+    /// Session isolation - each session gets its own agent
     pub async fn get_session_agent(
         &self,
         session_id: Option<String>,
