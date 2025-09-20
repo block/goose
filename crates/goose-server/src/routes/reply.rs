@@ -274,6 +274,21 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
+        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Failed to get session path: {}", e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get session path: {}", e),
+                    },
+                    &task_tx,
+                    &cancel_token,
+                )
+                .await;
+                return;
+            }
+        };
         let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
