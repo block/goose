@@ -416,7 +416,8 @@ mod tests {
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
-        // Without auth middleware, it will try to process and fail on missing API key
+        // Without auth middleware and without OpenAI API key configured,
+        // the endpoint returns PRECONDITION_FAILED (412)
         assert_eq!(response.status(), StatusCode::PRECONDITION_FAILED);
     }
 
