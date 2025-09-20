@@ -21,6 +21,7 @@ use super::{
     provider_registry::ProviderRegistry,
     sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
+    synthetic::SyntheticProvider,
     tetrate::TetrateProvider,
     venice::VeniceProvider,
     xai::XaiProvider,
@@ -58,6 +59,7 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<OpenRouterProvider, _>(OpenRouterProvider::from_env);
         registry.register::<SageMakerTgiProvider, _>(SageMakerTgiProvider::from_env);
         registry.register::<SnowflakeProvider, _>(SnowflakeProvider::from_env);
+        registry.register::<SyntheticProvider, _>(SyntheticProvider::from_env);
         registry.register::<TetrateProvider, _>(TetrateProvider::from_env);
         registry.register::<VeniceProvider, _>(VeniceProvider::from_env);
         registry.register::<XaiProvider, _>(XaiProvider::from_env);
