@@ -49,6 +49,50 @@ fn read_resource_link(link: acp::ResourceLink) -> Option<String> {
     }
 }
 
+/// Format a tool name to be more human-friendly by splitting extension and tool names
+/// and converting underscores to spaces with proper capitalization
+fn format_tool_name(tool_name: &str) -> String {
+    // Split on double underscore to separate extension from tool name
+    if let Some((extension, tool)) = tool_name.split_once("__") {
+        let formatted_extension = extension.replace('_', " ");
+        let formatted_tool = tool.replace('_', " ");
+
+        // Capitalize first letter of each word
+        let capitalize = |s: &str| {
+            s.split_whitespace()
+                .map(|word| {
+                    let mut chars = word.chars();
+                    match chars.next() {
+                        None => String::new(),
+                        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+
+        format!(
+            "{}: {}",
+            capitalize(&formatted_extension),
+            capitalize(&formatted_tool)
+        )
+    } else {
+        // Fallback for tools without double underscore
+        let formatted = tool_name.replace('_', " ");
+        formatted
+            .split_whitespace()
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
 impl GooseAcpAgent {
     async fn new(
         session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
@@ -269,7 +313,7 @@ impl GooseAcpAgent {
                     session_id: session_id.clone(),
                     update: acp::SessionUpdate::ToolCall(acp::ToolCall {
                         id: acp::ToolCallId(acp_tool_id.clone().into()),
-                        title: format!("Calling tool: {}", tool_name),
+                        title: format_tool_name(&tool_name),
                         kind: acp::ToolKind::default(),
                         status: acp::ToolCallStatus::Pending,
                         content: Vec::new(),
@@ -673,7 +717,7 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    use crate::commands::acp::read_resource_link;
+    use crate::commands::acp::{format_tool_name, read_resource_link};
 
     fn new_resource_link(content: &str) -> anyhow::Result<(ResourceLink, NamedTempFile)> {
         let mut file = NamedTempFile::new()?;
@@ -713,5 +757,33 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
+    }
+
+    #[test]
+    fn test_format_tool_name_with_extension() {
+        assert_eq!(
+            format_tool_name("developer__text_editor"),
+            "Developer: Text Editor"
+        );
+        assert_eq!(
+            format_tool_name("platform__manage_extensions"),
+            "Platform: Manage Extensions"
+        );
+        assert_eq!(format_tool_name("todo__read"), "Todo: Read");
+    }
+
+    #[test]
+    fn test_format_tool_name_without_extension() {
+        assert_eq!(format_tool_name("simple_tool"), "Simple Tool");
+        assert_eq!(format_tool_name("another_name"), "Another Name");
+        assert_eq!(format_tool_name("single"), "Single");
+    }
+
+    #[test]
+    fn test_format_tool_name_edge_cases() {
+        assert_eq!(format_tool_name(""), "");
+        assert_eq!(format_tool_name("__"), ": ");
+        assert_eq!(format_tool_name("extension__"), "Extension: ");
+        assert_eq!(format_tool_name("__tool"), ": Tool");
     }
 }
