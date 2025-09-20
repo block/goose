@@ -1296,13 +1296,47 @@ impl Session {
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
-                                output::render_error(
-                                    "Context length exceeded error.\n\
-                                    The conversation is too long for the model's context window.\n\
-                                    Consider using /summarize to condense the conversation history\n\
-                                    or /clear to start fresh.\n\
-                                    We've removed the conversation up to the most recent user message.",
-                                );
+
+                                output::render_error(&format!("Error: Context length exceeded: {}", e));
+
+                                let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
+                                let selected = match cliclack::select(prompt.to_string())
+                                    .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                    .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                    .interact()
+                                {
+                                    Ok(choice) => Some(choice),
+                                    Err(e) => {
+                                        if e.kind() == std::io::ErrorKind::Interrupted {
+                                            // If interrupted, do nothing and let user handle it manually
+                                            output::render_text("Operation cancelled. You can use /clear or /summarize to continue.", Some(Color::Yellow), true);
+                                            None
+                                        } else {
+                                            return Err(e.into());
+                                        }
+                                    }
+                                };
+
+                                if let Some(choice) = selected {
+                                    match choice {
+                                        "clear" => {
+                                            self.messages.clear();
+                                            let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                            output::render_text(&msg, Some(Color::Yellow), true);
+                                        }
+                                        "summarize" => {
+                                            // Use the helper function to summarize context
+                                            let message_suffix = "Goose summarized messages for you.";
+                                            if let Err(e) = Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await {
+                                                output::render_error(&format!("Failed to summarize: {}", e));
+                                                output::render_text("Consider using /clear to start fresh.", Some(Color::Yellow), true);
+                                            }
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
                             } else {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
