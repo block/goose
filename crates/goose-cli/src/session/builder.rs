@@ -1,3 +1,5 @@
+use super::output;
+use super::Session;
 use console::style;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
@@ -5,15 +7,12 @@ use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session;
-use goose::session::Identifier;
+use goose::session::SessionManager;
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-
-use super::output;
-use super::Session;
 
 /// Configuration for building a new Goose session
 ///
@@ -22,7 +21,7 @@ use super::Session;
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
     /// Optional identifier for the session (name or path)
-    pub identifier: Option<Identifier>,
+    pub identifier: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
     /// Whether to run without a session file
@@ -257,30 +256,29 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         });
 
     // Handle session file resolution and resuming
-    let session_file: Option<std::path::PathBuf> = if session_config.no_session {
+    let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        if let Some(identifier) = session_config.identifier {
-            let session_file = match session::get_path(identifier) {
-                Err(e) => {
-                    output::render_error(&format!("Invalid session identifier: {}", e));
+        if let Some(session_id) = session_config.identifier {
+            match SessionManager::get_session_metadata(&session_id).await {
+                Ok(_) => Some(session_id),
+                Err(_) => {
+                    output::render_error(&format!(
+                        "Cannot resume session {} - no such session exists",
+                        style(&session_id).cyan()
+                    ));
                     process::exit(1);
                 }
-                Ok(path) => path,
-            };
-            if !session_file.exists() {
-                output::render_error(&format!(
-                    "Cannot resume session {} - no such session exists",
-                    style(session_file.display()).cyan()
-                ));
-                process::exit(1);
             }
-
-            Some(session_file)
         } else {
-            // Try to resume most recent session
-            match session::get_most_recent_session() {
-                Ok(file) => Some(file),
+            match SessionManager::list_sessions().await {
+                Ok(sessions) => {
+                    if sessions.is_empty() {
+                        output::render_error("Cannot resume - no previous sessions found");
+                        process::exit(1);
+                    }
+                    Some(sessions[0].id.clone())
+                }
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
@@ -288,26 +286,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             }
         }
     } else {
-        // Create new session with provided name/path or generated name
-        let id = match session_config.identifier {
-            Some(identifier) => identifier,
-            None => Identifier::Name(session::generate_session_id()),
-        };
+        let session_id = session_config
+            .identifier
+            .unwrap_or_else(|| session::generate_session_id());
 
-        // Just get the path - file will be created when needed
-        match session::get_path(id) {
-            Ok(path) => Some(path),
-            Err(e) => {
-                output::render_error(&format!("Failed to create session path: {}", e));
-                process::exit(1);
-            }
-        }
+        Some(session_id)
     };
 
     if session_config.resume {
-        if let Some(session_file) = session_file.as_ref() {
-            // Read the session metadata
-            let metadata = session::read_metadata(session_file)
+        if let Some(session_id) = session_id.as_ref() {
+            // Read the session metadata from database
+            let metadata = SessionManager::get_session_metadata(session_id)
                 .await
                 .unwrap_or_else(|e| {
                     output::render_error(&format!("Failed to read session metadata: {}", e));
@@ -319,8 +308,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             if current_workdir != metadata.working_dir {
                 // Ask user if they want to change the working directory
                 let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-            .initial_value(true)
-            .interact().expect("Failed to get user input");
+                    .initial_value(true)
+                    .interact().expect("Failed to get user input");
 
                 if change_workdir {
                     if !metadata.working_dir.exists() {
@@ -421,7 +410,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Create new session
     let mut session = Session::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
-        session_file.clone(),
+        session_id.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,

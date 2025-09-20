@@ -6,6 +6,7 @@ use crate::session::extension_data::ExtensionData;
 use crate::session::{SessionInfo, SessionMetadata};
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
+use rmcp::model::Role;
 use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::path::PathBuf;
@@ -445,7 +446,7 @@ impl SessionStorage {
             "#,
             )
             .bind(session_name)
-            .bind(message.role.to_string())
+            .bind(role_to_string(&message.role))
             .bind(serde_json::to_string(&message.content)?)
             .bind(message.created)
             .execute(&self.pool)
@@ -494,7 +495,7 @@ impl SessionStorage {
         "#,
         )
         .bind(session_id)
-        .bind(message.role.to_string())
+        .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
         .execute(&self.pool)
@@ -554,10 +555,15 @@ impl SessionStorage {
                     schedule_id,
                     message_count: 0, // Could compute if needed
                     total_tokens,
+                    input_tokens: None,
+                    output_tokens: None,
+                    accumulated_total_tokens: None,
+                    accumulated_input_tokens: None,
+                    accumulated_output_tokens: None,
                     extension_data: extension_data
                         .map(|s| serde_json::from_str(&s).unwrap_or_default())
                         .unwrap_or_default(),
-                    // ... other fields
+                    recipe: None,
                 })
             }
             None => Err(anyhow::anyhow!("Session not found")),
@@ -691,9 +697,8 @@ impl SessionStorage {
                 .await?;
 
         if !exists {
-            let working_dir = std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .to_string_lossy();
+            let working_dir_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let working_dir = working_dir_path.to_string_lossy();
 
             sqlx::query(
                 r#"

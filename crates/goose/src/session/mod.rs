@@ -3,6 +3,7 @@ mod legacy;
 pub mod session_manager;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 pub use session_manager::SessionManager;
 use std::path::PathBuf;
@@ -73,4 +74,9 @@ impl Default for SessionMetadata {
 
         Self::new(working_dir)
     }
+}
+
+/// Generate a session ID using timestamp format (yyyymmdd_hhmmss)
+pub fn generate_session_id() -> String {
+    Local::now().format("%Y%m%d_%H%M%S").to_string()
 }

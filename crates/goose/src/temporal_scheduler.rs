@@ -11,7 +11,7 @@ use tracing::{info, warn};
 
 use crate::scheduler::{normalize_cron_expression, ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::SessionMetadata;
+use crate::session::{SessionManager, SessionMetadata};
 
 const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
@@ -956,14 +956,16 @@ impl TemporalScheduler {
                         let recent_sessions = self.sessions(sched_id, 1).await?;
 
                         if let Some((session_name, _session_metadata)) = recent_sessions.first() {
-                            // Check if this session is still active by looking at the session file
-                            let session_path = match crate::session::storage::get_path(
-                                crate::session::storage::Identifier::Name(session_name.clone()),
-                            ) {
-                                Ok(path) => path,
+                            // Check if this session still exists in the new system
+                            match SessionManager::get_session_metadata(session_name).await {
+                                Ok(_) => {
+                                    // Session exists, consider it active
+                                    let start_time = Utc::now();
+                                    return Ok(Some((session_name.clone(), start_time)));
+                                }
                                 Err(e) => {
                                     tracing::warn!(
-                                        "Failed to get session path for '{}': {}",
+                                        "Session '{}' no longer exists: {}",
                                         session_name,
                                         e
                                     );
@@ -972,21 +974,6 @@ impl TemporalScheduler {
                                         format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
                                     let start_time = Utc::now();
                                     return Ok(Some((session_id, start_time)));
-                                }
-                            };
-
-                            // If the session file was modified recently (within last 5 minutes),
-                            // consider it as the current running session
-                            if let Ok(metadata) = std::fs::metadata(&session_path) {
-                                if let Ok(modified) = metadata.modified() {
-                                    let modified_dt: DateTime<Utc> = modified.into();
-                                    let now = Utc::now();
-                                    let time_diff = now.signed_duration_since(modified_dt);
-
-                                    if time_diff.num_minutes() < 5 {
-                                        // This looks like an active session
-                                        return Ok(Some((session_name.clone(), modified_dt)));
-                                    }
                                 }
                             }
                         }
@@ -1013,10 +1000,9 @@ impl TemporalScheduler {
     async fn make_request(&self, request: JobRequest) -> Result<JobResponse, SchedulerError> {
         let url = format!("{}/jobs", self.service_url);
 
-        tracing::info!(
+        info!(
             "TemporalScheduler: Making HTTP request to {} with action '{}'",
-            url,
-            request.action
+            url, request.action
         );
 
         let response = self

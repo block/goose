@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use goose::agents::Agent;
 use goose::scheduler::{ScheduledJob, SchedulerError};
 use goose::scheduler_trait::SchedulerTrait;
-use goose::session::storage::SessionMetadata;
+use goose::session::SessionMetadata;
 
 #[derive(Debug, Clone)]
 pub enum MockBehavior {

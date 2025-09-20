@@ -21,7 +21,6 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
-pub use goose::session::Identifier;
 use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
@@ -57,7 +56,7 @@ pub enum RunMode {
 pub struct Session {
     agent: Agent,
     messages: Conversation,
-    session_file: Option<PathBuf>,
+    session_id: Option<String>,
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode

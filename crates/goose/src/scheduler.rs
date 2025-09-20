@@ -1,3 +1,4 @@
+use crate::session::extension_data::ExtensionData;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
@@ -1143,7 +1144,7 @@ async fn run_scheduled_job_internal(
         })?;
     }
 
-    if let Some(recipe_extensions) = recipe.extensions {
+    if let Some(ref recipe_extensions) = recipe.extensions {
         for extension in recipe_extensions {
             agent
                 .add_extension(extension.clone())
@@ -1176,7 +1177,7 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    if let Some(prompt_text) = recipe.prompt {
+    if let Some(ref prompt_text) = recipe.prompt {
         let mut all_session_messages =
             Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
@@ -1191,7 +1192,7 @@ async fn run_scheduled_job_internal(
         };
 
         let session_config = SessionConfig {
-            id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
+            id: session_id_for_return.clone(),
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
@@ -1241,7 +1242,7 @@ async fn run_scheduled_job_internal(
                 }
 
                 // Save all messages to the session
-                for message in &all_session_messages {
+                for message in all_session_messages.iter() {
                     if let Err(e) =
                         SessionManager::add_message(&session_id_for_return, message).await
                     {
@@ -1250,7 +1251,7 @@ async fn run_scheduled_job_internal(
                 }
 
                 // Update session metadata
-                let mut metadata = SessionMetadata {
+                let metadata = SessionMetadata {
                     working_dir: current_dir.clone(),
                     description: format!("Scheduled job: {}", job.id),
                     schedule_id: Some(job.id.clone()),
@@ -1261,7 +1262,7 @@ async fn run_scheduled_job_internal(
                     accumulated_total_tokens: None,
                     accumulated_input_tokens: None,
                     accumulated_output_tokens: None,
-                    extension_data: crate::session::ExtensionData::new(),
+                    extension_data: crate::session::extension_data::ExtensionData::new(),
                     recipe: Some(recipe),
                 };
 
@@ -1297,7 +1298,7 @@ async fn run_scheduled_job_internal(
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
-            extension_data: crate::session::ExtensionData::new(),
+            extension_data: ExtensionData::new(),
             recipe: Some(recipe),
         };
 
@@ -1399,7 +1400,8 @@ mod tests {
         let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
         fs::create_dir_all(&recipe_dir)?;
 
-        let _ = session::storage::ensure_session_dir().expect("Failed to ensure app session dir");
+        let _ = crate::session::session_manager::ensure_session_dir()
+            .expect("Failed to ensure app session dir");
 
         let schedule_id_str = "test_schedule_001_scheduler_check".to_string();
         let recipe_filename = recipe_dir.join(format!("{}.json", schedule_id_str));
@@ -1450,39 +1452,30 @@ mod tests {
                 .await
                 .expect("run_scheduled_job_internal failed");
 
-        let session_dir = session::storage::ensure_session_dir()?;
-        let expected_session_path = session_dir.join(format!("{}.jsonl", created_session_id));
-
-        assert!(
-            expected_session_path.exists(),
-            "Expected session file {} was not created",
-            expected_session_path.display()
-        );
-
-        let metadata = read_metadata(&expected_session_path).await?;
+        let metadata = SessionManager::get_session_metadata(&created_session_id).await?;
 
         assert_eq!(
             metadata.schedule_id,
             Some(schedule_id_str.clone()),
-            "Session metadata schedule_id ({:?}) does not match the job ID ({}). File: {}",
+            "Session metadata schedule_id ({:?}) does not match the job ID ({}). Session: {}",
             metadata.schedule_id,
             schedule_id_str,
-            expected_session_path.display()
+            created_session_id
         );
 
-        // Check if messages were written
-        let messages_in_file = crate::session::storage::read_messages(&expected_session_path)?;
+        // Check if messages were written using SessionManager
+        let messages_in_session = SessionManager::get_conversation(&created_session_id).await?;
         assert!(
-            !messages_in_file.is_empty(),
-            "No messages were written to the session file: {}",
-            expected_session_path.display()
+            !messages_in_session.is_empty(),
+            "No messages were written to the session: {}",
+            created_session_id
         );
         // We expect at least a user prompt and an assistant response
         assert!(
-            messages_in_file.len() >= 2,
-            "Expected at least 2 messages (prompt + response), found {} in file: {}",
-            messages_in_file.len(),
-            expected_session_path.display()
+            messages_in_session.len() >= 2,
+            "Expected at least 2 messages (prompt + response), found {} in session: {}",
+            messages_in_session.len(),
+            created_session_id
         );
 
         // Clean up environment variables

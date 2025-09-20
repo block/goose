@@ -13,7 +13,7 @@ use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
 use goose::session;
-use goose::session::SessionMetadata;
+use goose::session::{SessionManager, SessionMetadata};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -136,14 +136,11 @@ async fn start_agent(
         recipe: payload.recipe,
     };
 
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
+    SessionManager::update_session_metadata(&session_id, metadata.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let conversation = Conversation::empty();
-    session::storage::save_messages_with_metadata(&session_path, &metadata, &conversation)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(StartAgentResponse {
         session_id,
@@ -166,23 +163,16 @@ async fn start_agent(
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
-    let session_path =
-        match session::get_path(session::Identifier::Name(payload.session_id.clone())) {
-            Ok(path) => path,
-            Err(_) => return Err(StatusCode::BAD_REQUEST),
-        };
-
-    let metadata = session::read_metadata(&session_path)
+    let metadata = SessionManager::get_session_metadata(&payload.session_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let conversation = match session::read_messages(&session_path) {
-        Ok(messages) => messages,
-        Err(e) => {
+    let conversation = SessionManager::get_conversation(&payload.session_id)
+        .await
+        .map_err(|e| {
             error!("Failed to read session messages: {:?}", e);
-            return Err(StatusCode::NOT_FOUND);
-        }
-    };
+            StatusCode::NOT_FOUND
+        })?;
 
     Ok(Json(StartAgentResponse {
         session_id: payload.session_id.clone(),

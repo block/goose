@@ -462,48 +462,25 @@ impl Agent {
                 )
             })?;
 
-        // Get the session file path
-        let session_path = match crate::session::storage::get_path(
-            crate::session::storage::Identifier::Name(session_id.to_string()),
-        ) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Invalid session ID '{}': {}", session_id, e),
-                    None,
-                ));
-            }
-        };
-
-        // Check if session file exists
-        if !session_path.exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Session '{}' not found", session_id),
-                None,
-            ));
-        }
-
         // Read session metadata
-        let metadata = match crate::session::storage::read_metadata(&session_path).await {
+        let metadata = match crate::session::SessionManager::get_session_metadata(session_id).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session metadata: {}", e),
+                    format!("Failed to read session metadata for '{}': {}", session_id, e),
                     None,
                 ));
             }
         };
 
         // Read session messages
-        let messages = match crate::session::storage::read_messages(&session_path) {
+        let messages = match crate::session::SessionManager::get_conversation(session_id).await {
             Ok(messages) => messages,
             Err(e) => {
                 return Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session messages: {}", e),
+                    format!("Failed to read session messages for '{}': {}", session_id, e),
                     None,
                 ));
             }

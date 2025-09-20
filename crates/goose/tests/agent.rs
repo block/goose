@@ -353,10 +353,9 @@ mod schedule_tool_tests {
     use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
-    use goose::session::storage::SessionMetadata;
+    use goose::session::SessionMetadata;
     use std::sync::Arc;
 
-    // Mock scheduler for testing
     struct MockScheduler {
         jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
     }
@@ -879,7 +878,7 @@ mod retry_tests {
         );
 
         let session_config = SessionConfig {
-            id: goose::session::Identifier::Name("test-retry".to_string()),
+            id: "test-retry".to_string(),
             working_dir: std::env::current_dir()?,
             schedule_id: None,
             execution_mode: None,
@@ -990,7 +989,6 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use goose::session::storage::Identifier;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Tool;
     use std::path::PathBuf;
@@ -1058,7 +1056,7 @@ mod max_turns_tests {
 
         // Create session config with max_turns = 1
         let session_config = goose::agents::SessionConfig {
-            id: Identifier::Name("test_session".to_string()),
+            id: "test_session".to_string(),
             working_dir: PathBuf::from("/tmp"),
             schedule_id: None,
             execution_mode: None,
