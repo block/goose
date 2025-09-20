@@ -1,4 +1,5 @@
 import { View, ViewOptions } from '../../utils/navigationUtils';
+import { useChatContext } from '../../contexts/ChatContext';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -30,6 +31,9 @@ export default function ExtensionsView({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
+  // Get the current session ID from chat context
+  const chatContext = useChatContext();
+  const sessionId = chatContext?.chat.sessionId;
 
   // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
   useEffect(() => {
@@ -48,7 +52,7 @@ export default function ExtensionsView({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig, sessionId: sessionId });
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {

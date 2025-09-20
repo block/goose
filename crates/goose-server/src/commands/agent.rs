@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
 use etcetera::{choose_app_strategy, AppStrategy};
-use goose::agents::Agent;
 use goose::config::APP_STRATEGY;
 use goose::scheduler_factory::SchedulerFactory;
 use goose_server::auth::check_token;
@@ -32,10 +29,7 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    let new_agent = Agent::new();
-    let agent_ref = Arc::new(new_agent);
-
-    let app_state = state::AppState::new(agent_ref.clone());
+    let app_state = state::AppState::new();
 
     let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
         .data_dir()
@@ -44,8 +38,11 @@ pub async fn run() -> Result<()> {
     let scheduler_instance = SchedulerFactory::create(schedule_file_path).await?;
     app_state.set_scheduler(scheduler_instance.clone()).await;
 
-    // NEW: Provide scheduler access to the agent
-    agent_ref.set_scheduler(scheduler_instance).await;
+    // Configure default provider on the agent manager
+    app_state
+        .agent_manager()
+        .configure_default_provider()
+        .await?;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

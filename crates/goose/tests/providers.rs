@@ -137,8 +137,8 @@ impl ProviderTester {
             .provider
             .complete(
                 "You are a helpful weather assistant.",
-                &[message.clone()],
-                &[weather_tool.clone()],
+                std::slice::from_ref(&message),
+                std::slice::from_ref(&weather_tool),
             )
             .await?;
 

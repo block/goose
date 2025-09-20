@@ -13,6 +13,8 @@ pub struct ContextManageRequest {
     pub messages: Vec<Message>,
     /// Operation to perform: "truncation" or "summarize"
     pub manage_action: String,
+    /// Optional session ID for session-specific agent
+    pub session_id: Option<String>,
 }
 
 /// Response from context management operations
@@ -44,7 +46,14 @@ async fn manage_context(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
-    let agent = state.get_agent().await;
+    // Get session-specific agent
+    let agent = state
+        .get_session_agent(request.session_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get session agent: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let mut processed_messages = Conversation::new_unvalidated(vec![]);
     let mut token_counts: Vec<usize> = vec![];

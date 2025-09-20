@@ -33,7 +33,7 @@ impl Agent {
         // Only add an assistant message if we have room for it and it won't cause another overflow
         let assistant_message = Message::assistant().with_text("I had run into a context length exceeded error so I truncated some of the oldest messages in our conversation.");
         let assistant_tokens =
-            token_counter.count_chat_tokens("", &[assistant_message.clone()], &[]);
+            token_counter.count_chat_tokens("", std::slice::from_ref(&assistant_message), &[]);
 
         let current_total: usize = new_token_counts.iter().sum();
         if current_total + assistant_tokens <= target_context_limit {

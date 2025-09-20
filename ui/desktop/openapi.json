@@ -1571,12 +1571,12 @@
       "AddSubRecipesRequest": {
         "type": "object",
         "required": [
-          "sub_recipes",
-          "session_id"
+          "sub_recipes"
         ],
         "properties": {
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "sub_recipes": {
             "type": "array",
@@ -1782,6 +1782,11 @@
               "$ref": "#/components/schemas/Message"
             },
             "description": "Collection of messages to be managed"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "Optional session ID for session-specific agent",
+            "nullable": true
           }
         }
       },
@@ -1875,6 +1880,10 @@
             "items": {
               "$ref": "#/components/schemas/Message"
             }
+          },
+          "session_id": {
+            "type": "string",
+            "nullable": true
           },
           "title": {
             "type": "string"
@@ -2022,15 +2031,15 @@
       "ExtendPromptRequest": {
         "type": "object",
         "required": [
-          "extension",
-          "session_id"
+          "extension"
         ],
         "properties": {
           "extension": {
             "type": "string"
           },
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2441,16 +2450,14 @@
       },
       "GetToolsQuery": {
         "type": "object",
-        "required": [
-          "session_id"
-        ],
         "properties": {
           "extension_name": {
             "type": "string",
             "nullable": true
           },
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2847,8 +2854,7 @@
         "type": "object",
         "required": [
           "id",
-          "action",
-          "session_id"
+          "action"
         ],
         "properties": {
           "action": {
@@ -2861,7 +2867,8 @@
             "$ref": "#/components/schemas/PrincipalType"
           },
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3419,9 +3426,6 @@
       },
       "SessionConfigRequest": {
         "type": "object",
-        "required": [
-          "session_id"
-        ],
         "properties": {
           "response": {
             "allOf": [
@@ -3432,7 +3436,8 @@
             "nullable": true
           },
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3982,8 +3987,7 @@
       "UpdateProviderRequest": {
         "type": "object",
         "required": [
-          "provider",
-          "session_id"
+          "provider"
         ],
         "properties": {
           "model": {
@@ -3994,18 +3998,17 @@
             "type": "string"
           },
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },
       "UpdateRouterToolSelectorRequest": {
         "type": "object",
-        "required": [
-          "session_id"
-        ],
         "properties": {
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },

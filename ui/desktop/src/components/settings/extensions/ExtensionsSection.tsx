@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
+import { useChatContext } from '../../../contexts/ChatContext';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
@@ -34,6 +35,9 @@ export default function ExtensionsSection({
   selectedExtensions = [],
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
+  // Get the current session ID from chat context
+  const chatContext = useChatContext();
+  const sessionId = chatContext?.chat.sessionId;
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -97,6 +101,7 @@ export default function ExtensionsSection({
         extensionConfig: extensionConfig,
         addToConfig: addExtension,
         toastOptions: { silent: false },
+        sessionId: sessionId,
       });
 
       await fetchExtensions(); // Refresh the list after successful toggle
@@ -119,7 +124,7 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig, sessionId: sessionId });
       // Immediately refresh the extensions list after successful activation
       await fetchExtensions();
     } catch (error) {
@@ -147,6 +152,7 @@ export default function ExtensionsSection({
         addToConfig: addExtension,
         removeFromConfig: removeExtension,
         originalName: originalName,
+        sessionId: sessionId,
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
@@ -162,7 +168,7 @@ export default function ExtensionsSection({
     handleModalClose();
 
     try {
-      await deleteExtension({ name, removeFromConfig: removeExtension });
+      await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });
     } catch (error) {
       console.error('Failed to delete extension:', error);
       // We don't reopen the modal on failure

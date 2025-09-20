@@ -46,7 +46,11 @@ describe('Extension Manager', () => {
         extensionConfig: mockExtensionConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        undefined
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
 
@@ -61,7 +65,11 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        undefined
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
 
@@ -77,9 +85,13 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Config failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        undefined
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension');
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
     });
   });
 
@@ -92,7 +104,7 @@ describe('Extension Manager', () => {
         extensionConfig: mockExtensionConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: true });
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: true }, undefined);
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
@@ -105,7 +117,11 @@ describe('Extension Manager', () => {
         toastOptions: { silent: false },
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        undefined
+      );
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
@@ -160,7 +176,8 @@ describe('Extension Manager', () => {
 
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'test-extension' },
-        { silent: true }
+        { silent: true },
+        undefined
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'test-extension',
@@ -188,11 +205,16 @@ describe('Extension Manager', () => {
         originalName: 'old-extension',
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('old-extension', { silent: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'old-extension',
+        { silent: true },
+        undefined
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('old-extension');
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'new-extension' },
-        { silent: true }
+        { silent: true },
+        undefined
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'new-extension',
@@ -237,7 +259,7 @@ describe('Extension Manager', () => {
         addToConfig: mockAddToConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
 
@@ -251,7 +273,7 @@ describe('Extension Manager', () => {
         addToConfig: mockAddToConfig,
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
 
@@ -268,7 +290,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
       // addToConfig is called during the rollback (toggleOff)
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
@@ -286,9 +308,9 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Config failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
     });
 
     it('should update config even if agent removal fails when toggling off', async () => {
@@ -304,7 +326,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
   });
@@ -319,7 +341,11 @@ describe('Extension Manager', () => {
         removeFromConfig: mockRemoveFromConfig,
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        undefined
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -335,7 +361,11 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        undefined
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -352,7 +382,11 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Config removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        undefined
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
   });

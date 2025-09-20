@@ -45,7 +45,7 @@ pub async fn execute_single_task(
         .await;
 
     let execution_time = start_time.elapsed().as_millis();
-    let stats = calculate_stats(&[result.clone()], execution_time);
+    let stats = calculate_stats(std::slice::from_ref(&result), execution_time);
 
     ExecutionResponse {
         status: EXECUTION_STATUS_COMPLETED.to_string(),
