@@ -2,6 +2,7 @@ import { ModeSection } from '../mode/ModeSection';
 import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
 import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
+import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
@@ -19,6 +20,12 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
+        <CardContent className="px-2">
+          <SecurityToggle />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Response Styles</CardTitle>
           <CardDescription>Choose how Goose should format and style its responses</CardDescription>
@@ -27,7 +34,6 @@ export default function ChatSettingsSection() {
           <ResponseStylesSection />
         </CardContent>
       </Card>
-
 
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
