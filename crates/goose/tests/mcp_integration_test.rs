@@ -158,6 +158,8 @@ async fn test_replayed_session(
         timeout: Some(30),
         bundled: Some(false),
         available_tools: vec![],
+        stdout_log_path: None,
+        stderr_log_path: None,
     };
 
     let extension_manager = ExtensionManager::new();

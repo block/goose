@@ -47,6 +47,12 @@ enum ExtensionConfigRequest {
         #[serde(default)]
         env_keys: Vec<String>,
         timeout: Option<u64>,
+        /// Optional path to redirect stdout for debugging
+        #[serde(default)]
+        stdout_log_path: Option<String>,
+        /// Optional path to redirect stderr for debugging
+        #[serde(default)]
+        stderr_log_path: Option<String>,
     },
     /// Built-in extension that is part of the goose binary.
     #[serde(rename = "builtin")]
@@ -217,6 +223,8 @@ async fn add_extension(
             envs,
             env_keys,
             timeout,
+            stdout_log_path,
+            stderr_log_path,
         } => {
             // TODO: We can uncomment once bugs are fixed. Check allowlist for Stdio extensions
             // if !is_command_allowed(&cmd, &args) {
@@ -240,6 +248,8 @@ async fn add_extension(
                 timeout,
                 bundled: None,
                 available_tools: Vec::new(),
+                stdout_log_path,
+                stderr_log_path,
             }
         }
         ExtensionConfigRequest::Builtin {

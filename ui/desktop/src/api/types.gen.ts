@@ -60,9 +60,7 @@ export type ConfigKeyQuery = {
 };
 
 export type ConfigResponse = {
-    config: {
-        [key: string]: unknown;
-    };
+    config: {};
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated | RawResource;
@@ -209,6 +207,14 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    /**
+     * Optional path to redirect stderr for debugging
+     */
+    stderr_log_path?: string | null;
+    /**
+     * Optional path to redirect stdout for debugging
+     */
+    stdout_log_path?: string | null;
     timeout?: number | null;
     type: 'stdio';
 } | {
@@ -292,9 +298,7 @@ export type ExtensionConfig = {
  * Extension data containing all extension states
  * Keys are in format "extension_name.version" (e.g., "todo.v0")
  */
-export type ExtensionData = {
-    [key: string]: unknown;
-};
+export type ExtensionData = {};
 
 export type ExtensionEntry = ExtensionConfig & {
     type?: 'ExtensionEntry';

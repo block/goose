@@ -11,6 +11,8 @@ use rmcp::transport::{
     ConfigureCommandExt, SseClientTransport, StreamableHttpClientTransport, TokioChildProcess,
 };
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -188,6 +190,96 @@ async fn child_process_client(
     }
 }
 
+async fn child_process_client_with_logs(
+    mut command: Command,
+    timeout: &Option<u64>,
+    _stdout_log_path: &Option<String>,
+    stderr_log_path: &Option<String>,
+) -> ExtensionResult<McpClient> {
+    #[cfg(unix)]
+    command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW_FLAG);
+
+    // Note: stdout is used for MCP protocol communication, so we cannot redirect it to a file
+    // Future enhancement: implement a tee-like mechanism to log while preserving protocol communication
+    if _stdout_log_path.is_some() {
+        tracing::warn!("stdout_log_path is not yet supported for stdio extensions as stdout is used for MCP protocol communication");
+    }
+
+    // Set up stderr handling
+    let stderr_stdio = if let Some(path) = stderr_log_path {
+        // Validate path
+        if path.is_empty() {
+            return Err(ExtensionError::ConfigError("stderr_log_path cannot be empty".to_owned()));
+        }
+
+        // Ensure parent directory exists
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                ExtensionError::ConfigError(format!("Failed to create log directory: {}", e))
+            })?;
+        }
+
+        // Open file for appending
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| {
+                ExtensionError::ConfigError(format!("Failed to open stderr log file: {}", e))
+            })?;
+
+        Stdio::from(file)
+    } else {
+        // Keep stderr piped for error capture
+        Stdio::piped()
+    };
+
+    let (transport, mut stderr) = TokioChildProcess::builder(command)
+        .stderr(stderr_stdio)
+        .spawn()?;
+
+    // Only capture stderr if not redirected to file
+    if stderr_log_path.is_none() {
+        let mut stderr = stderr.take().ok_or_else(|| {
+            ExtensionError::SetupError("failed to attach child process stderr".to_owned())
+        })?;
+
+        let stderr_task = tokio::spawn(async move {
+            let mut all_stderr = Vec::new();
+            stderr.read_to_end(&mut all_stderr).await?;
+            Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
+        });
+
+        let client_result = McpClient::connect(
+            transport,
+            Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+        )
+        .await;
+
+        match client_result {
+            Ok(client) => Ok(client),
+            Err(error) => {
+                let error_task_out = stderr_task.await?;
+                Err::<McpClient, ExtensionError>(match error_task_out {
+                    Ok(stderr_content) => ProcessExit::new(stderr_content, error).into(),
+                    Err(e) => e.into(),
+                })
+            }
+        }
+    } else {
+        // When stderr is redirected, we can't capture it for error reporting
+        tracing::info!("stderr for extension will be logged to: {}", stderr_log_path.as_ref().unwrap());
+        McpClient::connect(
+            transport,
+            Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+        )
+        .await
+        .map_err(|e| e.into())
+    }
+}
+
 impl ExtensionManager {
     pub fn new() -> Self {
         Self {
@@ -358,6 +450,8 @@ impl ExtensionManager {
                 envs,
                 env_keys,
                 timeout,
+                stdout_log_path,
+                stderr_log_path,
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
@@ -368,7 +462,7 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let client = child_process_client(command, timeout).await?;
+                let client = child_process_client_with_logs(command, timeout, stdout_log_path, stderr_log_path).await?;
                 Box::new(client)
             }
             ExtensionConfig::Builtin {

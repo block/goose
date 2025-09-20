@@ -326,6 +326,7 @@ export default function ExtensionModal({
                   endpoint={formData.endpoint || ''}
                   onChange={(key, value) => setFormData({ ...formData, [key]: value })}
                   submitAttempted={submitAttempted}
+                  stderrLogPath={formData.stderrLogPath}
                   isValid={isConfigValid()}
                 />
                 <div className="mb-4" />
