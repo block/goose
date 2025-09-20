@@ -5,7 +5,7 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2 } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2 } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
@@ -295,11 +295,24 @@ You can resume a CLI session in Desktop.
     </TabItem>
 </Tabs>
 
-## Remove Sessions
+## Delete Sessions
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Removing sessions is only available through the CLI.
+        You can delete sessions directly from the Desktop app:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Find the session you want to delete
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Trash2 className="inline" size={16} /> button that appears
+        6. Confirm the deletion in the modal that appears
+
+        :::warning Permanent deletion
+        Deleting a session from Goose Desktop will also delete it from the CLI. This action cannot be undone.
+        :::
+
+        The session will be immediately removed from your session history and the underlying session file will be deleted from your local storage.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
