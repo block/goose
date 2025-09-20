@@ -1,5 +1,4 @@
 mod execution_tests {
-    use goose::execution::adapters::*;
     use goose::execution::manager::AgentManager;
     use goose::execution::{ExecutionMode, SessionId};
     use std::sync::Arc;
@@ -192,116 +191,7 @@ mod execution_tests {
         assert!(Arc::ptr_eq(&agent1, &agent2));
     }
 
-    // ===== Adapter Tests =====
-
-    #[tokio::test]
-    async fn test_dynamic_task_adapter() {
-        let manager = AgentManager::new();
-
-        let parent = "parent-session-123".to_string();
-        let instructions = "test task instructions".to_string();
-
-        // Should create task and return ID
-        let task_id = adapt_dynamic_task(&manager, parent.clone(), instructions.clone())
-            .await
-            .unwrap();
-
-        assert!(!task_id.is_empty());
-
-        // Should have created agent with SubTask mode
-        let session = SessionId::from(task_id.clone());
-        assert!(manager.has_session(&session).await);
-    }
-
-    #[tokio::test]
-    async fn test_scheduler_adapter() {
-        let manager = AgentManager::new();
-
-        let job_id = "test-job-456".to_string();
-
-        // Should execute without error
-        let result = adapt_scheduler_job(&manager, job_id.clone()).await;
-        assert!(result.is_ok());
-
-        // Should have created session
-        let session = SessionId::from(job_id);
-        assert!(manager.has_session(&session).await);
-    }
-
-    #[tokio::test]
-    async fn test_chat_adapter_with_session() {
-        let manager = AgentManager::new();
-
-        // With existing session ID
-        let session_str = "existing-chat-789";
-        let agent = adapt_chat_session(&manager, Some(session_str.to_string()))
-            .await
-            .unwrap();
-
-        // Should have created the session
-        let session = SessionId::from(session_str);
-        assert!(manager.has_session(&session).await);
-
-        // Getting same session should return same agent
-        let agent2 = adapt_chat_session(&manager, Some(session_str.to_string()))
-            .await
-            .unwrap();
-        assert!(Arc::ptr_eq(&agent, &agent2));
-    }
-
-    #[tokio::test]
-    async fn test_chat_adapter_without_session() {
-        let manager = AgentManager::new();
-
-        // Without session ID (should generate)
-        let agent1 = adapt_chat_session(&manager, None).await.unwrap();
-        let agent2 = adapt_chat_session(&manager, None).await.unwrap();
-
-        // Should create different agents (different generated sessions)
-        assert!(!Arc::ptr_eq(&agent1, &agent2));
-    }
-
-    #[tokio::test]
-    async fn test_session_id_adapter() {
-        // With existing ID
-        let id = adapt_session_id(Some("test-123".to_string()));
-        assert_eq!(id.as_str(), "test-123");
-
-        // Without ID (should generate valid UUID)
-        let generated = adapt_session_id(None);
-        // Verify it's a valid UUID v4 by trying to parse it
-        let uuid_result = uuid::Uuid::parse_str(generated.as_str());
-        assert!(uuid_result.is_ok(), "Generated ID should be valid UUID");
-        let uuid = uuid_result.unwrap();
-        assert_eq!(uuid.get_version(), Some(uuid::Version::Random));
-    }
-
-    #[tokio::test]
-    async fn test_multiple_adapters_isolation() {
-        let manager = AgentManager::new();
-
-        // Create different sessions through different adapters
-        let task_id = adapt_dynamic_task(&manager, "parent".to_string(), "task".to_string())
-            .await
-            .unwrap();
-
-        let job_id = "job-123".to_string();
-        adapt_scheduler_job(&manager, job_id.clone()).await.unwrap();
-
-        let _chat_agent = adapt_chat_session(&manager, Some("chat-456".to_string()))
-            .await
-            .unwrap();
-
-        // Should have 3 different sessions
-        assert_eq!(manager.session_count().await, 3);
-
-        // Each should be isolated
-        assert!(manager.has_session(&SessionId::from(task_id)).await);
-        assert!(manager.has_session(&SessionId::from(job_id)).await);
-        assert!(manager.has_session(&SessionId::from("chat-456")).await);
-    }
-
-    // ===== New Tests for Missing Coverage =====
+    // ===== Misc Tests for Missing Coverage =====
 
     #[tokio::test]
     async fn test_concurrent_session_creation_race_condition() {

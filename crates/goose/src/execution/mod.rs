@@ -3,7 +3,6 @@
 //! This module provides centralized agent lifecycle management with session isolation,
 //! enabling multiple concurrent sessions with independent agents, extensions, and providers.
 
-pub mod adapters;
 pub mod manager;
 
 use serde::{Deserialize, Serialize};
