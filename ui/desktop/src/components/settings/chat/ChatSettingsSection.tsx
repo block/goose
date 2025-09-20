@@ -2,7 +2,7 @@ import { ModeSection } from '../mode/ModeSection';
 import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
 import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
-import SecuritySection from '../security/SecuritySection';
+import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
@@ -21,7 +21,7 @@ export default function ChatSettingsSection() {
 
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
-          <SecuritySection />
+          <SecurityToggle />
         </CardContent>
       </Card>
 
