@@ -100,7 +100,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify('test-extension'),
+        body: JSON.stringify({ name: 'test-extension' }),
       });
 
       expect(mockToastService.loading).not.toHaveBeenCalled(); // No loading toast for removal
@@ -306,7 +306,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify('testextension'),
+        body: JSON.stringify({ name: 'testextension' }),
       });
     });
 
