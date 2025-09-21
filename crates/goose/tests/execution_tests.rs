@@ -1,9 +1,8 @@
 mod execution_tests {
     use goose::execution::manager::AgentManager;
     use goose::execution::{ExecutionMode, SessionId};
+    use serial_test::serial;
     use std::sync::Arc;
-
-    // ===== Type Tests =====
 
     #[test]
     fn test_execution_mode_helpers() {
@@ -51,8 +50,6 @@ mod execution_tests {
         let mode2 = ExecutionMode::task("parent-456".to_string());
         assert_eq!(format!("{}", mode2), "subtask(parent: parent-456)");
     }
-
-    // ===== AgentManager Tests =====
 
     #[tokio::test]
     async fn test_session_isolation() {
@@ -173,8 +170,6 @@ mod execution_tests {
         assert!(Arc::ptr_eq(&agent1, &agent2));
     }
 
-    // ===== Misc Tests for Missing Coverage =====
-
     #[tokio::test]
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
@@ -216,7 +211,6 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_edge_case_max_sessions_zero() {
-        // Test behavior with max_sessions = 0 (should still allow creating sessions)
         let manager = AgentManager::with_max_sessions(0);
 
         let session1 = SessionId::from("session-1");
@@ -243,7 +237,6 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_edge_case_max_sessions_one() {
-        // Test behavior with max_sessions = 1
         let manager = AgentManager::with_max_sessions(1);
 
         let session1 = SessionId::from("only-session");
@@ -267,22 +260,19 @@ mod execution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_configure_default_provider() {
         use std::env;
 
-        // Save original env vars
         let original_provider = env::var("GOOSE_DEFAULT_PROVIDER").ok();
         let original_model = env::var("GOOSE_DEFAULT_MODEL").ok();
 
-        // Set test env vars
         env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
         env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
 
         let manager = AgentManager::new();
         let result = manager.configure_default_provider().await;
 
-        // Should succeed (though provider creation might fail without API key)
-        // We're testing the configuration logic, not the provider itself
         assert!(result.is_ok());
 
         // Restore original env vars
@@ -303,7 +293,6 @@ mod execution_tests {
         use goose::providers::testprovider::TestProvider;
         use std::sync::Arc;
 
-        // Test the set methods work
         let manager = AgentManager::new();
 
         // Create a test provider for replaying (doesn't need inner provider)
@@ -319,14 +308,12 @@ mod execution_tests {
 
         manager.set_default_provider(Arc::new(test_provider)).await;
 
-        // Create a session and verify it gets created
         let session = SessionId::from("provider-test");
         let _agent = manager
             .get_agent(session.clone(), ExecutionMode::Interactive)
             .await
             .unwrap();
 
-        // Agent should be created and session should exist
         assert!(manager.has_session(&session).await);
     }
 
@@ -336,7 +323,6 @@ mod execution_tests {
         // and affects eviction order
         let manager = AgentManager::with_max_sessions(2);
 
-        // Create two sessions
         let session1 = SessionId::from("session-1");
         let session2 = SessionId::from("session-2");
 
