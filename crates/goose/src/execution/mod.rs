@@ -11,13 +11,8 @@ use std::fmt;
 /// Execution context that defines how an agent should be configured and run
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionMode {
-    /// Interactive chat sessions with user
     Interactive,
-
-    /// Background execution (scheduler, automated tasks)
     Background,
-
-    /// Sub-task execution with parent context
     SubTask {
         /// Parent session that spawned this task
         parent_session: String,
@@ -53,22 +48,18 @@ impl fmt::Display for ExecutionMode {
     }
 }
 
-/// Unique session identifier
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SessionId(pub String);
 
 impl SessionId {
-    /// Generate a new unique session ID
     pub fn generate() -> Self {
         Self(uuid::Uuid::new_v4().to_string())
     }
 
-    /// Create from an existing ID string
     pub fn from_string(id: String) -> Self {
         Self(id)
     }
 
-    /// Get the inner string value
     pub fn as_str(&self) -> &str {
         &self.0
     }
