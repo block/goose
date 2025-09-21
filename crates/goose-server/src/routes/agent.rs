@@ -25,6 +25,29 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tracing::error;
 
+/// Helper for routes that return StatusCode on error
+async fn get_agent_or_500(
+    state: &Arc<AppState>,
+    session_id: Option<String>,
+) -> Result<Arc<goose::agents::Agent>, StatusCode> {
+    state.get_session_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get session agent: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
+/// Helper for routes that return Json<ErrorResponse> on error
+async fn get_agent_or_json_error(
+    state: &Arc<AppState>,
+    session_id: Option<String>,
+) -> Result<Arc<goose::agents::Agent>, Json<ErrorResponse>> {
+    state.get_session_agent(session_id).await.map_err(|e| {
+        let msg = format!("Failed to get session agent: {}", e);
+        tracing::error!("{}", msg);
+        Json(ErrorResponse { error: msg })
+    })
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
@@ -195,16 +218,7 @@ async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AddSubRecipesRequest>,
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    let agent = match state
-        .get_session_agent(Some(payload.session_id.clone()))
-        .await
-    {
-        Ok(agent) => agent,
-        Err(e) => {
-            tracing::error!("Failed to get session agent: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let agent = get_agent_or_500(&state, Some(payload.session_id.clone())).await?;
     agent.add_sub_recipes(payload.sub_recipes.clone()).await;
     Ok(Json(AddSubRecipesResponse { success: true }))
 }
@@ -223,16 +237,7 @@ async fn extend_prompt(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    let agent = match state
-        .get_session_agent(Some(payload.session_id.clone()))
-        .await
-    {
-        Ok(agent) => agent,
-        Err(e) => {
-            tracing::error!("Failed to get session agent: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let agent = get_agent_or_500(&state, Some(payload.session_id.clone())).await?;
     agent.extend_system_prompt(payload.extension.clone()).await;
     Ok(Json(ExtendPromptResponse { success: true }))
 }
@@ -257,16 +262,7 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = match state
-        .get_session_agent(Some(query.session_id.clone()))
-        .await
-    {
-        Ok(agent) => agent,
-        Err(e) => {
-            tracing::error!("Failed to get session agent: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let agent = get_agent_or_500(&state, Some(query.session_id.clone())).await?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
@@ -376,17 +372,7 @@ async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRouterToolSelectorRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = match state
-        .get_session_agent(Some(payload.session_id.clone()))
-        .await
-    {
-        Ok(agent) => agent,
-        Err(e) => {
-            return Err(Json(ErrorResponse {
-                error: format!("Failed to get session agent: {}", e),
-            }))
-        }
-    };
+    let agent = get_agent_or_json_error(&state, Some(payload.session_id.clone())).await?;
     agent
         .update_router_tool_selector(None, Some(true))
         .await
@@ -417,17 +403,7 @@ async fn update_session_config(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SessionConfigRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = match state
-        .get_session_agent(Some(payload.session_id.clone()))
-        .await
-    {
-        Ok(agent) => agent,
-        Err(e) => {
-            return Err(Json(ErrorResponse {
-                error: format!("Failed to get session agent: {}", e),
-            }))
-        }
-    };
+    let agent = get_agent_or_json_error(&state, Some(payload.session_id.clone())).await?;
     if let Some(response) = payload.response {
         agent.add_final_output_tool(response).await;
 

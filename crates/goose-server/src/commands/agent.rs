@@ -38,7 +38,6 @@ pub async fn run() -> Result<()> {
     let scheduler_instance = SchedulerFactory::create(schedule_file_path).await?;
     app_state.set_scheduler(scheduler_instance.clone()).await;
 
-    // Configure default provider on the agent manager
     app_state.agent_manager.configure_default_provider().await?;
 
     let cors = CorsLayer::new()
