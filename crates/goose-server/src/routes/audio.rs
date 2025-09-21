@@ -397,9 +397,6 @@ mod tests {
     async fn test_transcribe_endpoint_requires_auth() {
         let state = AppState::new();
         let app = routes(state);
-        // Note: This test is checking that the endpoint exists
-        // In production, authentication is handled by middleware
-        // applied at the router level, not in individual routes
 
         // Test without auth header
         let request = Request::builder()
@@ -416,9 +413,6 @@ mod tests {
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
-        // Without auth middleware and without OpenAI API key configured,
-        // the endpoint returns PRECONDITION_FAILED (412).
-        // In environments where OPENAI_API_KEY is set but invalid, it may return UNAUTHORIZED (401).
         assert!(
             response.status() == StatusCode::PRECONDITION_FAILED
                 || response.status() == StatusCode::UNAUTHORIZED
