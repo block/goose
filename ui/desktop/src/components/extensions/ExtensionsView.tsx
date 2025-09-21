@@ -31,7 +31,6 @@ export default function ExtensionsView({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
-  // Get the current session ID from chat context
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
 
@@ -52,7 +51,11 @@ export default function ExtensionsView({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig, sessionId: sessionId });
+      await activateExtension({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
+        sessionId: sessionId,
+      });
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {

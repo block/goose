@@ -35,7 +35,6 @@ export default function ExtensionsSection({
   selectedExtensions = [],
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
-  // Get the current session ID from chat context
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -124,7 +123,11 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig, sessionId: sessionId });
+      await activateExtension({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
+        sessionId: sessionId,
+      });
       // Immediately refresh the extensions list after successful activation
       await fetchExtensions();
     } catch (error) {

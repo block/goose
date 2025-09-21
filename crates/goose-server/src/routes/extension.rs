@@ -107,7 +107,6 @@ async fn add_extension(
         serde_json::to_string_pretty(&raw.0).unwrap()
     );
 
-    // Try to extract session_id from the raw JSON
     let session_id = raw
         .0
         .get("session_id")
@@ -280,7 +279,6 @@ async fn add_extension(
         },
     };
 
-    // Get session-specific agent
     let agent = state
         .get_session_agent(session_id.clone())
         .await
@@ -309,7 +307,6 @@ async fn add_extension(
     }
 }
 
-/// Request for removing an extension
 #[derive(Deserialize)]
 struct RemoveExtensionRequest {
     name: String,

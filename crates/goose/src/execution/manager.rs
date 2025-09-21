@@ -12,7 +12,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-/// Manages agents with session awareness and isolation
 pub struct AgentManager {
     sessions: Arc<RwLock<HashMap<SessionId, SessionData>>>,
     scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
@@ -58,7 +57,6 @@ impl AgentManager {
         *self.default_provider.write().await = Some(provider);
     }
 
-    /// Configure default provider from environment variables
     pub async fn configure_default_provider(&self) -> Result<()> {
         if let Ok(provider_name) = std::env::var("GOOSE_DEFAULT_PROVIDER") {
             if let Ok(model_name) = std::env::var("GOOSE_DEFAULT_MODEL") {
@@ -82,7 +80,6 @@ impl AgentManager {
         Ok(())
     }
 
-    /// Get or create an agent for the given session
     pub async fn get_agent(
         &self,
         session_id: SessionId,

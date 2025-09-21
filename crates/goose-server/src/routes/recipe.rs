@@ -25,7 +25,6 @@ pub struct CreateRecipeRequest {
     activities: Option<Vec<String>>,
     #[serde(default)]
     author: Option<AuthorRequest>,
-    // Optional session ID for session-specific agent
     session_id: Option<String>,
 }
 
@@ -116,7 +115,6 @@ async fn create_recipe(
         request.messages.len()
     );
 
-    // Get session-specific agent
     let agent = state
         .get_session_agent(request.session_id)
         .await

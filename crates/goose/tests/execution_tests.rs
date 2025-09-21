@@ -34,7 +34,6 @@ mod execution_tests {
         let session_id = SessionId::from_string(id_str.to_string());
         assert_eq!(session_id.as_str(), id_str);
 
-        // Test From trait
         let session_id2: SessionId = id_str.into();
         assert_eq!(session_id, session_id2);
     }

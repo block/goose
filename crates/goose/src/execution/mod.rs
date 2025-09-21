@@ -8,13 +8,11 @@ pub mod manager;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Execution context that defines how an agent should be configured and run
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionMode {
     Interactive,
     Background,
     SubTask {
-        /// Parent session that spawned this task
         parent_session: String,
     },
 }

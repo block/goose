@@ -59,7 +59,6 @@ impl AppState {
         }
     }
 
-    /// Session isolation - each session gets its own agent
     pub async fn get_session_agent(
         &self,
         session_id: Option<String>,

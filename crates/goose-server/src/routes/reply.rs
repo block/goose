@@ -212,7 +212,6 @@ async fn reply_handler(
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        // Use session-specific agent from AgentManager
         let agent = match state.get_session_agent(Some(session_id.clone())).await {
             Ok(agent) => agent,
             Err(e) => {
@@ -488,7 +487,6 @@ pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Use session-specific agent
     let agent = match state.get_session_agent(request.session_id.clone()).await {
         Ok(agent) => agent,
         Err(e) => {
@@ -543,7 +541,6 @@ async fn submit_tool_result(
         }
     };
 
-    // Use session-specific agent
     let agent = match state.get_session_agent(payload.session_id.clone()).await {
         Ok(agent) => agent,
         Err(e) => {
@@ -624,10 +621,7 @@ mod tests {
                 model_config: mock_model_config,
             });
 
-            // Create AppState and configure provider on agent manager
             let state = AppState::new();
-            // For testing, we'll just create the state without configuring providers
-            // since the test uses a mock provider anyway
 
             let app = routes(state);
 
