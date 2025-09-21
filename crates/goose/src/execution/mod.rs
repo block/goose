@@ -12,9 +12,7 @@ use std::fmt;
 pub enum ExecutionMode {
     Interactive,
     Background,
-    SubTask {
-        parent_session: String,
-    },
+    SubTask { parent_session: String },
 }
 
 impl ExecutionMode {
