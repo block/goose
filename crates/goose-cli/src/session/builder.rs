@@ -7,7 +7,7 @@ use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session;
-use goose::session::SessionManager;
+use goose::session::{generate_session_id, SessionManager};
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::process;
@@ -20,8 +20,8 @@ use tokio::task::JoinSet;
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional identifier for the session (name or path)
-    pub identifier: Option<String>,
+    /// Optional identifier for the session
+    pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
     /// Whether to run without a session file
@@ -129,19 +129,11 @@ async fn offer_extension_debugging_help(
     }
 
     // Create a temporary session file for this debugging session
-    let temp_session_file =
-        std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
+    let session_id = generate_session_id();
 
     // Create the debugging session
-    let mut debug_session = Session::new(
-        debug_agent,
-        Some(temp_session_file.clone()),
-        false,
-        None,
-        None,
-        None,
-        None,
-    );
+    let mut debug_session =
+        Session::new(debug_agent, Some(session_id), false, None, None, None, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -159,10 +151,6 @@ async fn offer_extension_debugging_help(
             );
         }
     }
-
-    // Clean up the temporary session file
-    let _ = std::fs::remove_file(temp_session_file);
-
     Ok(())
 }
 
@@ -259,7 +247,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        if let Some(session_id) = session_config.identifier {
+        if let Some(session_id) = session_config.session_id {
             match SessionManager::get_session_metadata(&session_id).await {
                 Ok(_) => Some(session_id),
                 Err(_) => {
@@ -287,7 +275,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     } else {
         let session_id = session_config
-            .identifier
+            .session_id
             .unwrap_or_else(|| session::generate_session_id());
 
         Some(session_id)
@@ -577,7 +565,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             session_config.resume,
             &provider_name,
             &model_name,
-            &session_file,
+            &session_id,
             Some(&provider_for_display),
         );
     }
@@ -591,7 +579,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_creation() {
         let config = SessionBuilderConfig {
-            identifier: Some(Identifier::Name("test".to_string())),
+            session_id: Some("test".to_string()),
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
@@ -630,7 +618,7 @@ mod tests {
     fn test_session_builder_config_default() {
         let config = SessionBuilderConfig::default();
 
-        assert!(config.identifier.is_none());
+        assert!(config.session_id.is_none());
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());

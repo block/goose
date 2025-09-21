@@ -10,6 +10,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
+use goose::session::SessionManager;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
@@ -209,23 +210,7 @@ async fn reply_handler(
         let agent = state.get_agent().await;
 
         // Load session metadata to get the working directory and other config
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path for {}: {}", session_id, e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
-
-        let session_metadata = match session::read_metadata(&session_path).await {
+        let session_metadata = match SessionManager::get_session_metadata(&session_id).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
@@ -242,7 +227,7 @@ async fn reply_handler(
         };
 
         let session_config = SessionConfig {
-            id: session::Identifier::Name(session_id.clone()),
+            id: session_id.clone(),
             working_dir: session_metadata.working_dir.clone(),
             schedule_id: session_metadata.schedule_id.clone(),
             execution_mode: None,
@@ -274,21 +259,6 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path: {}", e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
         let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
@@ -356,29 +326,9 @@ async fn reply_handler(
             }
         }
 
-        if all_messages.len() > saved_message_count {
-            if let Ok(provider) = agent.provider().await {
-                let provider = Arc::clone(&provider);
-                let session_path_clone = session_path.to_path_buf();
-                let all_messages_clone = all_messages.clone();
-                let working_dir = session_config.working_dir.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session::persist_messages(
-                        &session_path_clone,
-                        &all_messages_clone,
-                        Some(provider),
-                        Some(working_dir),
-                    )
-                    .await
-                    {
-                        tracing::error!("Failed to store session history: {:?}", e);
-                    }
-                });
-            }
-        }
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = session::read_metadata(&session_path).await {
+        if let Ok(metadata) = SessionManager::get_session_metadata(&session_id).await {
             let total_tokens = metadata.total_tokens.unwrap_or(0);
             let message_count = metadata.message_count;
 

@@ -8,8 +8,7 @@ use axum::{
 use chrono::DateTime;
 use goose::conversation::message::Message;
 use goose::session;
-use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
-use goose::session::SessionMetadata;
+use goose::session::{SessionInfo, SessionManager, SessionMetadata};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -78,9 +77,8 @@ pub struct ActivityHeatmapCell {
     ),
     tag = "Session Management"
 )]
-// List all available sessions
 async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
-    let sessions = get_valid_sorted_sessions(SortOrder::Descending)
+    let sessions = SessionManager::list_sessions()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -104,29 +102,22 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-// Get a specific session's history
 async fn get_session_history(
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    let metadata = session::read_metadata(&session_path)
+    let metadata = SessionManager::get_session_metadata(&session_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let messages = match session::read_messages(&session_path) {
-        Ok(messages) => messages,
-        Err(e) => {
+    let conversation = SessionManager::get_conversation(&session_id)
+        .await
+        .map_err(|e| {
             error!("Failed to read session messages: {:?}", e);
-            return Err(StatusCode::NOT_FOUND);
-        }
-    };
+            StatusCode::NOT_FOUND
+        })?;
 
     // Filter messages to only include user_visible ones
-    let user_visible_messages: Vec<Message> = messages
+    let user_visible_messages: Vec<Message> = conversation
         .messages()
         .iter()
         .filter(|m| m.is_user_visible())
@@ -156,12 +147,10 @@ async fn get_session_history(
 async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     let handler_start = Instant::now();
 
-    let sessions = get_valid_sorted_sessions(SortOrder::Descending)
-        .await
-        .map_err(|e| {
-            error!("Failed to get session info: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let sessions = SessionManager::list_sessions().await.map_err(|e| {
+        error!("Failed to get session info: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Filter out sessions without descriptions
     let sessions: Vec<SessionInfo> = sessions
@@ -259,29 +248,20 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-// Update session metadata
 async fn update_session_metadata(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionMetadataRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    // Validate description length
     if request.description.len() > MAX_DESCRIPTION_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let session_path = session::get_path(session::Identifier::Name(session_id.clone()))
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-    // Read current metadata
-    let mut metadata = session::read_metadata(&session_path)
+    let mut metadata = SessionManager::get_session_metadata(&session_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Update description
     metadata.description = request.description;
-
-    // Save updated metadata
-    session::update_metadata(&session_path, &metadata)
+    SessionManager::update_session_metadata(&session_id, metadata)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -305,21 +285,16 @@ async fn update_session_metadata(
     ),
     tag = "Session Management"
 )]
-// Delete a session
 async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
-    // Get the session path
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    // Check if session file exists
-    if !session_path.exists() {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Delete the session file
-    std::fs::remove_file(&session_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    SessionManager::delete_session(&session_id)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        })?;
 
     Ok(StatusCode::OK)
 }

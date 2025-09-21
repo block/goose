@@ -1,8 +1,8 @@
 use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
+use clap::builder::Str;
 use cliclack::{confirm, multiselect, select};
-use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
-use goose::session::{self, Identifier};
+use goose::session::{SessionInfo, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -72,7 +72,7 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
 }
 
 pub async fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
-    let all_sessions = match get_valid_sorted_sessions(SortOrder::Descending).await {
+    let all_sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to retrieve sessions: {:?}", e);
@@ -116,19 +116,20 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
 }
 
 pub async fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
-    let sort_order = if ascending {
-        SortOrder::Ascending
-    } else {
-        SortOrder::Descending
-    };
-
-    let sessions = match get_valid_sorted_sessions(sort_order).await {
+    let sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
             return Err(anyhow::anyhow!("Failed to list sessions"));
         }
     };
+
+    let mut sessions = sessions;
+    if ascending {
+        sessions.sort_by(|a, b| a.modified.cmp(&b.modified));
+    } else {
+        sessions.sort_by(|a, b| b.modified.cmp(&a.modified));
+    }
 
     match format.as_str() {
         "json" => {
@@ -167,38 +168,22 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
 }
 
 /// Export a session to Markdown without creating a full Session object
-///
-/// This function directly reads messages from the session file and converts them to Markdown
-/// without creating an Agent or prompting about working directories.
-pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf>) -> Result<()> {
-    // Get the session file path
-    let session_file_path = match goose::session::get_path(identifier.clone()) {
-        Ok(path) => path,
-        Err(e) => {
-            return Err(anyhow::anyhow!("Invalid session identifier: {}", e));
-        }
-    };
-
-    if !session_file_path.exists() {
-        return Err(anyhow::anyhow!(
-            "Session file not found (expected path: {})",
-            session_file_path.display()
-        ));
-    }
-
-    // Read messages directly without using Session
-    let messages = match goose::session::read_messages(&session_file_path) {
+pub async fn handle_session_export(session_id: String, output_path: Option<PathBuf>) -> Result<()> {
+    let messages = match SessionManager::get_conversation(&session_id).await {
         Ok(msgs) => msgs,
         Err(e) => {
-            return Err(anyhow::anyhow!("Failed to read session messages: {}", e));
+            return Err(anyhow::anyhow!(
+                "Session '{}' not found or failed to read: {}",
+                session_id,
+                e
+            ));
         }
     };
+    let meta_data = SessionManager::get_session_metadata(&session_id).await?;
 
     // Generate the markdown content using the export functionality
-    let markdown =
-        export_session_to_markdown(messages.messages().clone(), &session_file_path, None);
+    let markdown = export_session_to_markdown(messages.messages().clone(), &meta_data.description);
 
-    // Output the markdown
     if let Some(output) = output_path {
         fs::write(&output, markdown)
             .with_context(|| format!("Failed to write to output file: {}", output.display()))?;
@@ -216,17 +201,9 @@ pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf
 /// message organization, and proper tool request/response pairing.
 fn export_session_to_markdown(
     messages: Vec<goose::conversation::message::Message>,
-    session_file: &Path,
-    session_name_override: Option<&str>,
+    session_name: &String,
 ) -> String {
     let mut markdown_output = String::new();
-
-    let session_name = session_name_override.unwrap_or_else(|| {
-        session_file
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Unnamed Session")
-    });
 
     markdown_output.push_str(&format!("# Session Export: {}\n\n", session_name));
 
@@ -293,15 +270,8 @@ fn export_session_to_markdown(
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one
-pub async fn prompt_interactive_session_selection() -> Result<session::Identifier> {
-    // Get sessions sorted by modification date (newest first)
-    let sessions = match get_valid_sorted_sessions(SortOrder::Descending).await {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to list sessions"));
-        }
-    };
+pub async fn prompt_interactive_session_selection() -> Result<String> {
+    let sessions = SessionManager::list_sessions().await?;
 
     if sessions.is_empty() {
         return Err(anyhow::anyhow!("No sessions found"));
@@ -319,9 +289,7 @@ pub async fn prompt_interactive_session_selection() -> Result<session::Identifie
             } else {
                 &s.metadata.description
             };
-
-            // Truncate description if too long
-            let truncated_desc = safe_truncate(desc, 40);
+            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 
             let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
             (display_text, s.clone())
@@ -346,7 +314,7 @@ pub async fn prompt_interactive_session_selection() -> Result<session::Identifie
 
     // Retrieve the selected session
     if let Some(session) = display_map.get(&selected_display_text) {
-        Ok(goose::session::Identifier::Name(session.id.clone()))
+        Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
     }

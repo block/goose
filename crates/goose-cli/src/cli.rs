@@ -21,6 +21,7 @@ use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -50,25 +51,29 @@ struct Identifier {
     name: Option<String>,
 
     #[arg(
-        short,
-        long,
-        value_name = "PATH",
-        help = "Path for the chat session (e.g., './playground.jsonl')",
-        long_help = "Specify a path for your chat session. When used with --resume, will resume this specific session if it exists."
+        long = "session-id",
+        value_name = "SESSION_ID",
+        help = "Session ID (e.g., '20250921_143022')",
+        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
-    path: Option<PathBuf>,
+    session_id: Option<String>,
 }
 
-fn extract_identifier(identifier: Identifier) -> session::Identifier {
-    if let Some(name) = identifier.name {
-        session::Identifier::Name(name)
-    } else if let Some(path) = identifier.path {
-        session::Identifier::Path(path)
+async fn get_session_id(identifier: Identifier) -> Result<String> {
+    if let Some(session_id) = identifier.session_id {
+        Ok(session_id)
+    } else if let Some(name) = identifier.name {
+        let sessions = SessionManager::list_sessions().await?;
+
+        sessions
+            .into_iter()
+            .find(|s| s.metadata.description == name)
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else {
         unreachable!()
     }
 }
-
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
@@ -777,7 +782,7 @@ pub async fn cli() -> Result<()> {
                 }
                 Some(SessionCommand::Export { identifier, output }) => {
                     let session_identifier = if let Some(id) = identifier {
-                        extract_identifier(id)
+                        get_session_id(id).await?
                     } else {
                         // If no identifier is provided, prompt for interactive selection
                         match crate::commands::session::prompt_interactive_session_selection().await
@@ -790,7 +795,8 @@ pub async fn cli() -> Result<()> {
                         }
                     };
 
-                    crate::commands::session::handle_session_export(session_identifier, output)?;
+                    crate::commands::session::handle_session_export(session_identifier, output)
+                        .await?;
                     Ok(())
                 }
                 None => {
@@ -804,9 +810,15 @@ pub async fn cli() -> Result<()> {
                         "Session started"
                     );
 
+                    let session_id = if let Some(id) = identifier {
+                        Some(get_session_id(id).await?)
+                    } else {
+                        None
+                    };
+
                     // Run session command by default
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
-                        identifier: identifier.map(extract_identifier),
+                        session_id,
                         resume,
                         no_session: false,
                         extensions,
@@ -995,9 +1007,14 @@ pub async fn cli() -> Result<()> {
                     std::process::exit(1);
                 }
             };
+            let session_id = if let Some(id) = identifier {
+                Some(get_session_id(id).await?)
+            } else {
+                None
+            };
 
             let mut session = build_session(SessionBuilderConfig {
-                identifier: identifier.map(extract_identifier),
+                session_id,
                 resume,
                 no_session,
                 extensions,
@@ -1174,7 +1191,7 @@ pub async fn cli() -> Result<()> {
             } else {
                 // Run session command by default
                 let mut session = build_session(SessionBuilderConfig {
-                    identifier: None,
+                    session_id: None,
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),

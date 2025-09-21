@@ -61,12 +61,23 @@ impl SessionManager {
             .await
     }
 
+    pub async fn replace_conversation(session_id: &str, messages: &[Message]) -> Result<()> {
+        Self::instance()
+            .await?
+            .replace_conversation(session_id, messages)
+            .await
+    }
+
     pub async fn get_conversation(session_id: &str) -> Result<Conversation> {
         Self::instance().await?.get_conversation(session_id).await
     }
 
     pub async fn list_sessions() -> Result<Vec<SessionInfo>> {
         Self::instance().await?.list_sessions().await
+    }
+
+    pub async fn delete_session(session_id: &str) -> Result<()> {
+        Self::instance().await?.delete_session(session_id).await
     }
 
     pub async fn update_session_description(session_id: &str, description: String) -> Result<()> {
@@ -678,6 +689,35 @@ impl SessionStorage {
         Ok(())
     }
 
+    pub async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(session_id)
+                .fetch_one(&self.pool)
+                .await?;
+
+        if !exists {
+            return Err(anyhow::anyhow!("Session not found"));
+        }
+
+        sqlx::query("DELETE FROM messages WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM session_metadata WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM sessions WHERE id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn generate_session_description(
         &self,
         session_id: &str,
@@ -718,6 +758,35 @@ impl SessionStorage {
             "#,
             )
             .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Call replace_conversation only when this is needed. Ultimately we should not need this
+    /// as we get back conversations being append only
+    pub async fn replace_conversation(&self, session_id: &str, messages: &[Message]) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+
+        for message in messages {
+            sqlx::query(
+                r#"
+                INSERT INTO messages (session_id, role, content_json, created_timestamp)
+                VALUES (?, ?, ?, ?)
+            "#,
+            )
+            .bind(session_id)
+            .bind(match message.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+            })
+            .bind(serde_json::to_string(&message.content)?)
+            .bind(message.created)
             .execute(&self.pool)
             .await?;
         }

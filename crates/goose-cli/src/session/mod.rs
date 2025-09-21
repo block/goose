@@ -38,6 +38,7 @@ use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::conversation::message::{Message, MessageContent};
+use goose::session::SessionManager;
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde_json::Value;
@@ -123,27 +124,33 @@ pub async fn classify_planner_response(
 impl Session {
     pub fn new(
         agent: Agent,
-        session_file: Option<PathBuf>,
+        session_id: Option<String>,
         debug: bool,
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
     ) -> Self {
-        let messages = if let Some(session_file) = &session_file {
-            session::read_messages(session_file).unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to load message history: {}", e);
-                Conversation::new_unvalidated(Vec::new())
+        let messages = if let Some(session_id) = &session_id {
+            // Use SessionManager to load messages
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    SessionManager::get_conversation(session_id)
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("Warning: Failed to load message history: {}", e);
+                            Conversation::new_unvalidated(Vec::new())
+                        })
+                })
             })
         } else {
-            // Don't try to read messages if we're not saving sessions
             Conversation::new_unvalidated(Vec::new())
         };
 
         Session {
             agent,
             messages,
-            session_file,
+            session_id,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
             run_mode: RunMode::Normal,
@@ -373,46 +380,10 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
-        let message_text = message.as_concat_text();
+
+        // TODO(Douwe): Make sure we generate the description here still:
 
         self.push_message(message);
-        // Get the provider from the agent for description generation
-        let provider = self.agent.provider().await?;
-
-        // Persist messages with provider for automatic description generation
-        if let Some(session_file) = &self.session_file {
-            let working_dir = Some(
-                std::env::current_dir().expect("failed to get current session working directory"),
-            );
-
-            session::persist_messages_with_schedule_id(
-                session_file,
-                &self.messages,
-                Some(provider),
-                self.scheduled_job_id.clone(),
-                working_dir,
-            )
-            .await?;
-        }
-
-        // Track the current directory and last instruction in projects.json
-        let session_id = self
-            .session_file
-            .as_ref()
-            .and_then(|p| p.file_stem())
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string());
-
-        if let Err(e) = crate::project_tracker::update_project_tracker(
-            Some(&message_text),
-            session_id.as_deref(),
-        ) {
-            eprintln!(
-                "Warning: Failed to update project tracker with instruction: {}",
-                e
-            );
-        }
-
         self.process_agent_response(false, cancel_token).await?;
         Ok(())
     }
@@ -492,35 +463,14 @@ impl Session {
                             self.push_message(Message::user().with_text(&content));
 
                             // Track the current directory and last instruction in projects.json
-                            let session_id = self
-                                .session_file
-                                .as_ref()
-                                .and_then(|p| p.file_stem())
-                                .and_then(|s| s.to_str())
-                                .map(|s| s.to_string());
-
                             if let Err(e) = crate::project_tracker::update_project_tracker(
                                 Some(&content),
-                                session_id.as_deref(),
+                                self.session_id.as_deref(),
                             ) {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
 
                             let provider = self.agent.provider().await?;
-
-                            // Persist messages with provider for automatic description generation
-                            if let Some(session_file) = &self.session_file {
-                                let working_dir = Some(std::env::current_dir().unwrap_or_default());
-
-                                session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    Some(provider),
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                )
-                                .await?;
-                            }
 
                             output::show_thinking();
                             self.process_agent_response(true, CancellationToken::default())
@@ -649,16 +599,21 @@ impl Session {
                 input::InputResult::Clear => {
                     save_history(&mut editor);
 
+                    if let Some(session_id) = &self.session_id {
+                        if let Err(e) = SessionManager::replace_conversation(session_id, &[]).await
+                        {
+                            output::render_error(&format!("Failed to clear session: {}", e));
+                            continue;
+                        }
+                    }
+
                     self.messages.clear();
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
                     );
-                    if let Some(file) = self.session_file.as_ref().filter(|f| f.exists()) {
-                        std::fs::remove_file(file)?;
-                        std::fs::File::create(file)?;
-                    }
+
                     continue;
                 }
                 input::InputResult::PromptCommand(opts) => {
@@ -721,40 +676,33 @@ impl Session {
                         // Get the provider for summarization
                         let provider = self.agent.provider().await?;
 
-                        // Call the summarize_context method which uses the summarize_messages function
+                        // Call the summarize_context method
                         let (summarized_messages, _token_counts, summarization_usage) = self
                             .agent
                             .summarize_context(self.messages.messages())
                             .await?;
 
                         // Update the session messages with the summarized ones
-                        self.messages = summarized_messages;
+                        self.messages = summarized_messages.clone();
 
-                        // Persist the summarized messages and update session metadata with new token counts
-                        if let Some(session_file) = &self.session_file {
-                            let working_dir = std::env::current_dir().ok();
-                            session::persist_messages_with_schedule_id(
-                                session_file,
-                                &self.messages,
-                                Some(provider),
-                                self.scheduled_job_id.clone(),
-                                working_dir,
+                        // Persist the summarized messages and update session metadata
+                        if let Some(session_id) = &self.session_id {
+                            // Replace all messages with the summarized version
+                            SessionManager::replace_conversation(
+                                session_id,
+                                summarized_messages.messages(),
                             )
                             .await?;
 
                             // Update session metadata with the new token counts from summarization
                             if let Some(usage) = summarization_usage {
-                                let session_file_path = session::storage::get_path(
-                                    session::storage::Identifier::Path(session_file.to_path_buf()),
-                                )?;
                                 let mut metadata =
-                                    session::storage::read_metadata(&session_file_path).await?;
+                                    SessionManager::get_session_metadata(session_id).await?;
 
                                 // Update token counts with the summarization usage
-                                // Use output tokens as total since that's what's actually in the context going forward
                                 let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
                                 metadata.total_tokens = Some(summary_tokens);
-                                metadata.input_tokens = None; // Clear input tokens since we now have a summary
+                                metadata.input_tokens = None;
                                 metadata.output_tokens = Some(summary_tokens);
                                 metadata.message_count = self.messages.len();
 
@@ -778,7 +726,7 @@ impl Session {
                                     usage.usage.output_tokens,
                                 );
 
-                                session::storage::update_metadata(&session_file_path, &metadata)
+                                SessionManager::update_session_metadata(session_id, metadata)
                                     .await?;
                             }
                         }
@@ -798,19 +746,10 @@ impl Session {
                     } else {
                         println!("{}", console::style("Summarization cancelled.").yellow());
                     }
-
                     continue;
                 }
             }
         }
-
-        println!(
-            "\nClosing session.{}",
-            self.session_file
-                .as_ref()
-                .map(|p| format!(" Recorded to {}", p.display()))
-                .unwrap_or_default()
-        );
         Ok(())
     }
 
@@ -909,16 +848,13 @@ impl Session {
     ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
-        let session_config = self.session_file.as_ref().map(|s| {
-            let session_id = session::Identifier::Path(s.clone());
-            SessionConfig {
-                id: session_id.clone(),
-                working_dir: std::env::current_dir().unwrap_or_default(),
-                schedule_id: self.scheduled_job_id.clone(),
-                execution_mode: None,
-                max_turns: self.max_turns,
-                retry_config: self.retry_config.clone(),
-            }
+        let session_config = self.session_id.as_ref().map(|session_id| SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+            schedule_id: self.scheduled_job_id.clone(),
+            execution_mode: None,
+            max_turns: self.max_turns,
+            retry_config: self.retry_config.clone(),
         });
         let mut stream = self
             .agent
@@ -988,17 +924,6 @@ impl Session {
                                         Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
                                     ));
                                     self.messages.push(response_message);
-                                    if let Some(session_file) = &self.session_file {
-                                        let working_dir = std::env::current_dir().ok();
-                                        session::persist_messages_with_schedule_id(
-                                            session_file,
-                                            &self.messages,
-                                            None,
-                                            self.scheduled_job_id.clone(),
-                                            working_dir,
-                                        )
-                                        .await?;
-                                    }
                                     cancel_token_clone.cancel();
                                     drop(stream);
                                     break;
@@ -1131,20 +1056,8 @@ impl Session {
                                     }
                                 }
 
+                                // TODO(Douwe): also store in session
                                 self.messages.push(message.clone());
-
-                                // No need to update description on assistant messages
-                                if let Some(session_file) = &self.session_file {
-                                    let working_dir = std::env::current_dir().ok();
-                                    session::persist_messages_with_schedule_id(
-                                        session_file,
-                                        &self.messages,
-                                        None,
-                                        self.scheduled_job_id.clone(),
-                                        working_dir,
-                                    )
-                                    .await?;
-                                }
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
@@ -1257,26 +1170,16 @@ impl Session {
                                 _ => (),
                             }
                         }
-                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
-                            // Replace the session's message history with the compacted messages
-                            self.messages = Conversation::new_unvalidated(new_messages);
-
-                            // Persist the updated messages to the session file
-                            if let Some(session_file) = &self.session_file {
-                                let provider = self.agent.provider().await.ok();
-                                let working_dir = std::env::current_dir().ok();
-                                if let Err(e) = session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    provider,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                ).await {
-                                    eprintln!("Failed to persist compacted messages: {}", e);
-                                }
-                            }
-                        }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+            Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                // Replace the session's message history with the compacted messages
+                self.messages = Conversation::new_unvalidated(new_messages.clone());
+                if let Some(session_id) = &self.session_id {
+                    if let Err(e) = SessionManager::replace_conversation(session_id, &new_messages).await {
+                        eprintln!("Failed to persist compacted messages: {}", e);
+                    }
+                }
+            }
+            Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             // Log model change if in debug mode
                             if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
@@ -1373,40 +1276,13 @@ impl Session {
                     }),
                 ));
             }
+            // TODO(Douwe): update also db
             self.push_message(response_message);
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
             self.push_message(Message::assistant().with_text(&prompt));
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
             output::render_message(&Message::assistant().with_text(&prompt), self.debug);
         } else {
             // An interruption occurred outside of a tool request-response.
@@ -1417,20 +1293,6 @@ impl Session {
                             // Interruption occurred after a tool had completed but not assistant reply
                             let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
                             self.push_message(Message::assistant().with_text(prompt));
-
-                            // No need for description update here
-                            if let Some(session_file) = &self.session_file {
-                                let working_dir = std::env::current_dir().ok();
-                                session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    None,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                )
-                                .await?;
-                            }
-
                             output::render_message(
                                 &Message::assistant().with_text(prompt),
                                 self.debug,
@@ -1451,10 +1313,6 @@ impl Session {
             }
         }
         Ok(())
-    }
-
-    pub fn session_file(&self) -> Option<PathBuf> {
-        self.session_file.clone()
     }
 
     /// Update the completion cache with fresh data
@@ -1528,11 +1386,10 @@ impl Session {
     }
 
     pub async fn get_metadata(&self) -> Result<session::SessionMetadata> {
-        if !self.session_file.as_ref().is_some_and(|f| f.exists()) {
-            return Err(anyhow::anyhow!("Session file does not exist"));
+        match &self.session_id {
+            Some(id) => SessionManager::get_session_metadata(id).await,
+            None => Err(anyhow::anyhow!("No session available")),
         }
-
-        session::read_metadata(self.session_file.as_ref().unwrap()).await
     }
 
     // Get the session's total token usage
