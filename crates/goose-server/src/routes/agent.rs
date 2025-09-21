@@ -28,7 +28,7 @@ use tracing::error;
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -39,7 +39,7 @@ pub struct ExtendPromptResponse {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
     sub_recipes: Vec<SubRecipe>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -51,24 +51,24 @@ pub struct AddSubRecipesResponse {
 pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct SessionConfigRequest {
     response: Option<Response>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -195,7 +195,10 @@ async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AddSubRecipesRequest>,
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state
+        .get_session_agent(Some(payload.session_id.clone()))
+        .await
+    {
         Ok(agent) => agent,
         Err(e) => {
             tracing::error!("Failed to get session agent: {}", e);
@@ -220,7 +223,7 @@ async fn extend_prompt(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state.get_session_agent(Some(payload.session_id.clone())).await {
         Ok(agent) => agent,
         Err(e) => {
             tracing::error!("Failed to get session agent: {}", e);
@@ -251,7 +254,7 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = match state.get_session_agent(query.session_id.clone()).await {
+    let agent = match state.get_session_agent(Some(query.session_id.clone())).await {
         Ok(agent) => agent,
         Err(e) => {
             tracing::error!("Failed to get session agent: {}", e);
@@ -309,7 +312,7 @@ async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, impl IntoResponse> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state.get_session_agent(Some(payload.session_id.clone())).await {
         Ok(agent) => agent,
         Err(e) => {
             return Err((
@@ -364,7 +367,7 @@ async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRouterToolSelectorRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state.get_session_agent(Some(payload.session_id.clone())).await {
         Ok(agent) => agent,
         Err(e) => {
             return Err(Json(ErrorResponse {
@@ -402,7 +405,7 @@ async fn update_session_config(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SessionConfigRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state.get_session_agent(Some(payload.session_id.clone())).await {
         Ok(agent) => agent,
         Err(e) => {
             return Err(Json(ErrorResponse {

@@ -1571,12 +1571,12 @@
       "AddSubRecipesRequest": {
         "type": "object",
         "required": [
-          "sub_recipes"
+          "sub_recipes",
+          "session_id"
         ],
         "properties": {
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "sub_recipes": {
             "type": "array",
@@ -2031,15 +2031,15 @@
       "ExtendPromptRequest": {
         "type": "object",
         "required": [
-          "extension"
+          "extension",
+          "session_id"
         ],
         "properties": {
           "extension": {
             "type": "string"
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
@@ -2450,14 +2450,16 @@
       },
       "GetToolsQuery": {
         "type": "object",
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "extension_name": {
             "type": "string",
             "nullable": true
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
@@ -3426,6 +3428,9 @@
       },
       "SessionConfigRequest": {
         "type": "object",
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "response": {
             "allOf": [
@@ -3436,8 +3441,7 @@
             "nullable": true
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
@@ -3987,7 +3991,8 @@
       "UpdateProviderRequest": {
         "type": "object",
         "required": [
-          "provider"
+          "provider",
+          "session_id"
         ],
         "properties": {
           "model": {
@@ -3998,17 +4003,18 @@
             "type": "string"
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
       "UpdateRouterToolSelectorRequest": {
         "type": "object",
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
