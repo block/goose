@@ -68,7 +68,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleRetryLoadSession = () => {
     if (selectedSession) {
-      loadSessionDetails(selectedSession.session_id);
+      loadSessionDetails(selectedSession.sessionId);
     }
   };
 
@@ -78,7 +78,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     <SessionHistoryView
       session={
         selectedSession || {
-          session_id: initialSessionId || '',
+          sessionId: initialSessionId || '',
           messages: [],
           metadata: {
             description: 'Loading...',
@@ -97,7 +97,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     <SessionListView
       setView={setView}
       onSelectSession={handleSelectSession}
-      selectedSessionId={selectedSession?.session_id ?? null}
+      selectedSessionId={selectedSession?.sessionId ?? null}
     />
   );
 };

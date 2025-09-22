@@ -220,8 +220,6 @@ where
                         }
                         JsonRpcMessage::Response(_)
                         | JsonRpcMessage::Notification(_)
-                        | JsonRpcMessage::BatchRequest(_)
-                        | JsonRpcMessage::BatchResponse(_)
                         | JsonRpcMessage::Error(_) => {
                             // Ignore responses, notifications, batch messages and error messages for now
                             continue;

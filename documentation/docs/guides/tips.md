@@ -21,7 +21,7 @@ You can customize how much [supervision](/docs/guides/goose-permissions) Goose n
 Your experience with Goose is shaped by your [choice of LLM](/blog/2025/03/31/goose-benchmark), as it handles all the planning while Goose manages the execution. When choosing an LLM, consider its tool support, specific capabilities, and associated costs.
 
 ### Keep sessions short
-LLMs have context windows, which are limits on how much conversation history they can retain. Once exceeded, they may forget earlier parts of the conversation. Monitor your token usage and [start new sessions](/docs/guides/managing-goose-sessions) as needed.
+LLMs have context windows, which are limits on how much conversation history they can retain. Once exceeded, they may forget earlier parts of the conversation. Monitor your token usage and [start new sessions](/docs/guides/sessions/session-management) as needed.
 
 ### Turn off unnecessary extensions or tool
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/managing-tools/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.

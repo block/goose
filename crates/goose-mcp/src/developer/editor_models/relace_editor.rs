@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 
 /// Relace-specific editor that uses the predicted outputs convention
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RelaceEditor {
     api_key: String,
     host: String,

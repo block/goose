@@ -101,6 +101,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Summarized content".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

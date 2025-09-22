@@ -55,7 +55,7 @@ You can turn your current Goose session into a reusable recipe that includes the
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
-   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), run this command to generate a recipe.yaml file in your current directory:
+   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/sessions/session-management#start-session), run this command to generate a recipe.yaml file in your current directory:
 
    ```sh
    /recipe
@@ -234,14 +234,16 @@ You can turn your current Goose session into a reusable recipe that includes the
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
 
-  2. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
+  2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
+
+  3. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
   
      Parameters are dynamic values used in the recipe:
 
      - **Required parameters** are marked with red asterisks (*)
      - **Optional parameters** show default values that can be changed
 
-  3. To run the recipe, click an activity bubble or send the prompt.
+  4. To run the recipe, click an activity bubble or send the prompt.
 
   :::info Parameter Creation In Goose CLI Only
   You can enter parameter values to use in a recipe, but you cannot add parameters to a recipe in Goose Desktop. Parameters can only be defined in recipes created via the CLI.
@@ -441,7 +443,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
 
    :::info
-   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/managing-goose-sessions#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
+   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/sessions/session-management#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
    :::
 
    Recipe validation can be useful for:

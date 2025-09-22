@@ -1,145 +1,118 @@
-/**
- * Pair Component
- *
- * The Pair component represents the active conversation mode in the Goose Desktop application.
- * This is where users engage in ongoing conversations with the AI assistant after transitioning
- * from the Hub's initial welcome screen.
- *
- * Key Responsibilities:
- * - Manages active chat sessions with full message history
- * - Handles transitions from Hub with initial input processing
- * - Provides the main conversational interface for extended interactions
- * - Enables local storage persistence for conversation continuity
- * - Supports all advanced chat features like file attachments, tool usage, etc.
- *
- * Navigation Flow:
- * Hub (initial message) → Pair (active conversation) → Hub (new session)
- *
- * The Pair component is essentially a specialized wrapper around BaseChat that:
- * - Processes initial input from the Hub transition
- * - Enables conversation persistence
- * - Provides the full-featured chat experience
- *
- * Unlike Hub, Pair assumes an active conversation state and focuses on
- * maintaining conversation flow rather than onboarding new users.
- */
-
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
+import { AgentState, InitializationContext } from '../hooks/useAgent';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
-import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { useSearchParams } from 'react-router-dom';
+
+export interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: string;
+}
+
+interface PairProps {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
+  setAgentWaitingMessage: (msg: string | null) => void;
+  agentState: AgentState;
+  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
+}
 
 export default function Pair({
   chat,
   setChat,
   setView,
   setIsGoosehintsModalOpen,
-}: {
-  chat: ChatType;
-  setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: ViewOptions) => void;
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-}) {
-  const location = useLocation();
+  setFatalError,
+  setAgentWaitingMessage,
+  agentState,
+  loadCurrentChat,
+  resumeSessionId,
+  initialMessage,
+}: PairProps & PairRouteState) {
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const [hasProcessedInitialInput, setHasProcessedInitialInput] = useState(false);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
-  const [initialMessage, setInitialMessage] = useState<string | null>(null);
+  const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [_searchParams, setSearchParams] = useSearchParams();
 
-  // Get recipe configuration and parameter handling
-  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat.messages, location.state);
-
-  // Handle recipe loading from recipes view - reset chat if needed
   useEffect(() => {
-    if (location.state?.resetChat && location.state?.recipeConfig) {
-      // Reset the chat to start fresh with the recipe
-      const newChat = {
-        id: chat.id, // Keep the same ID to maintain the session
-        title: location.state.recipeConfig.title || 'Recipe Chat',
-        messages: [], // Clear messages to start fresh
-        messageHistoryIndex: 0,
-        recipeConfig: location.state.recipeConfig, // Set the recipe config in chat state
-        recipeParameters: null, // Clear parameters for new recipe
-      };
-      setChat(newChat);
+    const initializeFromState = async () => {
+      setLoadingChat(true);
+      try {
+        const chat = await loadCurrentChat({
+          resumeSessionId,
+          setAgentWaitingMessage,
+        });
+        setChat(chat);
+        setSearchParams((prev) => {
+          prev.set('resumeSessionId', chat.sessionId);
+          return prev;
+        });
+      } catch (error) {
+        console.log(error);
+        setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
+      } finally {
+        setLoadingChat(false);
+      }
+    };
+    initializeFromState();
+  }, [
+    agentState,
+    setChat,
+    setFatalError,
+    setAgentWaitingMessage,
+    loadCurrentChat,
+    resumeSessionId,
+    setSearchParams,
+  ]);
 
-      // Clear the location state to prevent re-processing
-      window.history.replaceState({}, '', '/pair');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, chat.id]);
-
-  // Handle initial message from hub page
+  // Followed by sending the initialMessage if we have one. This will happen
+  // only once, unless we reset the chat in step one.
   useEffect(() => {
-    const messageFromHub = location.state?.initialMessage;
-    const resetChat = location.state?.resetChat;
-
-    // If we have a resetChat flag from Hub, clear any existing recipe config
-    // This scenario occurs when a user navigates from Hub to start a new chat,
-    // ensuring any previous recipe configuration is cleared for a fresh start
-    if (resetChat) {
-      const newChat: ChatType = {
-        ...chat,
-        recipeConfig: null,
-        recipeParameters: null,
-        title: DEFAULT_CHAT_TITLE,
-        messages: [], // Clear messages for fresh start
-        messageHistoryIndex: 0,
-      };
-      setChat(newChat);
+    if (agentState !== AgentState.INITIALIZED || !initialMessage || hasProcessedInitialInput) {
+      return;
     }
 
-    // Reset processing state when we have a new message from hub
-    if (messageFromHub) {
-      // Set transitioning state to prevent showing popular topics
-      setIsTransitioningFromHub(true);
+    setIsTransitioningFromHub(true);
+    setHasProcessedInitialInput(true);
+    setMessageToSubmit(initialMessage);
+    setShouldAutoSubmit(true);
+  }, [agentState, initialMessage, hasProcessedInitialInput]);
 
-      // If this is a different message than what we processed before, reset the flag
-      if (messageFromHub !== initialMessage) {
-        setHasProcessedInitialInput(false);
-      }
-
-      if (!hasProcessedInitialInput) {
-        setHasProcessedInitialInput(true);
-        setInitialMessage(messageFromHub);
-        setShouldAutoSubmit(true);
-
-        // Clear the location state to prevent re-processing
-        window.history.replaceState({}, '', '/pair');
-      }
+  useEffect(() => {
+    if (agentState === AgentState.NO_PROVIDER) {
+      setView('welcome');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, hasProcessedInitialInput, initialMessage]);
+  }, [agentState, setView]);
 
-  // Custom message submit handler
+  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
+
   const handleMessageSubmit = (message: string) => {
-    // This is called after a message is submitted
+    // Clean up any auto submit state:
     setShouldAutoSubmit(false);
-    setIsTransitioningFromHub(false); // Clear transitioning state once message is submitted
+    setIsTransitioningFromHub(false);
+    setMessageToSubmit(null);
     console.log('Message submitted:', message);
   };
 
-  // Custom message stream finish handler to handle recipe auto-execution
-  const handleMessageStreamFinish = () => {
-    // This will be called with the proper append function from BaseChat
-    // For now, we'll handle auto-execution in the BaseChat component
-  };
+  const recipePrompt =
+    agentState === 'initialized' && chat.messages.length === 0 && recipeInitialPrompt;
 
-  // Determine the initial value for the chat input
-  // Priority: Hub message > Recipe prompt > empty
-  const initialValue = initialMessage || recipeInitialPrompt || undefined;
+  const initialValue = messageToSubmit || recipePrompt || undefined;
 
-  // Custom chat input props for Pair-specific behavior
   const customChatInputProps = {
     // Pass initial message from Hub or recipe prompt
     initialValue,
@@ -148,13 +121,12 @@ export default function Pair({
   return (
     <BaseChat
       chat={chat}
+      loadingChat={loadingChat}
       autoSubmit={shouldAutoSubmit}
       setChat={setChat}
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      enableLocalStorage={true} // Enable local storage for Pair mode
       onMessageSubmit={handleMessageSubmit}
-      onMessageStreamFinish={handleMessageStreamFinish}
       customChatInputProps={customChatInputProps}
       contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
       showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub

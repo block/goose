@@ -1,5 +1,5 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 title: Sub-Recipes For Specialized Tasks
 sidebar_label: Sub-Recipes
 description: Learn how a recipe can use sub-recipes to perform specific tasks

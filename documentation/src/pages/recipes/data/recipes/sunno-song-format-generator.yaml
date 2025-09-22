@@ -1,5 +1,4 @@
 version: 1.0.0
-id: sunno-song-format-generator
 title: Sunno Song Format Generator
 description: Generates a prompt for Sunno v4.5+
 instructions: |

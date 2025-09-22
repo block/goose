@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -31,17 +31,21 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::config::{Config, ExtensionConfigManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
+use crate::permission::permission_inspector::PermissionInspector;
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::security::security_inspector::SecurityInspector;
 use crate::session;
-use crate::tool_monitor::{ToolCall, ToolMonitor};
+use crate::session::extension_data::ExtensionState;
+use crate::tool_inspection::ToolInspectionManager;
+use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
 use regex::Regex;
@@ -54,6 +58,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
+use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
@@ -79,8 +84,6 @@ pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
-    pub readonly_tools: HashSet<String>,
-    pub regular_tools: HashSet<String>,
 }
 
 /// The main goose Agent
@@ -97,10 +100,12 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
-    pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
+
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -157,9 +162,6 @@ impl Agent {
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
-        let tool_monitor = Arc::new(Mutex::new(None));
-        let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
-
         Self {
             provider: Mutex::new(None),
             extension_manager: ExtensionManager::new(),
@@ -173,16 +175,33 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor,
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
-            retry_manager,
+            retry_manager: RetryManager::new(),
+            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
-    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
-        let mut tool_monitor = self.tool_monitor.lock().await;
-        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    /// Create a tool inspection manager with default inspectors
+    fn create_default_tool_inspection_manager() -> ToolInspectionManager {
+        let mut tool_inspection_manager = ToolInspectionManager::new();
+
+        // Add security inspector (highest priority - runs first)
+        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+
+        // Add permission inspector (medium-high priority)
+        // Note: mode will be updated dynamically based on session config
+        tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
+            "smart_approve".to_string(),
+            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
+            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
+        )));
+
+        // Add repetition inspector (lower priority - basic repetition checking)
+        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
+
+        tool_inspection_manager
     }
 
     /// Reset the retry attempts counter to 0
@@ -243,6 +262,11 @@ impl Agent {
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
         let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
+        // Update permission inspector mode to match the session mode
+        self.tool_inspection_manager
+            .update_permission_inspector_mode(goose_mode.clone())
+            .await;
+
         Ok(ReplyContext {
             messages: conversation,
             tools,
@@ -257,10 +281,8 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        tools: &[rmcp::model::Tool],
+        _tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
-        let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
-
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
@@ -269,8 +291,6 @@ impl Agent {
             frontend_requests,
             remaining_requests,
             filtered_response,
-            readonly_tools,
-            regular_tools,
         }
     }
 
@@ -374,22 +394,6 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Check if this tool call should be allowed based on repetition monitoring
-        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
-            let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
-
-            if !monitor.check_tool_call(tool_call_info) {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
-                        None,
-                    )),
-                );
-            }
-        }
-
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let result = self
                 .handle_schedule_management(tool_call.arguments, request_id.clone())
@@ -433,8 +437,14 @@ impl Agent {
             };
         }
 
-        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+        debug!("WAITING_TOOL_START: {}", tool_call.name);
+        let result: ToolCallResult = if self
+            .sub_recipe_manager
+            .lock()
+            .await
+            .is_sub_recipe_tool(&tool_call.name)
+        {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(
                     &tool_call.name,
@@ -454,7 +464,18 @@ impl Agent {
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
+            // Get loaded extensions for shortname resolution
+            let loaded_extensions = self
+                .extension_manager
+                .list_extensions()
+                .await
+                .unwrap_or_default();
+            create_dynamic_task(
+                tool_call.arguments.clone(),
+                &self.tasks_manager,
+                loaded_extensions,
+            )
+            .await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -494,7 +515,10 @@ impl Agent {
             let todo_content = if let Some(path) = session_file_path {
                 session::storage::read_metadata(&path)
                     .ok()
-                    .and_then(|m| m.todo_content)
+                    .and_then(|m| {
+                        session::TodoState::from_extension_data(&m.extension_data)
+                            .map(|state| state.content)
+                    })
                     .unwrap_or_default()
             } else {
                 String::new()
@@ -531,7 +555,11 @@ impl Agent {
                 match session::storage::get_path(session_config.id.clone()) {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
-                            metadata.todo_content = Some(content);
+                            let todo_state = session::TodoState::new(content);
+                            todo_state
+                                .to_extension_data(&mut metadata.extension_data)
+                                .ok();
+
                             let path_clone = path.clone();
                             let metadata_clone = metadata.clone();
                             let update_result = tokio::task::spawn(async move {
@@ -593,6 +621,8 @@ impl Agent {
                 )))
             })
         };
+
+        debug!("WAITING_TOOL_END: {}", tool_call.name);
 
         (
             request_id,
@@ -922,6 +952,52 @@ impl Agent {
         Ok(None)
     }
 
+    /// Create events for successful compaction
+    fn create_compaction_events(messages: &Conversation) -> Vec<AgentEvent> {
+        vec![
+            AgentEvent::Message(Message::assistant().with_summarization_requested(
+                "Context limit reached. Conversation has been automatically compacted to continue.",
+            )),
+            AgentEvent::HistoryReplaced(messages.messages().to_vec()),
+        ]
+    }
+
+    /// Check if an error message indicates a context limit error
+    fn is_context_limit_error(error_msg: &str) -> bool {
+        let error_lower = error_msg.to_lowercase();
+        error_lower.contains("exceed context limit")
+            || error_lower.contains("exceeds context limit")
+            || error_lower.contains("context_length_exceeded")
+            || (error_lower.contains("input length")
+                && error_lower.contains("max_tokens")
+                && error_lower.contains("exceed"))
+            || (error_lower.contains("input_tokens")
+                && error_lower.contains("max_tokens")
+                && error_lower.contains("exceed"))
+    }
+
+    /// Handle context limit exceeded error by attempting compaction
+    /// Returns Ok(compacted_messages) if successful, Err if compaction fails
+    async fn handle_context_limit_error(
+        &self,
+        messages: &[Message],
+        error_msg: &str,
+    ) -> Result<Conversation> {
+        info!("Context length exceeded, attempting compaction");
+
+        match auto_compact::perform_compaction(self, messages).await {
+            Ok(compact_result) => {
+                Ok(compact_result.messages)
+            }
+            Err(e) => {
+                Err(anyhow::anyhow!(
+                    "Context length exceeded and cannot summarize: {}. Unable to continue. Compaction error: {}",
+                    error_msg, e
+                ))
+            }
+        }
+    }
+
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -1022,6 +1098,20 @@ impl Agent {
                     break;
                 }
 
+                {
+                    let mut autopilot = self.autopilot.lock().await;
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                        debug!("AutoPilot switching to {} role with model {}", role, model);
+                        self.update_provider(new_provider).await?;
+
+                        yield AgentEvent::ModelChange {
+                            model: model.clone(),
+                            mode: format!("autopilot:{}", role),
+                        };
+                    }
+                }
+
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
@@ -1075,8 +1165,6 @@ impl Agent {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
-                                    readonly_tools,
-                                    regular_tools,
                                 } = self.categorize_tools(&response, &tools).await;
                                 let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
                                 self.tool_route_manager
@@ -1115,16 +1203,40 @@ impl Agent {
                                         );
                                     }
                                 } else {
-                                    let mut permission_manager = PermissionManager::default();
-                                    let (permission_check_result, enable_extension_request_ids) =
-                                        check_tool_permissions(
+                                    // Run all tool inspectors (security, repetition, permission, etc.)
+                                    let inspection_results = self.tool_inspection_manager
+                                        .inspect_tools(
                                             &remaining_requests,
-                                            &mode,
-                                            readonly_tools.clone(),
-                                            regular_tools.clone(),
-                                            &mut permission_manager,
-                                            self.provider().await?,
-                                        ).await;
+                                            messages.messages(),
+                                        )
+                                        .await?;
+
+                                    // Process inspection results into permission decisions using the permission inspector
+                                    let permission_check_result = self.tool_inspection_manager
+                                        .process_inspection_results_with_permission_inspector(
+                                            &remaining_requests,
+                                            &inspection_results,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            // Fallback if permission inspector not found - default to needs approval
+                                            let mut result = PermissionCheckResult {
+                                                approved: vec![],
+                                                needs_approval: vec![],
+                                                denied: vec![],
+                                            };
+                                            result.needs_approval.extend(remaining_requests.iter().cloned());
+                                            result
+                                        });
+
+                                    // Track extension requests for special handling
+                                    let mut enable_extension_request_ids = vec![];
+                                    for request in &remaining_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                                                enable_extension_request_ids.push(request.id.clone());
+                                            }
+                                        }
+                                    }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
@@ -1139,9 +1251,9 @@ impl Agent {
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        &inspection_results,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
@@ -1199,11 +1311,52 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
-                                ));
-                            break;
+                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                            match self.handle_context_limit_error(messages.messages(), &error_msg).await {
+                                Ok(compacted_messages) => {
+                                    messages = compacted_messages;
+                                    // Yield compaction events and continue
+                                    for event in Self::create_compaction_events(&messages) {
+                                        yield event;
+                                    }
+                                    continue;
+                                }
+                                Err(e) => {
+                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                        e.to_string()
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                        Err(ProviderError::RequestFailed(error_msg)) => {
+                            // Check if this is actually a context limit error that wasn't properly classified
+                            if Self::is_context_limit_error(&error_msg) {
+                                info!("Context length exceeded (detected from RequestFailed)");
+
+                                match self.handle_context_limit_error(messages.messages(), &error_msg).await {
+                                    Ok(compacted_messages) => {
+                                        messages = compacted_messages;
+                                        // Yield compaction events and continue
+                                        for event in Self::create_compaction_events(&messages) {
+                                            yield event;
+                                        }
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                            e.to_string()
+                                        ));
+                                        break;
+                                    }
+                                }
+                            } else {
+                                error!("Error: {}", error_msg);
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                        format!("Ran into this error: {}.\n\nPlease retry if you think this is a transient or recoverable error.", error_msg)
+                                    ));
+                                break;
+                            }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
@@ -1224,6 +1377,7 @@ impl Agent {
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
+                            messages.extend(messages_to_add);
                             continue
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
@@ -1405,6 +1559,14 @@ impl Agent {
         tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
+
+        let (messages, issues) = fix_conversation(messages);
+        if !issues.is_empty() {
+            issues
+                .iter()
+                .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
+        }
+
         tracing::debug!(
             "Added recipe prompt to messages, total messages: {}",
             messages.len()
@@ -1613,6 +1775,28 @@ mod tests {
 
         assert!(todo_read.is_some(), "TODO read tool should be present");
         assert!(todo_write.is_some(), "TODO write tool should be present");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
+        let agent = Agent::new();
+
+        // Verify that the tool inspection manager has all expected inspectors
+        let inspector_names = agent.tool_inspection_manager.inspector_names();
+
+        assert!(
+            inspector_names.contains(&"repetition"),
+            "Tool inspection manager should contain repetition inspector"
+        );
+        assert!(
+            inspector_names.contains(&"permission"),
+            "Tool inspection manager should contain permission inspector"
+        );
+        assert!(
+            inspector_names.contains(&"security"),
+            "Tool inspection manager should contain security inspector"
+        );
 
         Ok(())
     }

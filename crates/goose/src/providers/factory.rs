@@ -221,6 +221,7 @@ mod tests {
                                 "Response from {} with model {}",
                                 self.name, self.model_config.model_name
                             ),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

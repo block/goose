@@ -17,7 +17,7 @@ These are the minimum required variables to get started with Goose.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider)) |
-| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-3.5-sonnet") | None (must be configured) |
+| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be configured) |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
 
 **Examples**
@@ -25,7 +25,7 @@ These are the minimum required variables to get started with Goose.
 ```bash
 # Basic model configuration
 export GOOSE_PROVIDER="anthropic"
-export GOOSE_MODEL="claude-3.5-sonnet"
+export GOOSE_MODEL="claude-sonnet-4-20250514"
 export GOOSE_TEMPERATURE=0.7
 ```
 
@@ -54,7 +54,7 @@ These variables configure a [lead/worker model pattern](/docs/tutorials/lead-wor
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-3.5-sonnet") | None |
+| `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
 | `GOOSE_LEAD_PROVIDER` | Provider for the lead model | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to `GOOSE_PROVIDER` |
 | `GOOSE_LEAD_TURNS` | Number of initial turns using the lead model before switching to the worker model | Integer | 3 |
 | `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before fallback to the lead model | Integer | 2 |
@@ -89,7 +89,7 @@ These variables control Goose's [planning functionality](/docs/guides/creating-p
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_PLANNER_PROVIDER` | Specifies which provider to use for planning mode | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to GOOSE_PROVIDER |
-| `GOOSE_PLANNER_MODEL` | Specifies which model to use for planning mode | Model name (e.g., "gpt-4", "claude-3.5-sonnet")| Falls back to GOOSE_MODEL |
+| `GOOSE_PLANNER_MODEL` | Specifies which model to use for planning mode | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514")| Falls back to GOOSE_MODEL |
 
 **Examples**
 
@@ -99,6 +99,47 @@ export GOOSE_PLANNER_PROVIDER="openai"
 export GOOSE_PLANNER_MODEL="gpt-4"
 ```
 
+### Provider Retries
+
+Configurable retry parameters for LLM providers. 
+
+#### AWS Bedrock
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `BEDROCK_MAX_RETRIES` | The max number of retry attempts before giving up | 6 |
+| `BEDROCK_INITIAL_RETRY_INTERVAL_MS` | How long to wait (in milliseconds) before the first retry | 2000 |
+| `BEDROCK_BACKOFF_MULTIPLIER` | The factor by which the retry interval increases after each attempt | 2 (doubles every time) |
+| `BEDROCK_MAX_RETRY_INTERVAL_MS` | The cap on the retry interval in milliseconds |  120000 |
+
+**Examples**
+
+```bash
+export BEDROCK_MAX_RETRIES=10                    # 10 retry attempts
+export BEDROCK_INITIAL_RETRY_INTERVAL_MS=1000    # start with 1 second before first retry
+export BEDROCK_BACKOFF_MULTIPLIER=3              # each retry waits 3x longer than the previous
+export BEDROCK_MAX_RETRY_INTERVAL_MS=300000      # cap the maximum retry delay at 5 min
+```
+
+#### Databricks
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `DATABRICKS_MAX_RETRIES` | The max number of retry attempts before giving up | 3 |
+| `DATABRICKS_INITIAL_RETRY_INTERVAL_MS` | How long to wait (in milliseconds) before the first retry | 1000 |
+| `DATABRICKS_BACKOFF_MULTIPLIER` | The factor by which the retry interval increases after each attempt | 2 (doubles every time) |
+| `DATABRICKS_MAX_RETRY_INTERVAL_MS` | The cap on the retry interval in milliseconds |  30000 |
+
+**Examples**
+
+```bash
+export DATABRICKS_MAX_RETRIES=5                      # 5 retry attempts
+export DATABRICKS_INITIAL_RETRY_INTERVAL_MS=500      # start with 0.5 second before first retry
+export DATABRICKS_BACKOFF_MULTIPLIER=2               # each retry waits 2x longer than the previous
+export DATABRICKS_MAX_RETRY_INTERVAL_MS=60000        # cap the maximum retry delay at 1 min
+```
+
+
 ## Session Management
 
 These variables control how Goose manages conversation sessions and context.
@@ -106,14 +147,14 @@ These variables control how Goose manages conversation sessions and context.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
-| `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
 | `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
-| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/smart-context-management.md#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 
 **Examples**
 
@@ -180,7 +221,7 @@ export GOOSE_WORKER_CONTEXT_LIMIT=128000 # Smaller context for execution
 export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
 
-For more details and examples, see [Model Context Limit Overrides](/docs/guides/smart-context-management#model-context-limit-overrides).
+For more details and examples, see [Model Context Limit Overrides](/docs/guides/sessions/smart-context-management#model-context-limit-overrides).
 
 ## Tool Configuration
 
@@ -217,7 +258,7 @@ These variables configure [AI-powered code editing](/docs/guides/enhanced-code-e
 |----------|---------|---------|---------|
 | `GOOSE_EDITOR_API_KEY` | API key for the code editing model | API key string | None |
 | `GOOSE_EDITOR_HOST` | API endpoint for the code editing model | URL (e.g., "https://api.openai.com/v1") | None |
-| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-3-5-sonnet") | None |
+| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-sonnet-4") | None |
 
 **Examples**
 
@@ -232,7 +273,7 @@ export GOOSE_EDITOR_MODEL="gpt-4o"
 # Anthropic configuration (via OpenAI-compatible proxy)
 export GOOSE_EDITOR_API_KEY="sk-ant-..."
 export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
-export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+export GOOSE_EDITOR_MODEL="claude-sonnet-4-20250514"
 
 # Local model configuration
 export GOOSE_EDITOR_API_KEY="your-key"

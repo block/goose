@@ -256,11 +256,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             process::exit(1);
         });
 
-    // Configure tool monitoring if max_tool_repetitions is set
-    if let Some(max_repetitions) = session_config.max_tool_repetitions {
-        agent.configure_tool_monitor(Some(max_repetitions)).await;
-    }
-
     // Handle session file resolution and resuming
     let session_file: Option<std::path::PathBuf> = if session_config.no_session {
         None

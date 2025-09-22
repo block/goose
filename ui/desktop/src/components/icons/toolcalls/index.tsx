@@ -1,0 +1,17 @@
+export { Archive } from './Archive';
+export { Brain } from './Brain';
+export { Camera } from './Camera';
+export { Code2 } from './Code2';
+export { Eye } from './Eye';
+export { FileEdit } from './FileEdit';
+export { FilePlus } from './FilePlus';
+export { FileText } from './FileText';
+export { Globe } from './Globe';
+export { Harddrive } from './Harddrive';
+export { Monitor } from './Monitor';
+export { Numbers } from './Numbers';
+export { Save } from './Save';
+export { Search } from './Search';
+export { Settings } from './Settings';
+export { Terminal } from './Terminal';
+export { Tool } from './Tool';

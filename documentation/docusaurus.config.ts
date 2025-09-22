@@ -12,9 +12,9 @@ const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
 const inkeepOrgId = process.env.INKEEP_ORG_ID;
 
 const config: Config = {
-  title: "codename goose",
+  title: "goose",
   tagline:
-    "your local AI agent, automating engineering tasks seamlessly.",
+    "your local AI agent, automating engineering tasks seamlessly",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -109,6 +109,18 @@ const config: Config = {
           {
             from: '/v1/extensions',
             to: '/extensions'
+          },
+          {
+            from: '/v1/extensions/detail/nondeveloper',
+            to: '/docs/mcp/computer-controller-mcp'
+          },
+          {
+            from: '/docs/guides/managing-goose-sessions',
+            to: '/docs/guides/sessions/session-management'
+          },
+          {
+            from: '/docs/guides/smart-context-management',
+            to: '/docs/guides/sessions/smart-context-management'
           },
           {
             from: '/docs/guides/share-goose-sessions',
@@ -388,15 +400,15 @@ const config: Config = {
             },
             {
               label: "YouTube",
-              href: "https://www.youtube.com/@blockopensource",
+              href: "https://www.youtube.com/@goose-oss",
             },
             {
               label: "LinkedIn",
-              href: "https://www.linkedin.com/company/block-opensource",
+              href: "https://www.linkedin.com/company/goose-oss",
             },
             {
               label: "Twitter / X",
-              href: "https://x.com/blockopensource",
+              href: "https://x.com/goose_oss",
             },
             {
               label: "BlueSky",

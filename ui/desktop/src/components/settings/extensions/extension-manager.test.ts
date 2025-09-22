@@ -96,6 +96,19 @@ describe('Extension Manager', () => {
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
+    it('should successfully add extension on startup with custom toast options', async () => {
+      mockAddToAgent.mockResolvedValue({} as Response);
+
+      await addToAgentOnStartup({
+        addToConfig: mockAddToConfig,
+        extensionConfig: mockExtensionConfig,
+        toastOptions: { silent: false },
+      });
+
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToConfig).not.toHaveBeenCalled();
+    });
+
     it('should retry on 428 errors', async () => {
       const error428 = new Error('428 Precondition Required');
       mockAddToAgent

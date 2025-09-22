@@ -1,3 +1,7 @@
+use crate::conversation::message::{Message, ToolRequest};
+use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
+use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -18,14 +22,14 @@ impl ToolCall {
 }
 
 #[derive(Debug)]
-pub struct ToolMonitor {
+pub struct RepetitionInspector {
     max_repetitions: Option<u32>,
     last_call: Option<ToolCall>,
     repeat_count: u32,
     call_counts: HashMap<String, u32>,
 }
 
-impl ToolMonitor {
+impl RepetitionInspector {
     pub fn new(max_repetitions: Option<u32>) -> Self {
         Self {
             max_repetitions,
@@ -62,13 +66,58 @@ impl ToolMonitor {
         true
     }
 
-    pub fn get_stats(&self) -> HashMap<String, u32> {
-        self.call_counts.clone()
-    }
-
     pub fn reset(&mut self) {
         self.last_call = None;
         self.repeat_count = 0;
         self.call_counts.clear();
+    }
+}
+
+#[async_trait]
+impl ToolInspector for RepetitionInspector {
+    fn name(&self) -> &'static str {
+        "repetition"
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn inspect(
+        &self,
+        tool_requests: &[ToolRequest],
+        _messages: &[Message],
+    ) -> Result<Vec<InspectionResult>> {
+        let mut results = Vec::new();
+
+        // Check repetition limits for each tool request
+        for tool_request in tool_requests {
+            if let Ok(tool_call) = &tool_request.tool_call {
+                let tool_call_info =
+                    ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
+
+                // Create a temporary clone to check without modifying state
+                let mut temp_inspector = RepetitionInspector::new(self.max_repetitions);
+                temp_inspector.last_call = self.last_call.clone();
+                temp_inspector.repeat_count = self.repeat_count;
+                temp_inspector.call_counts = self.call_counts.clone();
+
+                if !temp_inspector.check_tool_call(tool_call_info) {
+                    results.push(InspectionResult {
+                        tool_request_id: tool_request.id.clone(),
+                        action: InspectionAction::Deny,
+                        reason: format!(
+                            "Tool '{}' has exceeded maximum repetitions",
+                            tool_call.name
+                        ),
+                        confidence: 1.0,
+                        inspector_name: "repetition".to_string(),
+                        finding_id: Some("REP-001".to_string()),
+                    });
+                }
+            }
+        }
+
+        Ok(results)
     }
 }

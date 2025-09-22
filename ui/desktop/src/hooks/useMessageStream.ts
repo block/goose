@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
-import { getSessionHistory } from '../api';
+import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
+import { getSessionHistory, SessionMetadata } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -14,19 +14,6 @@ function generateMessageId(): string {
 const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-export interface SessionMetadata {
-  workingDir: string;
-  description: string;
-  scheduleId: string | null;
-  messageCount: number;
-  totalTokens: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  accumulatedTotalTokens: number | null;
-  accumulatedInputTokens: number | null;
-  accumulatedOutputTokens: number | null;
-}
 
 export interface NotificationEvent {
   type: 'Notification';
@@ -286,19 +273,12 @@ export function useMessageStream({
                     mutateChatState(ChatState.Streaming);
 
                     // Create a new message object with the properties preserved or defaulted
-                    const newMessage = {
+                    const newMessage: Message = {
                       ...parsedEvent.message,
-                      // Ensure the message has an ID - if not provided, generate one
-                      id: parsedEvent.message.id || generateMessageId(),
-                      // Only set to true if it's undefined (preserve false values)
-                      display:
-                        parsedEvent.message.display === undefined
-                          ? true
-                          : parsedEvent.message.display,
-                      sendToLLM:
-                        parsedEvent.message.sendToLLM === undefined
-                          ? true
-                          : parsedEvent.message.sendToLLM,
+                      id: parsedEvent.message.id || undefined,
+                      role: parsedEvent.message.role as Role,
+                      created: parsedEvent.message.created || Date.now(),
+                      content: parsedEvent.message.content || [],
                     };
 
                     // Update messages with the new message
@@ -369,21 +349,7 @@ export function useMessageStream({
                         });
 
                         if (sessionResponse.data?.metadata) {
-                          setSessionMetadata({
-                            workingDir: sessionResponse.data.metadata.working_dir,
-                            description: sessionResponse.data.metadata.description,
-                            scheduleId: sessionResponse.data.metadata.schedule_id || null,
-                            messageCount: sessionResponse.data.metadata.message_count,
-                            totalTokens: sessionResponse.data.metadata.total_tokens || null,
-                            inputTokens: sessionResponse.data.metadata.input_tokens || null,
-                            outputTokens: sessionResponse.data.metadata.output_tokens || null,
-                            accumulatedTotalTokens:
-                              sessionResponse.data.metadata.accumulated_total_tokens || null,
-                            accumulatedInputTokens:
-                              sessionResponse.data.metadata.accumulated_input_tokens || null,
-                            accumulatedOutputTokens:
-                              sessionResponse.data.metadata.accumulated_output_tokens || null,
-                          });
+                          setSessionMetadata(sessionResponse.data?.metadata);
                         }
                       } catch (error) {
                         console.error('Failed to fetch session metadata:', error);
@@ -435,9 +401,6 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Filter out messages where sendToLLM is explicitly false
-        const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
-
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -447,7 +410,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: filteredMessages,
+            messages: requestMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,

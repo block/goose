@@ -10,8 +10,6 @@ describe('CompactionMarker', () => {
       role: 'assistant',
       created: 1000,
       content: [{ type: 'text', text: 'Regular message' }],
-      display: true,
-      sendToLLM: false,
     };
 
     render(<CompactionMarker message={message} />);
@@ -28,8 +26,6 @@ describe('CompactionMarker', () => {
         { type: 'text', text: 'Some other content' },
         { type: 'summarizationRequested', msg: 'Custom compaction message' },
       ],
-      display: true,
-      sendToLLM: false,
     };
 
     render(<CompactionMarker message={message} />);
@@ -43,8 +39,6 @@ describe('CompactionMarker', () => {
       role: 'assistant',
       created: 1000,
       content: [],
-      display: true,
-      sendToLLM: false,
     };
 
     render(<CompactionMarker message={message} />);
@@ -58,8 +52,6 @@ describe('CompactionMarker', () => {
       role: 'assistant',
       created: 1000,
       content: [{ type: 'summarizationRequested', msg: '' }],
-      display: true,
-      sendToLLM: false,
     };
 
     render(<CompactionMarker message={message} />);
@@ -75,8 +67,6 @@ describe('CompactionMarker', () => {
       created: 1000,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       content: [{ type: 'summarizationRequested' } as any],
-      display: true,
-      sendToLLM: false,
     };
 
     render(<CompactionMarker message={message} />);

@@ -255,6 +255,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         )}
 
         {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+        {/* TEMPORARILY DISABLED (dorien-koelemeijer): This is causing issues in properly "generating" tool calls
+       that contain links and prevents security scanning */}
         {/* eslint-disable-next-line no-constant-binary-expression */}
         {false && urls.length > 0 && (
           <div className="flex flex-wrap mt-2">

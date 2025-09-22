@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, MemoryRouter, TutorialRouter,
+    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryServer, TutorialServer,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
+use rmcp::{transport::stdio, ServiceExt};
 use tokio::io::{stdin, stdout};
 
 use std::sync::Arc;
@@ -27,12 +28,64 @@ pub async fn run_server(name: &str) -> Result<()> {
 
     tracing::info!("Starting MCP server");
 
+    // Handle RMCP-based servers
+    if name == "developer" {
+        let service = DeveloperServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "autovisualiser" {
+        let service = AutoVisualiserRouter::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "tutorial" {
+        let service = TutorialServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    // Handle old MCP-based servers
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    // Handle old MCP-based servers
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
-        "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
-        "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
         _ => None,
     };
 

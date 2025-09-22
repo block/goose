@@ -1,3 +1,4 @@
+pub mod acp;
 pub mod bench;
 pub mod configure;
 pub mod info;

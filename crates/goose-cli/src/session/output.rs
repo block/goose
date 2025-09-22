@@ -1,10 +1,11 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{style, Color};
+use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
+use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::tool::ToolCall;
 use regex::Regex;
@@ -416,13 +417,8 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
 
 fn render_shell_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
-
-    match call.arguments.get("command") {
-        Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
-        }
-        _ => print_params(&call.arguments, 0, debug),
-    }
+    print_params(&call.arguments, 0, debug);
+    println!();
 }
 
 fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
@@ -442,10 +438,36 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
                             // For strings, print the full content without truncation
                             println!("        {}: {}", style(key).dim(), style(s).green());
                         }
+                        Value::Array(arr) => {
+                            // For arrays, print each item on its own line
+                            println!("        {}:", style(key).dim());
+                            for item in arr {
+                                if let Value::String(s) = item {
+                                    println!("            - {}", style(s).green());
+                                } else if let Value::Object(_) = item {
+                                    // For objects in arrays, print them with indentation
+                                    print!("            - ");
+                                    print_params(item, 3, debug);
+                                } else {
+                                    println!(
+                                        "            - {}",
+                                        style(format!("{}", item)).green()
+                                    );
+                                }
+                            }
+                        }
+                        Value::Object(_) => {
+                            // For objects, print them with proper indentation
+                            println!("        {}:", style(key).dim());
+                            print_params(value, 2, debug);
+                        }
                         _ => {
-                            // For everything else, use print_params
-                            print!("        ");
-                            print_params(value, 0, debug);
+                            // For other types (numbers, booleans, null)
+                            println!(
+                                "        {}: {}",
+                                style(key).dim(),
+                                style(format!("{}", value)).green()
+                            );
                         }
                     }
                 }
@@ -518,22 +540,22 @@ fn print_markdown(content: &str, theme: Theme) {
 
 const INDENT: &str = "    ";
 
-fn get_tool_params_max_length() -> usize {
-    Config::global()
-        .get_param::<usize>("GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH")
-        .ok()
-        .unwrap_or(40)
+fn print_value_with_prefix(prefix: &String, value: &Value, debug: bool) {
+    let prefix_width = measure_text_width(prefix.as_str());
+    print!("{}", prefix);
+    print_value(value, debug, prefix_width)
 }
 
-fn print_value(value: &Value, debug: bool) {
+fn print_value(value: &Value, debug: bool, reserve_width: usize) {
+    let max_width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| (w as usize).saturating_sub(reserve_width));
     let formatted = match value {
-        Value::String(s) => {
-            if !debug && s.len() > get_tool_params_max_length() {
-                style(format!("[REDACTED: {} chars]", s.len())).yellow()
-            } else {
-                style(s.to_string()).green()
-            }
+        Value::String(s) => match (max_width, debug) {
+            (Some(w), false) if s.len() > w => style(safe_truncate(s, w)),
+            _ => style(s.to_string()),
         }
+        .green(),
         Value::Number(n) => style(n.to_string()).yellow(),
         Value::Bool(b) => style(b.to_string()).yellow(),
         Value::Null => style("null".to_string()).dim(),
@@ -575,9 +597,11 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                                 })
                                 .collect();
                             let joined_values = values.join(", ");
-                            print!("{}{}: ", indent, style(key).dim());
-                            // Use print_value to handle truncation consistently
-                            print_value(&Value::String(joined_values), debug);
+                            print_value_with_prefix(
+                                &format!("{}{}: ", indent, style(key).dim()),
+                                &Value::String(joined_values),
+                                debug,
+                            );
                         } else {
                             // Use the original multi-line format for complex arrays
                             println!("{}{}:", indent, style(key).dim());
@@ -588,8 +612,11 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         }
                     }
                     _ => {
-                        print!("{}{}: ", indent, style(key).dim());
-                        print_value(val, debug);
+                        print_value_with_prefix(
+                            &format!("{}{}: ", indent, style(key).dim()),
+                            val,
+                            debug,
+                        );
                     }
                 }
             }
@@ -600,7 +627,7 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                 print_params(item, depth + 1, debug);
             }
         }
-        _ => print_value(value, debug),
+        _ => print_value(value, debug, 0),
     }
 }
 
@@ -779,7 +806,7 @@ fn normalize_model_name(model: &str) -> String {
         result = re_date.replace(&result, "").to_string();
     }
 
-    // Convert version numbers like -3-5- to -3.5- (e.g., claude-3-5-haiku -> claude-3.5-haiku)
+    // Convert version numbers like -3-7- to -3.7- (e.g., claude-3-7-sonnet -> claude-3.7-sonnet)
     let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
     if re_version.is_match(&result) {
         result = re_version.replace(&result, "-$1.$2-").to_string();

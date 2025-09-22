@@ -1154,6 +1154,7 @@ mod tests {
                     content: vec![],
                     is_error: None,
                     structured_content: None,
+                    meta: None,
                 }),
                 _ => Err(Error::TransportClosed),
             }
