@@ -1769,7 +1769,8 @@
         "description": "Request payload for context management operations",
         "required": [
           "messages",
-          "manageAction"
+          "manageAction",
+          "sessionId"
         ],
         "properties": {
           "manageAction": {
@@ -1785,8 +1786,7 @@
           },
           "sessionId": {
             "type": "string",
-            "description": "Optional session ID for session-specific agent",
-            "nullable": true
+            "description": "Optional session ID for session-specific agent"
           }
         }
       },
@@ -1854,7 +1854,8 @@
         "required": [
           "messages",
           "title",
-          "description"
+          "description",
+          "session_id"
         ],
         "properties": {
           "activities": {
@@ -1882,8 +1883,7 @@
             }
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "title": {
             "type": "string"
@@ -2856,7 +2856,8 @@
         "type": "object",
         "required": [
           "id",
-          "action"
+          "action",
+          "session_id"
         ],
         "properties": {
           "action": {
@@ -2869,8 +2870,7 @@
             "$ref": "#/components/schemas/PrincipalType"
           },
           "session_id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },

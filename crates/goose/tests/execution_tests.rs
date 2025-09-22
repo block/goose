@@ -1,6 +1,6 @@
 mod execution_tests {
     use goose::execution::manager::AgentManager;
-    use goose::execution::{ExecutionMode, SessionId};
+    use goose::execution::ExecutionMode;
     use serial_test::serial;
     use std::sync::Arc;
 
@@ -18,44 +18,12 @@ mod execution_tests {
         );
     }
 
-    #[test]
-    fn test_session_id_generation() {
-        let id1 = SessionId::generate();
-        let id2 = SessionId::generate();
-
-        assert_ne!(id1, id2);
-        assert_eq!(id1.0.len(), 36);
-        assert_eq!(id2.0.len(), 36);
-    }
-
-    #[test]
-    fn test_session_id_from_string() {
-        let id_str = "test-session-123";
-        let session_id = SessionId::from_string(id_str.to_string());
-        assert_eq!(session_id.as_str(), id_str);
-
-        let session_id2: SessionId = id_str.into();
-        assert_eq!(session_id, session_id2);
-    }
-
-    #[test]
-    fn test_display_traits() {
-        let session = SessionId::from_string("display-test".to_string());
-        assert_eq!(format!("{}", session), "display-test");
-
-        let mode = ExecutionMode::Interactive;
-        assert_eq!(format!("{}", mode), "interactive");
-
-        let mode2 = ExecutionMode::task("parent-456".to_string());
-        assert_eq!(format!("{}", mode2), "subtask(parent: parent-456)");
-    }
-
     #[tokio::test]
     async fn test_session_isolation() {
         let manager = AgentManager::new();
 
-        let session1 = SessionId::generate();
-        let session2 = SessionId::generate();
+        let session1 = uuid::Uuid::new_v4().to_string();
+        let session2 = uuid::Uuid::new_v4().to_string();
 
         let agent1 = manager
             .get_agent(session1.clone(), ExecutionMode::chat())
@@ -80,7 +48,7 @@ mod execution_tests {
         let manager = AgentManager::with_max_sessions(3);
 
         let sessions: Vec<_> = (0..3)
-            .map(|i| SessionId::from(format!("session-{}", i)))
+            .map(|i| String::from(format!("session-{}", i)))
             .collect();
 
         for session in &sessions {
@@ -92,7 +60,7 @@ mod execution_tests {
 
         assert_eq!(manager.session_count().await, 3);
 
-        let new_session = SessionId::from("session-new");
+        let new_session = String::from("session-new");
         manager
             .get_agent(new_session, ExecutionMode::chat())
             .await
@@ -105,7 +73,7 @@ mod execution_tests {
     #[tokio::test]
     async fn test_remove_session() {
         let manager = AgentManager::new();
-        let session = SessionId::from("remove-test");
+        let session = String::from("remove-test");
 
         manager
             .get_agent(session.clone(), ExecutionMode::chat())
@@ -122,7 +90,7 @@ mod execution_tests {
     #[tokio::test]
     async fn test_concurrent_access() {
         let manager = Arc::new(AgentManager::new());
-        let session = SessionId::from("concurrent-test");
+        let session = String::from("concurrent-test");
 
         let mut handles = vec![];
         for _ in 0..10 {
@@ -151,7 +119,7 @@ mod execution_tests {
     #[tokio::test]
     async fn test_different_modes_same_session() {
         let manager = AgentManager::new();
-        let session_id = SessionId::from("mode-test");
+        let session_id = String::from("mode-test");
 
         // Get agent with Interactive mode
         let agent1 = manager
@@ -174,7 +142,7 @@ mod execution_tests {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
         let manager = Arc::new(AgentManager::new());
-        let session_id = SessionId::from("race-condition-test");
+        let session_id = String::from("race-condition-test");
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
         let mut handles = vec![];
@@ -212,7 +180,7 @@ mod execution_tests {
     async fn test_edge_case_max_sessions_zero() {
         let manager = AgentManager::with_max_sessions(0);
 
-        let session1 = SessionId::from("session-1");
+        let session1 = String::from("session-1");
         let result = manager
             .get_agent(session1.clone(), ExecutionMode::Interactive)
             .await;
@@ -222,7 +190,7 @@ mod execution_tests {
         assert_eq!(manager.session_count().await, 1);
 
         // Creating another should evict the first immediately
-        let session2 = SessionId::from("session-2");
+        let session2 = String::from("session-2");
         manager
             .get_agent(session2.clone(), ExecutionMode::Interactive)
             .await
@@ -238,7 +206,7 @@ mod execution_tests {
     async fn test_edge_case_max_sessions_one() {
         let manager = AgentManager::with_max_sessions(1);
 
-        let session1 = SessionId::from("only-session");
+        let session1 = String::from("only-session");
         manager
             .get_agent(session1.clone(), ExecutionMode::Interactive)
             .await
@@ -247,7 +215,7 @@ mod execution_tests {
         assert_eq!(manager.session_count().await, 1);
 
         // Creating second session should evict the first
-        let session2 = SessionId::from("new-session");
+        let session2 = String::from("new-session");
         manager
             .get_agent(session2.clone(), ExecutionMode::Interactive)
             .await
@@ -307,7 +275,7 @@ mod execution_tests {
 
         manager.set_default_provider(Arc::new(test_provider)).await;
 
-        let session = SessionId::from("provider-test");
+        let session = String::from("provider-test");
         let _agent = manager
             .get_agent(session.clone(), ExecutionMode::Interactive)
             .await
@@ -322,8 +290,8 @@ mod execution_tests {
         // and affects eviction order
         let manager = AgentManager::with_max_sessions(2);
 
-        let session1 = SessionId::from("session-1");
-        let session2 = SessionId::from("session-2");
+        let session1 = String::from("session-1");
+        let session2 = String::from("session-2");
 
         manager
             .get_agent(session1.clone(), ExecutionMode::Interactive)
@@ -346,7 +314,7 @@ mod execution_tests {
             .unwrap();
 
         // Now create a third session - should evict session2 (least recently used)
-        let session3 = SessionId::from("session-3");
+        let session3 = String::from("session-3");
         manager
             .get_agent(session3.clone(), ExecutionMode::Interactive)
             .await
@@ -363,7 +331,7 @@ mod execution_tests {
     async fn test_remove_nonexistent_session_error() {
         // Test that removing a non-existent session returns an error
         let manager = AgentManager::new();
-        let session = SessionId::from("never-created");
+        let session = String::from("never-created");
 
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());

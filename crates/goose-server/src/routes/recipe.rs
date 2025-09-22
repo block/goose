@@ -25,7 +25,7 @@ pub struct CreateRecipeRequest {
     activities: Option<Vec<String>>,
     #[serde(default)]
     author: Option<AuthorRequest>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

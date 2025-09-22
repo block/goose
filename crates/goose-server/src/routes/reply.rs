@@ -87,7 +87,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 #[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
     messages: Vec<Message>,
-    session_id: Option<String>,
+    session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
 }
@@ -179,11 +179,7 @@ async fn reply_handler(
         "Session started"
     );
 
-    // Generate session_id if not provided (backward compatibility)
-    let session_id = request
-        .session_id
-        .clone()
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let session_id = request.session_id.clone();
 
     if let Some(recipe_name) = request.recipe_name.clone() {
         if state.mark_recipe_run_if_absent(&session_id).await {
@@ -213,7 +209,7 @@ async fn reply_handler(
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = match state.get_session_agent(Some(session_id.clone())).await {
+        let agent = match state.get_session_agent(session_id.clone()).await {
             Ok(agent) => agent,
             Err(e) => {
                 tracing::error!("Failed to get session agent: {}", e);
@@ -467,7 +463,7 @@ pub struct PermissionConfirmationRequest {
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 fn default_principal_type() -> PrincipalType {
@@ -512,7 +508,7 @@ pub async fn confirm_permission(
 struct ToolResultRequest {
     id: String,
     result: ToolResult<Vec<Content>>,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 async fn submit_tool_result(
@@ -536,7 +532,7 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = get_agent_or_500(&state, payload.session_id.clone()).await?;
+    let agent = get_agent_or_500(&state, payload.session_id).await?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
@@ -622,7 +618,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
                         messages: vec![Message::user().with_text("test message")],
-                        session_id: Some("test-session".to_string()),
+                        session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
                     })

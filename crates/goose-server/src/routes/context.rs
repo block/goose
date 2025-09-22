@@ -15,7 +15,7 @@ pub struct ContextManageRequest {
     /// Operation to perform: "truncation" or "summarize"
     pub manage_action: String,
     /// Optional session ID for session-specific agent
-    pub session_id: Option<String>,
+    pub session_id: String,
 }
 
 /// Response from context management operations

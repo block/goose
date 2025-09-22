@@ -43,38 +43,3 @@ impl fmt::Display for ExecutionMode {
         }
     }
 }
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SessionId(pub String);
-
-impl SessionId {
-    pub fn generate() -> Self {
-        Self(uuid::Uuid::new_v4().to_string())
-    }
-
-    pub fn from_string(id: String) -> Self {
-        Self(id)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for SessionId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for SessionId {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for SessionId {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}

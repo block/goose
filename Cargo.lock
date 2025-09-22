@@ -2681,6 +2681,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "lazy_static",
+ "lru",
  "mcp-client",
  "mcp-core",
  "minijinja",

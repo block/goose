@@ -112,7 +112,8 @@ async fn add_extension(
         .0
         .get("session_id")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(|s| s.to_string())
+        .ok_or(StatusCode::BAD_REQUEST)?;
 
     // Remove session_id from the object before parsing the extension config
     let mut config_json = raw.0.clone();
@@ -305,7 +306,7 @@ async fn add_extension(
 #[derive(Deserialize)]
 struct RemoveExtensionRequest {
     name: String,
-    session_id: Option<String>,
+    session_id: String,
 }
 
 /// Handler for removing an extension by name

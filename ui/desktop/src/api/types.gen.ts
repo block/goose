@@ -86,7 +86,7 @@ export type ContextManageRequest = {
     /**
      * Optional session ID for session-specific agent
      */
-    sessionId?: string | null;
+    sessionId: string;
 };
 
 /**
@@ -117,7 +117,7 @@ export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     description: string;
     messages: Array<Message>;
-    session_id?: string | null;
+    session_id: string;
     title: string;
 };
 
@@ -442,7 +442,7 @@ export type PermissionConfirmationRequest = {
     action: string;
     id: string;
     principal_type?: PrincipalType;
-    session_id?: string | null;
+    session_id: string;
 };
 
 /**
