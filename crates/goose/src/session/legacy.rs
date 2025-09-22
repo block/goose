@@ -1,5 +1,5 @@
 use crate::conversation::Conversation;
-use crate::session::SessionMetadata;
+use crate::session::Session;
 use anyhow::Result;
 use std::fs;
 use std::io::{self, BufRead};
@@ -53,7 +53,7 @@ pub fn read_messages(session_file: &Path) -> Result<Conversation> {
         match line_result {
             Ok(line) => {
                 // Try to parse as metadata, if it fails, treat as message
-                if serde_json::from_str::<SessionMetadata>(&line).is_err() {
+                if serde_json::from_str::<Session>(&line).is_err() {
                     // First line is a message, not metadata
                     if let Ok(message) = serde_json::from_str(&line) {
                         messages.push(message);
@@ -89,17 +89,17 @@ pub fn read_messages(session_file: &Path) -> Result<Conversation> {
     Ok(Conversation::new_unvalidated(messages))
 }
 
-pub async fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
+pub async fn read_metadata(session_file: &Path) -> Result<Session> {
     let mut file = match tokio::fs::File::open(session_file).await {
         Ok(file) => file,
-        Err(_) => return Ok(SessionMetadata::default()),
+        Err(_) => return Ok(Session::default()),
     };
 
     let mut buffer = vec![0u8; MAX_LINE_LENGTH.min(1024)];
     let bytes_read = file.read(&mut buffer).await?;
 
     if bytes_read == 0 {
-        return Ok(SessionMetadata::default());
+        return Ok(Session::default());
     }
 
     let content = String::from_utf8_lossy(&buffer[..bytes_read]);

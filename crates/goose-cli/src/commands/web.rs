@@ -230,9 +230,9 @@ async fn list_sessions() -> Json<serde_json::Value> {
                     serde_json::json!({
                         "name": session.id,
                         "path": session.path,
-                        "description": session.metadata.description,
+                        "description": session.description,
                         "message_count": session.metadata.message_count,
-                        "working_dir": session.metadata.working_dir
+                        "working_dir": session.working_dir
                     })
                 })
                 .collect();
@@ -249,7 +249,7 @@ async fn list_sessions() -> Json<serde_json::Value> {
 async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
-    match SessionManager::get_conversation(&session_id).await {
+    match SessionManager::get_session(&session_id, true).await {
         Ok(conversation) => match SessionManager::get_session_metadata(&session_id).await {
             Ok(metadata) => Json(serde_json::json!({
                 "metadata": metadata,
@@ -587,17 +587,7 @@ async fn process_message_streaming(
                         }
                     }
                     Ok(AgentEvent::HistoryReplaced(new_messages)) => {
-                        // Replace the session's message history with the compacted messages
-                        {
-                            let mut session_msgs = session_messages.lock().await;
-                            *session_msgs = Conversation::new_unvalidated(new_messages.clone());
-                        }
-
-                        if let Err(e) =
-                            SessionManager::replace_conversation(&session_id, &new_messages).await
-                        {
-                            error!("Failed to persist compacted messages: {}", e);
-                        }
+                        tracing::info!("History replaced, compacting happened in reply");
                     }
                     Ok(AgentEvent::McpNotification(_notification)) => {
                         // Handle MCP notifications if needed

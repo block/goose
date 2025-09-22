@@ -54,7 +54,7 @@ pub enum RunMode {
     Plan,
 }
 
-pub struct Session {
+pub struct CliSession {
     agent: Agent,
     messages: Conversation,
     session_id: Option<String>,
@@ -121,7 +121,7 @@ pub async fn classify_planner_response(
     }
 }
 
-impl Session {
+impl CliSession {
     pub fn new(
         agent: Agent,
         session_id: Option<String>,
@@ -135,7 +135,7 @@ impl Session {
             // Use SessionManager to load messages
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
-                    SessionManager::get_conversation(session_id)
+                    SessionManager::get_session(session_id, true)
                         .await
                         .unwrap_or_else(|e| {
                             eprintln!("Warning: Failed to load message history: {}", e);
@@ -147,7 +147,7 @@ impl Session {
             Conversation::new_unvalidated(Vec::new())
         };
 
-        Session {
+        CliSession {
             agent,
             messages,
             session_id,
@@ -697,7 +697,7 @@ impl Session {
                             // Update session metadata with the new token counts from summarization
                             if let Some(usage) = summarization_usage {
                                 let mut metadata =
-                                    SessionManager::get_session_metadata(session_id).await?;
+                                    SessionManager::get_session(session_id, false).await?;
 
                                 // Update token counts with the summarization usage
                                 let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
@@ -1379,9 +1379,9 @@ impl Session {
         );
     }
 
-    pub async fn get_metadata(&self) -> Result<session::SessionMetadata> {
+    pub async fn get_metadata(&self) -> Result<session::Session> {
         match &self.session_id {
-            Some(id) => SessionManager::get_session_metadata(id).await,
+            Some(id) => SessionManager::get_session(id, false).await,
             None => Err(anyhow::anyhow!("No session available")),
         }
     }

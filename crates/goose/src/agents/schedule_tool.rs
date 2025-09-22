@@ -421,12 +421,12 @@ impl Agent {
                 } else {
                     let sessions_info: Vec<String> = sessions
                         .into_iter()
-                        .map(|(session_name, metadata)| {
+                        .map(|(session_name, session)| {
                             format!(
                                 "- Session: {} (Messages: {}, Working Dir: {})",
                                 session_name,
-                                metadata.message_count,
-                                metadata.working_dir.display()
+                                session.conversation.unwrap_or_default().len(),
+                                session.working_dir.display()
                             )
                         })
                         .collect();
@@ -462,32 +462,19 @@ impl Agent {
                 )
             })?;
 
-        // Read session metadata
-        let metadata = match crate::session::SessionManager::get_session_metadata(session_id).await {
+        let session = match crate::session::SessionManager::get_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session metadata for '{}': {}", session_id, e),
-                    None,
-                ));
-            }
-        };
-
-        // Read session messages
-        let messages = match crate::session::SessionManager::get_conversation(session_id).await {
-            Ok(messages) => messages,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session messages for '{}': {}", session_id, e),
+                    format!("Failed to read session for '{}': {}", session_id, e),
                     None,
                 ));
             }
         };
 
         // Format the response with metadata and messages
-        let metadata_json = match serde_json::to_string_pretty(&metadata) {
+        let metadata_json = match serde_json::to_string_pretty(&session) {
             Ok(json) => json,
             Err(e) => {
                 return Err(ErrorData::new(
@@ -498,20 +485,9 @@ impl Agent {
             }
         };
 
-        let messages_json = match serde_json::to_string_pretty(&messages) {
-            Ok(json) => json,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to serialize messages: {}", e),
-                    None,
-                ));
-            }
-        };
-
         Ok(vec![Content::text(format!(
-            "Session '{}' Content:\n\nMetadata:\n{}\n\nMessages:\n{}",
-            session_id, metadata_json, messages_json
+            "Session '{}' Content:\n\nSession:\n{}",
+            session_id, metadata_json
         ))])
     }
 }

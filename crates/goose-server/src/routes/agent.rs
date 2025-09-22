@@ -13,7 +13,7 @@ use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
 use goose::session;
-use goose::session::{SessionManager, SessionMetadata};
+use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -92,8 +92,7 @@ pub struct ResumeAgentRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct StartAgentResponse {
     session_id: String,
-    metadata: SessionMetadata,
-    messages: Vec<Message>,
+    session: Session,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -118,34 +117,29 @@ async fn start_agent(
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
     state.reset().await;
 
-    let session_id = session::generate_session_id();
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let description = format!("New session {}", counter);
 
-    let metadata = SessionMetadata {
-        working_dir: PathBuf::from(&payload.working_dir),
-        description: format!("New session {}", counter),
-        schedule_id: None,
-        message_count: 0,
-        total_tokens: Some(0),
-        input_tokens: Some(0),
-        output_tokens: Some(0),
-        accumulated_total_tokens: Some(0),
-        accumulated_input_tokens: Some(0),
-        accumulated_output_tokens: Some(0),
-        extension_data: Default::default(),
-        recipe: payload.recipe,
-    };
+    let mut session =
+        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    SessionManager::update_session_metadata(&session_id, metadata.clone())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if let Some(recipe) = payload.recipe {
+        SessionManager::update_session(&session.id)
+            .recipe_json(serde_json::to_string(&recipe).ok())
+            .apply()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let conversation = Conversation::empty();
+        session = SessionManager::get_session(&session.id, false)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
 
     Ok(Json(StartAgentResponse {
-        session_id,
-        metadata,
-        messages: conversation.messages().clone(),
+        session_id: session.id.clone(),
+        session,
     }))
 }
 
@@ -163,21 +157,13 @@ async fn start_agent(
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
-    let metadata = SessionManager::get_session_metadata(&payload.session_id)
+    let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let conversation = SessionManager::get_conversation(&payload.session_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to read session messages: {:?}", e);
-            StatusCode::NOT_FOUND
-        })?;
-
     Ok(Json(StartAgentResponse {
         session_id: payload.session_id.clone(),
-        metadata,
-        messages: conversation.messages().clone(),
+        session,
     }))
 }
 

@@ -2,7 +2,7 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 use clap::builder::Str;
 use cliclack::{confirm, multiselect, select};
-use goose::session::{SessionInfo, SessionManager};
+use goose::session::{Session, SessionInfo, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -126,9 +126,9 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
 
     let mut sessions = sessions;
     if ascending {
-        sessions.sort_by(|a, b| a.modified.cmp(&b.modified));
+        sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
     } else {
-        sessions.sort_by(|a, b| b.modified.cmp(&a.modified));
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     }
 
     match format.as_str() {
@@ -141,24 +141,18 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
                 return Ok(());
             } else {
                 println!("Available sessions:");
-                for SessionInfo {
+                for Session {
                     id,
-                    path,
-                    metadata,
-                    modified,
+                    description,
+                    updated_at, ..
                 } in sessions
                 {
-                    let description = if metadata.description.is_empty() {
-                        "(none)"
-                    } else {
-                        &metadata.description
-                    };
-                    let output = format!("{} - {} - {}", id, description, modified);
+                    let output = format!("{} - {} - {}", id, description, updated_at);
                     if verbose {
                         println!("  {}", output);
-                        println!("    Path: {}", path);
                     } else {
                         println!("{}", output);
+                    }
                     }
                 }
             }
@@ -169,8 +163,8 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
 
 /// Export a session to Markdown without creating a full Session object
 pub async fn handle_session_export(session_id: String, output_path: Option<PathBuf>) -> Result<()> {
-    let messages = match SessionManager::get_conversation(&session_id).await {
-        Ok(msgs) => msgs,
+    let session = match SessionManager::get_session(&session_id, true).await {
+        Ok(session) => session,
         Err(e) => {
             return Err(anyhow::anyhow!(
                 "Session '{}' not found or failed to read: {}",
@@ -179,10 +173,13 @@ pub async fn handle_session_export(session_id: String, output_path: Option<PathB
             ));
         }
     };
-    let meta_data = SessionManager::get_session_metadata(&session_id).await?;
 
-    // Generate the markdown content using the export functionality
-    let markdown = export_session_to_markdown(messages.messages().clone(), &meta_data.description);
+    let conversation = session
+        .conversation
+        .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
+
+    let markdown =
+        export_session_to_markdown(conversation.messages().to_vec(), &session.description);
 
     if let Some(output) = output_path {
         fs::write(&output, markdown)
@@ -281,17 +278,17 @@ pub async fn prompt_interactive_session_selection() -> Result<String> {
     let mut selector = select("Select a session to export:");
 
     // Map to display text
-    let display_map: std::collections::HashMap<String, SessionInfo> = sessions
+    let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.metadata.description.is_empty() {
+            let desc = if s.description.is_empty() {
                 "(no description)"
             } else {
-                &s.metadata.description
+                &s.description
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 
-            let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
+            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();

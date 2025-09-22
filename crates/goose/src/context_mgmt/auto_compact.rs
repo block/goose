@@ -55,7 +55,7 @@ pub async fn check_compaction_needed(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::SessionMetadata>,
+    session_metadata: Option<&crate::session::Session>,
 ) -> Result<CompactionCheckResult> {
     // Get threshold from config or use override
     let config = Config::global();
@@ -182,7 +182,7 @@ pub async fn check_and_compact_messages(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::SessionMetadata>,
+    session_metadata: Option<&crate::session::Session>,
 ) -> Result<AutoCompactResult> {
     // First check if compaction is needed
     let check_result =
@@ -304,13 +304,37 @@ mod tests {
     fn create_test_session_metadata(
         message_count: usize,
         working_dir: &str,
-    ) -> crate::session::SessionMetadata {
+    ) -> crate::session::Session {
+        use crate::conversation::message::Message;
+        use crate::conversation::Conversation;
+        use rmcp::model::Role;
         use std::path::PathBuf;
-        crate::session::SessionMetadata {
-            message_count,
+
+        let mut messages = Vec::new();
+        for i in 0..message_count {
+            let role = if i % 2 == 0 {
+                Role::User
+            } else {
+                Role::Assistant
+            };
+            let content = vec![MessageContent::text(format!("Test message {}", i))];
+            messages.push(Message::new(role, i as i64, content));
+        }
+
+        let conversation = if message_count > 0 {
+            Some(Conversation::new_unvalidated(messages))
+        } else {
+            None
+        };
+
+        crate::session::Session {
+            id: "test_session".to_string(),
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
             schedule_id: Some("test_job".to_string()),
+            recipe_json: None,
             total_tokens: Some(100),
             input_tokens: Some(50),
             output_tokens: Some(50),
@@ -318,7 +342,7 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             extension_data: extension_data::ExtensionData::new(),
-            recipe: None,
+            conversation,
         }
     }
 
@@ -541,7 +565,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_uses_session_metadata() {
-        use crate::session::SessionMetadata;
+        use crate::session::Session;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
@@ -559,7 +583,7 @@ mod tests {
         ];
 
         // Create session metadata with specific token counts
-        let mut session_metadata = SessionMetadata::default();
+        let mut session_metadata = Session::default();
         session_metadata.total_tokens = Some(8000); // High token count to trigger compaction
         session_metadata.accumulated_total_tokens = Some(15000); // Even higher accumulated count
         session_metadata.input_tokens = Some(5000);
@@ -594,7 +618,7 @@ mod tests {
         assert!(result_without_metadata.current_tokens < 8000);
 
         // Test with metadata that has only accumulated tokens (no total_tokens)
-        let mut session_metadata_no_total = SessionMetadata::default();
+        let mut session_metadata_no_total = Session::default();
         session_metadata_no_total.accumulated_total_tokens = Some(7500);
 
         let result_with_no_total = check_compaction_needed(
@@ -611,7 +635,7 @@ mod tests {
         assert!(result_with_no_total.current_tokens < 7500);
 
         // Test with metadata that has no token counts - should fall back to estimation
-        let empty_metadata = SessionMetadata::default();
+        let empty_metadata = Session::default();
 
         let result_with_empty_metadata = check_compaction_needed(
             &agent,
@@ -629,7 +653,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_end_to_end_with_metadata() {
-        use crate::session::SessionMetadata;
+        use crate::session::Session;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
@@ -650,7 +674,7 @@ mod tests {
         ];
 
         // Create session metadata with high token count to trigger compaction
-        let mut session_metadata = SessionMetadata::default();
+        let mut session_metadata = Session::default();
         session_metadata.total_tokens = Some(9000); // High enough to trigger compaction
 
         // Test full compaction flow with session metadata
@@ -696,7 +720,14 @@ mod tests {
         let comprehensive_metadata = create_test_session_metadata(3, "/test/working/dir");
 
         // Verify the helper created non-null metadata
-        assert_eq!(comprehensive_metadata.message_count, 3);
+        assert_eq!(
+            comprehensive_metadata
+                .clone()
+                .conversation
+                .unwrap_or_default()
+                .len(),
+            3
+        );
         assert_eq!(
             comprehensive_metadata.working_dir.to_str().unwrap(),
             "/test/working/dir"

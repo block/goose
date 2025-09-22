@@ -1,5 +1,5 @@
 use super::output;
-use super::Session;
+use super::CliSession;
 use console::style;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
@@ -7,7 +7,7 @@ use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session;
-use goose::session::{generate_session_id, SessionManager};
+use goose::session::SessionManager;
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::process;
@@ -133,7 +133,7 @@ async fn offer_extension_debugging_help(
 
     // Create the debugging session
     let mut debug_session =
-        Session::new(debug_agent, Some(session_id), false, None, None, None, None);
+        CliSession::new(debug_agent, Some(session_id), false, None, None, None, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -161,7 +161,7 @@ pub struct SessionSettings {
     pub temperature: Option<f32>,
 }
 
-pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
+pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Load config and get provider/model
     let config = Config::global();
 
@@ -248,7 +248,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         None
     } else if session_config.resume {
         if let Some(session_id) = session_config.session_id {
-            match SessionManager::get_session_metadata(&session_id).await {
+            match SessionManager::get_session(&session_id, false).await {
                 Ok(_) => Some(session_id),
                 Err(_) => {
                     output::render_error(&format!(
@@ -284,7 +284,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     if session_config.resume {
         if let Some(session_id) = session_id.as_ref() {
             // Read the session metadata from database
-            let metadata = SessionManager::get_session_metadata(session_id)
+            let metadata = SessionManager::get_session(session_id, false)
                 .await
                 .unwrap_or_else(|e| {
                     output::render_error(&format!("Failed to read session metadata: {}", e));
@@ -396,7 +396,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         });
 
     // Create new session
-    let mut session = Session::new(
+    let mut session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
         session_config.debug,

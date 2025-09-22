@@ -11,7 +11,7 @@ use tracing::{info, warn};
 
 use crate::scheduler::{normalize_cron_expression, ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::{SessionManager, SessionMetadata};
+use crate::session::{Session, SessionManager};
 
 const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
@@ -703,7 +703,7 @@ impl TemporalScheduler {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
         use crate::session::SessionManager;
 
         // Get all sessions from the database
@@ -711,12 +711,11 @@ impl TemporalScheduler {
             SchedulerError::SchedulerInternalError(format!("Failed to list sessions: {}", e))
         })?;
 
-        let mut schedule_sessions: Vec<(String, SessionMetadata)> = Vec::new();
+        let mut schedule_sessions: Vec<(String, Session)> = Vec::new();
 
-        for session_info in all_sessions {
-            // Check if this session belongs to the requested schedule
-            if session_info.metadata.schedule_id.as_deref() == Some(sched_id) {
-                schedule_sessions.push((session_info.id, session_info.metadata));
+        for session in all_sessions {
+            if session.schedule_id.as_deref() == Some(sched_id) {
+                schedule_sessions.push((session.id.clone(), session));
             }
         }
 
@@ -724,7 +723,7 @@ impl TemporalScheduler {
         schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
 
         // Take only the requested limit
-        let result_sessions: Vec<(String, SessionMetadata)> =
+        let result_sessions: Vec<(String, Session)> =
             schedule_sessions.into_iter().take(limit).collect();
 
         info!(
@@ -854,7 +853,7 @@ impl TemporalScheduler {
                             {
                                 // Parse the updated_at timestamp from the database
                                 if let Ok(modified_dt) = DateTime::parse_from_str(
-                                    &session_info.modified,
+                                    &session_info.updated_at,
                                     "%Y-%m-%d %H:%M:%S UTC",
                                 ) {
                                     let modified_utc = modified_dt.with_timezone(&Utc);
@@ -957,7 +956,7 @@ impl TemporalScheduler {
 
                         if let Some((session_name, _session_metadata)) = recent_sessions.first() {
                             // Check if this session still exists in the new system
-                            match SessionManager::get_session_metadata(session_name).await {
+                            match SessionManager::get_session(session_name, false).await {
                                 Ok(_) => {
                                     // Session exists, consider it active
                                     let start_time = Utc::now();
@@ -1188,7 +1187,7 @@ impl SchedulerTrait for TemporalScheduler {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
         self.sessions(sched_id, limit).await
     }
 

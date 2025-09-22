@@ -67,7 +67,7 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
 
         sessions
             .into_iter()
-            .find(|s| s.metadata.description == name)
+            .find(|s| s.description == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else {
@@ -817,7 +817,7 @@ pub async fn cli() -> Result<()> {
                     };
 
                     // Run session command by default
-                    let mut session: crate::Session = build_session(SessionBuilderConfig {
+                    let mut session: crate::CliSession = build_session(SessionBuilderConfig {
                         session_id,
                         resume,
                         no_session: false,

@@ -507,7 +507,7 @@ impl Agent {
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
             let todo_content = if let Some(session_config) = session {
-                SessionManager::get_session_metadata(&session_config.id)
+                SessionManager::get_session(&session_config.id, false)
                     .await
                     .ok()
                     .and_then(|metadata| {
@@ -546,18 +546,17 @@ impl Agent {
                     None,
                 )))
             } else if let Some(session_config) = session {
-                match SessionManager::get_session_metadata(&session_config.id).await {
-                    Ok(mut metadata) => {
+                match SessionManager::get_session(&session_config.id, false).await {
+                    Ok(mut session) => {
                         let todo_state = extension_data::TodoState::new(content);
                         if todo_state
-                            .to_extension_data(&mut metadata.extension_data)
+                            .to_extension_data(&mut session.extension_data)
                             .is_ok()
                         {
-                            match SessionManager::update_session_metadata(
-                                &session_config.id,
-                                metadata,
-                            )
-                            .await
+                            match SessionManager::update_session(&session_config.id)
+                                .extension_data(session.extension_data)
+                                .apply()
+                                .await
                             {
                                 Ok(_) => ToolCallResult::from(Ok(vec![Content::text(format!(
                                     "Updated ({} chars)",
@@ -903,7 +902,7 @@ impl Agent {
     > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
-            SessionManager::get_session_metadata(&session_config.id)
+            SessionManager::get_session(&session_config.id, false)
                 .await
                 .ok()
         } else {
@@ -951,7 +950,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg, _summarization_usage) = match self
+        let (conversation, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
@@ -968,13 +967,13 @@ impl Agent {
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
-                yield AgentEvent::HistoryReplaced(messages.messages().clone());
+                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
                 if let Some(session_to_store) = &session {
-                    SessionManager::replace_conversation(&session_to_store.id, &messages.messages()).await?
+                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                 }
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -982,7 +981,8 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(messages, session, cancel_token).await
+        self.reply_internal(conversation, session, cancel_token)
+            .await
     }
 
     /// Main reply method that handles the actual agent processing
@@ -1009,17 +1009,19 @@ impl Agent {
         // reply and load the existing conversation. Until we get to that point, fetch the conversation
         // so far and append the last (user) message that the caller already added.
         if let Some(session_config) = &session {
-            let stored_conversation = SessionManager::get_conversation(&session_config.id).await?;
+            let stored_conversation = SessionManager::get_session(&session_config.id, true)
+                .await?
+                .conversation
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Session {} has no conversation", session_config.id)
+                })?;
 
             match conversation.len().cmp(&stored_conversation.len()) {
                 std::cmp::Ordering::Equal => {
                     if conversation != stored_conversation {
                         warn!("Session messages mismatch - replacing with incoming");
-                        SessionManager::replace_conversation(
-                            &session_config.id,
-                            conversation.messages(),
-                        )
-                        .await?;
+                        SessionManager::replace_conversation(&session_config.id, &conversation)
+                            .await?;
                     }
                 }
                 std::cmp::Ordering::Greater
@@ -1037,11 +1039,7 @@ impl Agent {
                         stored_conversation.len(),
                         conversation.len()
                     );
-                    SessionManager::replace_conversation(
-                        &session_config.id,
-                        conversation.messages(),
-                    )
-                    .await?;
+                    SessionManager::replace_conversation(&session_config.id, &conversation).await?;
                 }
             }
         }
@@ -1306,7 +1304,7 @@ impl Agent {
                                     );
                                     yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
                                     if let Some(session_to_store) = &session {
-                                        SessionManager::replace_conversation(&session_to_store.id, &conversation.messages()).await?
+                                        SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                                     }
                                     continue;
                                 }

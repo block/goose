@@ -10,14 +10,11 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
+use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
-};
-use goose::{
-    permission::{Permission, PermissionConfirmation},
-    session,
 };
 use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
@@ -210,7 +207,7 @@ async fn reply_handler(
         let agent = state.get_agent().await;
 
         // Load session metadata to get the working directory and other config
-        let session_metadata = match SessionManager::get_session_metadata(&session_id).await {
+        let session_metadata = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
@@ -327,9 +324,9 @@ async fn reply_handler(
 
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = SessionManager::get_session_metadata(&session_id).await {
+        if let Ok(metadata) = SessionManager::get_session(&session_id, true).await {
             let total_tokens = metadata.total_tokens.unwrap_or(0);
-            let message_count = metadata.message_count;
+            let message_count = metadata.conversation.count();
 
             tracing::info!(
                 counter.goose.session_completions = 1,

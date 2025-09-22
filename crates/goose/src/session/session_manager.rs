@@ -3,24 +3,136 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
 use crate::session::extension_data::ExtensionData;
-use crate::session::{SessionInfo, SessionMetadata};
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
 use rmcp::model::Role;
+use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
+use uuid::Uuid;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub id: String,
+    pub working_dir: PathBuf,
+    pub description: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub extension_data: ExtensionData,
+    pub total_tokens: Option<i32>,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub accumulated_total_tokens: Option<i32>,
+    pub accumulated_input_tokens: Option<i32>,
+    pub accumulated_output_tokens: Option<i32>,
+    pub schedule_id: Option<String>,
+    pub recipe_json: Option<String>,
+    pub conversation: Option<Conversation>,
+}
+
+pub struct SessionUpdateBuilder {
+    session_id: String,
+    description: Option<String>,
+    working_dir: Option<PathBuf>,
+    extension_data: Option<ExtensionData>,
+    total_tokens: Option<Option<i32>>,
+    input_tokens: Option<Option<i32>>,
+    output_tokens: Option<Option<i32>>,
+    accumulated_total_tokens: Option<Option<i32>>,
+    accumulated_input_tokens: Option<Option<i32>>,
+    accumulated_output_tokens: Option<Option<i32>>,
+    schedule_id: Option<Option<String>>,
+    recipe_json: Option<Option<String>>,
+}
+
+impl SessionUpdateBuilder {
+    fn new(session_id: String) -> Self {
+        Self {
+            session_id,
+            description: None,
+            working_dir: None,
+            extension_data: None,
+            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            accumulated_total_tokens: None,
+            accumulated_input_tokens: None,
+            accumulated_output_tokens: None,
+            schedule_id: None,
+            recipe_json: None,
+        }
+    }
+
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    pub fn working_dir(mut self, working_dir: PathBuf) -> Self {
+        self.working_dir = Some(working_dir);
+        self
+    }
+
+    pub fn extension_data(mut self, data: ExtensionData) -> Self {
+        self.extension_data = Some(data);
+        self
+    }
+
+    pub fn total_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.total_tokens = Some(tokens);
+        self
+    }
+
+    pub fn input_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.input_tokens = Some(tokens);
+        self
+    }
+
+    pub fn output_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.output_tokens = Some(tokens);
+        self
+    }
+
+    pub fn accumulated_total_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.accumulated_total_tokens = Some(tokens);
+        self
+    }
+
+    pub fn accumulated_input_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.accumulated_input_tokens = Some(tokens);
+        self
+    }
+
+    pub fn accumulated_output_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.accumulated_output_tokens = Some(tokens);
+        self
+    }
+
+    pub fn schedule_id(mut self, schedule_id: Option<String>) -> Self {
+        self.schedule_id = Some(schedule_id);
+        self
+    }
+
+    pub fn recipe_json(mut self, recipe_json: Option<String>) -> Self {
+        self.recipe_json = Some(recipe_json);
+        self
+    }
+
+    pub async fn apply(self) -> Result<()> {
+        SessionManager::apply_update(self).await
+    }
+}
+
 pub struct SessionManager;
 
 impl SessionManager {
-    /// Get the singleton instance (initializes on first access)
     async fn instance() -> Result<Arc<SessionStorage>> {
         match SESSION_STORAGE.get() {
             Some(storage) => Ok(storage.clone()),
@@ -28,72 +140,64 @@ impl SessionManager {
                 let storage = Arc::new(SessionStorage::new().await?);
                 match SESSION_STORAGE.set(storage.clone()) {
                     Ok(_) => Ok(storage),
-                    Err(_) => {
-                        // Another task beat us to initialization, use theirs
-                        Ok(SESSION_STORAGE.get().unwrap().clone())
-                    }
+                    Err(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
                 }
             }
         }
     }
 
-    pub async fn add_message(session_id: &str, message: &Message) -> Result<()> {
+    pub async fn create_session(working_dir: PathBuf, description: String) -> Result<Session> {
+        let session_id = Uuid::new_v4().to_string();
         Self::instance()
             .await?
-            .add_message(session_id, message)
+            .create_session(session_id.clone(), working_dir, description)
+            .await?;
+        Self::get_session(&session_id, false).await
+    }
+
+    pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
+        Self::instance()
+            .await?
+            .get_session(id, include_messages)
             .await
     }
 
-    pub async fn get_session_metadata(session_id: &str) -> Result<SessionMetadata> {
+    pub fn update_session(id: &str) -> SessionUpdateBuilder {
+        SessionUpdateBuilder::new(id.to_string())
+    }
+
+    async fn apply_update(builder: SessionUpdateBuilder) -> Result<()> {
+        Self::instance().await?.apply_update(builder).await
+    }
+
+    pub async fn add_message(id: &str, message: &Message) -> Result<()> {
+        Self::instance().await?.add_message(id, message).await
+    }
+
+    pub async fn replace_conversation(id: &str, conversation: &Conversation) -> Result<()> {
         Self::instance()
             .await?
-            .get_session_metadata(session_id)
+            .replace_conversation(id, conversation)
             .await
     }
 
-    pub async fn update_session_metadata(
-        session_id: &str,
-        metadata: SessionMetadata,
-    ) -> Result<()> {
-        Self::instance()
-            .await?
-            .update_session_metadata(session_id, metadata)
-            .await
-    }
-
-    pub async fn replace_conversation(session_id: &str, messages: &[Message]) -> Result<()> {
-        Self::instance()
-            .await?
-            .replace_conversation(session_id, messages)
-            .await
-    }
-
-    pub async fn get_conversation(session_id: &str) -> Result<Conversation> {
-        Self::instance().await?.get_conversation(session_id).await
-    }
-
-    pub async fn list_sessions() -> Result<Vec<SessionInfo>> {
+    pub async fn list_sessions() -> Result<Vec<Session>> {
         Self::instance().await?.list_sessions().await
     }
 
-    pub async fn delete_session(session_id: &str) -> Result<()> {
-        Self::instance().await?.delete_session(session_id).await
+    pub async fn delete_session(id: &str) -> Result<()> {
+        Self::instance().await?.delete_session(id).await
     }
 
-    pub async fn update_session_description(session_id: &str, description: String) -> Result<()> {
-        Self::instance()
-            .await?
-            .update_session_description(session_id, description)
-            .await
-    }
-
-    pub async fn generate_session_description(
-        session_id: &str,
-        provider: Arc<dyn Provider>,
-    ) -> Result<()> {
-        Self::instance()
-            .await?
-            .generate_session_description(session_id, provider)
+    pub async fn generate_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
+        let session = Self::get_session(id, true).await?;
+        let conversation = session
+            .conversation
+            .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
+        let description = provider.generate_session_name(&conversation).await?;
+        Self::update_session(id)
+            .description(description)
+            .apply()
             .await
     }
 }
@@ -122,6 +226,45 @@ fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
+type SessionRow = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<String>,
+    Option<String>,
+);
+
+impl Default for Session {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            description: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            extension_data: ExtensionData::default(),
+            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            accumulated_total_tokens: None,
+            accumulated_input_tokens: None,
+            accumulated_output_tokens: None,
+            schedule_id: None,
+            recipe_json: None,
+            conversation: None,
+        }
+    }
+}
+
 impl SessionStorage {
     async fn new() -> Result<Self> {
         let session_dir = ensure_session_dir()?;
@@ -133,7 +276,6 @@ impl SessionStorage {
             println!("Creating new session database...");
             let storage = Self::create(&db_path).await?;
 
-            // Import legacy sessions if they exist
             if let Err(e) = storage.import_legacy(&session_dir).await {
                 println!("Warning: Failed to import some legacy sessions: {}", e);
             }
@@ -148,7 +290,6 @@ impl SessionStorage {
         let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
-        // Check and run migrations
         let storage = Self { pool };
         storage.run_migrations().await?;
         Ok(storage)
@@ -158,7 +299,6 @@ impl SessionStorage {
         let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
-        // Create schema version table first
         sqlx::query(
             r#"
             CREATE TABLE schema_version (
@@ -170,13 +310,11 @@ impl SessionStorage {
         .execute(&pool)
         .await?;
 
-        // Insert current schema version
         sqlx::query("INSERT INTO schema_version (version) VALUES (?)")
             .bind(CURRENT_SCHEMA_VERSION)
             .execute(&pool)
             .await?;
 
-        // Create initial schema (v1)
         sqlx::query(
             r#"
             CREATE TABLE sessions (
@@ -184,7 +322,16 @@ impl SessionStorage {
                 description TEXT NOT NULL DEFAULT '',
                 working_dir TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extension_data TEXT DEFAULT '{}',
+                total_tokens INTEGER,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                accumulated_total_tokens INTEGER,
+                accumulated_input_tokens INTEGER,
+                accumulated_output_tokens INTEGER,
+                schedule_id TEXT,
+                recipe_json TEXT
             )
         "#,
         )
@@ -207,26 +354,6 @@ impl SessionStorage {
         .execute(&pool)
         .await?;
 
-        sqlx::query(
-            r#"
-            CREATE TABLE session_metadata (
-                session_id TEXT PRIMARY KEY REFERENCES sessions(id),
-                extension_data TEXT DEFAULT '{}',
-                total_tokens INTEGER,
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                accumulated_total_tokens INTEGER,
-                accumulated_input_tokens INTEGER,
-                accumulated_output_tokens INTEGER,
-                schedule_id TEXT,
-                recipe_json TEXT
-            )
-        "#,
-        )
-        .execute(&pool)
-        .await?;
-
-        // Indexes for performance
         sqlx::query("CREATE INDEX idx_messages_session ON messages(session_id)")
             .execute(&pool)
             .await?;
@@ -280,12 +407,10 @@ impl SessionStorage {
             "Import complete: {} successful, {} failed",
             imported_count, failed_count
         );
-
         Ok(())
     }
 
     async fn run_migrations(&self) -> Result<()> {
-        // Get current schema version
         let current_version = self.get_schema_version().await?;
 
         if current_version < CURRENT_SCHEMA_VERSION {
@@ -308,11 +433,10 @@ impl SessionStorage {
     }
 
     async fn get_schema_version(&self) -> Result<i32> {
-        // Check if schema_version table exists
         let table_exists = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS (
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name='schema_version'
             )
         "#,
@@ -321,11 +445,9 @@ impl SessionStorage {
         .await?;
 
         if !table_exists {
-            // Legacy database without version tracking - assume v0
             return Ok(0);
         }
 
-        // Get latest version
         let version = sqlx::query_scalar::<_, i32>("SELECT MAX(version) FROM schema_version")
             .fetch_one(&self.pool)
             .await?;
@@ -344,73 +466,11 @@ impl SessionStorage {
     async fn apply_migration(&self, version: i32) -> Result<()> {
         match version {
             1 => {
-                // Migration v1: Create schema_version table if upgrading from legacy
                 sqlx::query(
                     r#"
                     CREATE TABLE IF NOT EXISTS schema_version (
                         version INTEGER PRIMARY KEY,
                         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            2 => {
-                // Example future migration: Add full-text search
-                sqlx::query(
-                    r#"
-                    CREATE VIRTUAL TABLE messages_fts USING fts5(
-                        session_id,
-                        content,
-                        content=messages,
-                        content_rowid=id
-                    )
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                // Populate FTS table
-                sqlx::query(
-                    r#"
-                    INSERT INTO messages_fts(session_id, content)
-                    SELECT session_id, content_json FROM messages
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            3 => {
-                // Example future migration: Add user management
-                sqlx::query(
-                    r#"
-                    CREATE TABLE users (
-                        id TEXT PRIMARY KEY,
-                        email TEXT UNIQUE NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN user_id TEXT REFERENCES users(id)
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            4 => {
-                // Example: Add session tags
-                sqlx::query(
-                    r#"
-                    CREATE TABLE session_tags (
-                        session_id TEXT REFERENCES sessions(id),
-                        tag TEXT NOT NULL,
-                        PRIMARY KEY (session_id, tag)
                     )
                 "#,
                 )
@@ -435,24 +495,37 @@ impl SessionStorage {
         let conversation = legacy::read_messages(session_path)?;
         let metadata = legacy::read_metadata(session_path).await?;
 
-        // Insert session
         sqlx::query(
             r#"
-            INSERT INTO sessions (id, description, working_dir, created_at, updated_at)
-            VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO sessions (
+                id, description, working_dir,
+                extension_data, total_tokens, input_tokens, output_tokens,
+                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+                schedule_id, recipe_json,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         "#,
         )
         .bind(session_name)
         .bind(&metadata.description)
         .bind(metadata.working_dir.to_string_lossy().as_ref())
+        .bind(serde_json::to_string(&metadata.extension_data)?)
+        .bind(metadata.total_tokens)
+        .bind(metadata.input_tokens)
+        .bind(metadata.output_tokens)
+        .bind(metadata.accumulated_total_tokens)
+        .bind(metadata.accumulated_input_tokens)
+        .bind(metadata.accumulated_output_tokens)
+        .bind(metadata.schedule_id)
+        .bind(metadata.recipe_json)
         .execute(&self.pool)
         .await?;
 
-        // Insert messages
         for message in conversation.iter() {
             sqlx::query(
                 r#"
-                INSERT INTO messages (session_id, role_to_string(role), content_json, created_timestamp, timestamp)
+                INSERT INTO messages (session_id, role, content_json, created_timestamp, timestamp)
                 VALUES (?, ?, ?, ?, datetime('now'))
             "#,
             )
@@ -464,44 +537,203 @@ impl SessionStorage {
             .await?;
         }
 
-        // Insert metadata
+        Ok(())
+    }
+
+    fn row_to_session(row: SessionRow, conversation: Option<Conversation>) -> Session {
+        let (
+            id,
+            working_dir,
+            description,
+            created_at,
+            updated_at,
+            extension_data,
+            total_tokens,
+            input_tokens,
+            output_tokens,
+            accumulated_total_tokens,
+            accumulated_input_tokens,
+            accumulated_output_tokens,
+            schedule_id,
+            recipe_json,
+        ) = row;
+
+        Session {
+            id,
+            working_dir: PathBuf::from(working_dir),
+            description,
+            created_at,
+            updated_at,
+            extension_data: serde_json::from_str(&extension_data).unwrap_or_default(),
+            total_tokens,
+            input_tokens,
+            output_tokens,
+            accumulated_total_tokens,
+            accumulated_input_tokens,
+            accumulated_output_tokens,
+            schedule_id,
+            recipe_json,
+            conversation,
+        }
+    }
+
+    async fn create_session(
+        &self,
+        session_id: String,
+        working_dir: PathBuf,
+        description: String,
+    ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO session_metadata (
-                session_id, extension_data, total_tokens, input_tokens, output_tokens,
-                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                schedule_id, recipe_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (id, description, working_dir, extension_data)
+            VALUES (?, ?, ?, '{}')
         "#,
         )
-        .bind(session_name)
-        .bind(serde_json::to_string(&metadata.extension_data)?)
-        .bind(metadata.total_tokens)
-        .bind(metadata.input_tokens)
-        .bind(metadata.output_tokens)
-        .bind(metadata.accumulated_total_tokens)
-        .bind(metadata.accumulated_input_tokens)
-        .bind(metadata.accumulated_output_tokens)
-        .bind(metadata.schedule_id)
-        .bind(
-            metadata
-                .recipe
-                .as_ref()
-                .map(|r| serde_json::to_string(r).ok())
-                .flatten(),
-        )
+        .bind(&session_id)
+        .bind(&description)
+        .bind(working_dir.to_string_lossy().as_ref())
         .execute(&self.pool)
         .await?;
 
         Ok(())
     }
 
-    pub async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
-        self.ensure_session_exists(session_id).await?;
+    async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
+        let row = sqlx::query_as::<_, SessionRow>(
+            r#"
+            SELECT id, working_dir, description, created_at, updated_at, extension_data,
+                   total_tokens, input_tokens, output_tokens,
+                   accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+                   schedule_id, recipe_json
+            FROM sessions
+            WHERE id = ?
+        "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
+        let conversation = if include_messages {
+            Some(self.get_conversation(&row.0).await?)
+        } else {
+            None
+        };
+
+        Ok(Self::row_to_session(row, conversation))
+    }
+
+    async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
+        let mut updates = Vec::new();
+        let mut query = String::from("UPDATE sessions SET ");
+
+        macro_rules! add_update {
+            ($field:expr, $name:expr) => {
+                if $field.is_some() {
+                    if !updates.is_empty() {
+                        query.push_str(", ");
+                    }
+                    updates.push($name);
+                    query.push_str($name);
+                    query.push_str(" = ?");
+                }
+            };
+        }
+
+        add_update!(builder.description, "description");
+        add_update!(builder.working_dir, "working_dir");
+        add_update!(builder.extension_data, "extension_data");
+        add_update!(builder.total_tokens, "total_tokens");
+        add_update!(builder.input_tokens, "input_tokens");
+        add_update!(builder.output_tokens, "output_tokens");
+        add_update!(builder.accumulated_total_tokens, "accumulated_total_tokens");
+        add_update!(builder.accumulated_input_tokens, "accumulated_input_tokens");
+        add_update!(
+            builder.accumulated_output_tokens,
+            "accumulated_output_tokens"
+        );
+        add_update!(builder.schedule_id, "schedule_id");
+        add_update!(builder.recipe_json, "recipe_json");
+
+        if updates.is_empty() {
+            return Ok(());
+        }
+
+        if !updates.is_empty() {
+            query.push_str(", ");
+        }
+        query.push_str("updated_at = datetime('now') WHERE id = ?");
+
+        let mut q = sqlx::query(&query);
+
+        if let Some(desc) = builder.description {
+            q = q.bind(desc);
+        }
+        if let Some(wd) = builder.working_dir {
+            q = q.bind(wd.to_string_lossy().to_string());
+        }
+        if let Some(ed) = builder.extension_data {
+            q = q.bind(serde_json::to_string(&ed)?);
+        }
+        if let Some(tt) = builder.total_tokens {
+            q = q.bind(tt);
+        }
+        if let Some(it) = builder.input_tokens {
+            q = q.bind(it);
+        }
+        if let Some(ot) = builder.output_tokens {
+            q = q.bind(ot);
+        }
+        if let Some(att) = builder.accumulated_total_tokens {
+            q = q.bind(att);
+        }
+        if let Some(ait) = builder.accumulated_input_tokens {
+            q = q.bind(ait);
+        }
+        if let Some(aot) = builder.accumulated_output_tokens {
+            q = q.bind(aot);
+        }
+        if let Some(sid) = builder.schedule_id {
+            q = q.bind(sid);
+        }
+        if let Some(rj) = builder.recipe_json {
+            q = q.bind(rj);
+        }
+
+        q = q.bind(&builder.session_id);
+        q.execute(&self.pool).await?;
+
+        Ok(())
+    }
+
+    async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
+        let rows = sqlx::query_as::<_, (String, String, i64)>(
+            "SELECT role, content_json, created_timestamp FROM messages WHERE session_id = ? ORDER BY timestamp",
+        )
+            .bind(session_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut messages = Vec::new();
+        for (role_str, content_json, created_timestamp) in rows {
+            let role = match role_str.as_str() {
+                "user" => Role::User,
+                "assistant" => Role::Assistant,
+                _ => continue,
+            };
+
+            let content = serde_json::from_str(&content_json)?;
+            let message = Message::new(role, created_timestamp, content);
+            messages.push(message);
+        }
+
+        Ok(Conversation::new_unvalidated(messages))
+    }
+
+    async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO messages (session_id, role_to_string(role), content_json, created_timestamp)
+            INSERT INTO messages (session_id, role, content_json, created_timestamp)
             VALUES (?, ?, ?, ?)
         "#,
         )
@@ -520,176 +752,55 @@ impl SessionStorage {
         Ok(())
     }
 
-    pub async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
-        let rows = sqlx::query_as::<_, (String, String, i64)>(
-            "SELECT role, content_json, created_timestamp FROM messages WHERE session_id = ? ORDER BY timestamp",
-        )
-            .bind(session_id)
-            .fetch_all(&self.pool)
-            .await?;
-
-        let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp) in rows {
-            let role = match role_str.as_str() {
-                "user" => rmcp::model::Role::User,
-                "assistant" => rmcp::model::Role::Assistant,
-                _ => continue,
-            };
-
-            let content = serde_json::from_str(&content_json)?;
-            let message = Message::new(role, created_timestamp, content);
-            messages.push(message);
-        }
-
-        Ok(Conversation::new_unvalidated(messages))
-    }
-
-    pub async fn get_session_metadata(&self, session_id: &str) -> Result<SessionMetadata> {
-        let row =
-            sqlx::query_as::<_, (String, String, Option<String>, Option<i32>, Option<String>)>(
-                r#"
-            SELECT s.working_dir, s.description, sm.extension_data, sm.total_tokens, sm.schedule_id
-            FROM sessions s
-            LEFT JOIN session_metadata sm ON s.id = sm.session_id
-            WHERE s.id = ?
-        "#,
-            )
-            .bind(session_id)
-            .fetch_optional(&self.pool)
-            .await?;
-
-        match row {
-            Some((working_dir, description, extension_data, total_tokens, schedule_id)) => {
-                Ok(SessionMetadata {
-                    working_dir: PathBuf::from(working_dir),
-                    description,
-                    schedule_id,
-                    message_count: 0, // Could compute if needed
-                    total_tokens,
-                    input_tokens: None,
-                    output_tokens: None,
-                    accumulated_total_tokens: None,
-                    accumulated_input_tokens: None,
-                    accumulated_output_tokens: None,
-                    extension_data: extension_data
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default())
-                        .unwrap_or_default(),
-                    recipe: None,
-                })
-            }
-            None => Err(anyhow::anyhow!("Session not found")),
-        }
-    }
-
-    pub async fn update_session_metadata(
+    async fn replace_conversation(
         &self,
         session_id: &str,
-        metadata: SessionMetadata,
+        conversation: &Conversation,
     ) -> Result<()> {
-        sqlx::query(
-            r#"
-            UPDATE sessions
-            SET description = ?, working_dir = ?, updated_at = datetime('now')
-            WHERE id = ?
-        "#,
-        )
-        .bind(&metadata.description)
-        .bind(metadata.working_dir.to_string_lossy().as_ref())
-        .bind(session_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("DELETE FROM messages WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
 
-        sqlx::query(
-            r#"
-            INSERT OR REPLACE INTO session_metadata
-            (session_id, extension_data, total_tokens, input_tokens, output_tokens,
-             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-             schedule_id, recipe_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-        )
-        .bind(session_id)
-        .bind(serde_json::to_string(&metadata.extension_data)?)
-        .bind(metadata.total_tokens)
-        .bind(metadata.input_tokens)
-        .bind(metadata.output_tokens)
-        .bind(metadata.accumulated_total_tokens)
-        .bind(metadata.accumulated_input_tokens)
-        .bind(metadata.accumulated_output_tokens)
-        .bind(metadata.schedule_id)
-        .bind(
-            metadata
-                .recipe
-                .as_ref()
-                .map(|r| serde_json::to_string(r).ok())
-                .flatten(),
-        )
-        .execute(&self.pool)
-        .await?;
+        for message in conversation.messages() {
+            sqlx::query(
+                r#"
+                INSERT INTO messages (session_id, role, content_json, created_timestamp)
+                VALUES (?, ?, ?, ?)
+            "#,
+            )
+            .bind(session_id)
+            .bind(role_to_string(&message.role))
+            .bind(serde_json::to_string(&message.content)?)
+            .bind(message.created)
+            .execute(&self.pool)
+            .await?;
+        }
 
         Ok(())
     }
 
-    pub async fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
-        let rows = sqlx::query_as::<_, (String, String, String, String)>(
+    async fn list_sessions(&self) -> Result<Vec<Session>> {
+        let rows = sqlx::query_as::<_, SessionRow>(
             r#"
-            SELECT s.id, s.description, s.working_dir, s.updated_at
-            FROM sessions s
-            ORDER BY s.updated_at DESC
+            SELECT id, working_dir, description, created_at, updated_at, extension_data,
+                   total_tokens, input_tokens, output_tokens,
+                   accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+                   schedule_id, recipe_json
+            FROM sessions
+            ORDER BY updated_at DESC
         "#,
         )
         .fetch_all(&self.pool)
         .await?;
 
-        let mut sessions = Vec::new();
-        for (id, description, working_dir, updated_at) in rows {
-            // Get message count for this session
-            let message_count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&id)
-                    .fetch_one(&self.pool)
-                    .await?;
-
-            sessions.push(SessionInfo {
-                id: id.clone(),
-                path: format!("sqlite://sessions.db#{}", id),
-                modified: updated_at,
-                metadata: SessionMetadata {
-                    working_dir: PathBuf::from(working_dir),
-                    description,
-                    schedule_id: None,
-                    message_count: message_count as usize,
-                    total_tokens: None,
-                    input_tokens: None,
-                    output_tokens: None,
-                    accumulated_total_tokens: None,
-                    accumulated_input_tokens: None,
-                    accumulated_output_tokens: None,
-                    extension_data: ExtensionData::new(),
-                    recipe: None,
-                },
-            });
-        }
-
-        Ok(sessions)
+        Ok(rows
+            .into_iter()
+            .map(|row| Self::row_to_session(row, None))
+            .collect())
     }
 
-    pub async fn update_session_description(
-        &self,
-        session_id: &str,
-        description: String,
-    ) -> Result<()> {
-        sqlx::query(
-            "UPDATE sessions SET description = ?, updated_at = datetime('now') WHERE id = ?",
-        )
-        .bind(description)
-        .bind(session_id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    pub async fn delete_session(&self, session_id: &str) -> Result<()> {
+    async fn delete_session(&self, session_id: &str) -> Result<()> {
         let exists =
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
                 .bind(session_id)
@@ -705,91 +816,10 @@ impl SessionStorage {
             .execute(&self.pool)
             .await?;
 
-        sqlx::query("DELETE FROM session_metadata WHERE session_id = ?")
-            .bind(session_id)
-            .execute(&self.pool)
-            .await?;
-
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)
             .execute(&self.pool)
             .await?;
-
-        Ok(())
-    }
-
-    pub async fn generate_session_description(
-        &self,
-        session_id: &str,
-        provider: Arc<dyn Provider>,
-    ) -> Result<()> {
-        let conversation = self.get_conversation(session_id).await?;
-        let description = provider.generate_session_name(&conversation).await?;
-        self.update_session_description(session_id, description)
-            .await
-    }
-
-    async fn ensure_session_exists(&self, session_id: &str) -> Result<()> {
-        let exists =
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
-                .bind(session_id)
-                .fetch_one(&self.pool)
-                .await?;
-
-        if !exists {
-            let working_dir_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            let working_dir = working_dir_path.to_string_lossy();
-
-            sqlx::query(
-                r#"
-                INSERT INTO sessions (id, description, working_dir)
-                VALUES (?, '', ?)
-            "#,
-            )
-            .bind(session_id)
-            .bind(working_dir.as_ref())
-            .execute(&self.pool)
-            .await?;
-
-            sqlx::query(
-                r#"
-                INSERT INTO session_metadata (session_id, extension_data)
-                VALUES (?, '{}')
-            "#,
-            )
-            .bind(session_id)
-            .execute(&self.pool)
-            .await?;
-        }
-
-        Ok(())
-    }
-
-    /// Call replace_conversation only when this is needed. Ultimately we should not need this
-    /// as we get back conversations being append only
-    pub async fn replace_conversation(&self, session_id: &str, messages: &[Message]) -> Result<()> {
-        sqlx::query("DELETE FROM messages WHERE session_id = ?")
-            .bind(session_id)
-            .execute(&self.pool)
-            .await?;
-
-        for message in messages {
-            sqlx::query(
-                r#"
-                INSERT INTO messages (session_id, role, content_json, created_timestamp)
-                VALUES (?, ?, ?, ?)
-            "#,
-            )
-            .bind(session_id)
-            .bind(match message.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            })
-            .bind(serde_json::to_string(&message.content)?)
-            .bind(message.created)
-            .execute(&self.pool)
-            .await?;
-        }
 
         Ok(())
     }

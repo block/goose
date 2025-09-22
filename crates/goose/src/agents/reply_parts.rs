@@ -279,13 +279,7 @@ impl Agent {
         messages_length: usize,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
-        let mut metadata = SessionManager::get_session_metadata(session_id).await?;
-
-        metadata.schedule_id = session_config.schedule_id.clone();
-        metadata.total_tokens = usage.usage.total_tokens;
-        metadata.input_tokens = usage.usage.input_tokens;
-        metadata.output_tokens = usage.usage.output_tokens;
-        metadata.message_count = messages_length + 1;
+        let session = SessionManager::get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
@@ -294,16 +288,23 @@ impl Agent {
             }
         };
 
-        metadata.accumulated_total_tokens =
-            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens =
-            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(
-            metadata.accumulated_output_tokens,
-            usage.usage.output_tokens,
-        );
+        let accumulated_total =
+            accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
+        let accumulated_input =
+            accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
+        let accumulated_output =
+            accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
 
-        SessionManager::update_session_metadata(session_id, metadata).await?;
+        SessionManager::update_session(session_id)
+            .schedule_id(session_config.schedule_id.clone())
+            .total_tokens(usage.usage.total_tokens)
+            .input_tokens(usage.usage.input_tokens)
+            .output_tokens(usage.usage.output_tokens)
+            .accumulated_total_tokens(accumulated_total)
+            .accumulated_input_tokens(accumulated_input)
+            .accumulated_output_tokens(accumulated_output)
+            .apply()
+            .await?;
 
         Ok(())
     }

@@ -353,7 +353,7 @@ mod schedule_tool_tests {
     use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
-    use goose::session::SessionMetadata;
+    use goose::session::Session;
     use std::sync::Arc;
 
     struct MockScheduler {
@@ -407,7 +407,7 @@ mod schedule_tool_tests {
             &self,
             _sched_id: &str,
             _limit: usize,
-        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+        ) -> Result<Vec<(String, Session)>, SchedulerError> {
             Ok(vec![])
         }
 

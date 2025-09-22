@@ -1,6 +1,6 @@
 use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
-use crate::{logging, Session};
+use crate::{logging, CliSession};
 use async_trait::async_trait;
 use goose::conversation::Conversation;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 
 // allow session obj to be used in benchmarking
 #[async_trait]
-impl BenchBaseSession for Session {
+impl BenchBaseSession for CliSession {
     async fn headless(&mut self, message: String) -> anyhow::Result<()> {
         self.headless(message).await
     }
