@@ -155,7 +155,7 @@ mod execution_tests {
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
         let mut handles = vec![];
-        for i in 0..20 {
+        for _ in 0..20 {
             let sess = session_id.clone();
             let mgr_clone = Arc::clone(&manager);
             handles.push(tokio::spawn(async move {

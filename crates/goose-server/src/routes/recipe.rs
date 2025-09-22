@@ -120,7 +120,6 @@ async fn create_recipe(
         .get_session_agent(request.session_id, SessionExecutionMode::Interactive)
         .await
         .map_err(|e| {
-            let msg = format!("Failed to get agent: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(CreateRecipeResponse {
