@@ -47,7 +47,6 @@ async fn manage_context(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
-    // Get session-specific agent
     let agent = get_agent_or_500(&state, request.session_id).await?;
 
     let mut processed_messages = Conversation::new_unvalidated(vec![]);
