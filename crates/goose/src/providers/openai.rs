@@ -121,7 +121,16 @@ impl OpenAiProvider {
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
-        let host = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
+        let host = if let Some(port) = url.port() {
+            format!(
+                "{}://{}:{}",
+                url.scheme(),
+                url.host_str().unwrap_or(""),
+                port
+            )
+        } else {
+            format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+        };
         let base_path = url.path().trim_start_matches('/').to_string();
         let base_path = if base_path.is_empty() {
             "v1/chat/completions".to_string()

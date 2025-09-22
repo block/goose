@@ -1,13 +1,12 @@
-use super::utils::verify_secret_key;
 use chrono::DateTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    routing::{get, put},
+    extract::Path,
+    http::StatusCode,
+    routing::{delete, get, put},
     Json, Router,
 };
 use goose::conversation::message::Message;
@@ -82,12 +81,7 @@ pub struct ActivityHeatmapCell {
     tag = "Session Management"
 )]
 // List all available sessions
-async fn list_sessions(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<SessionListResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     let sessions = get_valid_sorted_sessions(SortOrder::Descending)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -113,12 +107,8 @@ async fn list_sessions(
 )]
 // Get a specific session's history
 async fn get_session_history(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
         Ok(path) => path,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
@@ -129,15 +119,23 @@ async fn get_session_history(
     let messages = match session::read_messages(&session_path) {
         Ok(messages) => messages,
         Err(e) => {
-            tracing::error!("Failed to read session messages: {:?}", e);
+            error!("Failed to read session messages: {:?}", e);
             return Err(StatusCode::NOT_FOUND);
         }
     };
 
+    // Filter messages to only include user_visible ones
+    let user_visible_messages: Vec<Message> = messages
+        .messages()
+        .iter()
+        .filter(|m| m.is_user_visible())
+        .cloned()
+        .collect();
+
     Ok(Json(SessionHistoryResponse {
         session_id,
         metadata,
-        messages: messages.messages().clone(),
+        messages: user_visible_messages,
     }))
 }
 
@@ -154,13 +152,8 @@ async fn get_session_history(
     ),
     tag = "Session Management"
 )]
-async fn get_session_insights(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<SessionInsights>, StatusCode> {
+async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     info!("Received request for session insights");
-
-    verify_secret_key(&headers, &state)?;
 
     let sessions = get_valid_sorted_sessions(SortOrder::Descending).map_err(|e| {
         error!("Failed to get session info: {:?}", e);
@@ -281,13 +274,9 @@ async fn get_session_insights(
 )]
 // Update session metadata
 async fn update_session_metadata(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionMetadataRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     // Validate description length
     if request.description.len() > MAX_DESCRIPTION_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
@@ -310,11 +299,48 @@ async fn update_session_metadata(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/sessions/{session_id}/delete",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session deleted successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+// Delete a session
+async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
+    // Get the session path
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    // Check if session file exists
+    if !session_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Delete the session file
+    std::fs::remove_file(&session_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
 // Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session_history))
+        .route("/sessions/{session_id}/delete", delete(delete_session))
         .route("/sessions/insights", get(get_session_insights))
         .route(
             "/sessions/{session_id}/metadata",

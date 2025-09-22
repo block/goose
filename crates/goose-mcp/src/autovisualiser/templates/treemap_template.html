@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treemap Visualization</title>
+    
+    <script>
+        {{D3_MIN}}
+    </script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .treemap-container {
+            padding: 0px;
+        }
+        
+        .treemap-rect {
+            stroke: white;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .treemap-rect:hover {
+            stroke-width: 3px;
+            stroke: #333;
+            filter: brightness(1.1);
+        }
+        
+        .treemap-text {
+            font-size: 12px;
+            font-weight: 500;
+            fill: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        
+        .treemap-value {
+            font-size: 10px;
+            fill: rgba(255,255,255,0.8);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        
+        .group-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #333;
+            pointer-events: none;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="treemap-container" id="treemap"></div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Data will be injected here
+        const treemapData = {{TREEMAP_DATA}};
+        
+        let currentData = treemapData;
+        let currentRoot = treemapData;
+        let svg, treemap, root;
+        
+        const width = 800;
+        const height = 500;
+        
+        // Color scheme for different categories
+        const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
+        
+        function initializeTreemap() {
+            const container = d3.select("#treemap");
+            container.selectAll("*").remove();
+            
+            svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .style("font", "10px sans-serif");
+            
+            treemap = d3.treemap()
+                .size([width, height])
+                .padding(2)
+                .round(true);
+        }
+        
+        function updateTreemap(data, isRoot = true) {
+            currentData = data;
+            if (isRoot) {
+                currentRoot = data;
+            }
+            
+            // Create hierarchy and calculate layout
+            root = d3.hierarchy(data)
+                .sum(d => d.value || 0)
+                .sort((a, b) => b.value - a.value);
+            
+            treemap(root);
+            
+            // Clear previous content
+            svg.selectAll("*").remove();
+            
+            // Create leaf nodes
+            const leaf = svg.selectAll("g")
+                .data(root.leaves())
+                .join("g")
+                .attr("transform", d => `translate(${d.x0},${d.y0})`);
+            
+            // Add rectangles
+            leaf.append("rect")
+                .attr("class", "treemap-rect")
+                .attr("fill", d => {
+                    // Use category for color, or parent name if no category
+                    const colorKey = d.data.category || d.parent.data.name || 'default';
+                    return colorScale(colorKey);
+                })
+                .attr("width", d => d.x1 - d.x0)
+                .attr("height", d => d.y1 - d.y0)
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, d);
+                })
+                .on("mousemove", function(event, d) {
+                    moveTooltip(event);
+                })
+                .on("mouseout", function() {
+                    hideTooltip();
+                })
+                .on("click", function(event, d) {
+                    // Navigate to parent if it has children
+                    if (d.parent && d.parent.data.children) {
+                        updateTreemap(d.parent.data, false);
+                    }
+                });
+            
+            // Add text labels
+            leaf.append("text")
+                .attr("class", "treemap-text")
+                .attr("x", d => (d.x1 - d.x0) / 2)
+                .attr("y", d => (d.y1 - d.y0) / 2 - 5)
+                .text(d => d.data.name)
+                .style("font-size", d => Math.min((d.x1 - d.x0) / 8, (d.y1 - d.y0) / 4, 14) + "px")
+                .each(function(d) {
+                    const textLength = this.getComputedTextLength();
+                    const availableWidth = d.x1 - d.x0 - 4;
+                    if (textLength > availableWidth) {
+                        const text = d.data.name;
+                        const ratio = availableWidth / textLength;
+                        const maxLength = Math.floor(text.length * ratio) - 3;
+                        if (maxLength > 0) {
+                            d3.select(this).text(text.substring(0, maxLength) + "...");
+                        } else {
+                            d3.select(this).text("");
+                        }
+                    }
+                });
+            
+            // Add value labels
+            leaf.append("text")
+                .attr("class", "treemap-value")
+                .attr("x", d => (d.x1 - d.x0) / 2)
+                .attr("y", d => (d.y1 - d.y0) / 2 + 10)
+                .text(d => formatValue(d.data.value))
+                .style("font-size", d => Math.min((d.x1 - d.x0) / 10, (d.y1 - d.y0) / 6, 12) + "px")
+                .style("display", d => {
+                    // Hide value if rectangle is too small
+                    const rectHeight = d.y1 - d.y0;
+                    return rectHeight < 30 ? "none" : "block";
+                });
+            
+            // Add group boundaries and labels for navigation (if data has children)
+            if (data.children) {
+                // Add group rectangles for visual hierarchy
+                const groups = svg.selectAll(".group-rect")
+                    .data(root.children || [])
+                    .join("rect")
+                    .attr("class", "group-rect")
+                    .attr("x", d => d.x0)
+                    .attr("y", d => d.y0)
+                    .attr("width", d => d.x1 - d.x0)
+                    .attr("height", d => d.y1 - d.y0)
+                    .attr("fill", "none")
+                    .attr("stroke", "#333")
+                    .attr("stroke-width", 2)
+                    .attr("stroke-dasharray", "3,3")
+                    .style("cursor", "pointer")
+                    .style("pointer-events", "none");
+                
+                // Add group labels
+                svg.selectAll(".group-label")
+                    .data(root.children || [])
+                    .join("text")
+                    .attr("class", "group-label")
+                    .attr("x", d => d.x0 + 5)
+                    .attr("y", d => d.y0 + 15)
+                    .text(d => d.data.name)
+                    .style("display", d => {
+                        // Hide label if group is too small
+                        const groupWidth = d.x1 - d.x0;
+                        return groupWidth < 50 ? "none" : "block";
+                    });
+            }
+        }
+        
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            const percentage = ((d.data.value / root.value) * 100).toFixed(1);
+            
+            tooltip.innerHTML = `
+                <strong>${d.data.name}</strong><br>
+                Value: ${formatValue(d.data.value)}<br>
+                ${d.data.category ? `Category: ${d.data.category}<br>` : ''}
+                Percentage: ${percentage}%
+                ${d.parent ? `<br>Parent: ${d.parent.data.name}` : ''}
+            `;
+            tooltip.style.opacity = 1;
+            moveTooltip(event);
+        }
+        
+        function moveTooltip(event) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 10) + 'px';
+        }
+        
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.opacity = 0;
+        }
+        
+        function formatValue(value) {
+            if (value >= 1000000) {
+                return (value / 1000000).toFixed(1) + 'M';
+            } else if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'K';
+            }
+            return value.toLocaleString();
+        }
+        
+        // Function to measure and report content size for iframe auto-resizing
+        function reportContentSize() {
+            // Get the actual content height
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            // The message format must match what the MCP-UI client expects
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',  // lowercase as expected by MCP-UI client
+                    payload: {
+                        height: contentHeight
+                        // width is optional, we're not setting it to allow responsive design
+                    }
+                }, '*');
+            }
+        }
+        
+        // Initialize and render on load
+        window.onload = function() {
+            initializeTreemap();
+            updateTreemap(treemapData);
+            
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+            
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+            
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
+    </script>
+</body>
+</html>

@@ -166,9 +166,13 @@ export async function addExtensionFromDeepLink(
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
-  // Check if extension requires env vars and go to settings if so
-  if (config.envs && Object.keys(config.envs).length > 0) {
-    console.log('Environment variables required, redirecting to settings');
+  // Check if extension requires env vars or headers and go to settings if so
+  const hasEnvVars = config.envs && Object.keys(config.envs).length > 0;
+  const hasHeaders =
+    config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
+
+  if (hasEnvVars || hasHeaders) {
+    console.log('Environment variables or headers required, redirecting to settings');
     console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
     setView('settings', { deepLinkConfig: config, showEnvVars: true });
     return;

@@ -18,6 +18,15 @@
     "timeout": 300
   },
   {
+    "id": "autovisualiser",
+    "name": "Auto Visualiser",
+    "description": "Automatically see your data with this UI generation extension.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
     "id": "memory",
     "name": "Memory",
     "description": "Teach goose your preferences as you go.",

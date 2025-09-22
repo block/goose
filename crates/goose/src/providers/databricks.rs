@@ -16,7 +16,9 @@ use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
@@ -36,9 +38,10 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
-pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
 const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-1-5-flash";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
+    "databricks-claude-3-7-sonnet",
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
     "databricks-dbrx-instruct",
@@ -325,11 +328,12 @@ impl Provider for DatabricksProvider {
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
                 if !resp.status().is_success() {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "HTTP {}: {}",
-                        resp.status(),
-                        resp.text().await.unwrap_or_default()
-                    )));
+                    let status = resp.status();
+                    let error_text = resp.text().await.unwrap_or_default();
+
+                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
+                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                    return Err(map_http_error_to_provider_error(status, json_payload));
                 }
                 Ok(resp)
             })

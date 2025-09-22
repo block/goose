@@ -28,11 +28,8 @@ export default function ChatSettingsSection() {
         </CardContent>
       </Card>
 
+
       <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Voice Dictation</CardTitle>
-          <CardDescription>Configure voice input for messages</CardDescription>
-        </CardHeader>
         <CardContent className="px-2">
           <DictationSection />
         </CardContent>
@@ -49,7 +46,6 @@ export default function ChatSettingsSection() {
           <SchedulerSection />
         </CardContent>
       </Card>
-
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>

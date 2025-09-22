@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
-rmcp = { workspace = true }
+rmcp = { version = "0.6.0", features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["io-util"] }
@@ -25,6 +25,7 @@ base64 = "0.21"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+schemars = "1.0"
 lazy_static = "1.5"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
@@ -59,11 +60,29 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+lru = "0.12"
+tree-sitter = "0.21"
+tree-sitter-python = "0.21"
+tree-sitter-rust = "0.21"
+tree-sitter-javascript = "0.21"
+tree-sitter-go = "0.21"
+tree-sitter-java = "0.21"
+tree-sitter-kotlin = "0.3.8"
+devgen-tree-sitter-swift = "0.21.0"
+streaming-iterator = "0.1"
+rayon = "1.10"
+# TODO: Fork mpatch or replace with a custom implementation using `similar` crate
+# for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
+# ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
+mpatch = "=0.2.0"
 
 
 [dev-dependencies]
 serial_test = "3.0.0"
 sysinfo = "0.32.1"
+temp-env = "0.3.6"
+clap = { version = "4", features = ["derive"] }
+colored = "2"
 
 [features]
 utoipa = ["dep:utoipa"]

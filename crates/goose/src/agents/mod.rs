@@ -1,12 +1,14 @@
 mod agent;
 mod context;
 pub mod extension;
+pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod final_output_tool;
 mod large_response_handler;
+pub mod model_selector;
 pub mod platform_tools;
 pub mod prompt_manager;
-mod recipe_tools;
+pub mod recipe_tools;
 mod reply_parts;
 pub mod retry;
 mod router_tool_selector;

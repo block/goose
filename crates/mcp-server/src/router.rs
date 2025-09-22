@@ -235,6 +235,7 @@ pub trait Router: Send + Sync + 'static {
                     uri: uri.to_string(),
                     mime_type: Some("text/plain".to_string()),
                     text: contents,
+                    meta: None,
                 }],
             };
 

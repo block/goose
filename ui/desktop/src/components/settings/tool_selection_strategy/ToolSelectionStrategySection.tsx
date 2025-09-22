@@ -53,6 +53,9 @@ export const ToolSelectionStrategySection = () => {
             'Content-Type': 'application/json',
             'X-Secret-Key': await window.electron.getSecretKey(),
           },
+          body: JSON.stringify({
+            session_id: '', // TODO(jack) add the session id, or remove from this request payload
+          }),
         });
 
         if (!response.ok) {
@@ -105,14 +108,14 @@ export const ToolSelectionStrategySection = () => {
   return (
     <div className="space-y-1">
       {all_tool_selection_strategies.map((strategy) => (
-        <div className="group hover:cursor-pointer" key={strategy.key.toString()}>
+        <div className="group hover:cursor-pointer text-sm" key={strategy.key.toString()}>
           <div
             className={`flex items-center justify-between text-text-default py-2 px-2 ${routerEnabled === strategy.key ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
             onClick={() => handleStrategyChange(strategy.key)}
           >
             <div className="flex">
               <div>
-                <h3 className="text-text-default text-xs">{strategy.label}</h3>
+                <h3 className="text-text-default">{strategy.label}</h3>
                 <p className="text-xs text-text-muted mt-[2px]">{strategy.description}</p>
               </div>
             </div>

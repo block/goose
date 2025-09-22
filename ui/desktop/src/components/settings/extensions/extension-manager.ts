@@ -86,6 +86,7 @@ export async function activateExtension({
 interface AddToAgentOnStartupProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
+  toastOptions?: ToastServiceOptions;
 }
 
 /**
@@ -94,9 +95,10 @@ interface AddToAgentOnStartupProps {
 export async function addToAgentOnStartup({
   addToConfig,
   extensionConfig,
+  toastOptions = { silent: true },
 }: AddToAgentOnStartupProps): Promise<void> {
   try {
-    await retryWithBackoff(() => addToAgent(extensionConfig, { silent: true }), {
+    await retryWithBackoff(() => addToAgent(extensionConfig, toastOptions), {
       retries: 3,
       delayMs: 1000,
       shouldRetry: (error: ExtensionError) =>

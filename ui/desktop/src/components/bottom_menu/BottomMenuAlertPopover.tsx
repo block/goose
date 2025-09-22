@@ -93,6 +93,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length > 0) {
       setShouldShowIndicator(true);
+    } else {
+      setShouldShowIndicator(false);
     }
   }, [alerts.length]);
 
@@ -130,21 +132,55 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     }
   }, [isHovered, isOpen, startHideTimer, wasAutoShown]);
 
-  // Handle click outside
+  // Handle click outside - but not when editing threshold
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      // Check if we're clicking on an input or button inside the popover
+      const target = event.target as HTMLElement;
+      const isInteractiveElement =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('button') !== null ||
+        target.closest('input') !== null;
+
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        !isInteractiveElement
+      ) {
         setIsOpen(false);
         setWasAutoShown(false);
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Use mouseup instead of mousedown to allow button clicks to complete
+      document.addEventListener('mouseup', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mouseup', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Listen for custom event to hide the popover
+  useEffect(() => {
+    const handleHidePopover = () => {
+      if (isOpen) {
+        setIsOpen(false);
+        setWasAutoShown(false);
+        setIsHovered(false);
+        // Clear any pending hide timer
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('hide-alert-popover', handleHidePopover);
+    return () => {
+      window.removeEventListener('hide-alert-popover', handleHidePopover);
     };
   }, [isOpen]);
 

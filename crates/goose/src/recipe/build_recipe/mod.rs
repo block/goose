@@ -1,7 +1,8 @@
-use crate::recipe::read_recipe_file_content::RecipeFile;
+use crate::recipe::read_recipe_file_content::{read_parameter_file_content, RecipeFile};
 use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_content_with_params};
 use crate::recipe::{
-    Recipe, RecipeParameter, RecipeParameterRequirement, BUILT_IN_RECIPE_DIR_PARAM,
+    Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
+    BUILT_IN_RECIPE_DIR_PARAM,
 };
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
@@ -146,9 +147,20 @@ fn validate_parameters_in_template(
 }
 
 fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Result<()> {
-    let optional_params_without_default_values: Vec<String> = parameters
-        .as_ref()
-        .unwrap_or(&vec![])
+    let empty_params = vec![];
+    let params = parameters.as_ref().unwrap_or(&empty_params);
+
+    let file_params_with_defaults: Vec<String> = params
+        .iter()
+        .filter(|p| matches!(p.input_type, RecipeParameterInputType::File) && p.default.is_some())
+        .map(|p| p.key.clone())
+        .collect();
+
+    if !file_params_with_defaults.is_empty() {
+        return Err(anyhow::anyhow!("File parameters cannot have default values to avoid importing sensitive user files: {}", file_params_with_defaults.join(", ")));
+    }
+
+    let optional_params_without_default_values: Vec<String> = params
         .iter()
         .filter(|p| {
             matches!(p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
@@ -192,6 +204,10 @@ where
                     None
                 }
             };
+        } else if matches!(param.input_type, RecipeParameterInputType::File) {
+            let file_path = param_map.get(&param.key).unwrap();
+            let file_content = read_parameter_file_content(file_path)?;
+            param_map.insert(param.key.clone(), file_content);
         }
     }
     Ok((param_map, missing_params))

@@ -1,9 +1,6 @@
-#!/usr/bin/env sh
-
 # Only auto-format desktop TS code if relevant files are modified
 if git diff --cached --name-only | grep -q "^ui/desktop/"; then
   if [ -d "ui/desktop" ]; then
-    . "$(dirname -- "$0")/_/husky.sh"
     cd ui/desktop && npx lint-staged
   else
     echo "Warning: ui/desktop directory does not exist, skipping lint-staged"

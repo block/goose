@@ -1,8 +1,7 @@
-use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
     extract::{DefaultBodyLimit, State},
-    http::{self, HeaderMap, StatusCode},
+    http::{self, StatusCode},
     response::IntoResponse,
     routing::post,
     Json, Router,
@@ -26,7 +25,6 @@ use serde_json::json;
 use serde_json::Value;
 use std::{
     convert::Infallible,
-    path::PathBuf,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -89,8 +87,8 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
-    session_working_dir: String,
-    scheduled_job_id: Option<String>,
+    recipe_name: Option<String>,
+    recipe_version: Option<String>,
 }
 
 pub struct SseResponse {
@@ -169,11 +167,8 @@ async fn stream_event(
 
 async fn reply_handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let session_start = std::time::Instant::now();
 
     tracing::info!(
@@ -183,27 +178,67 @@ async fn reply_handler(
         "Session started"
     );
 
+    if let (Some(recipe_name), Some(session_id)) =
+        (request.recipe_name.clone(), request.session_id.clone())
+    {
+        if state.mark_recipe_run_if_absent(&session_id).await {
+            let recipe_version = request
+                .recipe_version
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            tracing::info!(
+                counter.goose.recipe_runs = 1,
+                recipe_name = %recipe_name,
+                recipe_version = %recipe_version,
+                session_type = "app",
+                interface = "ui",
+                "Recipe execution started"
+            );
+        }
+    }
+
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
     let messages = Conversation::new_unvalidated(request.messages);
-    let session_working_dir = request.session_working_dir.clone();
 
-    let session_id = request
-        .session_id
-        .unwrap_or_else(session::generate_session_id);
+    let session_id = request.session_id.ok_or_else(|| {
+        tracing::error!("session_id is required but was not provided");
+        StatusCode::BAD_REQUEST
+    })?;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
-    std::mem::drop(tokio::spawn(async move {
-        let agent = match state.get_agent().await {
-            Ok(agent) => agent,
-            Err(_) => {
+    drop(tokio::spawn(async move {
+        let agent = state.get_agent().await;
+
+        // Load session metadata to get the working directory and other config
+        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Failed to get session path for {}: {}", session_id, e);
                 let _ = stream_event(
                     MessageEvent::Error {
-                        error: "No agent configured".to_string(),
+                        error: format!("Failed to get session path: {}", e),
+                    },
+                    &task_tx,
+                    &cancel_token,
+                )
+                .await;
+                return;
+            }
+        };
+
+        let session_metadata = match session::read_metadata(&session_path) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to read session metadata: {}", e),
                     },
                     &task_tx,
                     &cancel_token,
@@ -215,8 +250,8 @@ async fn reply_handler(
 
         let session_config = SessionConfig {
             id: session::Identifier::Name(session_id.clone()),
-            working_dir: PathBuf::from(&session_working_dir),
-            schedule_id: request.scheduled_job_id.clone(),
+            working_dir: session_metadata.working_dir.clone(),
+            schedule_id: session_metadata.schedule_id.clone(),
             execution_mode: None,
             max_turns: None,
             retry_config: None,
@@ -225,7 +260,7 @@ async fn reply_handler(
         let mut stream = match agent
             .reply(
                 messages.clone(),
-                Some(session_config),
+                Some(session_config.clone()),
                 Some(task_cancel.clone()),
             )
             .await
@@ -281,7 +316,11 @@ async fn reply_handler(
                             }
 
                             all_messages.push(message.clone());
-                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+
+                            // Only send message to client if it's user_visible
+                            if message.is_user_visible() {
+                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                            }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             // Replace the message history with the compacted messages
@@ -329,12 +368,13 @@ async fn reply_handler(
                 let provider = Arc::clone(&provider);
                 let session_path_clone = session_path.to_path_buf();
                 let all_messages_clone = all_messages.clone();
+                let working_dir = session_config.working_dir.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
                         &session_path_clone,
                         &all_messages_clone,
                         Some(provider),
-                        Some(PathBuf::from(&session_working_dir)),
+                        Some(working_dir),
                     )
                     .await
                     {
@@ -343,7 +383,6 @@ async fn reply_handler(
                 });
             }
         }
-
         let session_duration = session_start.elapsed();
 
         if let Ok(metadata) = session::read_metadata(&session_path) {
@@ -414,6 +453,8 @@ pub struct PermissionConfirmationRequest {
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 fn default_principal_type() -> PrincipalType {
@@ -432,16 +473,9 @@ fn default_principal_type() -> PrincipalType {
 )]
 pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
+    let agent = state.get_agent().await;
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -465,15 +499,14 @@ pub async fn confirm_permission(
 struct ToolResultRequest {
     id: String,
     result: ToolResult<Vec<Content>>,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 async fn submit_tool_result(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     raw: Json<Value>,
 ) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     tracing::info!(
         "Received tool result request: {}",
         serde_json::to_string_pretty(&raw.0).unwrap()
@@ -491,10 +524,7 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    let agent = state.get_agent().await;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
@@ -570,7 +600,7 @@ mod tests {
             });
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
-            let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
+            let state = AppState::new(Arc::new(agent));
 
             let app = routes(state);
 
@@ -583,8 +613,8 @@ mod tests {
                     serde_json::to_string(&ChatRequest {
                         messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
-                        session_working_dir: "test-working-dir".to_string(),
-                        scheduled_job_id: None,
+                        recipe_name: None,
+                        recipe_version: None,
                     })
                     .unwrap(),
                 ))

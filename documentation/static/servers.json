@@ -51,6 +51,17 @@
     ]
   },
   {
+    "id": "autovisualiser",
+    "name": "Auto Visualiser",
+    "description": "Automatic data visualisation via MCP-UI",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/autovisualiser",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration",
@@ -529,6 +540,18 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "rube-mcp",
+    "name": "Rube",
+    "description": "Connect with 500+ apps like Slack, Gmail, Notion and more through unified integrations",
+    "type": "streamable-http",
+    "url": "https://rube.app/mcp",
+    "link": "https://rube.app",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {

@@ -16,15 +16,16 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
-pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
+pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-1.5";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
     "anthropic/claude-sonnet-4",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-opus-4",
+    "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
     "google/gemini-flash-1.5",
     "deepseek/deepseek-r1-0528",

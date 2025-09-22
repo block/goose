@@ -55,7 +55,7 @@ You can turn your current Goose session into a reusable recipe that includes the
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
-   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), run this command to generate a recipe.yaml file in your current directory:
+   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/sessions/session-management#start-session), run this command to generate a recipe.yaml file in your current directory:
 
    ```sh
    /recipe
@@ -191,7 +191,7 @@ You can turn your current Goose session into a reusable recipe that includes the
   <TabItem value="ui" label="Goose Desktop" default>
 
    1. While in the session that's using the recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app 
-   2. Click `View recipe` 
+   2. Click `View/Edit Recipe` 
    3. Edit any of the following:
       - Title
       - Description
@@ -199,7 +199,7 @@ You can turn your current Goose session into a reusable recipe that includes the
       - Initial prompt
       - Activities
   4. When you're finished, you can:
-      - Copy the recipe link to share the recipe with others or [open it from the link](#use-recipe)
+      - Copy the recipe link to share the recipe with others
       - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
       - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
 
@@ -234,14 +234,16 @@ You can turn your current Goose session into a reusable recipe that includes the
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
 
-  2. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
+  2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
+
+  3. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
   
      Parameters are dynamic values used in the recipe:
 
      - **Required parameters** are marked with red asterisks (*)
      - **Optional parameters** show default values that can be changed
 
-  3. To run the recipe, click an activity bubble or send the prompt.
+  4. To run the recipe, click an activity bubble or send the prompt.
 
   :::info Parameter Creation In Goose CLI Only
   You can enter parameter values to use in a recipe, but you cannot add parameters to a recipe in Goose Desktop. Parameters can only be defined in recipes created via the CLI.
@@ -441,7 +443,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
 
    :::info
-   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/managing-goose-sessions#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
+   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/sessions/session-management#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
    :::
 
    Recipe validation can be useful for:
@@ -456,15 +458,15 @@ You can turn your current Goose session into a reusable recipe that includes the
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    Share your recipe with Desktop users by copying the recipe URL from the recipe creation dialog.
+    Share your recipe with Desktop users by copying the recipe link:
 
-    To copy the recipe URL:
-    1. [Open the recipe](#use-recipe)
-    2. Click the <Bot className="inline" size={16} /> button at the bottom of the app 
-    3. Click `View recipe`
-    4. Scroll down and copy the link
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Recipes` in the sidebar
+    3. Find your recipe in the Recipe Library
+    4. Click `Preview` next to the recipe you want to share
+    5. Under `Deeplink`, click `Copy` and then share the link with others
 
-    When someone clicks the URL, it will open Goose Desktop with your recipe configuration. They can also use your recipe URL to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library.
+    When someone clicks the link, it will open Goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library for future use.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -476,6 +478,10 @@ You can turn your current Goose session into a reusable recipe that includes the
 
   </TabItem>
 </Tabs>
+
+:::info Privacy & Isolation
+Each recipient gets their own private session when using your shared recipe. No data is shared between users, and your original session and recipe remain unaffected.
+:::
 
 ## Schedule Recipe
 <Tabs groupId="interface">

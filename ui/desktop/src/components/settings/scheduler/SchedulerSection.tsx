@@ -1,6 +1,25 @@
 import { useState, useEffect } from 'react';
 import { SchedulingEngine, Settings } from '../../../utils/settings';
 
+interface SchedulingEngineOption {
+  key: SchedulingEngine;
+  label: string;
+  description: string;
+}
+
+const schedulingEngineOptions: SchedulingEngineOption[] = [
+  {
+    key: 'builtin-cron',
+    label: 'Built-in Cron (Default)',
+    description: 'Uses Goose\'s built-in cron scheduler. Simple and reliable for basic scheduling needs.',
+  },
+  {
+    key: 'temporal',
+    label: 'Temporal',
+    description: 'Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.',
+  },
+];
+
 interface SchedulerSectionProps {
   onSchedulingEngineChange?: (engine: SchedulingEngine) => void;
 }
@@ -9,7 +28,6 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
   const [schedulingEngine, setSchedulingEngine] = useState<SchedulingEngine>('builtin-cron');
 
   useEffect(() => {
-    // Load current scheduling engine setting
     const loadSchedulingEngine = async () => {
       try {
         const settings = (await window.electron.getSettings()) as Settings | null;
@@ -28,10 +46,8 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
     try {
       setSchedulingEngine(engine);
 
-      // Save the setting
       await window.electron.setSchedulingEngine(engine);
 
-      // Notify parent component
       if (onSchedulingEngineChange) {
         onSchedulingEngineChange(engine);
       }
@@ -41,52 +57,50 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
   };
 
   return (
-    <div className="px-4">
-      <div className="space-y-3">
-        <div className="flex items-start space-x-3">
-          <input
-            type="radio"
-            id="builtin-cron"
-            name="schedulingEngine"
-            value="builtin-cron"
-            checked={schedulingEngine === 'builtin-cron'}
-            onChange={() => handleEngineChange('builtin-cron')}
-            className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-          />
-          <div className="flex-1">
-            <label htmlFor="builtin-cron" className="block text-sm font-medium text-textStandard">
-              Built-in Cron (Default)
-            </label>
-            <p className="text-xs text-textSubtle mt-1">
-              Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling needs.
-            </p>
-          </div>
-        </div>
+    <div className="space-y-1">
+      {schedulingEngineOptions.map((option) => {
+        const isChecked = schedulingEngine === option.key;
+        
+        return (
+          <div key={option.key} className="group hover:cursor-pointer text-sm">
+            <div
+              className={`flex items-center justify-between text-text-default py-2 px-2 ${
+                isChecked 
+                  ? 'bg-background-muted' 
+                  : 'bg-background-default hover:bg-background-muted'
+              } rounded-lg transition-all`}
+              onClick={() => handleEngineChange(option.key)}
+            >
+              <div className="flex">
+                <div>
+                  <h3 className="text-text-default">{option.label}</h3>
+                  <p className="text-xs text-text-muted mt-[2px]">{option.description}</p>
+                </div>
+              </div>
 
-        <div className="flex items-start space-x-3">
-          <input
-            type="radio"
-            id="temporal"
-            name="schedulingEngine"
-            value="temporal"
-            checked={schedulingEngine === 'temporal'}
-            onChange={() => handleEngineChange('temporal')}
-            className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-          />
-          <div className="flex-1">
-            <label htmlFor="temporal" className="block text-sm font-medium text-textStandard">
-              Temporal
-            </label>
-            <p className="text-xs text-textSubtle mt-1">
-              Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI
-              to be installed.
-            </p>
+              <div className="relative flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="schedulingEngine"
+                  value={option.key}
+                  checked={isChecked}
+                  onChange={() => handleEngineChange(option.key)}
+                  className="peer sr-only"
+                />
+                <div
+                  className="h-4 w-4 rounded-full border border-border-default 
+                        peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
+                        peer-checked:bg-white dark:peer-checked:bg-black
+                        transition-all duration-200 ease-in-out group-hover:border-border-default"
+                ></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })}
 
-      <div className="mt-4 p-3 bg-bgSubtle rounded-md">
-        <p className="text-xs text-textSubtle">
+      <div className="mt-4 p-3 bg-background-subtle rounded-md">
+        <p className="text-xs text-text-muted">
           <strong>Note:</strong> Changing the scheduling engine will apply to new Goose sessions.
           You will need to restart Goose for the change to take full effect. <br />
           The scheduling engines do not share the list of schedules.

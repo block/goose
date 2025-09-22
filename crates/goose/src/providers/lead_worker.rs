@@ -490,6 +490,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: format!("Response from {}", self.name),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -656,6 +657,7 @@ mod tests {
                         vec![MessageContent::Text(
                             RawTextContent {
                                 text: format!("Response from {}", self.name),
+                                meta: None,
                             }
                             .no_annotation(),
                         )],

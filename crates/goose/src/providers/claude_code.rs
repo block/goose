@@ -16,8 +16,8 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-sonnet-4-20250514"];
 
 pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 
@@ -282,12 +282,11 @@ impl ClaudeCodeProvider {
 
         let message_content = vec![MessageContent::text(combined_text)];
 
-        let response_message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
 
         Ok((response_message, usage))
     }
@@ -433,12 +432,11 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::text(description.clone())],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 
@@ -525,7 +523,7 @@ mod tests {
         let provider = ClaudeCodeProvider::default();
         let config = provider.get_model_config();
 
-        assert_eq!(config.model_name, "claude-3-5-sonnet-latest");
+        assert_eq!(config.model_name, "claude-sonnet-4-20250514");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
     }

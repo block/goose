@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map Visualization</title>
+    
+    <style>
+        {{LEAFLET_CSS}}
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        #map {
+            width: 100%;
+            height: 600px;
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .custom-popup {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .custom-popup h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .custom-popup p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .marker-cluster-small {
+            background-color: rgba(181, 226, 140, 0.6);
+        }
+        
+        .marker-cluster-small div {
+            background-color: rgba(110, 204, 57, 0.6);
+        }
+        
+        .marker-cluster-medium {
+            background-color: rgba(241, 211, 87, 0.6);
+        }
+        
+        .marker-cluster-medium div {
+            background-color: rgba(240, 194, 12, 0.6);
+        }
+        
+        .marker-cluster-large {
+            background-color: rgba(253, 156, 115, 0.6);
+        }
+        
+        .marker-cluster-large div {
+            background-color: rgba(241, 128, 23, 0.6);
+            color: white;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+        }
+        
+        .marker-cluster {
+            border-radius: 50%;
+        }
+        
+        /* MarkerCluster CSS */
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map"></div>
+    </div>
+
+    <script>
+        {{LEAFLET_JS}}
+    </script>
+    
+    <script>
+        {{MARKERCLUSTER_JS}}
+    </script>
+
+    <script>
+        // Data from the tool
+        const mapData = {{MAP_DATA}};
+        
+        // Initialize map
+        let map;
+        let markerClusterGroup;
+        
+        function initMap() {
+            // Determine initial center and zoom
+            let initialLat = mapData.center ? mapData.center.lat : 39.8283;
+            let initialLng = mapData.center ? mapData.center.lng : -98.5795;
+            let initialZoom = mapData.zoom || 4;
+            
+            map = L.map('map').setView([initialLat, initialLng], initialZoom);
+            
+            // Add tile layers
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            });
+            
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri, © OpenStreetMap contributors',
+                maxZoom: 18
+            });
+            
+            const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap contributors',
+                maxZoom: 17
+            });
+            
+            // Add default layer
+            osmLayer.addTo(map);
+            
+            // Layer control
+            const baseLayers = {
+                "OpenStreetMap": osmLayer,
+                "Satellite": satelliteLayer,
+                "Topographic": topoLayer
+            };
+            
+            L.control.layers(baseLayers).addTo(map);
+            
+            // Initialize marker cluster group if clustering is enabled
+            if (mapData.clustering !== false) {
+                markerClusterGroup = L.markerClusterGroup({
+                    chunkedLoading: true,
+                    maxClusterRadius: mapData.clusterRadius || 50,
+                    iconCreateFunction: function(cluster) {
+                        const count = cluster.getChildCount();
+                        let className = 'marker-cluster-small';
+                        
+                        if (count > 10) {
+                            className = 'marker-cluster-medium';
+                        }
+                        if (count > 100) {
+                            className = 'marker-cluster-large';
+                        }
+                        
+                        return new L.DivIcon({
+                            html: '<div><span>' + count + '</span></div>',
+                            className: 'marker-cluster ' + className,
+                            iconSize: new L.Point(40, 40)
+                        });
+                    }
+                });
+            }
+        }
+        
+        function renderMarkers() {
+            const markers = mapData.markers || [];
+            const maxValue = Math.max(...markers.map(m => m.value || 1), 1);
+            
+            markers.forEach(point => {
+                // Create custom icon based on value
+                const value = point.value || 1;
+                const size = Math.max(10, Math.min(30, (value / maxValue) * 30));
+                const color = point.color || getColorByValue(value, maxValue);
+                
+                const customIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="
+                        background-color: ${color};
+                        width: ${size}px;
+                        height: ${size}px;
+                        border-radius: 50%;
+                        border: 2px solid white;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: ${Math.max(8, size * 0.4)}px;
+                    ">${point.label || (value > 1000 ? Math.round(value/1000) + 'k' : value)}</div>`,
+                    iconSize: [size, size],
+                    iconAnchor: [size/2, size/2]
+                });
+                
+                const marker = L.marker([point.lat, point.lng], { 
+                    icon: point.useDefaultIcon ? new L.Icon.Default() : customIcon 
+                });
+                
+                // Create popup content if provided
+                if (point.popup || point.name || point.description) {
+                    const popupContent = point.popup || `
+                        <div class="custom-popup">
+                            ${point.name ? `<h3>${point.name}</h3>` : ''}
+                            ${point.value !== undefined ? `<p><strong>Value:</strong> ${point.value.toLocaleString()}</p>` : ''}
+                            <p><strong>Location:</strong> ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}</p>
+                            ${point.description ? `<p><strong>Description:</strong> ${point.description}</p>` : ''}
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                }
+                
+                // Add to cluster group or directly to map
+                if (markerClusterGroup) {
+                    markerClusterGroup.addLayer(marker);
+                } else {
+                    marker.addTo(map);
+                }
+            });
+            
+            // Add cluster group to map if using clustering
+            if (markerClusterGroup) {
+                map.addLayer(markerClusterGroup);
+            }
+            
+            // Fit map to marker bounds if autoFit is enabled
+            if (mapData.autoFit !== false && markers.length > 0) {
+                const group = new L.featureGroup(markers.map(m => L.marker([m.lat, m.lng])));
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+        
+        function getColorByValue(value, maxValue) {
+            const ratio = value / maxValue;
+            if (ratio > 0.8) return '#d73027';
+            if (ratio > 0.6) return '#f46d43';
+            if (ratio > 0.4) return '#fdae61';
+            if (ratio > 0.2) return '#74add1';
+            return '#4575b4';
+        }
+        
+        // Initialize everything when page loads
+        window.addEventListener('load', function() {
+            initMap();
+            renderMarkers();
+        });
+    </script>
+</body>
+</html>

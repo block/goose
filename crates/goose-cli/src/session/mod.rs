@@ -374,6 +374,7 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
+        let message_text = message.as_concat_text();
 
         self.push_message(message);
         // Get the provider from the agent for description generation
@@ -393,6 +394,24 @@ impl Session {
                 working_dir,
             )
             .await?;
+        }
+
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) = crate::project_tracker::update_project_tracker(
+            Some(&message_text),
+            session_id.as_deref(),
+        ) {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
         }
 
         self.process_agent_response(false, cancel_token).await?;
@@ -472,6 +491,21 @@ impl Session {
                             save_history(&mut editor);
 
                             self.push_message(Message::user().with_text(&content));
+
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
 
                             let provider = self.agent.provider().await?;
 
@@ -581,7 +615,7 @@ impl Session {
                     // Check if mode is valid
                     if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
                         output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
                             mode
                         ));
                         continue;
@@ -908,16 +942,31 @@ impl Session {
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
-                                // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
+                                // Format the confirmation prompt - use security message if present, otherwise use generic message
+                                let prompt = if let Some(security_message) = &confirmation.prompt {
+                                    println!("\n{}", security_message);
+                                    "Do you allow this tool call?".to_string()
+                                } else {
+                                    "Goose would like to call the above tool, do you allow?".to_string()
+                                };
 
                                 // Get confirmation from user
-                                let permission_result = cliclack::select(prompt)
-                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
-                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                    .interact();
+                                let permission_result = if confirmation.prompt.is_none() {
+                                    // No security message - show all options including "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                } else {
+                                    // Security message present - don't show "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                };
 
                                 let permission = match permission_result {
                                     Ok(p) => p, // If Ok, use the selected permission
@@ -1242,12 +1291,26 @@ impl Session {
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
                             }
-                            output::render_error(
-                                "The error above was an exception we were not able to handle.\n\
-                                These errors are often related to connection or authentication\n\
-                                We've removed the conversation up to the most recent user message\n\
-                                - depending on the error you may be able to continue",
-                            );
+
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+                                output::render_error(
+                                    "Context length exceeded error.\n\
+                                    The conversation is too long for the model's context window.\n\
+                                    Consider using /summarize to condense the conversation history\n\
+                                    or /clear to start fresh.\n\
+                                    We've removed the conversation up to the most recent user message.",
+                                );
+                            } else {
+                                output::render_error(
+                                    "The error above was an exception we were not able to handle.\n\
+                                    These errors are often related to connection or authentication\n\
+                                    We've removed the conversation up to the most recent user message\n\
+                                    - depending on the error you may be able to continue",
+                                );
+                            }
                             break;
                         }
                         None => break,
