@@ -373,6 +373,89 @@ impl From<PromptMessage> for Message {
     }
 }
 
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Metadata for message visibility
+#[serde(rename_all = "camelCase")]
+pub struct MessageMetadata {
+    /// Whether the message should be visible to the user in the UI
+    #[serde(default = "default_true")]
+    pub user_visible: bool,
+    /// Whether the message should be included in the agent's context window
+    #[serde(default = "default_true")]
+    pub agent_visible: bool,
+}
+
+impl Default for MessageMetadata {
+    fn default() -> Self {
+        MessageMetadata {
+            user_visible: true,
+            agent_visible: true,
+        }
+    }
+}
+
+impl MessageMetadata {
+    /// Create metadata for messages visible only to the agent
+    pub fn agent_only() -> Self {
+        MessageMetadata {
+            user_visible: false,
+            agent_visible: true,
+        }
+    }
+
+    /// Create metadata for messages visible only to the user
+    pub fn user_only() -> Self {
+        MessageMetadata {
+            user_visible: true,
+            agent_visible: false,
+        }
+    }
+
+    /// Create metadata for messages visible to neither user nor agent (archived)
+    pub fn invisible() -> Self {
+        MessageMetadata {
+            user_visible: false,
+            agent_visible: false,
+        }
+    }
+
+    /// Return a copy with agent_visible set to false
+    pub fn with_agent_invisible(self) -> Self {
+        Self {
+            agent_visible: false,
+            ..self
+        }
+    }
+
+    /// Return a copy with user_visible set to false
+    pub fn with_user_invisible(self) -> Self {
+        Self {
+            user_visible: false,
+            ..self
+        }
+    }
+
+    /// Return a copy with agent_visible set to true
+    pub fn with_agent_visible(self) -> Self {
+        Self {
+            agent_visible: true,
+            ..self
+        }
+    }
+
+    /// Return a copy with user_visible set to true
+    pub fn with_user_visible(self) -> Self {
+        Self {
+            user_visible: true,
+            ..self
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
@@ -383,6 +466,8 @@ pub struct Message {
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
+    #[serde(default)]
+    pub metadata: MessageMetadata,
 }
 
 impl fmt::Debug for Message {
@@ -409,6 +494,7 @@ impl Message {
             role,
             created,
             content,
+            metadata: MessageMetadata::default(),
         }
     }
     pub fn debug(&self) -> String {
@@ -422,6 +508,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            metadata: MessageMetadata::default(),
         }
     }
 
@@ -432,6 +519,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            metadata: MessageMetadata::default(),
         }
     }
 
@@ -597,11 +685,48 @@ impl Message {
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
     }
+
+    /// Set the visibility metadata for the message
+    pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
+        self.metadata.user_visible = user_visible;
+        self.metadata.agent_visible = agent_visible;
+        self
+    }
+
+    /// Set the entire metadata for the message
+    pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Mark the message as only visible to the user (not the agent)
+    pub fn user_only(mut self) -> Self {
+        self.metadata.user_visible = true;
+        self.metadata.agent_visible = false;
+        self
+    }
+
+    /// Mark the message as only visible to the agent (not the user)
+    pub fn agent_only(mut self) -> Self {
+        self.metadata.user_visible = false;
+        self.metadata.agent_visible = true;
+        self
+    }
+
+    /// Check if the message is visible to the user
+    pub fn is_user_visible(&self) -> bool {
+        self.metadata.user_visible
+    }
+
+    /// Check if the message is visible to the agent
+    pub fn is_agent_visible(&self) -> bool {
+        self.metadata.agent_visible
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
     use mcp_core::ToolCall;
     use rmcp::model::{
@@ -952,5 +1077,149 @@ mod tests {
         let message: Message = serde_json::from_str(clean_json).unwrap();
 
         assert_eq!(message.as_concat_text(), "Hello world 世界 🌍");
+    }
+
+    #[test]
+    fn test_message_metadata_defaults() {
+        let message = Message::user().with_text("Test");
+
+        // By default, messages should be both user and agent visible
+        assert!(message.is_user_visible());
+        assert!(message.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_visibility_methods() {
+        // Test user_only
+        let user_only_msg = Message::user().with_text("User only").user_only();
+        assert!(user_only_msg.is_user_visible());
+        assert!(!user_only_msg.is_agent_visible());
+
+        // Test agent_only
+        let agent_only_msg = Message::assistant().with_text("Agent only").agent_only();
+        assert!(!agent_only_msg.is_user_visible());
+        assert!(agent_only_msg.is_agent_visible());
+
+        // Test with_visibility
+        let custom_msg = Message::user()
+            .with_text("Custom visibility")
+            .with_visibility(false, true);
+        assert!(!custom_msg.is_user_visible());
+        assert!(custom_msg.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_serialization() {
+        let message = Message::user()
+            .with_text("Test message")
+            .with_visibility(false, true);
+
+        let json_str = serde_json::to_string(&message).unwrap();
+        let value: Value = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(value["metadata"]["userVisible"], false);
+        assert_eq!(value["metadata"]["agentVisible"], true);
+    }
+
+    #[test]
+    fn test_message_metadata_deserialization() {
+        // Test with explicit metadata
+        let json_with_metadata = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "text",
+                "text": "Test"
+            }],
+            "metadata": {
+                "userVisible": false,
+                "agentVisible": true
+            }
+        }"#;
+
+        let message: Message = serde_json::from_str(json_with_metadata).unwrap();
+        assert!(!message.is_user_visible());
+        assert!(message.is_agent_visible());
+
+        // Test without metadata (should use defaults)
+        let json_without_metadata = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "text",
+                "text": "Test"
+            }]
+        }"#;
+
+        let message: Message = serde_json::from_str(json_without_metadata).unwrap();
+        assert!(message.is_user_visible());
+        assert!(message.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_static_methods() {
+        // Test MessageMetadata::agent_only()
+        let agent_only_metadata = MessageMetadata::agent_only();
+        assert!(!agent_only_metadata.user_visible);
+        assert!(agent_only_metadata.agent_visible);
+
+        // Test MessageMetadata::user_only()
+        let user_only_metadata = MessageMetadata::user_only();
+        assert!(user_only_metadata.user_visible);
+        assert!(!user_only_metadata.agent_visible);
+
+        // Test MessageMetadata::invisible()
+        let invisible_metadata = MessageMetadata::invisible();
+        assert!(!invisible_metadata.user_visible);
+        assert!(!invisible_metadata.agent_visible);
+
+        // Test using them with messages
+        let agent_msg = Message::assistant()
+            .with_text("Agent only message")
+            .with_metadata(MessageMetadata::agent_only());
+        assert!(!agent_msg.is_user_visible());
+        assert!(agent_msg.is_agent_visible());
+
+        let user_msg = Message::user()
+            .with_text("User only message")
+            .with_metadata(MessageMetadata::user_only());
+        assert!(user_msg.is_user_visible());
+        assert!(!user_msg.is_agent_visible());
+
+        let invisible_msg = Message::user()
+            .with_text("Invisible message")
+            .with_metadata(MessageMetadata::invisible());
+        assert!(!invisible_msg.is_user_visible());
+        assert!(!invisible_msg.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_builder_methods() {
+        // Test with_agent_invisible
+        let metadata = MessageMetadata::default().with_agent_invisible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test with_user_invisible
+        let metadata = MessageMetadata::default().with_user_invisible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_agent_visible
+        let metadata = MessageMetadata::invisible().with_agent_visible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_user_visible
+        let metadata = MessageMetadata::invisible().with_user_visible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test chaining
+        let metadata = MessageMetadata::invisible()
+            .with_user_visible()
+            .with_agent_visible();
+        assert!(metadata.user_visible);
+        assert!(metadata.agent_visible);
     }
 }

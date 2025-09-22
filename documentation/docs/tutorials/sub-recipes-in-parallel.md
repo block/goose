@@ -43,7 +43,7 @@ prompt: |
 ### Same Sub-Recipe
 
 When running the same sub-recipe with different parameters, Goose determines the execution mode based on:
-1. **[Recipe-level configuration](#choosing-between-sequential-and-parallel-execution)** (`sequential_when_repeated` flag) - when set to true, this forces sequential execution
+1. **[Recipe-level configuration](#choosing-between-execution-modes)** (`sequential_when_repeated` flag) - when set to true, this forces sequential execution
 2. **User request** in the prompt ("sequentially" to override default parallel behavior)
 3. **Parallel execution by default**: Multiple instances of the same sub-recipe run concurrently
 

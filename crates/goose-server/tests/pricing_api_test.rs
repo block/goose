@@ -8,7 +8,7 @@ use tower::ServiceExt;
 
 async fn create_test_app() -> Router {
     let agent = Arc::new(goose::agents::Agent::default());
-    let state = goose_server::AppState::new(agent, "test".to_string());
+    let state = goose_server::AppState::new(agent);
 
     // Add scheduler setup like in the existing tests
     let sched_storage_path = etcetera::choose_app_strategy(goose::config::APP_STRATEGY.clone())

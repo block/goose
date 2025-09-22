@@ -79,7 +79,7 @@ export function useAgent(): UseAgentReturn {
           title: sessionMetadata.recipe?.title || sessionMetadata.description,
           messageHistoryIndex: 0,
           messages: agentSessionInfo.messages.map((message: ApiMessage) =>
-            convertApiMessageToFrontendMessage(message, true, true)
+            convertApiMessageToFrontendMessage(message)
           ),
           recipeConfig: sessionMetadata.recipe,
         };
@@ -159,7 +159,7 @@ export function useAgent(): UseAgentReturn {
             title: sessionMetadata.recipe?.title || sessionMetadata.description,
             messageHistoryIndex: 0,
             messages: agentSessionInfo.messages.map((message: ApiMessage) =>
-              convertApiMessageToFrontendMessage(message, true, true)
+              convertApiMessageToFrontendMessage(message)
             ),
             recipeConfig: sessionMetadata.recipe,
           };

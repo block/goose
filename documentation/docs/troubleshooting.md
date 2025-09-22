@@ -12,7 +12,7 @@ Goose can and will edit files as part of its workflow. To avoid losing personal 
 ---
 
 ### Interrupting Goose
-If Goose is heading in the wrong direction or gets stuck, you can interrupt it by pressing `CTRL+C`. This will stop Goose and give you the opportunity to correct its actions or provide additional information.
+If Goose is heading in the wrong direction or gets stuck, you can [interrupt it](/docs/guides/sessions/in-session-actions#interrupt-task) to correct its actions or provide additional information.
 
 ---
 
@@ -40,7 +40,7 @@ You can prevent these issues by customizing your shell to handle these commands 
 
 ### Context Length Exceeded Error
 
-This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
+This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use [`.goosehints`][goosehints] as a way to provide goose with detailed context and use [message queues](/docs/guides/sessions/in-session-actions#queue-messages) in Goose Desktop.
 
 ---
 
@@ -56,7 +56,7 @@ Another thing to note is that the DeepSeek models do not support tool calling, s
 ---
 
 ### Handling Rate Limit Errors
-Goose may encounter a `429 error` (rate limit exceeded) when interacting with LLM providers. The recommended solution is to use OpenRouter. See [Handling LLM Rate Limits][handling-rate-limits] for more info.
+Goose may encounter a `429 error` (rate limit exceeded) when interacting with LLM providers. The recommended solution is to use a provider that provides built-in rate limiting. See [Handling LLM Rate Limits][handling-rate-limits] for more info.
 
 ---
 
@@ -101,6 +101,48 @@ This error typically occurs when LLM API credits are exhausted or your API key i
     goose configure
     ```
 For detailed steps on updating your LLM provider, refer to the [Installation][installation] Guide.
+
+---
+
+### GitHub Copilot Provider Configuration
+
+If you encounter errors when configuring GitHub Copilot as your provider, try these workarounds for common scenarios.
+
+#### OAuth Error with Lead/Worker Models
+
+If the [lead/worker model](/docs/tutorials/lead-worker) feature is configured in your environment, you might see the following error during GitHub Copilot setup. This feature conflicts with the OAuth flow to connect to the provider.
+```
+Failed to authenticate: Execution error: OAuth configuration not supported by this provider
+``` 
+
+To resolve:
+1. Temporarily comment out or remove lead/worker model variables from your config file (`~/.config/goose/config.yaml`):
+   ```yaml
+   # GOOSE_LEAD_MODEL: your-model
+   # GOOSE_WORKER_MODEL: your-model
+   ```
+2. Run `goose configure` again to set up GitHub Copilot
+3. Complete the OAuth authentication flow
+4. Re-enable your lead/worker model settings as needed
+
+#### Container and Keyring Issues
+
+If you're running Goose in Docker containers or Linux environments without keyring support, authentication may fail with keyring errors like:
+```
+Failed to save token: Failed to access keyring: Platform secure storage failure: DBus error: Using X11 for dbus-daemon autolaunch was disabled at compile time
+```
+
+Goose tries to use the system keyring (which requires DBus and X11) to securely store your GitHub token, but these aren't available in containerized or headless environments.
+
+To resolve:
+
+Use the `GOOSE_DISABLE_KEYRING` environment variable to tell Goose to store secrets in files instead. This example sets the variable only while executing the `goose configure` command:
+
+```bash
+GOOSE_DISABLE_KEYRING=1 goose configure
+```
+
+See [Keychain/Keyring Errors](#keychainkeyring-errors) for more details on keyring alternatives.
 
 ---
 
@@ -377,4 +419,4 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 [discord]: https://discord.gg/block-opensource
 [goosehints]: /docs/guides/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
-[extensions-directory]: https://block.github.io/goose/extensions/
+[extensions-directory]: /extensions

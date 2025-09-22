@@ -4,6 +4,25 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+// Improved oneDark theme for better comment contrast and readability
+const customOneDarkTheme = {
+  ...oneDark,
+  'code[class*="language-"]': {
+    ...oneDark['code[class*="language-"]'],
+    color: '#e6e6e6',
+    fontSize: '14px',
+  },
+  'pre[class*="language-"]': {
+    ...oneDark['pre[class*="language-"]'],
+    color: '#e6e6e6',
+    fontSize: '14px',
+  },
+  comment: { ...oneDark.comment, color: '#a0a0a0', fontStyle: 'italic' },
+  prolog: { ...oneDark.prolog, color: '#a0a0a0' },
+  doctype: { ...oneDark.doctype, color: '#a0a0a0' },
+  cdata: { ...oneDark.cdata, color: '#a0a0a0' },
+};
+
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
 
@@ -62,7 +81,7 @@ const CodeBlock = memo(function CodeBlock({
 
     return (
       <SyntaxHighlighter
-        style={oneDark}
+        style={customOneDarkTheme}
         language={language}
         PreTag="div"
         customStyle={{
@@ -76,6 +95,7 @@ const CodeBlock = memo(function CodeBlock({
             wordBreak: 'break-all',
             overflowWrap: 'break-word',
             fontFamily: 'var(--font-sans)',
+            fontSize: '14px',
           },
         }}
         // Performance optimizations for SyntaxHighlighter
@@ -139,21 +159,22 @@ const MarkdownContent = memo(function MarkdownContent({
 
   return (
     <div
-      className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-breakfont-sans
+      className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
       prose-pre:p-0 prose-pre:m-0 !p-0
-      prose-code:break-all prose-code:whitespace-pre-wrapprose-code:font-sans
+      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-sans
+      prose-a:break-all prose-a:overflow-wrap-anywhere
       prose-table:table prose-table:w-full
       prose-blockquote:text-inherit
       prose-td:border prose-td:border-border-default prose-td:p-2
       prose-th:border prose-th:border-border-default prose-th:p-2
       prose-thead:bg-background-default
-      prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0prose-h1:font-sans
-      prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4prose-h2:font-sans
-      prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3prose-h3:font-sans
-      prose-p:mt-0 prose-p:mb-2prose-p:font-sans
-      prose-ol:my-2prose-ol:font-sans
-      prose-ul:mt-0 prose-ul:mb-3prose-ul:font-sans
-      prose-li:m-0prose-li:font-sans ${className}`}
+      prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0 prose-h1:font-sans
+      prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4 prose-h2:font-sans
+      prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3 prose-h3:font-sans
+      prose-p:mt-0 prose-p:mb-2 prose-p:font-sans
+      prose-ol:my-2 prose-ol:font-sans
+      prose-ul:mt-0 prose-ul:mb-3 prose-ul:font-sans
+      prose-li:m-0 prose-li:font-sans ${className}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}

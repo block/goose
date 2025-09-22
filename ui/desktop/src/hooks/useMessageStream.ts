@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
+import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
 import { getSessionHistory, SessionMetadata } from '../api';
 import { ChatState } from '../types/chatState';
 
@@ -273,19 +273,12 @@ export function useMessageStream({
                     mutateChatState(ChatState.Streaming);
 
                     // Create a new message object with the properties preserved or defaulted
-                    const newMessage = {
+                    const newMessage: Message = {
                       ...parsedEvent.message,
-                      // Ensure the message has an ID - if not provided, generate one
-                      id: parsedEvent.message.id || generateMessageId(),
-                      // Only set to true if it's undefined (preserve false values)
-                      display:
-                        parsedEvent.message.display === undefined
-                          ? true
-                          : parsedEvent.message.display,
-                      sendToLLM:
-                        parsedEvent.message.sendToLLM === undefined
-                          ? true
-                          : parsedEvent.message.sendToLLM,
+                      id: parsedEvent.message.id || undefined,
+                      role: parsedEvent.message.role as Role,
+                      created: parsedEvent.message.created || Date.now(),
+                      content: parsedEvent.message.content || [],
                     };
 
                     // Update messages with the new message
@@ -408,9 +401,6 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Filter out messages where sendToLLM is explicitly false
-        const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
-
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -420,7 +410,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: filteredMessages,
+            messages: requestMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,

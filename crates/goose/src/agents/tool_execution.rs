@@ -8,7 +8,6 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
 use crate::permission::Permission;
 use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
@@ -51,18 +50,29 @@ impl Agent {
         &'a self,
         tool_requests: &'a [ToolRequest],
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
-        permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
+        inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
+            for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
+                    // Find the corresponding inspection result for this tool request
+                    let security_message = inspection_results.iter()
+                        .find(|result| result.tool_request_id == request.id)
+                        .and_then(|result| {
+                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                                Some(message.clone())
+                            } else {
+                                None
+                            }
+                        });
+
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),
                         tool_call.name.clone(),
                         tool_call.arguments.clone(),
-                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                        security_message,
                     );
                     yield confirmation;
 
@@ -84,8 +94,11 @@ impl Agent {
                                     ),
                                 }));
 
+                                // Update the shared permission manager when user selects "Always Allow"
                                 if confirmation.permission == Permission::AlwaysAllow {
-                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
+                                    self.tool_inspection_manager
+                                        .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                        .await;
                                 }
                             } else {
                                 // User declined - add declined response

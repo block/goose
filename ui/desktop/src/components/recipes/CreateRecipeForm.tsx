@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
 import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
+import { validateJsonSchema, getValidationErrorMessages } from '../../recipe/validation';
 
 interface CreateRecipeFormProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ const createRecipeSchema = z.object({
   instructions: z.string().min(20, 'Instructions must be at least 20 characters'),
   prompt: z.string(),
   activities: z.string(),
+  jsonSchema: z.string(),
   recipeName: recipeNameSchema,
   global: z.boolean(),
 });
@@ -40,6 +42,7 @@ export default function CreateRecipeForm({ isOpen, onClose, onSuccess }: CreateR
       instructions: '',
       prompt: '',
       activities: '',
+      jsonSchema: '',
       recipeName: '',
       global: true,
     },
@@ -55,6 +58,24 @@ export default function CreateRecipeForm({ isOpen, onClose, onSuccess }: CreateR
           .map((activity) => activity.trim())
           .filter((activity) => activity.length > 0);
 
+        // Parse and validate JSON schema if provided
+        let jsonSchemaObj = undefined;
+        if (value.jsonSchema && value.jsonSchema.trim()) {
+          try {
+            jsonSchemaObj = JSON.parse(value.jsonSchema.trim());
+            // Validate the JSON schema syntax
+            const validationResult = validateJsonSchema(jsonSchemaObj);
+            if (!validationResult.success) {
+              const errorMessages = getValidationErrorMessages(validationResult.errors);
+              throw new Error(`Invalid JSON schema: ${errorMessages.join(', ')}`);
+            }
+          } catch (error) {
+            throw new Error(
+              `JSON Schema parsing error: ${error instanceof Error ? error.message : 'Invalid JSON'}`
+            );
+          }
+        }
+
         // Create the recipe object
         const recipe: Recipe = {
           title: value.title.trim(),
@@ -62,6 +83,7 @@ export default function CreateRecipeForm({ isOpen, onClose, onSuccess }: CreateR
           instructions: value.instructions.trim(),
           prompt: value.prompt.trim() || undefined,
           activities: activities.length > 0 ? activities : undefined,
+          response: jsonSchemaObj ? { json_schema: jsonSchemaObj } : undefined,
         };
 
         await saveRecipe(recipe, {
@@ -76,6 +98,7 @@ export default function CreateRecipeForm({ isOpen, onClose, onSuccess }: CreateR
           instructions: '',
           prompt: '',
           activities: '',
+          jsonSchema: '',
           recipeName: '',
           global: true,
         });
@@ -144,6 +167,7 @@ Parameters you can use:
       instructions: '',
       prompt: '',
       activities: '',
+      jsonSchema: '',
       recipeName: '',
       global: true,
     });
@@ -313,6 +337,49 @@ Parameters you can use:
                   <p className="text-xs text-text-muted mt-1">
                     Comma-separated list of activities this recipe helps with
                   </p>
+                </div>
+              )}
+            </createRecipeForm.Field>
+
+            <createRecipeForm.Field name="jsonSchema">
+              {(field) => (
+                <div>
+                  <label
+                    htmlFor="create-json-schema"
+                    className="block text-sm font-medium text-text-standard mb-2"
+                  >
+                    Response JSON Schema (Optional)
+                  </label>
+                  <textarea
+                    id="create-json-schema"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
+                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
+                    }`}
+                    placeholder={`{
+  "type": "object",
+  "properties": {
+    "result": {
+      "type": "string",
+      "description": "The main result"
+    }
+  },
+  "required": ["result"]
+}`}
+                    rows={6}
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    Define the expected structure of the AI's response using JSON Schema format
+                  </p>
+                  {field.state.meta.errors.length > 0 && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {typeof field.state.meta.errors[0] === 'string'
+                        ? field.state.meta.errors[0]
+                        : field.state.meta.errors[0]?.message || String(field.state.meta.errors[0])}
+                    </p>
+                  )}
                 </div>
               )}
             </createRecipeForm.Field>

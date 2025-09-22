@@ -1,7 +1,7 @@
 name: Validate Recipe PR
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
     paths:
       - 'documentation/src/pages/recipes/data/recipes/**'
@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   validate-recipe:
@@ -39,7 +40,7 @@ jobs:
           mkdir -p ~/.config/goose
           cat <<EOF > ~/.config/goose/config.yaml
           GOOSE_PROVIDER: openrouter
-          GOOSE_MODEL: "anthropic/claude-3.5-sonnet"
+          GOOSE_MODEL: "anthropic/claude-sonnet-4"
           keyring: false
           EOF
 
@@ -158,7 +159,7 @@ jobs:
                 
                 # Check if this is a new file or an update to existing file
                 # Get list of changed files in this PR compared to base branch
-                CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "^$RECIPE_FILE$" || true)
+                CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "^$RECIPE_FILE$" || true)
                 EXISTING_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "$FILENAME.yaml" -o -name "$FILENAME.yml" | grep -v "^$RECIPE_FILE$" || true)
                 
                 if [ -n "$EXISTING_FILES" ] && [ -z "$CHANGED_FILES" ]; then

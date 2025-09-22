@@ -360,6 +360,7 @@ export type Message = {
     content: Array<MessageContent>;
     created?: number;
     id?: string | null;
+    metadata?: MessageMetadata;
     role: Role;
 };
 
@@ -387,6 +388,20 @@ export type MessageContent = (TextContent & {
 }) | (SummarizationRequested & {
     type: 'summarizationRequested';
 });
+
+/**
+ * Metadata for message visibility
+ */
+export type MessageMetadata = {
+    /**
+     * Whether the message should be included in the agent's context window
+     */
+    agentVisible?: boolean;
+    /**
+     * Whether the message should be visible to the user in the UI
+     */
+    userVisible?: boolean;
+};
 
 /**
  * Information about a model's capabilities
@@ -780,6 +795,11 @@ export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
     temperature?: number | null;
+};
+
+export type SetupResponse = {
+    message: string;
+    success: boolean;
 };
 
 export type StartAgentRequest = {
@@ -1615,6 +1635,32 @@ export type ManageContextResponses = {
 
 export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
 
+export type StartOpenrouterSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_openrouter';
+};
+
+export type StartOpenrouterSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartOpenrouterSetupResponse = StartOpenrouterSetupResponses[keyof StartOpenrouterSetupResponses];
+
+export type StartTetrateSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_tetrate';
+};
+
+export type StartTetrateSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
     path?: never;
@@ -2128,6 +2174,22 @@ export type GetSessionHistoryResponses = {
 };
 
 export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
+
+export type StatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/status';
+};
+
+export type StatusResponses = {
+    /**
+     * ok
+     */
+    200: string;
+};
+
+export type StatusResponse = StatusResponses[keyof StatusResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

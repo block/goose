@@ -298,14 +298,16 @@ export default function GooseMessage({
             sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationId={toolConfirmationContent.id}
-            toolName={toolConfirmationContent.toolName}
+            toolConfirmationContent={toolConfirmationContent}
           />
         )}
       </div>
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-      {urls.length > 0 && (
+      {/* TEMPORARILY DISABLED (dorien-koelemeijer): This is causing issues in properly "generating" tool calls
+       that contain links and prevents security scanning */}
+      {/* eslint-disable-next-line no-constant-binary-expression */}
+      {false && urls.length > 0 && (
         <div className="mt-4">
           {urls.map((url, index) => (
             <LinkPreview key={index} url={url} />

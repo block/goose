@@ -155,7 +155,7 @@ pub async fn detect_read_only_tools(
     }
 }
 
-// Define return structure
+/// Result of permission checking for tool requests
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,

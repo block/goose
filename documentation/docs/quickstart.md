@@ -110,7 +110,7 @@ Let's begin 🚀
 
 ## Configure Provider
 
-Goose works with [supported LLM providers][providers] that give Goose the AI intelligence it needs to understand your requests. On first use, you'll be prompted to configure your preferred provider.
+Goose works with [supported LLM providers](/docs/getting-started/providers) that give Goose the AI intelligence it needs to understand your requests. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -182,14 +182,14 @@ Goose will create a plan and then get right to work on implementing it. Once don
 
 ## Enable an Extension
 
-While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the `Computer Controller` extension.
+While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the [`Computer Controller` extension](/docs/mcp/computer-controller-mcp).
 
 <Tabs groupId="interface">
 
     <TabItem value="ui" label="Goose Desktop" default>
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
         2. Click `Extensions` in the sidebar menu.
-        3. Toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        3. Toggle the `Computer Controller` extension to enable it. This extension enables webscraping, file caching, and automations.
         4. Return to your session to continue.
         5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
@@ -199,7 +199,7 @@ While you're able to manually navigate to your working directory and open the HT
         ```sh
         goose configure
         ```
-        3. Choose `Add Extension` > `Built-in Extension` > `Computer Controller`, and set the timeout to 300s. This [extension](/docs/mcp/computer-controller-mcp) enables webscraping, file caching, and automations.
+        3. Choose `Add Extension` > `Built-in Extension` > `Computer Controller`, and set the timeout to 300s. This extension enables webscraping, file caching, and automations.
         ```
         ┌   goose-configure
         │
@@ -236,20 +236,7 @@ Go ahead and play your game, I know you want to 😂 ... good luck!
 Congrats, you've successfully used Goose to develop a web app! 🎉
 
 Here are some ideas for next steps:
-* Continue your session with Goose and it improve your game (styling, functionality, etc).
-* Browse other available [extensions][extensions-guide] and install more to enhance Goose's functionality even further.
+* Continue your session with Goose and improve your game (styling, functionality, etc).
+* Browse other available [extensions](/extensions) and install more to enhance Goose's functionality even further.
 * Provide Goose with a [set of hints](/docs/guides/using-goosehints) to use within your sessions.
 
-
-
-
-[handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
-[openai-key]: https://platform.openai.com/api-keys
-[getting-started]: /docs/category/getting-started
-[providers]: /docs/getting-started/providers
-[managing-sessions]: /docs/guides/sessions/session-management
-[contributing]: https://github.com/block/goose/blob/main/CONTRIBUTING.md
-[quick-tips]: /docs/guides/tips
-[extensions-guide]: /docs/getting-started/using-extensions
-[cli]: /docs/guides/goose-cli-commands
-[MCP]: https://www.anthropic.com/news/model-context-protocol

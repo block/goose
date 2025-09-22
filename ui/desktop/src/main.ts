@@ -51,30 +51,18 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
+import { decodeRecipe } from './api/sdk.gen';
 
-// API URL constructor for main process before window is ready
-function getApiUrlMain(endpoint: string, dynamicPort: number): string {
-  const host = process.env.GOOSE_API_HOST || 'http://127.0.0.1';
-  const port = dynamicPort || process.env.GOOSE_PORT;
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${host}:${port}${cleanEndpoint}`;
-}
-
-// When opening the app with a deeplink, the window is still initializing so we have to duplicate some window dependant logic here.
-async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe | null> {
+async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
   try {
-    const response = await fetch(getApiUrlMain('/recipes/decode', port), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deeplink }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.recipe;
-    }
-  } catch {
-    console.error('Failed to decode recipe');
+    return (
+      await decodeRecipe({
+        throwOnError: true,
+        body: { deeplink },
+      })
+    ).data.recipe;
+  } catch (e) {
+    console.error('Failed to decode recipe:', e);
   }
   return null;
 }
@@ -446,9 +434,10 @@ let envToggles: EnvToggles = loadSettings().envToggles;
 
 // Parse command line arguments
 const parseArgs = () => {
-  const args = process.argv.slice(2); // Remove first two elements (electron and script path)
   let dirPath = null;
 
+  // Remove first two elements in dev mode (electron and script path)
+  const args = !dirPath && app.isPackaged ? process.argv : process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dir' && i + 1 < args.length) {
       dirPath = args[i + 1];
@@ -610,7 +599,7 @@ const createChat = async (
       contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
-          ...appConfig, // Use the potentially updated appConfig
+          ...appConfig,
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
@@ -758,7 +747,7 @@ const createChat = async (
     console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
 
     // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink, port)
+    decodeRecipeMain(recipeDeeplink)
       .then((decodedRecipe) => {
         if (decodedRecipe) {
           console.log('[Main] Recipe decoded successfully, updating window config');
@@ -1687,7 +1676,7 @@ const registerGlobalHotkey = (accelerator: string) => {
   }
 };
 
-app.whenReady().then(async () => {
+async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
@@ -2156,6 +2145,15 @@ app.whenReady().then(async () => {
       return false;
     }
   });
+}
+
+app.whenReady().then(async () => {
+  try {
+    await appMain();
+  } catch (error) {
+    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
+    app.quit();
+  }
 });
 
 async function getAllowList(): Promise<string[]> {

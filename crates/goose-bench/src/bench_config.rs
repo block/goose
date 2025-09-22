@@ -51,7 +51,7 @@ impl Default for BenchRunConfig {
                 },
                 BenchModel {
                     provider: "databricks".to_string(),
-                    name: "goose-claude-3-5-sonnet".to_string(),
+                    name: "goose-claude-4-sonnet".to_string(),
                     parallel_safe: true,
                     tool_shim: None,
                 },

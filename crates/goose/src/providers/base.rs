@@ -328,6 +328,7 @@ pub trait Provider: Send + Sync {
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
     // Default implementation: use the provider's configured model
+    // This method filters messages to only include agent_visible ones
     async fn complete(
         &self,
         system: &str,
@@ -335,11 +336,20 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config, system, messages, tools)
+
+        // Filter messages to only include agent_visible ones
+        let agent_visible_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .cloned()
+            .collect();
+
+        self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
+    // This method filters messages to only include agent_visible ones
     async fn complete_fast(
         &self,
         system: &str,
@@ -349,8 +359,15 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
+        // Filter messages to only include agent_visible ones
+        let agent_visible_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .cloned()
+            .collect();
+
         match self
-            .complete_with_model(&fast_config, system, messages, tools)
+            .complete_with_model(&fast_config, system, &agent_visible_messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -362,7 +379,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, messages, tools)
+                    self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
                         .await
                 } else {
                     Err(e)
@@ -552,17 +569,17 @@ mod tests {
         assert_eq!(model, Some("gpt-4o".to_string()));
 
         // Change the model
-        set_current_model("claude-3.5-sonnet");
+        set_current_model("claude-sonnet-4-20250514");
 
         // Get the updated model and verify
         let model = get_current_model();
-        assert_eq!(model, Some("claude-3.5-sonnet".to_string()));
+        assert_eq!(model, Some("claude-sonnet-4-20250514".to_string()));
     }
 
     #[test]
     fn test_provider_metadata_context_limits() {
         // Test that ProviderMetadata::new correctly sets context limits
-        let test_models = vec!["gpt-4o", "claude-3-5-sonnet-latest", "unknown-model"];
+        let test_models = vec!["gpt-4o", "claude-sonnet-4-20250514", "unknown-model"];
         let metadata = ProviderMetadata::new(
             "test",
             "Test Provider",
@@ -582,9 +599,9 @@ mod tests {
         // gpt-4o should have 128k limit
         assert_eq!(*model_info.get("gpt-4o").unwrap(), 128_000);
 
-        // claude-3-5-sonnet-latest should have 200k limit
+        // claude-sonnet-4-20250514 should have 200k limit
         assert_eq!(
-            *model_info.get("claude-3-5-sonnet-latest").unwrap(),
+            *model_info.get("claude-sonnet-4-20250514").unwrap(),
             200_000
         );
 

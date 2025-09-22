@@ -138,7 +138,7 @@ docker-compose run --rm goose session
 The Docker image accepts all standard Goose environment variables:
 
 - `GOOSE_PROVIDER`: LLM provider (openai, anthropic, google, etc.)
-- `GOOSE_MODEL`: Model to use (gpt-4o, claude-3-5-sonnet, etc.)
+- `GOOSE_MODEL`: Model to use (gpt-4o, claude-sonnet-4, etc.)
 - Provider-specific API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
 
 ### Persistent Configuration

@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
@@ -137,7 +137,7 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.12",
     "typescript": "~5.9.2",
-    "vite": "^7.1.2",
+    "vite": "^7.1.5",
     "vitest": "^3.2.4"
   },
   "keywords": [],

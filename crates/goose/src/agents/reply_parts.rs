@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -83,28 +82,6 @@ impl Agent {
         }
 
         Ok((tools, toolshim_tools, system_prompt))
-    }
-
-    /// Categorize tools based on their annotations
-    /// Returns:
-    /// - read_only_tools: Tools with read-only annotations
-    /// - non_read_tools: Tools without read-only annotations
-    pub(crate) fn categorize_tools_by_annotation(
-        tools: &[Tool],
-    ) -> (HashSet<String>, HashSet<String>) {
-        tools
-            .iter()
-            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
-                match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
-                        acc.0.insert(tool.name.to_string());
-                    }
-                    _ => {
-                        acc.1.insert(tool.name.to_string());
-                    }
-                }
-                acc
-            })
     }
 
     /// Generate a response from the LLM provider
@@ -268,12 +245,13 @@ impl Agent {
             }
         }
 
-        let filtered_message = Message {
-            id: response.id.clone(),
-            role: response.role.clone(),
-            created: response.created,
-            content: filtered_content,
-        };
+        let mut filtered_message =
+            Message::new(response.role.clone(), response.created, filtered_content);
+
+        // Preserve the ID if it exists
+        if let Some(id) = response.id.clone() {
+            filtered_message = filtered_message.with_id(id);
+        }
 
         // Categorize tool requests
         let mut frontend_requests = Vec::new();

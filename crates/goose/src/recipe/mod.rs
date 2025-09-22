@@ -206,6 +206,8 @@ pub enum RecipeParameterInputType {
     Number,
     Boolean,
     Date,
+    /// File parameter that imports content from a file path.
+    /// Cannot have default values to prevent importing sensitive user files.
     File,
     Select,
 }

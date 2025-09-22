@@ -245,20 +245,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_agent_with_anthropic() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Anthropic,
-            model: "claude-3-5-haiku-latest",
-            context_window: 200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_agent_with_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Bedrock,
-            model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model: "anthropic.claude-sonnet-4-20250514:0",
             context_window: 200_000,
         })
         .await
@@ -278,7 +268,7 @@ mod tests {
     async fn test_agent_with_databricks_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
-            model: "claude-3-5-sonnet-2",
+            model: "claude-sonnet-4",
             context_window: 200_000,
         })
         .await
@@ -338,7 +328,7 @@ mod tests {
     async fn test_agent_with_gcpvertexai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::GcpVertexAI,
-            model: "claude-3-5-sonnet-v2@20241022",
+            model: "claude-sonnet-4-20250514",
             context_window: 200_000,
         })
         .await
@@ -671,6 +661,7 @@ mod final_output_tool_tests {
     #[tokio::test]
     async fn test_when_final_output_not_called_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
         use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage};
@@ -680,6 +671,8 @@ mod final_output_tool_tests {
         #[derive(Clone)]
         struct MockProvider {
             model_config: ModelConfig,
+            stream_round: std::sync::Arc<std::sync::Mutex<i32>>,
+            got_continuation_message: std::sync::Arc<std::sync::Mutex<bool>>,
         }
 
         #[async_trait]
@@ -702,14 +695,38 @@ mod final_output_tool_tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                let deltas = vec![
-                    Ok((Some(Message::assistant().with_text("Hello")), None)),
-                    Ok((Some(Message::assistant().with_text("Hi!")), None)),
-                    Ok((
-                        Some(Message::assistant().with_text("What is the final output?")),
+                if let Some(last_msg) = _messages.last() {
+                    for content in &last_msg.content {
+                        if let goose::conversation::message::MessageContent::Text(text_content) =
+                            content
+                        {
+                            if text_content.text == FINAL_OUTPUT_CONTINUATION_MESSAGE {
+                                let mut got_continuation =
+                                    self.got_continuation_message.lock().unwrap();
+                                *got_continuation = true;
+                            }
+                        }
+                    }
+                }
+
+                let mut round = self.stream_round.lock().unwrap();
+                *round += 1;
+
+                let deltas = if *round == 1 {
+                    vec![
+                        Ok((Some(Message::assistant().with_text("Hello")), None)),
+                        Ok((Some(Message::assistant().with_text("Hi!")), None)),
+                        Ok((
+                            Some(Message::assistant().with_text("What is the final output?")),
+                            None,
+                        )),
+                    ]
+                } else {
+                    vec![Ok((
+                        Some(Message::assistant().with_text("Additional random delta")),
                         None,
-                    )),
-                ];
+                    ))]
+                };
 
                 let stream = stream::iter(deltas.into_iter());
                 Ok(Box::pin(stream))
@@ -738,7 +755,12 @@ mod final_output_tool_tests {
         let agent = Agent::new();
 
         let model_config = ModelConfig::new("test-model").unwrap();
-        let mock_provider = Arc::new(MockProvider { model_config });
+        let mock_provider = Arc::new(MockProvider {
+            model_config,
+            stream_round: std::sync::Arc::new(std::sync::Mutex::new(0)),
+            got_continuation_message: std::sync::Arc::new(std::sync::Mutex::new(false)),
+        });
+        let mock_provider_clone = mock_provider.clone();
         agent.update_provider(mock_provider).await?;
 
         let response = Response {
@@ -774,7 +796,6 @@ mod final_output_tool_tests {
         }
 
         assert!(!responses.is_empty(), "Should have received responses");
-        println!("Responses: {:?}", responses);
         let last_message = responses.last().unwrap();
 
         // Check that the first 3 messages do not have FINAL_OUTPUT_CONTINUATION_MESSAGE
@@ -793,6 +814,27 @@ mod final_output_tool_tests {
         assert_eq!(last_message.role, rmcp::model::Role::User);
         let message_text = last_message.as_concat_text();
         assert_eq!(message_text, FINAL_OUTPUT_CONTINUATION_MESSAGE);
+
+        // Continue streaming to consume any remaining content, this lets us verify the provider saw the continuation message
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(_response)) => {
+                    break; // Stop after receiving the next message
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error while streaming remaining content: {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        // Assert that the provider received the continuation message
+        let got_continuation = mock_provider_clone.got_continuation_message.lock().unwrap();
+        assert!(
+            *got_continuation,
+            "Provider should have received the FINAL_OUTPUT_CONTINUATION_MESSAGE"
+        );
 
         Ok(())
     }

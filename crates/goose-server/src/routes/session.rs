@@ -1,12 +1,11 @@
-use super::utils::verify_secret_key;
 use chrono::DateTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    extract::Path,
+    http::StatusCode,
     routing::{delete, get, put},
     Json, Router,
 };
@@ -82,12 +81,7 @@ pub struct ActivityHeatmapCell {
     tag = "Session Management"
 )]
 // List all available sessions
-async fn list_sessions(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<SessionListResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     let sessions = get_valid_sorted_sessions(SortOrder::Descending)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -113,12 +107,8 @@ async fn list_sessions(
 )]
 // Get a specific session's history
 async fn get_session_history(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
         Ok(path) => path,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
@@ -134,10 +124,18 @@ async fn get_session_history(
         }
     };
 
+    // Filter messages to only include user_visible ones
+    let user_visible_messages: Vec<Message> = messages
+        .messages()
+        .iter()
+        .filter(|m| m.is_user_visible())
+        .cloned()
+        .collect();
+
     Ok(Json(SessionHistoryResponse {
         session_id,
         metadata,
-        messages: messages.messages().clone(),
+        messages: user_visible_messages,
     }))
 }
 
@@ -154,13 +152,8 @@ async fn get_session_history(
     ),
     tag = "Session Management"
 )]
-async fn get_session_insights(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<SessionInsights>, StatusCode> {
+async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     info!("Received request for session insights");
-
-    verify_secret_key(&headers, &state)?;
 
     let sessions = get_valid_sorted_sessions(SortOrder::Descending).map_err(|e| {
         error!("Failed to get session info: {:?}", e);
@@ -281,13 +274,9 @@ async fn get_session_insights(
 )]
 // Update session metadata
 async fn update_session_metadata(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionMetadataRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     // Validate description length
     if request.description.len() > MAX_DESCRIPTION_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
@@ -328,13 +317,7 @@ async fn update_session_metadata(
     tag = "Session Management"
 )]
 // Delete a session
-async fn delete_session(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Path(session_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
     // Get the session path
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
         Ok(path) => path,

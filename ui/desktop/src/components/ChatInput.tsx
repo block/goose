@@ -86,7 +86,6 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   autoSubmit: boolean;
-  setAncestorMessages?: (messages: Message[]) => void;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
 }
@@ -115,7 +114,6 @@ export default function ChatInput({
   toolCount,
   autoSubmit = false,
   append,
-  setAncestorMessages,
   isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -570,7 +568,7 @@ export default function ChatInput({
           // Hide the alert popup by dispatching a custom event that the popover can listen to
           // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append, setAncestorMessages);
+          handleManualCompaction(messages, setMessages, append);
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,

@@ -875,7 +875,7 @@ mod tests {
             },
             CompleteModelConfig {
                 provider: "anthropic".to_string(),
-                model: "claude-3-5-sonnet".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
                 role: "helper".to_string(),
                 rules: Rules {
                     triggers: TriggerRules {
@@ -1229,7 +1229,7 @@ mod tests {
                 },
                 CompleteModelConfig {
                     provider: "anthropic".to_string(),
-                    model: "claude-3-5-sonnet".to_string(),
+                    model: "claude-sonnet-4-20250514".to_string(),
                     role: "helper".to_string(),
                     rules: Rules {
                         triggers: TriggerRules {

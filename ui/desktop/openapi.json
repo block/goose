@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.7.0"
+    "version": "1.8.0"
   },
   "paths": {
     "/agent/add_sub_recipes": {
@@ -886,6 +886,46 @@
         ]
       }
     },
+    "/handle_openrouter": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "start_openrouter_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/handle_tetrate": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "start_tetrate_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/recipes/create": {
       "post": {
         "tags": [
@@ -1503,6 +1543,26 @@
             "api_key": []
           }
         ]
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": [
+          "super::routes::health"
+        ],
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -2502,6 +2562,9 @@
             "type": "string",
             "nullable": true
           },
+          "metadata": {
+            "$ref": "#/components/schemas/MessageMetadata"
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           }
@@ -2723,6 +2786,20 @@
         "description": "Content passed inside a message, which can be both simple content and tool content",
         "discriminator": {
           "propertyName": "type"
+        }
+      },
+      "MessageMetadata": {
+        "type": "object",
+        "description": "Metadata for message visibility",
+        "properties": {
+          "agentVisible": {
+            "type": "boolean",
+            "description": "Whether the message should be included in the agent's context window"
+          },
+          "userVisible": {
+            "type": "boolean",
+            "description": "Whether the message should be visible to the user in the UI"
+          }
         }
       },
       "ModelInfo": {
@@ -3585,6 +3662,21 @@
             "type": "number",
             "format": "float",
             "nullable": true
+          }
+        }
+      },
+      "SetupResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
           }
         }
       },

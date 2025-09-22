@@ -38,6 +38,7 @@ interface ProgressiveMessageListProps {
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  onRenderingComplete?: () => void; // Callback when all messages are rendered
 }
 
 export default function ProgressiveMessageList({
@@ -53,6 +54,7 @@ export default function ProgressiveMessageList({
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
+  onRenderingComplete,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -83,6 +85,10 @@ export default function ProgressiveMessageList({
     if (messages.length <= showLoadingThreshold) {
       setRenderedCount(messages.length);
       setIsLoading(false);
+      // For small lists, call completion callback immediately
+      if (onRenderingComplete) {
+        setTimeout(() => onRenderingComplete(), 50);
+      }
       return;
     }
 
@@ -93,6 +99,10 @@ export default function ProgressiveMessageList({
 
         if (nextCount >= messages.length) {
           setIsLoading(false);
+          // Call the completion callback after a brief delay to ensure DOM is updated
+          if (onRenderingComplete) {
+            setTimeout(() => onRenderingComplete(), 50);
+          }
         } else {
           // Schedule next batch
           timeoutRef.current = window.setTimeout(loadNextBatch, batchDelay);
@@ -111,7 +121,14 @@ export default function ProgressiveMessageList({
         timeoutRef.current = null;
       }
     };
-  }, [messages.length, batchSize, batchDelay, showLoadingThreshold, renderedCount]);
+  }, [
+    messages.length,
+    batchSize,
+    batchDelay,
+    showLoadingThreshold,
+    renderedCount,
+    onRenderingComplete,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -15,8 +15,8 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-7-sonnet", "claude-3-5-sonnet"];
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-4-sonnet";
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-4-sonnet", "claude-3-7-sonnet"];
 
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model";
