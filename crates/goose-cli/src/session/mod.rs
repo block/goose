@@ -1340,23 +1340,11 @@ impl Session {
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
                             }
+                            
                             // Check if it's a ProviderError::ContextLengthExceeded
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
-                                output::render_error(
-                                    "Context length exceeded error.\n\
-                                    The conversation is too long for the model's context window.\n\
-                                    Consider using /summarize to condense the conversation history\n\
-                                    or /clear to start fresh.\n\
-                                    We've removed the conversation up to the most recent user message.",
-                                );
-                            } else {
-                                // Check if it's a ProviderError::ContextLengthExceeded
-                                if e.downcast_ref::<goose::providers::errors::ProviderError>()
-                                    .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
-                                    .unwrap_or(false) {
-
                                     output::render_error(&format!("Error: Context length exceeded: {}", e));
 
                                     let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
@@ -1397,8 +1385,16 @@ impl Session {
                                             }
                                         }
                                     }
-                                }
+                            } else {
+                                output::render_error(
+                                    "Context length exceeded error.\n\
+                                    The conversation is too long for the model's context window.\n\
+                                    Consider using /summarize to condense the conversation history\n\
+                                    or /clear to start fresh.\n\
+                                    We've removed the conversation up to the most recent user message.",
+                                );
                             }
+                            break;
                         }
                         None => break,
                     }
