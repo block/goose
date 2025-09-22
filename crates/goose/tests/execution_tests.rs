@@ -7,18 +7,18 @@ mod execution_tests {
     #[test]
     fn test_execution_mode_constructors() {
         assert_eq!(
-            SessionSessionExecutionMode::chat(),
-            SessionSessionExecutionMode::Interactive
+            SessionExecutionMode::chat(),
+            SessionExecutionMode::Interactive
         );
         assert_eq!(
-            SessionSessionExecutionMode::scheduled(),
-            SessionSessionExecutionMode::Background
+            SessionExecutionMode::scheduled(),
+            SessionExecutionMode::Background
         );
 
         let parent = "parent-123".to_string();
         assert_eq!(
-            SessionSessionExecutionMode::task(parent.clone()),
-            SessionSessionExecutionMode::SubTask {
+            SessionExecutionMode::task(parent.clone()),
+            SessionExecutionMode::SubTask {
                 parent_session: parent
             }
         );
@@ -29,20 +29,24 @@ mod execution_tests {
         let manager = AgentManager::new();
 
         let session1 = uuid::Uuid::new_v4().to_string();
+        let session2 = uuid::Uuid::new_v4().to_string();
 
-        // Verify session1 is gone but session2 remains
-        let _agent1_new = manager
-            .get_agent(session1.clone(), SessionSessionExecutionMode::Interactive)
+        let agent1 = manager
+            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
-        let _agent2_same = manager
-            .get_agent(session2.clone(), SessionSessionExecutionMode::Interactive)
+        let agent2 = manager
+            .get_agent(session2.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
+
+        // Different sessions should have different agents
+        assert!(!Arc::ptr_eq(&agent1, &agent2));
+
         // Getting the same session should return the same agent
         let agent1_again = manager
-            .get_agent(session1, SessionSessionExecutionMode::chat())
+            .get_agent(session1, SessionExecutionMode::chat())
             .await
             .unwrap();
 
@@ -67,7 +71,7 @@ mod execution_tests {
         // Create a new session after cleanup
         let new_session = "new-session".to_string();
         let _new_agent = manager
-            .get_agent(new_session, SessionSessionExecutionMode::chat())
+            .get_agent(new_session, SessionExecutionMode::chat())
             .await
             .unwrap();
 
@@ -102,7 +106,7 @@ mod execution_tests {
             let mgr = Arc::clone(&manager);
             let sess = session.clone();
             handles.push(tokio::spawn(async move {
-                mgr.get_agent(sess, SessionSessionExecutionMode::chat())
+                mgr.get_agent(sess, SessionExecutionMode::chat())
                     .await
                     .unwrap()
             }));
@@ -127,8 +131,8 @@ mod execution_tests {
         let session_id = String::from("mode-test");
 
         // Create initial agent
-        let _agent = manager
-            .get_agent(session.clone(), SessionSessionExecutionMode::chat())
+        let agent1 = manager
+            .get_agent(session_id.clone(), SessionExecutionMode::chat())
             .await
             .unwrap();
 
@@ -151,16 +155,15 @@ mod execution_tests {
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
         let mut handles = vec![];
-        for _ in 0..20 {
-            let sess = format!("stress-session-{}", i);
+        for i in 0..20 {
+            let sess = session_id.clone();
             let mgr_clone = Arc::clone(&manager);
             handles.push(tokio::spawn(async move {
                 mgr_clone
-                    .get_agent(sess, SessionSessionExecutionMode::Interactive)
+                    .get_agent(sess, SessionExecutionMode::Interactive)
                     .await
                     .unwrap()
             }));
-            handles.push(handle);
         }
 
         // Collect all agents

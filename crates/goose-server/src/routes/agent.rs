@@ -9,6 +9,7 @@ use axum::{
 use goose::config::PermissionManager;
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
+use goose::execution::SessionExecutionMode;
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
@@ -30,10 +31,13 @@ pub(crate) async fn get_agent_or_500(
     state: &Arc<AppState>,
     session_id: String,
 ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
-    state.get_session_agent(session_id).await.map_err(|e| {
-        tracing::error!("Failed to get session agent: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
+    state
+        .get_session_agent(session_id, SessionExecutionMode::Interactive)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get session agent: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Helper for routes that return Json<ErrorResponse> on error
@@ -41,11 +45,14 @@ pub(crate) async fn get_agent_or_json_error(
     state: &Arc<AppState>,
     session_id: String,
 ) -> Result<Arc<goose::agents::Agent>, Json<ErrorResponse>> {
-    state.get_session_agent(session_id).await.map_err(|e| {
-        let msg = format!("Failed to get session agent: {}", e);
-        tracing::error!("{}", msg);
-        Json(ErrorResponse { error: msg })
-    })
+    state
+        .get_session_agent(session_id, SessionExecutionMode::Interactive)
+        .await
+        .map_err(|e| {
+            let msg = format!("Failed to get session agent: {}", e);
+            tracing::error!("{}", msg);
+            Json(ErrorResponse { error: msg })
+        })
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -314,7 +321,13 @@ async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, impl IntoResponse> {
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
+    let agent = match state
+        .get_session_agent(
+            payload.session_id.clone(),
+            SessionExecutionMode::Interactive,
+        )
+        .await
+    {
         Ok(agent) => agent,
         Err(e) => {
             return Err((

@@ -11,6 +11,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
+use goose::execution::SessionExecutionMode;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
@@ -209,7 +210,10 @@ async fn reply_handler(
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = match state.get_session_agent(session_id.clone()).await {
+        let agent = match state
+            .get_session_agent(session_id.clone(), SessionExecutionMode::Interactive)
+            .await
+        {
             Ok(agent) => agent,
             Err(e) => {
                 tracing::error!("Failed to get session agent: {}", e);

@@ -63,7 +63,7 @@ impl AppState {
         &self,
         session_id: String,
         mode: SessionExecutionMode,
-    ) -> anyhow::Result<Arc<Mutex<goose::agents::Agent>>> {
+    ) -> anyhow::Result<Arc<goose::agents::Agent>> {
         self.agent_manager.get_agent(session_id, mode).await
     }
 }

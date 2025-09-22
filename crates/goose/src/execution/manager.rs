@@ -66,7 +66,11 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_agent(&self, session_id: String, mode: SessionExecutionMode) -> Result<Arc<Agent>> {
+    pub async fn get_agent(
+        &self,
+        session_id: String,
+        mode: SessionExecutionMode,
+    ) -> Result<Arc<Agent>> {
         // Try to get existing agent with write lock (for LRU update)
         {
             let mut sessions = self.sessions.write().await;
