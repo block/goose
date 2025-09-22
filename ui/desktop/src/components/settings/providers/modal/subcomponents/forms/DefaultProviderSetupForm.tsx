@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
+import { Checkbox } from '@radix-ui/themes';
 import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
 
@@ -10,6 +11,8 @@ interface DefaultProviderSetupFormProps {
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
+  // Optional callback invoked when a field is edited so parent can clear errors
+  onFieldChange?: (name: string, value: string) => void;
 }
 
 export default function DefaultProviderSetupForm({
@@ -17,6 +20,7 @@ export default function DefaultProviderSetupForm({
   setConfigValues,
   provider,
   validationErrors = {},
+  onFieldChange,
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => provider.metadata.config_keys || [],
@@ -29,10 +33,17 @@ export default function DefaultProviderSetupForm({
 
   // Initialize values when the component mounts or provider changes
   const loadConfigValues = useCallback(async () => {
-    setIsLoading(true);
-    const newValues = { ...configValues };
+    // If there are no parameters, nothing to load
+    if (parameters.length === 0) {
+      setIsLoading(false);
+      return;
+    }
 
-    // Try to load actual values from config for each parameter that is not secret
+    setIsLoading(true);
+
+    // Collect responses per parameter without relying on current configValues
+    const responses: Record<string, string> = {};
+
     for (const parameter of parameters) {
       try {
         // Check if there's a stored value in the config system
@@ -40,50 +51,46 @@ export default function DefaultProviderSetupForm({
         const configResponse = await read(configKey, parameter.secret || false);
 
         if (configResponse) {
-          newValues[parameter.name] = parameter.secret ? 'true' : String(configResponse);
+          responses[parameter.name] = parameter.secret ? 'true' : String(configResponse);
         } else if (
           parameter.default !== undefined &&
           parameter.default !== null &&
-          !configValues[parameter.name]
+          !responses[parameter.name]
         ) {
           // Fall back to default value if no config value exists
-          newValues[parameter.name] = String(parameter.default);
+          responses[parameter.name] = String(parameter.default);
         }
       } catch (error) {
         console.error(`Failed to load config for ${parameter.name}:`, error);
-        // Fall back to default if read operation fails
-        if (
-          parameter.default !== undefined &&
-          parameter.default !== null &&
-          !configValues[parameter.name]
-        ) {
-          newValues[parameter.name] = String(parameter.default);
+        if (parameter.default !== undefined && parameter.default !== null) {
+          responses[parameter.name] = String(parameter.default);
         }
       }
     }
 
-    // Update state with loaded values
-    setConfigValues((prev) => ({
-      ...prev,
-      ...newValues,
-    }));
+    // Merge responses into state but do not overwrite user-entered values
+    setConfigValues((prev) => {
+      const merged = { ...prev };
+      for (const k of Object.keys(responses)) {
+        if (merged[k] === undefined || merged[k] === null || merged[k] === '') {
+          merged[k] = responses[k];
+        }
+      }
+      return merged;
+    });
+
     setIsLoading(false);
-  }, [configValues, parameters, read, setConfigValues]);
+  }, [parameters, read, setConfigValues]);
 
   useEffect(() => {
     loadConfigValues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter parameters to only show required ones
-  const requiredParameters = useMemo(() => {
-    return parameters.filter((param) => param.required === true);
-  }, [parameters]);
+  // Show all parameters (required and optional)
+  const visibleParameters = useMemo(() => parameters, [parameters]);
 
-  // TODO: show all params, not just required ones
-  // const allParameters = useMemo(() => {
-  //   return parameters;
-  // }, [parameters]);
+  const currentProviderIsCustom = provider.name && provider.name.startsWith('custom_');
 
   // Helper function to generate appropriate placeholder text
   const getPlaceholder = (parameter: ConfigKey): string => {
@@ -118,19 +125,30 @@ export default function DefaultProviderSetupForm({
       .trim();
   };
 
-  if (isLoading) {
-    return <div className="text-center py-4">Loading configuration values...</div>;
-  }
+  const handleChange = (parameter: ConfigKey, value: string) => {
+    setConfigValues((prev) => ({
+      ...prev,
+      [parameter.name]: value,
+    }));
 
-  console.log('required params', requiredParameters);
+    // Let parent clear any validation errors for this field and any submission error
+    if (onFieldChange) onFieldChange(parameter.name, value);
+  };
+
   return (
     <div className="mt-4 space-y-4">
-      {requiredParameters.length === 0 ? (
+      {isLoading && (
+        <div className="text-center py-2 text-sm text-textSubtle">
+          Loading configuration values...
+        </div>
+      )}
+
+      {visibleParameters.length === 0 ? (
         <div className="text-center text-gray-500">
-          No required configuration for this provider.
+          No configuration required for this provider.
         </div>
       ) : (
-        requiredParameters.map((parameter) => (
+        visibleParameters.map((parameter) => (
           <div key={parameter.name}>
             <label className="block text-sm font-medium text-textStandard mb-1">
               {getFieldLabel(parameter)}
@@ -140,11 +158,7 @@ export default function DefaultProviderSetupForm({
               type={parameter.secret ? 'password' : 'text'}
               value={configValues[parameter.name] || ''}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                console.log(`Setting ${parameter.name} to:`, e.target.value);
-                setConfigValues((prev) => ({
-                  ...prev,
-                  [parameter.name]: e.target.value,
-                }));
+                handleChange(parameter, e.target.value);
               }}
               placeholder={getPlaceholder(parameter)}
               className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
@@ -159,6 +173,67 @@ export default function DefaultProviderSetupForm({
             )}
           </div>
         ))
+      )}
+      {/* Additional editable custom-provider fields (description, headers, timeout) */}
+      {currentProviderIsCustom && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-textStandard mb-1">Description</label>
+            <Input
+              type="text"
+              value={configValues['description'] || ''}
+              onChange={(e) =>
+                setConfigValues((prev) => ({ ...prev, description: e.target.value }))
+              }
+              placeholder="Optional description"
+              className="w-full h-14 px-4"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-textStandard mb-1">
+              Headers (JSON)
+            </label>
+            <Input
+              type="text"
+              value={configValues['headers'] || ''}
+              onChange={(e) => setConfigValues((prev) => ({ ...prev, headers: e.target.value }))}
+              placeholder='{"Authorization":"Bearer ..."}'
+              className="w-full h-14 px-4"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-textStandard mb-1">
+              Timeout (seconds)
+            </label>
+            <Input
+              type="number"
+              value={configValues['timeout_seconds'] || ''}
+              onChange={(e) =>
+                setConfigValues((prev) => ({ ...prev, timeout_seconds: e.target.value }))
+              }
+              placeholder="30"
+              className="w-full h-14 px-4"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2 mt-2">
+            <Checkbox
+              id="supports-streaming-edit"
+              checked={String(configValues['supports_streaming']) === 'true'}
+              onCheckedChange={(checked) =>
+                setConfigValues((prev) => ({ ...prev, supports_streaming: String(checked) }))
+              }
+            />
+            <label
+              htmlFor="supports-streaming-edit"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
+            >
+              Provider supports streaming responses
+            </label>
+          </div>
+        </>
       )}
     </div>
   );
