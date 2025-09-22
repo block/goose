@@ -1,3 +1,4 @@
+use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
@@ -47,13 +48,7 @@ async fn manage_context(
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     // Get session-specific agent
-    let agent = state
-        .get_session_agent(request.session_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get session agent: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let agent = get_agent_or_500(&state, request.session_id).await?;
 
     let mut processed_messages = Conversation::new_unvalidated(vec![]);
     let mut token_counts: Vec<usize> = vec![];

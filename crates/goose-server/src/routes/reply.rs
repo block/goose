@@ -1,3 +1,4 @@
+use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{
     extract::{DefaultBodyLimit, State},
@@ -487,13 +488,7 @@ pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let agent = match state.get_session_agent(request.session_id.clone()).await {
-        Ok(agent) => agent,
-        Err(e) => {
-            tracing::error!("Failed to get session agent: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let agent = get_agent_or_500(&state, request.session_id.clone()).await?;
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -541,13 +536,7 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = match state.get_session_agent(payload.session_id.clone()).await {
-        Ok(agent) => agent,
-        Err(e) => {
-            tracing::error!("Failed to get session agent: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let agent = get_agent_or_500(&state, payload.session_id.clone()).await?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }

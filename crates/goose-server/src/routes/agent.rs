@@ -26,7 +26,7 @@ use std::sync::Arc;
 use tracing::error;
 
 /// Helper for routes that return StatusCode on error
-async fn get_agent_or_500(
+pub(crate) async fn get_agent_or_500(
     state: &Arc<AppState>,
     session_id: Option<String>,
 ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
@@ -37,7 +37,7 @@ async fn get_agent_or_500(
 }
 
 /// Helper for routes that return Json<ErrorResponse> on error
-async fn get_agent_or_json_error(
+pub(crate) async fn get_agent_or_json_error(
     state: &Arc<AppState>,
     session_id: Option<String>,
 ) -> Result<Arc<goose::agents::Agent>, Json<ErrorResponse>> {

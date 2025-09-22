@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -279,13 +280,7 @@ async fn add_extension(
         },
     };
 
-    let agent = state
-        .get_session_agent(session_id.clone())
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get session agent: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let agent = get_agent_or_500(&state, session_id.clone()).await?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -318,13 +313,7 @@ async fn remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    let agent = state
-        .get_session_agent(request.session_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get session agent: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let agent = get_agent_or_500(&state, request.session_id).await?;
 
     match agent.remove_extension(&request.name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
