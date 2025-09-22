@@ -3388,7 +3388,7 @@ Additional instructions here.
 
     #[test]
     #[serial]
-    async fn test_resolve_path_absolute() {
+    fn test_resolve_path_absolute() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
@@ -3462,12 +3462,8 @@ Additional instructions here.
             diff: None,
         });
 
-        // Verify no processes are left tracked after completion
-        let processes = server.running_processes.read().await;
-        assert!(
-            !processes.contains_key("789"),
-            "Process should be cleaned up after completion"
-        );
+        let result = server.text_editor(write_params).await;
+        assert!(result.is_ok());
 
         let absolute_path = temp_dir.path().join(relative_path);
         let content = fs::read_to_string(&absolute_path).unwrap();
