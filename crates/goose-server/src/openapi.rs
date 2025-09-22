@@ -6,7 +6,7 @@ use goose::config::ExtensionEntry;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
-use goose::session::{SessionInfo, SessionMetadata};
+use goose::session::Session;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
     RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
@@ -444,8 +444,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         PermissionLevel,
         PrincipalType,
         ModelInfo,
-        SessionInfo,
-        SessionMetadata,
+        Session,
         goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,

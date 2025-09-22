@@ -8,7 +8,7 @@ use axum::{
 use chrono::DateTime;
 use goose::conversation::message::Message;
 use goose::session;
-use goose::session::{SessionInfo, SessionManager, SessionMetadata};
+use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use utoipa::ToSchema;
 #[serde(rename_all = "camelCase")]
 pub struct SessionListResponse {
     /// List of available session information objects
-    sessions: Vec<SessionInfo>,
+    sessions: Vec<Session>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -28,9 +28,8 @@ pub struct SessionListResponse {
 pub struct SessionHistoryResponse {
     /// Unique identifier for the session
     session_id: String,
-    /// Session metadata containing creation time and other details
-    metadata: SessionMetadata,
-    /// List of messages in the session conversation
+    /// Session
+    session: Session,
     messages: Vec<Message>,
 }
 
@@ -105,32 +104,26 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
 async fn get_session_history(
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    let metadata = SessionManager::get_session_metadata(&session_id)
+    let mut session = SessionManager::get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let conversation = SessionManager::get_conversation(&session_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to read session messages: {:?}", e);
-            StatusCode::NOT_FOUND
-        })?;
-
-    // Filter messages to only include user_visible ones
-    let user_visible_messages: Vec<Message> = conversation
+    let user_visible_messages = session
+        .conversation
+        .take()
+        .unwrap_or_default()
         .messages()
-        .iter()
+        .into_iter()
         .filter(|m| m.is_user_visible())
         .cloned()
         .collect();
 
     Ok(Json(SessionHistoryResponse {
         session_id,
-        metadata,
+        session: session.without_messages(),
         messages: user_visible_messages,
     }))
 }
-
 #[utoipa::path(
     get,
     path = "/sessions/insights",
@@ -153,9 +146,9 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     })?;
 
     // Filter out sessions without descriptions
-    let sessions: Vec<SessionInfo> = sessions
+    let sessions: Vec<Session> = sessions
         .into_iter()
-        .filter(|session| !session.metadata.description.is_empty())
+        .filter(|session| !session.description.is_empty())
         .collect();
     info!(
         "Found {} sessions with descriptions in {}",
@@ -178,11 +171,11 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 
     for session in &sessions {
         // Track directory usage
-        let dir = session.metadata.working_dir.to_string_lossy().to_string();
+        let dir = session.working_dir.to_string_lossy().to_string();
         *dir_counts.entry(dir).or_insert(0) += 1;
 
         // Track tokens - only add positive values to prevent negative totals
-        if let Some(tokens) = session.metadata.accumulated_total_tokens {
+        if let Some(tokens) = session.accumulated_total_tokens {
             match tokens.cmp(&0) {
                 std::cmp::Ordering::Greater => {
                     total_tokens += tokens as i64;
@@ -201,7 +194,7 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
         }
 
         // Track activity by date
-        if let Ok(date) = DateTime::parse_from_str(&session.modified, "%Y-%m-%d %H:%M:%S UTC") {
+        if let Ok(date) = DateTime::parse_from_str(&session.updated_at, "%Y-%m-%d %H:%M:%S UTC") {
             let date_str = date.format("%Y-%m-%d").to_string();
             *activity_by_date.entry(date_str).or_insert(0) += 1;
         }
@@ -256,12 +249,9 @@ async fn update_session_metadata(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let mut metadata = SessionManager::get_session_metadata(&session_id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    metadata.description = request.description;
-    SessionManager::update_session_metadata(&session_id, metadata)
+    SessionManager::update_session(&session_id)
+        .description(request.description)
+        .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

@@ -224,19 +224,19 @@ async fn health_check() -> Json<serde_json::Value> {
 async fn list_sessions() -> Json<serde_json::Value> {
     match SessionManager::list_sessions().await {
         Ok(sessions) => {
-            let session_info: Vec<serde_json::Value> = sessions
-                .into_iter()
-                .map(|session| {
-                    serde_json::json!({
-                        "name": session.id,
-                        "path": session.path,
-                        "description": session.description,
-                        "message_count": session.metadata.message_count,
-                        "working_dir": session.working_dir
-                    })
-                })
-                .collect();
+            let mut session_info = Vec::new();
 
+            for session in sessions {
+                let count = session.get_message_count().await.unwrap_or(0);
+
+                session_info.push(serde_json::json!({
+                    "name": session.id,
+                    "path": session.id,
+                    "description": session.description,
+                    "message_count": count,
+                    "working_dir": session.working_dir
+                }));
+            }
             Json(serde_json::json!({
                 "sessions": session_info
             }))
@@ -250,15 +250,10 @@ async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
     match SessionManager::get_session(&session_id, true).await {
-        Ok(conversation) => match SessionManager::get_session_metadata(&session_id).await {
-            Ok(metadata) => Json(serde_json::json!({
-                "metadata": metadata,
-                "messages": conversation.messages()
-            })),
-            Err(e) => Json(serde_json::json!({
-                "error": e.to_string()
-            })),
-        },
+        Ok(session) => Json(serde_json::json!({
+            "metadata": session,
+            "messages": session.conversation.unwrap_or_default().messages()
+        })),
         Err(e) => Json(serde_json::json!({
             "error": e.to_string()
         })),
@@ -296,8 +291,10 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     let mut sessions = state.sessions.write().await;
 
                                     let existing_messages =
-                                        SessionManager::get_conversation(&session_id)
+                                        SessionManager::get_session(&session_id, true)
                                             .await
+                                            .unwrap()
+                                            .conversation
                                             .unwrap_or_default();
 
                                     let new_session = Arc::new(Mutex::new(existing_messages));

@@ -162,6 +162,10 @@ impl SessionManager {
             .await
     }
 
+    pub async fn get_message_count(id: &str) -> Result<usize> {
+        Self::instance().await?.get_message_count(id).await
+    }
+
     pub fn update_session(id: &str) -> SessionUpdateBuilder {
         SessionUpdateBuilder::new(id.to_string())
     }
@@ -262,6 +266,24 @@ impl Default for Session {
             recipe_json: None,
             conversation: None,
         }
+    }
+}
+
+impl Session {
+    pub async fn get_message_count(&self) -> Result<usize> {
+        if let Some(ref conversation) = self.conversation {
+            Ok(conversation.messages().len())
+        } else {
+            SessionManager::instance()
+                .await?
+                .get_message_count(&self.id)
+                .await
+        }
+    }
+
+    pub fn without_messages(mut self) -> Self {
+        self.conversation = None;
+        self
     }
 }
 
@@ -822,5 +844,14 @@ impl SessionStorage {
             .await?;
 
         Ok(())
+    }
+    async fn get_message_count(&self, session_id: &str) -> Result<usize> {
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
+                .bind(session_id)
+                .fetch_one(&self.pool)
+                .await?;
+
+        Ok(count as usize)
     }
 }

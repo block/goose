@@ -326,7 +326,7 @@ async fn reply_handler(
 
         if let Ok(metadata) = SessionManager::get_session(&session_id, true).await {
             let total_tokens = metadata.total_tokens.unwrap_or(0);
-            let message_count = metadata.conversation.count();
+            let message_count = metadata.get_message_count().await.unwrap_or(0);
 
             tracing::info!(
                 counter.goose.session_completions = 1,

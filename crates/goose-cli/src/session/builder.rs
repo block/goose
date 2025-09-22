@@ -128,12 +128,8 @@ async fn offer_extension_debugging_help(
         }
     }
 
-    // Create a temporary session file for this debugging session
-    let session_id = generate_session_id();
-
     // Create the debugging session
-    let mut debug_session =
-        CliSession::new(debug_agent, Some(session_id), false, None, None, None, None);
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());

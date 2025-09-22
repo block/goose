@@ -137,6 +137,7 @@ impl CliSession {
                 tokio::runtime::Handle::current().block_on(async {
                     SessionManager::get_session(session_id, true)
                         .await
+                        .map(|session| session.conversation.unwrap_or_default())
                         .unwrap_or_else(|e| {
                             eprintln!("Warning: Failed to load message history: {}", e);
                             Conversation::new_unvalidated(Vec::new())
@@ -600,7 +601,11 @@ impl CliSession {
                     save_history(&mut editor);
 
                     if let Some(session_id) = &self.session_id {
-                        if let Err(e) = SessionManager::replace_conversation(session_id, &[]).await
+                        if let Err(e) = SessionManager::replace_conversation(
+                            session_id,
+                            &Conversation::default(),
+                        )
+                        .await
                         {
                             output::render_error(&format!("Failed to clear session: {}", e));
                             continue;
@@ -688,23 +693,16 @@ impl CliSession {
                         // Persist the summarized messages and update session metadata
                         if let Some(session_id) = &self.session_id {
                             // Replace all messages with the summarized version
-                            SessionManager::replace_conversation(
-                                session_id,
-                                summarized_messages.messages(),
-                            )
-                            .await?;
+                            SessionManager::replace_conversation(session_id, &summarized_messages)
+                                .await?;
 
                             // Update session metadata with the new token counts from summarization
                             if let Some(usage) = summarization_usage {
-                                let mut metadata =
+                                let session =
                                     SessionManager::get_session(session_id, false).await?;
 
                                 // Update token counts with the summarization usage
                                 let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
-                                metadata.total_tokens = Some(summary_tokens);
-                                metadata.input_tokens = None;
-                                metadata.output_tokens = Some(summary_tokens);
-                                metadata.message_count = self.messages.len();
 
                                 // Update accumulated tokens (add the summarization cost)
                                 let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
@@ -713,20 +711,28 @@ impl CliSession {
                                         _ => a.or(b),
                                     }
                                 };
-                                metadata.accumulated_total_tokens = accumulate(
-                                    metadata.accumulated_total_tokens,
+
+                                let accumulated_total = accumulate(
+                                    session.accumulated_total_tokens,
                                     usage.usage.total_tokens,
                                 );
-                                metadata.accumulated_input_tokens = accumulate(
-                                    metadata.accumulated_input_tokens,
+                                let accumulated_input = accumulate(
+                                    session.accumulated_input_tokens,
                                     usage.usage.input_tokens,
                                 );
-                                metadata.accumulated_output_tokens = accumulate(
-                                    metadata.accumulated_output_tokens,
+                                let accumulated_output = accumulate(
+                                    session.accumulated_output_tokens,
                                     usage.usage.output_tokens,
                                 );
 
-                                SessionManager::update_session_metadata(session_id, metadata)
+                                SessionManager::update_session(session_id)
+                                    .total_tokens(Some(summary_tokens))
+                                    .input_tokens(None)
+                                    .output_tokens(Some(summary_tokens))
+                                    .accumulated_total_tokens(accumulated_total)
+                                    .accumulated_input_tokens(accumulated_input)
+                                    .accumulated_output_tokens(accumulated_output)
+                                    .apply()
                                     .await?;
                             }
                         }

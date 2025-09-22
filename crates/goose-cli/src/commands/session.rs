@@ -2,7 +2,7 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 use clap::builder::Str;
 use cliclack::{confirm, multiselect, select};
-use goose::session::{Session, SessionInfo, SessionManager};
+use goose::session::{Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -10,10 +10,10 @@ use std::path::{Path, PathBuf};
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
 
-pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
+pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
-        println!("- {}", session.id);
+        println!("- {} {}", session.id, session.description);
     }
 
     let should_delete = confirm("Are you sure you want to delete these sessions?")
@@ -22,8 +22,7 @@ pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
 
     if should_delete {
         for session in sessions {
-            fs::remove_file(session.path.clone())
-                .with_context(|| format!("Failed to remove session file '{}'", session.path))?;
+            SessionManager::delete_session(&session.id).await?;
             println!("Session `{}` removed.", session.id);
         }
     } else {
@@ -33,7 +32,7 @@ pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
     Ok(())
 }
 
-fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<SessionInfo>> {
+fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Session>> {
     if sessions.is_empty() {
         println!("No sessions to delete.");
         return Ok(vec![]);
@@ -43,16 +42,16 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
         "Select sessions to delete (use spacebar, Enter to confirm, Ctrl+C to cancel):",
     );
 
-    let display_map: std::collections::HashMap<String, SessionInfo> = sessions
+    let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.metadata.description.is_empty() {
+            let desc = if s.description.is_empty() {
                 "(no description)"
             } else {
-                &s.metadata.description
+                &s.description
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
-            let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
+            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();
@@ -63,7 +62,7 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
 
     let selected_display_texts: Vec<String> = selector.interact()?;
 
-    let selected_sessions: Vec<SessionInfo> = selected_display_texts
+    let selected_sessions: Vec<Session> = selected_display_texts
         .into_iter()
         .filter_map(|text| display_map.get(&text).cloned())
         .collect();
@@ -80,7 +79,7 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
         }
     };
 
-    let matched_sessions: Vec<SessionInfo>;
+    let matched_sessions: Vec<Session>;
 
     if let Some(id_val) = id {
         if let Some(session) = all_sessions.iter().find(|s| s.id == id_val) {
@@ -112,19 +111,11 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
         return Ok(());
     }
 
-    remove_sessions(matched_sessions)
+    remove_sessions(matched_sessions).await
 }
 
 pub async fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
-    let sessions = match SessionManager::list_sessions().await {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to list sessions"));
-        }
-    };
-
-    let mut sessions = sessions;
+    let mut sessions = SessionManager::list_sessions().await?;
     if ascending {
         sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
     } else {
@@ -139,21 +130,18 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
             if sessions.is_empty() {
                 println!("No sessions found");
                 return Ok(());
-            } else {
-                println!("Available sessions:");
-                for Session {
-                    id,
-                    description,
-                    updated_at, ..
-                } in sessions
-                {
-                    let output = format!("{} - {} - {}", id, description, updated_at);
-                    if verbose {
-                        println!("  {}", output);
-                    } else {
-                        println!("{}", output);
-                    }
-                    }
+            }
+
+            println!("Available sessions:");
+            for session in sessions {
+                let output = format!(
+                    "{} - {} - {}",
+                    session.id, session.description, session.updated_at
+                );
+                if verbose {
+                    println!("  {}", output);
+                } else {
+                    println!("{}", output);
                 }
             }
         }
