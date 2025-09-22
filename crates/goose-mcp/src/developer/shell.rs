@@ -1,33 +1,27 @@
-use std::env;
+use std::{env, ffi::OsString};
+
+use goose::config::get_config_dir;
 
 #[derive(Debug, Clone)]
 pub struct ShellConfig {
     pub executable: String,
     pub args: Vec<String>,
+    pub envs: Vec<(OsString, OsString)>,
 }
 
 impl Default for ShellConfig {
     fn default() -> Self {
-        if cfg!(windows) {
-            // Detect the default shell on Windows
-            #[cfg(windows)]
-            {
-                Self::detect_windows_shell()
-            }
-            #[cfg(not(windows))]
-            {
-                // This branch should never be taken on non-Windows
-                // but we need it for compilation
-                Self {
-                    executable: "cmd".to_string(),
-                    args: vec!["/c".to_string()],
-                }
-            }
-        } else {
-            // Use bash on Unix/macOS (keep existing behavior)
+        #[cfg(windows)]
+        {
+            Self::detect_windows_shell()
+        }
+        #[cfg(not(windows))]
+        {
+            let bash_env = get_config_dir().join(".bash_env").into_os_string();
             Self {
                 executable: "bash".to_string(),
                 args: vec!["-c".to_string()],
+                envs: vec![(OsString::from("BASH_ENV"), bash_env)],
             }
         }
     }
@@ -46,6 +40,7 @@ impl ShellConfig {
                     "-NonInteractive".to_string(),
                     "-Command".to_string(),
                 ],
+                envs: vec![],
             }
         } else if let Ok(ps_path) = which::which("powershell") {
             // Windows PowerShell 5.1
@@ -56,12 +51,14 @@ impl ShellConfig {
                     "-NonInteractive".to_string(),
                     "-Command".to_string(),
                 ],
+                envs: vec![],
             }
         } else {
             // Fall back to cmd.exe
             Self {
                 executable: "cmd".to_string(),
                 args: vec!["/c".to_string()],
+                envs: vec![],
             }
         }
     }

@@ -116,14 +116,18 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
+pub fn get_config_dir() -> PathBuf {
+    choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir()
+}
+
 impl Default for Config {
     fn default() -> Self {
         // choose_app_strategy().config_dir()
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
+        let config_dir = get_config_dir();
 
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 

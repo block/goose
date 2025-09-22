@@ -11,6 +11,7 @@ description.workspace = true
 workspace = true
 
 [dependencies]
+goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
 rmcp = { version = "0.6.0", features = ["server", "client", "transport-io", "macros"] }

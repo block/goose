@@ -902,6 +902,7 @@ impl DeveloperServer {
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
+            .envs(shell_config.envs)
             .env("GOOSE_TERMINAL", "1")
             .args(&shell_config.args)
             .arg(command)

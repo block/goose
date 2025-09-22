@@ -2815,6 +2815,7 @@ dependencies = [
  "docx-rs",
  "etcetera",
  "glob",
+ "goose",
  "http-body-util",
  "hyper 1.6.0",
  "ignore",
