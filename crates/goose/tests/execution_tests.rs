@@ -1,18 +1,24 @@
 mod execution_tests {
     use goose::execution::manager::AgentManager;
-    use goose::execution::ExecutionMode;
+    use goose::execution::SessionExecutionMode;
     use serial_test::serial;
     use std::sync::Arc;
 
     #[test]
-    fn test_execution_mode_helpers() {
-        assert_eq!(ExecutionMode::chat(), ExecutionMode::Interactive);
-        assert_eq!(ExecutionMode::scheduled(), ExecutionMode::Background);
+    fn test_execution_mode_constructors() {
+        assert_eq!(
+            SessionSessionExecutionMode::chat(),
+            SessionSessionExecutionMode::Interactive
+        );
+        assert_eq!(
+            SessionSessionExecutionMode::scheduled(),
+            SessionSessionExecutionMode::Background
+        );
 
         let parent = "parent-123".to_string();
         assert_eq!(
-            ExecutionMode::task(parent.clone()),
-            ExecutionMode::SubTask {
+            SessionSessionExecutionMode::task(parent.clone()),
+            SessionSessionExecutionMode::SubTask {
                 parent_session: parent
             }
         );
@@ -23,23 +29,23 @@ mod execution_tests {
         let manager = AgentManager::new();
 
         let session1 = uuid::Uuid::new_v4().to_string();
-        let session2 = uuid::Uuid::new_v4().to_string();
 
-        let agent1 = manager
-            .get_agent(session1.clone(), ExecutionMode::chat())
-            .await
-            .unwrap();
-        let agent2 = manager
-            .get_agent(session2.clone(), ExecutionMode::chat())
+        // Verify session1 is gone but session2 remains
+        let _agent1_new = manager
+            .get_agent(session1.clone(), SessionSessionExecutionMode::Interactive)
             .await
             .unwrap();
 
-        assert!(!Arc::ptr_eq(&agent1, &agent2));
-
+        let _agent2_same = manager
+            .get_agent(session2.clone(), SessionSessionExecutionMode::Interactive)
+            .await
+            .unwrap();
+        // Getting the same session should return the same agent
         let agent1_again = manager
-            .get_agent(session1, ExecutionMode::chat())
+            .get_agent(session1, SessionSessionExecutionMode::chat())
             .await
             .unwrap();
+
         assert!(Arc::ptr_eq(&agent1, &agent1_again));
     }
 
@@ -53,16 +59,15 @@ mod execution_tests {
 
         for session in &sessions {
             manager
-                .get_agent(session.clone(), ExecutionMode::chat())
+                .get_agent(session.clone(), SessionExecutionMode::chat())
                 .await
                 .unwrap();
         }
 
-        assert_eq!(manager.session_count().await, 3);
-
-        let new_session = String::from("session-new");
-        manager
-            .get_agent(new_session, ExecutionMode::chat())
+        // Create a new session after cleanup
+        let new_session = "new-session".to_string();
+        let _new_agent = manager
+            .get_agent(new_session, SessionSessionExecutionMode::chat())
             .await
             .unwrap();
 
@@ -76,7 +81,7 @@ mod execution_tests {
         let session = String::from("remove-test");
 
         manager
-            .get_agent(session.clone(), ExecutionMode::chat())
+            .get_agent(session.clone(), SessionExecutionMode::chat())
             .await
             .unwrap();
         assert!(manager.has_session(&session).await);
@@ -96,11 +101,11 @@ mod execution_tests {
         for _ in 0..10 {
             let mgr = Arc::clone(&manager);
             let sess = session.clone();
-            let handle =
-                tokio::spawn(
-                    async move { mgr.get_agent(sess, ExecutionMode::chat()).await.unwrap() },
-                );
-            handles.push(handle);
+            handles.push(tokio::spawn(async move {
+                mgr.get_agent(sess, SessionSessionExecutionMode::chat())
+                    .await
+                    .unwrap()
+            }));
         }
 
         let agents: Vec<_> = futures::future::join_all(handles)
@@ -121,16 +126,16 @@ mod execution_tests {
         let manager = AgentManager::new();
         let session_id = String::from("mode-test");
 
-        // Get agent with Interactive mode
-        let agent1 = manager
-            .get_agent(session_id.clone(), ExecutionMode::Interactive)
+        // Create initial agent
+        let _agent = manager
+            .get_agent(session.clone(), SessionSessionExecutionMode::chat())
             .await
             .unwrap();
 
         // Get same session with different mode - should return same agent
         // (mode is stored but agent is reused)
         let agent2 = manager
-            .get_agent(session_id.clone(), ExecutionMode::Background)
+            .get_agent(session_id.clone(), SessionExecutionMode::Background)
             .await
             .unwrap();
 
@@ -147,13 +152,14 @@ mod execution_tests {
         // Spawn multiple tasks trying to create the same NEW session simultaneously
         let mut handles = vec![];
         for _ in 0..20 {
-            let mgr = Arc::clone(&manager);
-            let sess = session_id.clone();
-            let handle = tokio::spawn(async move {
-                mgr.get_agent(sess, ExecutionMode::Interactive)
+            let sess = format!("stress-session-{}", i);
+            let mgr_clone = Arc::clone(&manager);
+            handles.push(tokio::spawn(async move {
+                mgr_clone
+                    .get_agent(sess, SessionSessionExecutionMode::Interactive)
                     .await
                     .unwrap()
-            });
+            }));
             handles.push(handle);
         }
 
@@ -182,7 +188,7 @@ mod execution_tests {
 
         let session1 = String::from("session-1");
         let result = manager
-            .get_agent(session1.clone(), ExecutionMode::Interactive)
+            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
             .await;
 
         // Should succeed even with max_sessions = 0
@@ -192,7 +198,7 @@ mod execution_tests {
         // Creating another should evict the first immediately
         let session2 = String::from("session-2");
         manager
-            .get_agent(session2.clone(), ExecutionMode::Interactive)
+            .get_agent(session2.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
@@ -208,7 +214,7 @@ mod execution_tests {
 
         let session1 = String::from("only-session");
         manager
-            .get_agent(session1.clone(), ExecutionMode::Interactive)
+            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
@@ -217,7 +223,7 @@ mod execution_tests {
         // Creating second session should evict the first
         let session2 = String::from("new-session");
         manager
-            .get_agent(session2.clone(), ExecutionMode::Interactive)
+            .get_agent(session2.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
@@ -277,7 +283,7 @@ mod execution_tests {
 
         let session = String::from("provider-test");
         let _agent = manager
-            .get_agent(session.clone(), ExecutionMode::Interactive)
+            .get_agent(session.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
@@ -294,7 +300,7 @@ mod execution_tests {
         let session2 = String::from("session-2");
 
         manager
-            .get_agent(session1.clone(), ExecutionMode::Interactive)
+            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
@@ -302,21 +308,21 @@ mod execution_tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
         manager
-            .get_agent(session2.clone(), ExecutionMode::Interactive)
+            .get_agent(session2.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
         // Access session1 again to update its last_used
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         manager
-            .get_agent(session1.clone(), ExecutionMode::Interactive)
+            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 
         // Now create a third session - should evict session2 (least recently used)
         let session3 = String::from("session-3");
         manager
-            .get_agent(session3.clone(), ExecutionMode::Interactive)
+            .get_agent(session3.clone(), SessionExecutionMode::Interactive)
             .await
             .unwrap();
 

@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ExecutionMode {
+pub enum SessionExecutionMode {
     Interactive,
     Background,
     SubTask { parent_session: String },
 }
 
-impl ExecutionMode {
+impl SessionExecutionMode {
     /// Create an interactive chat mode
     pub fn chat() -> Self {
         Self::Interactive
@@ -34,7 +34,7 @@ impl ExecutionMode {
     }
 }
 
-impl fmt::Display for ExecutionMode {
+impl fmt::Display for SessionExecutionMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Interactive => write!(f, "interactive"),

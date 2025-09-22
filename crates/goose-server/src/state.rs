@@ -1,5 +1,5 @@
 use goose::execution::manager::AgentManager;
-use goose::execution::ExecutionMode;
+use goose::execution::SessionExecutionMode;
 use goose::scheduler_trait::SchedulerTrait;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -62,9 +62,8 @@ impl AppState {
     pub async fn get_session_agent(
         &self,
         session_id: String,
-    ) -> Result<Arc<goose::agents::Agent>, anyhow::Error> {
-        self.agent_manager
-            .get_agent(session_id, ExecutionMode::Interactive)
-            .await
+        mode: SessionExecutionMode,
+    ) -> anyhow::Result<Arc<Mutex<goose::agents::Agent>>> {
+        self.agent_manager.get_agent(session_id, mode).await
     }
 }

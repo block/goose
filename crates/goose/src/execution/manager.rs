@@ -1,6 +1,6 @@
 //! Agent lifecycle management with session isolation
 
-use super::ExecutionMode;
+use super::SessionExecutionMode;
 use crate::agents::Agent;
 use crate::model::ModelConfig;
 use crate::providers::create;
@@ -66,7 +66,7 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_agent(&self, session_id: String, mode: ExecutionMode) -> Result<Arc<Agent>> {
+    pub async fn get_agent(&self, session_id: String, mode: SessionExecutionMode) -> Result<Arc<Agent>> {
         // Try to get existing agent with write lock (for LRU update)
         {
             let mut sessions = self.sessions.write().await;
@@ -85,13 +85,13 @@ impl AgentManager {
 
         // Configure agent based on mode
         match &mode {
-            ExecutionMode::Interactive | ExecutionMode::Background => {
+            SessionExecutionMode::Interactive | SessionExecutionMode::Background => {
                 if let Some(scheduler) = &*self.scheduler.read().await {
                     debug!("Setting scheduler on agent for session {}", session_id);
                     agent.set_scheduler(Arc::clone(scheduler)).await;
                 }
             }
-            ExecutionMode::SubTask { .. } => {
+            SessionExecutionMode::SubTask { .. } => {
                 debug!(
                     "SubTask mode for session {}, skipping scheduler setup",
                     session_id
