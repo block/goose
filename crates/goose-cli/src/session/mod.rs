@@ -1171,13 +1171,7 @@ impl Session {
                             }
                         }
             Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
-                // Replace the session's message history with the compacted messages
                 self.messages = Conversation::new_unvalidated(new_messages.clone());
-                if let Some(session_id) = &self.session_id {
-                    if let Err(e) = SessionManager::replace_conversation(session_id, &new_messages).await {
-                        eprintln!("Failed to persist compacted messages: {}", e);
-                    }
-                }
             }
             Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             // Log model change if in debug mode

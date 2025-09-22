@@ -259,7 +259,6 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
-        let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {

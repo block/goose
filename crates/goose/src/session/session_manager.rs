@@ -145,7 +145,7 @@ impl SessionStorage {
     }
 
     async fn open(db_path: &PathBuf) -> Result<Self> {
-        let database_url = format!("sqlite://{}", db_path.display());
+        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
         // Check and run migrations
@@ -155,7 +155,7 @@ impl SessionStorage {
     }
 
     async fn create(db_path: &PathBuf) -> Result<Self> {
-        let database_url = format!("sqlite://{}", db_path.display());
+        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
         // Create schema version table first

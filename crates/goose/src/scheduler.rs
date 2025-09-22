@@ -1241,15 +1241,6 @@ async fn run_scheduled_job_internal(
                     }
                 }
 
-                // Save all messages to the session
-                for message in all_session_messages.iter() {
-                    if let Err(e) =
-                        SessionManager::add_message(&session_id_for_return, message).await
-                    {
-                        tracing::error!("[Job {}] Failed to save message: {}", job.id, e);
-                    }
-                }
-
                 // Update session metadata
                 let metadata = SessionMetadata {
                     working_dir: current_dir.clone(),

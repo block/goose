@@ -116,6 +116,17 @@ impl Conversation {
     }
 }
 
+impl PartialEq for Conversation {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(&other.0)
+                .all(|(a, b)| a.role == b.role && a.created == b.created && a.content == b.content)
+    }
+}
+
 impl Default for Conversation {
     fn default() -> Self {
         Self::empty()
