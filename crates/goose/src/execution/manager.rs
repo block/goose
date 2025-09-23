@@ -38,6 +38,14 @@ impl AgentManager {
         *self.scheduler.write().await = Some(scheduler);
     }
 
+    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
+        self.scheduler
+            .read()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
+    }
+
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
         debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);

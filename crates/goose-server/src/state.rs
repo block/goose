@@ -6,12 +6,10 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
-    pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
@@ -23,7 +21,6 @@ impl AppState {
         let agent_manager = Arc::new(AgentManager::new());
         Arc::new(Self {
             agent_manager,
-            scheduler: Arc::new(RwLock::new(None)),
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
@@ -31,17 +28,11 @@ impl AppState {
     }
 
     pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
-        self.agent_manager.set_scheduler(sched.clone()).await;
-        let mut guard = self.scheduler.write().await;
-        *guard = Some(sched);
+        self.agent_manager.set_scheduler(sched).await;
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
-        self.scheduler
-            .read()
-            .await
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
+        self.agent_manager.scheduler().await
     }
 
     pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {
