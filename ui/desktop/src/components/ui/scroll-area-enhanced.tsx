@@ -60,9 +60,48 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
     const [isFollowing, setIsFollowing] = React.useState(true);
     const [isScrolled, setIsScrolled] = React.useState(false);
 
+    // Initialize intelligent scrolling if enabled
+    const intelligentScrollData = useIntelligentScroll(
+      intelligentScroll ? viewportRef : { current: null },
+      // Pass scroll methods that include unlock behavior
+      {
+        scrollToBottom: () => {
+          // UNLOCK when going to bottom - user explicitly navigating away
+          if (intelligentScrollData?.isLockedToMessage) {
+            console.log('🎯 Go to Bottom: Unlocking message before scroll');
+            intelligentScrollData.unlockFromMessage();
+          }
+          
+          if (viewportEndRef.current) {
+            viewportEndRef.current.scrollIntoView({
+              behavior: 'smooth',
+              block: 'end',
+              inline: 'nearest',
+            });
+            setIsFollowing(true);
+          }
+        },
+        scrollToPosition: ({ top, behavior = 'smooth' }: { top: number; behavior?: ScrollBehavior }) => {
+          if (viewportRef.current) {
+            viewportRef.current.scrollTo({
+              top,
+              behavior,
+            });
+          }
+        }
+      },
+      scrollConfig
+    );
+
     // Scroll methods that can be used by intelligent scroll system
     const scrollMethods = React.useMemo(() => ({
       scrollToBottom: () => {
+        // UNLOCK when going to bottom - user explicitly navigating away
+        if (intelligentScrollData?.isLockedToMessage) {
+          console.log('🎯 Scroll to Bottom: Unlocking message before scroll');
+          intelligentScrollData.unlockFromMessage();
+        }
+        
         if (viewportEndRef.current) {
           viewportEndRef.current.scrollIntoView({
             behavior: 'smooth',
@@ -80,14 +119,7 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
           });
         }
       }
-    }), []);
-
-    // Initialize intelligent scrolling if enabled
-    const intelligentScrollData = useIntelligentScroll(
-      intelligentScroll ? viewportRef : { current: null },
-      scrollMethods,
-      scrollConfig
-    );
+    }), [intelligentScrollData]);
 
     // Simple message click handler - just lock, don't prevent scrolling
     const handleMessageClick = React.useCallback((event: MouseEvent) => {
@@ -338,8 +370,15 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
             >
               <MessageLockIndicator
                 messageId={intelligentScrollData.lockedMessageId}
-                onUnlock={intelligentScrollData.unlockFromMessage}
-                onScrollToBottom={scrollMethods.scrollToBottom}
+                onUnlock={() => {
+                  console.log('🔓 Manual unlock button clicked');
+                  intelligentScrollData.unlockFromMessage();
+                }}
+                onScrollToBottom={() => {
+                  console.log('🎯 Go to Bottom button clicked - unlocking and scrolling');
+                  intelligentScrollData.unlockFromMessage();
+                  scrollMethods.scrollToBottom();
+                }}
               />
             </div>
           )}
