@@ -21,9 +21,9 @@ interface ScrollMethods {
 const DEFAULT_CONFIG: Required<IntelligentScrollConfig> = {
   idleTimeout: 4000,
   activityDebounce: 100,
-  scrollVelocityThreshold: 0.5,
-  autoScrollDelay: 200,
-  gracefulReturnDelay: 1500,
+  scrollVelocityThreshold: 0.3, // Lowered for better detection
+  autoScrollDelay: 300, // Slightly longer delay
+  gracefulReturnDelay: 2000, // Longer delay for graceful return
   smoothScrollDuration: 500
 };
 
@@ -52,6 +52,7 @@ export function useIntelligentScroll(
   const gracefulReturnTimeoutRef = useRef<number | null>(null);
   const lastContentHeightRef = useRef<number>(0);
   const pendingAutoScrollRef = useRef<boolean>(false);
+  const userInterruptedRef = useRef<boolean>(false);
 
   // Clear all timeouts
   const clearTimeouts = useCallback(() => {
@@ -69,16 +70,33 @@ export function useIntelligentScroll(
   const executeAutoScroll = useCallback(() => {
     if (!scrollMethods.scrollToBottom) return;
     
+    // CRITICAL FIX: Don't auto-scroll if user is actively scrolling or recently interrupted
+    if (activity.isUserActive || userInterruptedRef.current) {
+      pendingAutoScrollRef.current = false;
+      return;
+    }
+    
     clearTimeouts();
     pendingAutoScrollRef.current = false;
     
     // Use smooth scrolling for better UX
     scrollMethods.scrollToBottom();
-  }, [scrollMethods, clearTimeouts]);
+  }, [scrollMethods, clearTimeouts, activity.isUserActive]);
 
   // Schedule auto-scroll based on user activity state
   const scheduleAutoScroll = useCallback(() => {
     clearTimeouts();
+    
+    // CRITICAL FIX: Reset user interrupted flag when user becomes idle
+    if (!activity.isUserActive) {
+      userInterruptedRef.current = false;
+    }
+    
+    // Don't auto-scroll if user is active or has recently interrupted
+    if (activity.isUserActive || userInterruptedRef.current) {
+      pendingAutoScrollRef.current = false;
+      return;
+    }
     
     if (!activity.shouldAutoScroll) {
       pendingAutoScrollRef.current = false;
@@ -89,10 +107,6 @@ export function useIntelligentScroll(
     
     const delay = (() => {
       switch (activity.state) {
-        case UserActivityState.FOLLOWING:
-          // Immediate scroll when user is actively following
-          return 0;
-          
         case UserActivityState.IDLE_AT_BOTTOM:
           // Quick scroll when idle at bottom
           return finalConfig.autoScrollDelay;
@@ -102,7 +116,7 @@ export function useIntelligentScroll(
           return finalConfig.gracefulReturnDelay;
           
         default:
-          // Don't auto-scroll when actively reading
+          // Don't auto-scroll when actively reading or following (let user control)
           return -1;
       }
     })();
@@ -110,7 +124,16 @@ export function useIntelligentScroll(
     if (delay >= 0) {
       autoScrollTimeoutRef.current = window.setTimeout(executeAutoScroll, delay);
     }
-  }, [activity.shouldAutoScroll, activity.state, finalConfig, executeAutoScroll]);
+  }, [activity.shouldAutoScroll, activity.state, activity.isUserActive, finalConfig, executeAutoScroll]);
+
+  // Detect when user interrupts auto-scroll behavior
+  useEffect(() => {
+    if (activity.state === UserActivityState.ACTIVELY_READING && activity.isUserActive) {
+      userInterruptedRef.current = true;
+      clearTimeouts();
+      pendingAutoScrollRef.current = false;
+    }
+  }, [activity.state, activity.isUserActive, clearTimeouts]);
 
   // Handle content changes (new messages)
   const handleContentChange = useCallback(() => {
@@ -121,13 +144,18 @@ export function useIntelligentScroll(
     
     if (hasNewContent) {
       lastContentHeightRef.current = currentHeight;
-      scheduleAutoScroll();
+      
+      // Only schedule auto-scroll if user hasn't interrupted and isn't actively scrolling
+      if (!userInterruptedRef.current && !activity.isUserActive) {
+        scheduleAutoScroll();
+      }
     }
-  }, [scrollContainerRef, scheduleAutoScroll]);
+  }, [scrollContainerRef, scheduleAutoScroll, activity.isUserActive]);
 
   // Manual scroll to bottom (for external triggers)
   const scrollToBottomNow = useCallback(() => {
     clearTimeouts();
+    userInterruptedRef.current = false; // Reset interrupted flag
     executeAutoScroll();
   }, [clearTimeouts, executeAutoScroll]);
 
@@ -136,6 +164,7 @@ export function useIntelligentScroll(
     if (!scrollContainerRef.current || !scrollMethods.scrollToPosition) return;
     
     clearTimeouts();
+    userInterruptedRef.current = false; // Reset interrupted flag
     
     // Smooth scroll to bottom with custom timing
     const element = scrollContainerRef.current;
@@ -167,7 +196,8 @@ export function useIntelligentScroll(
       shouldAutoScroll: activity.shouldAutoScroll,
       isNearBottom: activity.isNearBottom,
       scrollVelocity: activity.scrollVelocity.toFixed(2),
-      pendingAutoScroll: pendingAutoScrollRef.current
+      pendingAutoScroll: pendingAutoScrollRef.current,
+      userInterrupted: userInterruptedRef.current
     });
   }, [activity]);
 

@@ -25,7 +25,7 @@ interface UserActivityData {
 const DEFAULT_CONFIG: Required<UserActivityConfig> = {
   idleTimeout: 4000, // 4 seconds
   activityDebounce: 100, // 100ms
-  scrollVelocityThreshold: 0.5 // 0.5 px/ms
+  scrollVelocityThreshold: 0.3 // Lowered threshold for better detection
 };
 
 /**
@@ -51,6 +51,7 @@ export function useUserActivity(
   const lastScrollTop = useRef(0);
   const activityTimeoutRef = useRef<number | null>(null);
   const idleTimeoutRef = useRef<number | null>(null);
+  const isScrollingRef = useRef(false);
 
   // Calculate if user is near bottom of scroll container
   const checkIsNearBottom = useCallback((): boolean => {
@@ -118,16 +119,29 @@ export function useUserActivity(
     const nearBottom = checkIsNearBottom();
     setIsNearBottom(nearBottom);
     
-    // Only mark as active if scroll velocity indicates intentional scrolling
-    if (velocity > finalConfig.scrollVelocityThreshold) {
+    // CRITICAL FIX: Always allow user to scroll away from bottom
+    // Any scroll activity should immediately switch to ACTIVELY_READING if not near bottom
+    if (velocity > 0) { // Any scroll movement
       markUserActive();
+      isScrollingRef.current = true;
       
-      if (nearBottom) {
+      if (!nearBottom) {
+        // User is scrolling and not near bottom = actively reading
+        setState(UserActivityState.ACTIVELY_READING);
+      } else if (nearBottom && velocity < finalConfig.scrollVelocityThreshold) {
+        // Small movements near bottom = still following
         setState(UserActivityState.FOLLOWING);
       } else {
+        // Significant movement near bottom = could be scrolling up
         setState(UserActivityState.ACTIVELY_READING);
       }
     }
+    
+    // Reset scrolling flag after a short delay
+    setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 50);
+    
   }, [calculateScrollVelocity, checkIsNearBottom, finalConfig.scrollVelocityThreshold, markUserActive]);
 
   // Handle mouse activity
@@ -137,9 +151,12 @@ export function useUserActivity(
     if (movement > 2) { // Minimum movement threshold
       markUserActive();
       
-      const nearBottom = checkIsNearBottom();
-      if (!nearBottom && state !== UserActivityState.ACTIVELY_READING) {
-        setState(UserActivityState.ACTIVELY_READING);
+      // Don't change state based on mouse movement alone unless we're not scrolling
+      if (!isScrollingRef.current) {
+        const nearBottom = checkIsNearBottom();
+        if (!nearBottom && state !== UserActivityState.ACTIVELY_READING) {
+          setState(UserActivityState.ACTIVELY_READING);
+        }
       }
     }
   }, [markUserActive, checkIsNearBottom, state]);
@@ -155,8 +172,9 @@ export function useUserActivity(
     if (navigationKeys.includes(event.key)) {
       markUserActive();
       
+      // Keyboard navigation always indicates intentional reading
       const nearBottom = checkIsNearBottom();
-      if (!nearBottom) {
+      if (!nearBottom || ['ArrowUp', 'PageUp', 'Home'].includes(event.key)) {
         setState(UserActivityState.ACTIVELY_READING);
       }
     }
@@ -166,15 +184,27 @@ export function useUserActivity(
   const handleWheel = useCallback((event: WheelEvent) => {
     // Any wheel activity indicates intentional scrolling
     markUserActive();
+    isScrollingRef.current = true;
     
     const nearBottom = checkIsNearBottom();
-    if (nearBottom && event.deltaY > 0) {
+    
+    // CRITICAL FIX: Respect wheel direction
+    if (event.deltaY < 0) {
+      // Scrolling up = always actively reading
+      setState(UserActivityState.ACTIVELY_READING);
+    } else if (event.deltaY > 0 && nearBottom) {
       // Scrolling down at bottom = following
       setState(UserActivityState.FOLLOWING);
-    } else if (!nearBottom) {
-      // Scrolling while not at bottom = actively reading
+    } else {
+      // Scrolling down while not at bottom = still actively reading
       setState(UserActivityState.ACTIVELY_READING);
     }
+    
+    // Reset scrolling flag
+    setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 50);
+    
   }, [markUserActive, checkIsNearBottom]);
 
   // Set up event listeners
@@ -206,9 +236,10 @@ export function useUserActivity(
   }, [scrollContainerRef, handleScroll, handleMouseActivity, handleKeyboardActivity, handleWheel]);
 
   // Determine if auto-scroll should happen
+  // CRITICAL FIX: Only auto-scroll when user is truly idle or explicitly following
   const shouldAutoScroll = 
-    state === UserActivityState.FOLLOWING || 
     state === UserActivityState.IDLE_AT_BOTTOM ||
+    (state === UserActivityState.FOLLOWING && !isUserActive) ||
     (state === UserActivityState.IDLE_ABOVE && isNearBottom);
 
   return {
