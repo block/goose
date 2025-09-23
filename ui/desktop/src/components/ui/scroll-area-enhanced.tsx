@@ -167,6 +167,10 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
 
       console.log('🖱️ Message clicked:', messageId);
       
+      // Add visual highlight to the clicked message
+      messageElement.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
+      messageElement.style.borderLeft = "3px solid rgb(59, 130, 246)";
+      messageElement.style.transition = "all 0.2s ease";      
       // Lock to this message to prevent auto-scroll
       intelligentScrollData.lockToMessage(messageId, messageElement);
       
