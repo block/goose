@@ -15,7 +15,7 @@ export async function extensionApiCall(
   endpoint: string,
   payload: ExtensionConfig | string,
   options: ToastServiceOptions & { isDelete?: boolean } = {},
-  sessionId?: string
+  sessionId: string
 ): Promise<Response> {
   // Configure toast notifications
   toastService.configure(options);
@@ -44,14 +44,14 @@ export async function extensionApiCall(
   }
 
   try {
-    // Build the request body with session_id if provided
-    let requestBody: ExtensionConfig | { name: string; session_id?: string };
+    // Build the request body
+    let requestBody: ExtensionConfig | { name: string; session_id: string };
     if (typeof payload === 'object') {
       // For adding extensions (ExtensionConfig)
-      requestBody = sessionId ? { ...payload, session_id: sessionId } : payload;
+      requestBody = { ...payload, session_id: sessionId };
     } else {
       // For removing extensions (just the name string)
-      requestBody = sessionId ? { name: payload, session_id: sessionId } : { name: payload };
+      requestBody = { name: payload, session_id: sessionId };
     }
 
     // Step 2: Make the API call
@@ -154,7 +154,7 @@ async function parseResponseData(response: Response): Promise<ApiResponse> {
 export async function addToAgent(
   extension: ExtensionConfig,
   options: ToastServiceOptions = {},
-  sessionId?: string
+  sessionId: string
 ): Promise<Response> {
   try {
     if (extension.type === 'stdio') {
@@ -183,7 +183,7 @@ export async function addToAgent(
 export async function removeFromAgent(
   name: string,
   options: ToastServiceOptions & { isDelete?: boolean } = {},
-  sessionId?: string
+  sessionId: string
 ): Promise<Response> {
   try {
     return await extensionApiCall('/extensions/remove', sanitizeName(name), options, sessionId);

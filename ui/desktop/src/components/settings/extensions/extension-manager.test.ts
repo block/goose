@@ -43,6 +43,7 @@ describe('Extension Manager', () => {
 
       await activateExtension({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -61,6 +62,7 @@ describe('Extension Manager', () => {
       await expect(
         activateExtension({
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
           extensionConfig: mockExtensionConfig,
         })
       ).rejects.toThrow('Agent failed');
@@ -81,6 +83,7 @@ describe('Extension Manager', () => {
       await expect(
         activateExtension({
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
           extensionConfig: mockExtensionConfig,
         })
       ).rejects.toThrow('Config failed');
@@ -101,6 +104,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -113,6 +117,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
         toastOptions: { silent: false },
       });
@@ -134,6 +139,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -148,6 +154,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -169,6 +176,7 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: true,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: mockExtensionConfig,
         originalName: 'test-extension',
@@ -200,6 +208,7 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: true,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: { ...mockExtensionConfig, name: 'new-extension' },
         originalName: 'old-extension',
@@ -230,6 +239,7 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: false,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: mockExtensionConfig,
         originalName: 'test-extension',
@@ -257,6 +267,7 @@ describe('Extension Manager', () => {
         toggle: 'toggleOn',
         extensionConfig: mockExtensionConfig,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
       });
 
       expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
@@ -271,6 +282,7 @@ describe('Extension Manager', () => {
         toggle: 'toggleOff',
         extensionConfig: mockExtensionConfig,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
       });
 
       expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
@@ -287,6 +299,7 @@ describe('Extension Manager', () => {
           toggle: 'toggleOn',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent failed');
 
@@ -305,6 +318,7 @@ describe('Extension Manager', () => {
           toggle: 'toggleOn',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Config failed');
 
@@ -323,6 +337,7 @@ describe('Extension Manager', () => {
           toggle: 'toggleOff',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent removal failed');
 
@@ -339,6 +354,7 @@ describe('Extension Manager', () => {
       await deleteExtension({
         name: 'test-extension',
         removeFromConfig: mockRemoveFromConfig,
+        sessionId: 'test-session',
       });
 
       expect(mockRemoveFromAgent).toHaveBeenCalledWith(
@@ -358,6 +374,7 @@ describe('Extension Manager', () => {
         deleteExtension({
           name: 'test-extension',
           removeFromConfig: mockRemoveFromConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent removal failed');
 
@@ -379,6 +396,7 @@ describe('Extension Manager', () => {
         deleteExtension({
           name: 'test-extension',
           removeFromConfig: mockRemoveFromConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Config removal failed');
 

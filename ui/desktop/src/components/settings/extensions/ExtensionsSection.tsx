@@ -89,6 +89,11 @@ export default function ExtensionsSection({
       return true;
     }
 
+    if (!sessionId) {
+      console.warn('Cannot toggle extension without session');
+      return false;
+    }
+
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
@@ -121,6 +126,12 @@ export default function ExtensionsSection({
     // Close the modal immediately
     handleModalClose();
 
+    if (!sessionId) {
+      console.warn('Cannot add extension without session');
+      await fetchExtensions();
+      return;
+    }
+
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({
@@ -144,6 +155,12 @@ export default function ExtensionsSection({
 
     // Close the modal immediately
     handleModalClose();
+
+    if (!sessionId) {
+      console.warn('Cannot update extension without session');
+      await fetchExtensions();
+      return;
+    }
 
     const extensionConfig = createExtensionConfig(formData);
     const originalName = selectedExtension.name;
@@ -169,6 +186,12 @@ export default function ExtensionsSection({
   const handleDeleteExtension = async (name: string) => {
     // Close the modal immediately
     handleModalClose();
+
+    if (!sessionId) {
+      console.warn('Cannot delete extension without session');
+      await fetchExtensions();
+      return;
+    }
 
     try {
       await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });

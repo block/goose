@@ -49,7 +49,14 @@ export default function ExtensionsView({
     // Close the modal immediately
     handleModalClose();
 
+    if (!sessionId) {
+      console.warn('Cannot activate extension without session');
+      setRefreshKey((prevKey) => prevKey + 1);
+      return;
+    }
+
     const extensionConfig = createExtensionConfig(formData);
+
     try {
       await activateExtension({
         addToConfig: addExtension,

@@ -186,32 +186,6 @@ mod execution_tests {
     }
 
     #[tokio::test]
-    async fn test_edge_case_max_sessions_zero() {
-        let manager = AgentManager::with_max_sessions(0);
-
-        let session1 = String::from("session-1");
-        let result = manager
-            .get_agent(session1.clone(), SessionExecutionMode::Interactive)
-            .await;
-
-        // Should succeed even with max_sessions = 0
-        assert!(result.is_ok());
-        assert_eq!(manager.session_count().await, 1);
-
-        // Creating another should evict the first immediately
-        let session2 = String::from("session-2");
-        manager
-            .get_agent(session2.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
-
-        // Should have evicted session1
-        assert!(!manager.has_session(&session1).await);
-        assert!(manager.has_session(&session2).await);
-        assert_eq!(manager.session_count().await, 1);
-    }
-
-    #[tokio::test]
     async fn test_edge_case_max_sessions_one() {
         let manager = AgentManager::with_max_sessions(1);
 

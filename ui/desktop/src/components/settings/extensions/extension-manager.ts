@@ -5,7 +5,7 @@ import { addToAgent, removeFromAgent, sanitizeName } from './agent-api';
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
-  sessionId?: string;
+  sessionId: string;
 }
 
 type ExtensionError = {
@@ -89,7 +89,7 @@ interface AddToAgentOnStartupProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
   toastOptions?: ToastServiceOptions;
-  sessionId?: string;
+  sessionId: string;
 }
 
 /**
@@ -139,7 +139,7 @@ interface UpdateExtensionProps {
   removeFromConfig: (name: string) => Promise<void>;
   extensionConfig: ExtensionConfig;
   originalName?: string;
-  sessionId?: string;
+  sessionId: string;
 }
 
 /**
@@ -261,7 +261,7 @@ interface ToggleExtensionProps {
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   toastOptions?: ToastServiceOptions;
-  sessionId?: string;
+  sessionId: string;
 }
 
 /**
@@ -278,9 +278,13 @@ export async function toggleExtension({
   if (toggle == 'toggleOn') {
     try {
       // add to agent with toast options
-      await addToAgent(extensionConfig, {
-        ...toastOptions,
-      }, sessionId);
+      await addToAgent(
+        extensionConfig,
+        {
+          ...toastOptions,
+        },
+        sessionId
+      );
     } catch (error) {
       console.error('Error adding extension to agent. Will try to toggle back off.');
       try {
@@ -339,17 +343,13 @@ export async function toggleExtension({
 interface DeleteExtensionProps {
   name: string;
   removeFromConfig: (name: string) => Promise<void>;
-  sessionId?: string;
+  sessionId: string;
 }
 
 /**
  * Deletes an extension completely from both agent and config
  */
-export async function deleteExtension({ 
-  name, 
-  removeFromConfig,
-  sessionId
-}: DeleteExtensionProps) {
+export async function deleteExtension({ name, removeFromConfig, sessionId }: DeleteExtensionProps) {
   // remove from agent
   let agentRemoveError = null;
   try {
