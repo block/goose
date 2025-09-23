@@ -21,11 +21,25 @@ impl Default for ShellConfig {
         }
         #[cfg(not(windows))]
         {
-            let bash_env = get_config_dir().join(".bash_env").into_os_string();
+            let shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+            // Get just the shell name from the path (e.g., /bin/zsh -> zsh)
+            let shell_name = std::path::Path::new(&shell)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("bash");
+
+            // Configure environment based on shell type
+            let envs = if shell_name == "bash" {
+                let bash_env = get_config_dir().join(".bash_env").into_os_string();
+                vec![(OsString::from("BASH_ENV"), bash_env)]
+            } else {
+                vec![]
+            };
+
             Self {
-                executable: "bash".to_string(),
-                args: vec!["-c".to_string()],
-                envs: vec![(OsString::from("BASH_ENV"), bash_env)],
+                executable: shell,
+                args: vec!["-c".to_string()], // -c is standard across bash/zsh/fish
+                envs,
             }
         }
     }
