@@ -30,10 +30,10 @@ export function MessageLockIndicator({
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
           <span className="text-blue-500">🔒</span>
-          <span className="font-medium">Scroll locked to this message</span>
+          <span className="font-medium">Auto-scroll locked</span>
         </div>
         <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-800/30 px-2 py-0.5 rounded">
-          {messageId.slice(-8)}
+          Scroll past to unlock
         </div>
       </div>
       
@@ -48,7 +48,7 @@ export function MessageLockIndicator({
             "border border-blue-200 dark:border-blue-700"
           )}
         >
-          Unlock
+          Unlock Now
         </button>
         
         <button
