@@ -35,11 +35,9 @@ impl SecurityManager {
         use crate::config::Config;
         let config = Config::global();
 
-        let result = config
+        config
             .get_param::<bool>("security_enabled")
-            .unwrap_or(false);
-
-        result
+            .unwrap_or(false)
     }
 
     /// New method for tool inspection framework - works directly with tool requests
