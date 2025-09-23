@@ -55,29 +55,35 @@ impl AppState {
     pub async fn reset(&self) {
         let mut agent = self.agent.write().await;
         let new_agent = Agent::new();
-        
-        // Re-initialize provider like we do at startup
-        let config = goose::config::Config::global();
-        
-        if let (Ok(provider_name), Ok(model_name)) = (
-            config.get_param::<String>("GOOSE_PROVIDER"),
-            config.get_param::<String>("GOOSE_MODEL")
-        ) {
-            if let Ok(model_config) = goose::model::ModelConfig::new(&model_name) {
-                if let Ok(provider) = goose::providers::create(&provider_name, model_config) {
-                    if let Err(e) = new_agent.update_provider(provider).await {
-                        tracing::error!("Failed to update agent provider during reset: {}", e);
-                    }
-                } else {
-                    tracing::error!("Failed to create provider during reset");
-                }
-            } else {
-                tracing::error!("Failed to create model config during reset");
-            }
-        } else {
-            tracing::warn!("No provider/model configured during reset");
+
+        // Only initialize provider when running in standalone goosed mode
+        // This prevents breaking the Electron app which manages its own provider setup
+        if std::env::var("GOOSE_STANDALONE_MODE").unwrap_or_else(|_| "false".to_string()) == "true"
+        {
+            tracing::info!("Running in standalone mode - initializing provider");
+
+            let config = goose::config::Config::global();
+
+            let provider_name: String = config
+                .get_param("GOOSE_PROVIDER")
+                .expect("No provider configured. Run 'goose configure' first");
+
+            let model_name: String = config
+                .get_param("GOOSE_MODEL")
+                .expect("No model configured. Run 'goose configure' first");
+
+            let model_config = goose::model::ModelConfig::new(&model_name)
+                .expect("Failed to create model configuration");
+
+            let provider = goose::providers::create(&provider_name, model_config)
+                .expect("Failed to create provider");
+
+            new_agent
+                .update_provider(provider)
+                .await
+                .expect("Failed to update agent provider");
         }
-        
+
         *agent = Arc::new(new_agent);
     }
 
