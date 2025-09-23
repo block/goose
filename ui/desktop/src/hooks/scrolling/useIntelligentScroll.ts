@@ -32,8 +32,9 @@ const DEFAULT_CONFIG: Required<IntelligentScrollConfig> = {
 /**
  * Hook for intelligent chat scrolling that respects user intent
  * 
- * Combines user activity detection with smart auto-scroll logic
- * to provide a non-disruptive chat experience
+ * The core behavior is simple:
+ * - When user clicks a message, prevent auto-scroll on new messages
+ * - When user manually scrolls or unlocks, resume normal behavior
  */
 export function useIntelligentScroll(
   scrollContainerRef: React.RefObject<HTMLElement | null>,
@@ -57,7 +58,6 @@ export function useIntelligentScroll(
   const pendingAutoScrollRef = useRef<boolean>(false);
   const userInterruptedRef = useRef<boolean>(false);
   const lastStateRef = useRef<UserActivityState>(activity.state);
-  const isLockingMessageRef = useRef<boolean>(false); // NEW: Track when locking message
 
   // Clear all timeouts
   const clearTimeouts = useCallback(() => {
@@ -75,9 +75,9 @@ export function useIntelligentScroll(
   const executeAutoScroll = useCallback(() => {
     if (!scrollMethods.scrollToBottom) return;
     
-    // NEVER auto-scroll if locked to a message OR currently locking
-    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE || isLockingMessageRef.current) {
-      console.log('🔒 Skipping auto-scroll - locked to message or locking in progress:', activity.lockedMessageId);
+    // CORE RULE: Never auto-scroll when locked to a message
+    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
+      console.log('🔒 BLOCKED: Auto-scroll prevented - locked to message:', activity.lockedMessageId);
       pendingAutoScrollRef.current = false;
       return;
     }
@@ -92,27 +92,23 @@ export function useIntelligentScroll(
     pendingAutoScrollRef.current = false;
     
     console.log('🚀 Executing auto-scroll for state:', activity.state);
-    
-    // Use smooth scrolling for better UX
     scrollMethods.scrollToBottom();
   }, [scrollMethods, clearTimeouts, activity.isUserActive, activity.state, activity.lockedMessageId]);
 
   // Execute graceful return to bottom (smoother animation)
   const executeGracefulReturn = useCallback(() => {
     if (!scrollContainerRef.current || !scrollMethods.scrollToPosition) {
-      // Fallback to regular scroll if position method not available
       executeAutoScroll();
       return;
     }
     
-    // NEVER auto-scroll if locked to a message OR currently locking
-    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE || isLockingMessageRef.current) {
-      console.log('🔒 Skipping graceful return - locked to message or locking in progress:', activity.lockedMessageId);
+    // CORE RULE: Never auto-scroll when locked to a message
+    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
+      console.log('🔒 BLOCKED: Graceful return prevented - locked to message:', activity.lockedMessageId);
       pendingAutoScrollRef.current = false;
       return;
     }
     
-    // Don't execute if user is active
     if (activity.isUserActive) {
       pendingAutoScrollRef.current = false;
       return;
@@ -123,7 +119,6 @@ export function useIntelligentScroll(
     
     console.log('🎯 Executing graceful return to bottom');
     
-    // Smooth scroll to bottom with custom timing
     const element = scrollContainerRef.current;
     const targetScrollTop = element.scrollHeight - element.clientHeight;
     
@@ -137,8 +132,9 @@ export function useIntelligentScroll(
   const scheduleAutoScroll = useCallback(() => {
     clearTimeouts();
     
-    // NEVER schedule auto-scroll if locked to a message OR currently locking
-    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE || isLockingMessageRef.current) {
+    // CORE RULE: Never schedule when locked
+    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
+      console.log('🔒 BLOCKED: Auto-scroll scheduling prevented - locked to message');
       pendingAutoScrollRef.current = false;
       return;
     }
@@ -148,13 +144,7 @@ export function useIntelligentScroll(
       userInterruptedRef.current = false;
     }
     
-    // Don't auto-scroll if user is active
-    if (activity.isUserActive) {
-      pendingAutoScrollRef.current = false;
-      return;
-    }
-    
-    if (!activity.shouldAutoScroll) {
+    if (activity.isUserActive || !activity.shouldAutoScroll) {
       pendingAutoScrollRef.current = false;
       return;
     }
@@ -164,17 +154,10 @@ export function useIntelligentScroll(
     const delay = (() => {
       switch (activity.state) {
         case UserActivityState.IDLE_AT_BOTTOM:
-          // Quick scroll when idle at bottom
-          console.log('⏱️ Scheduling auto-scroll for IDLE_AT_BOTTOM in', finalConfig.autoScrollDelay, 'ms');
           return finalConfig.autoScrollDelay;
-          
         case UserActivityState.IDLE_ABOVE:
-          // Graceful return to bottom after longer delay
-          console.log('⏱️ Scheduling graceful return for IDLE_ABOVE in', finalConfig.gracefulReturnDelay, 'ms');
           return finalConfig.gracefulReturnDelay;
-          
         default:
-          // Don't auto-scroll when actively reading, following, or locked
           return -1;
       }
     })();
@@ -197,31 +180,29 @@ export function useIntelligentScroll(
     }
   }, [activity.state, activity.isUserActive, clearTimeouts]);
 
-  // Handle state changes to trigger immediate scheduling
+  // Handle state changes
   useEffect(() => {
     const currentState = activity.state;
     const previousState = lastStateRef.current;
     
-    // Log state changes for debugging
     if (currentState !== previousState) {
       console.log('📊 State change:', previousState, '→', currentState, {
         isUserActive: activity.isUserActive,
         shouldAutoScroll: activity.shouldAutoScroll,
         isNearBottom: activity.isNearBottom,
-        lockedMessageId: activity.lockedMessageId,
-        isLocking: isLockingMessageRef.current
+        lockedMessageId: activity.lockedMessageId
       });
     }
     
     lastStateRef.current = currentState;
     
-    // Schedule auto-scroll when state changes (unless locked or locking)
-    if (currentState !== UserActivityState.LOCKED_TO_MESSAGE && !isLockingMessageRef.current) {
+    // Only schedule when not locked
+    if (currentState !== UserActivityState.LOCKED_TO_MESSAGE) {
       scheduleAutoScroll();
     }
   }, [activity.state, activity.isUserActive, activity.shouldAutoScroll, activity.lockedMessageId, scheduleAutoScroll]);
 
-  // Handle content changes (new messages) - DO NOT AUTO-SCROLL WHEN LOCKED OR LOCKING
+  // CORE FUNCTION: Handle new content (messages) - this is where locking prevents auto-scroll
   const handleContentChange = useCallback(() => {
     if (!scrollContainerRef.current) return;
     
@@ -230,124 +211,77 @@ export function useIntelligentScroll(
     
     if (hasNewContent) {
       lastContentHeightRef.current = currentHeight;
-      console.log('📝 New content detected, current state:', activity.state, 'isLocking:', isLockingMessageRef.current);
       
-      // CRITICAL: Don't schedule auto-scroll if locked to a message OR currently locking
-      if (activity.state === UserActivityState.LOCKED_TO_MESSAGE || isLockingMessageRef.current) {
-        console.log('🔒 Skipping content change auto-scroll - locked to message or locking in progress');
+      // CORE RULE: Don't auto-scroll when locked to a message
+      if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
+        console.log('🔒 NEW MESSAGE BLOCKED: Auto-scroll prevented - locked to message:', activity.lockedMessageId);
         return;
       }
       
-      // Always try to schedule auto-scroll when new content arrives
-      // The scheduling logic will determine if it should actually execute
+      console.log('📝 New content detected, scheduling auto-scroll for state:', activity.state);
       scheduleAutoScroll();
     }
-  }, [scrollContainerRef, scheduleAutoScroll, activity.state]);
+  }, [scrollContainerRef, scheduleAutoScroll, activity.state, activity.lockedMessageId]);
 
-  // Manual scroll to bottom (for external triggers) - UNLOCKS MESSAGE
+  // Manual scroll to bottom - unlocks message
   const scrollToBottomNow = useCallback(() => {
-    console.log('🎯 Manual scroll to bottom requested');
-    
-    // Clear locking flag
-    isLockingMessageRef.current = false;
-    
-    // Unlock from message if locked
+    console.log('🎯 Manual scroll to bottom - unlocking message');
     if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
       activity.unlockFromMessage();
     }
-    
     clearTimeouts();
-    userInterruptedRef.current = false; // Reset interrupted flag
+    userInterruptedRef.current = false;
     executeAutoScroll();
   }, [clearTimeouts, executeAutoScroll, activity]);
 
-  // Graceful scroll to bottom with visual feedback - UNLOCKS MESSAGE
+  // Graceful scroll to bottom - unlocks message
   const gracefulScrollToBottom = useCallback(() => {
-    console.log('🎯 Manual graceful scroll to bottom requested');
-    
-    // Clear locking flag
-    isLockingMessageRef.current = false;
-    
-    // Unlock from message if locked
+    console.log('🎯 Manual graceful scroll - unlocking message');
     if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
       activity.unlockFromMessage();
     }
-    
     clearTimeouts();
-    userInterruptedRef.current = false; // Reset interrupted flag
+    userInterruptedRef.current = false;
     executeGracefulReturn();
   }, [clearTimeouts, executeGracefulReturn, activity]);
 
-  // Lock to a specific message (exposed to parent components) - PREVENTS AUTO-SCROLL
+  // Lock to message - this is the key function that prevents auto-scroll
   const lockToMessage = useCallback((messageId: string, element?: HTMLElement) => {
-    console.log('🔒 Locking scroll to message (COMPLETELY DISABLE AUTO-SCROLL):', messageId);
-    
-    // Set locking flag to prevent ANY auto-scroll during the locking process
-    isLockingMessageRef.current = true;
-    
-    // Clear any pending auto-scrolls immediately
-    clearTimeouts();
-    pendingAutoScrollRef.current = false;
-    
-    // Lock the message
+    console.log('🔒 LOCKING MESSAGE: Auto-scroll will be blocked for new messages:', messageId);
+    clearTimeouts(); // Clear any pending scrolls
     activity.lockToMessage(messageId, element);
-    
-    // Keep locking flag for a moment to ensure no interference
-    setTimeout(() => {
-      isLockingMessageRef.current = false;
-      console.log('✅ Message locking complete, auto-scroll disabled while locked');
-    }, 100);
   }, [clearTimeouts, activity]);
 
-  // Unlock from message (exposed to parent components)
+  // Unlock from message
   const unlockFromMessage = useCallback(() => {
-    console.log('🔓 Unlocking scroll from message');
-    isLockingMessageRef.current = false;
+    console.log('🔓 UNLOCKING MESSAGE: Auto-scroll will resume');
     activity.unlockFromMessage();
-    // Don't immediately schedule - let the state change trigger it
   }, [activity]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearTimeouts();
-      isLockingMessageRef.current = false;
     };
   }, [clearTimeouts]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('🔍 Intelligent Scroll Debug:', {
-      userState: activity.state,
-      isActive: activity.isUserActive,
-      shouldAutoScroll: activity.shouldAutoScroll,
-      isNearBottom: activity.isNearBottom,
-      scrollVelocity: activity.scrollVelocity.toFixed(2),
-      pendingAutoScroll: pendingAutoScrollRef.current,
-      userInterrupted: userInterruptedRef.current,
-      lockedMessageId: activity.lockedMessageId,
-      isLocking: isLockingMessageRef.current
-    });
-  }, [activity]);
 
   return {
     // User activity data
     userActivity: activity,
     
     // Scroll control methods
-    handleContentChange,
+    handleContentChange, // KEY: This prevents auto-scroll when locked
     scrollToBottomNow,
     gracefulScrollToBottom,
     
     // Message locking methods
-    lockToMessage,
+    lockToMessage, // KEY: This enables the lock
     unlockFromMessage,
     
     // State information
     isPendingAutoScroll: pendingAutoScrollRef.current,
     isLockedToMessage: activity.state === UserActivityState.LOCKED_TO_MESSAGE,
     lockedMessageId: activity.lockedMessageId,
-    isLockingMessage: isLockingMessageRef.current, // NEW: Expose locking state
     
     // Configuration
     config: finalConfig

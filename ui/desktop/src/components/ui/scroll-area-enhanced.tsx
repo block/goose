@@ -88,30 +88,14 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       scrollConfig
     );
 
-    // Track if we're currently processing a message click to prevent interference
-    const isProcessingClickRef = React.useRef(false);
-
-    // Handle message clicks for locking - COMPLETELY PREVENT SCROLL BEHAVIOR
+    // Simple message click handler - just lock, don't prevent scrolling
     const handleMessageClick = React.useCallback((event: MouseEvent) => {
       if (!intelligentScroll) return;
       
-      console.log('🖱️ Click detected, processing...', event.target);
-      
-      // Immediately prevent all default behaviors
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      
-      // Set processing flag to prevent other handlers
-      isProcessingClickRef.current = true;
-      
       const target = event.target as HTMLElement;
-      if (!target) {
-        isProcessingClickRef.current = false;
-        return;
-      }
+      if (!target) return;
       
-      // Find the closest message element (look for data-message-id attribute)
+      // Find the closest message element
       let messageElement = target.closest('[data-message-id]') as HTMLElement;
       if (!messageElement) {
         // Fallback: look for common message container classes
@@ -119,39 +103,22 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       }
       
       if (messageElement) {
-        console.log('🎯 Found message element:', messageElement);
-        
         const messageId = messageElement.getAttribute('data-message-id') || 
                          messageElement.id || 
                          `message-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
-        console.log('🔒 Locking to message WITHOUT any scrolling:', messageId);
-        
-        // Store current scroll position to prevent any movement
-        const currentScrollTop = viewportRef.current?.scrollTop || 0;
+        console.log('🔒 Locking to message (prevent future auto-scroll):', messageId);
         
         // Add visual highlight to the clicked message
         messageElement.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
         messageElement.style.borderLeft = '3px solid rgb(59, 130, 246)';
         messageElement.style.transition = 'all 0.2s ease';
         
-        // Lock to this message WITHOUT any scrolling
+        // Lock to this message - this prevents future auto-scrolling
         intelligentScrollData.lockToMessage(messageId, messageElement);
-        
-        // Ensure scroll position hasn't changed
-        setTimeout(() => {
-          if (viewportRef.current && viewportRef.current.scrollTop !== currentScrollTop) {
-            console.log('⚠️ Scroll position changed, restoring:', currentScrollTop);
-            viewportRef.current.scrollTop = currentScrollTop;
-          }
-          isProcessingClickRef.current = false;
-        }, 0);
         
         // Call external handler
         onMessageClick?.(messageId, messageElement);
-      } else {
-        console.log('❌ No message element found for click');
-        isProcessingClickRef.current = false;
       }
     }, [intelligentScroll, intelligentScrollData, onMessageClick]);
 
@@ -174,41 +141,16 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      // Use capture phase to prevent other handlers from interfering
-      // Also add multiple event types to catch all click variations
-      const events = ['click', 'mousedown', 'mouseup'];
-      
-      events.forEach(eventType => {
-        viewport.addEventListener(eventType, handleMessageClick, { 
-          capture: true, 
-          passive: false // Allow preventDefault
-        });
-      });
+      // Simple click listener - no need for complex event prevention
+      viewport.addEventListener('click', handleMessageClick);
       
       return () => {
-        events.forEach(eventType => {
-          viewport.removeEventListener(eventType, handleMessageClick, { capture: true });
-        });
+        viewport.removeEventListener('click', handleMessageClick);
       };
     }, [intelligentScroll, handleMessageClick]);
 
-    // Override any scroll behavior when processing clicks
-    const handleScrollDuringClick = React.useCallback((event: Event) => {
-      if (isProcessingClickRef.current) {
-        console.log('🚫 Preventing scroll during message click processing');
-        event.preventDefault();
-        event.stopPropagation();
-        return false;
-      }
-    }, []);
-
     // Legacy scroll handler for backward compatibility
     const handleLegacyScroll = React.useCallback(() => {
-      // Don't process scroll events if we're handling a click
-      if (isProcessingClickRef.current) {
-        return;
-      }
-      
       if (!viewportRef.current) return;
 
       const viewport = viewportRef.current;
@@ -224,24 +166,29 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
     // Track previous scroll height to detect content changes
     const prevScrollHeightRef = React.useRef<number>(0);
 
-    // Handle content changes - but not during click processing
+    // Handle content changes - KEY: This is where auto-scroll is prevented when locked
     React.useEffect(() => {
-      if (isProcessingClickRef.current) return;
       if (!viewportRef.current) return;
 
       const viewport = viewportRef.current;
       const currentScrollHeight = viewport.scrollHeight;
 
-      // Detect content changes
+      // Detect content changes (new messages)
       if (currentScrollHeight > prevScrollHeightRef.current) {
         prevScrollHeightRef.current = currentScrollHeight;
         
+        console.log('📝 New content detected, locked state:', intelligentScrollData.isLockedToMessage);
+        
         if (intelligentScroll) {
-          // Use intelligent scroll system
+          // Use intelligent scroll system - this should prevent auto-scroll when locked
           intelligentScrollData.handleContentChange();
         } else if (autoScroll && isFollowing) {
-          // Use legacy auto-scroll behavior
-          scrollMethods.scrollToBottom();
+          // Legacy auto-scroll behavior - also check if locked
+          if (!intelligentScrollData.isLockedToMessage) {
+            scrollMethods.scrollToBottom();
+          } else {
+            console.log('🔒 Preventing legacy auto-scroll - message is locked');
+          }
         }
         
         // Call external content change handler
@@ -254,17 +201,11 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      // Add scroll prevention during click processing
-      viewport.addEventListener('scroll', handleScrollDuringClick, { capture: true, passive: false });
-      
       // Always set up legacy scroll handler for backward compatibility
       viewport.addEventListener('scroll', handleLegacyScroll);
       
-      return () => {
-        viewport.removeEventListener('scroll', handleScrollDuringClick, { capture: true });
-        viewport.removeEventListener('scroll', handleLegacyScroll);
-      };
-    }, [handleLegacyScroll, handleScrollDuringClick]);
+      return () => viewport.removeEventListener('scroll', handleLegacyScroll);
+    }, [handleLegacyScroll]);
 
     // Expose methods to parent components
     React.useImperativeHandle(
@@ -296,14 +237,14 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
         data-locked-message={intelligentScroll ? intelligentScrollData.lockedMessageId : undefined}
         {...props}
       >
-        {/* Visual indicator for intelligent scroll state (optional, for debugging) */}
+        {/* Visual indicator for intelligent scroll state (for debugging) */}
         {intelligentScroll && process.env.NODE_ENV === 'development' && (
           <div className="absolute top-2 right-2 z-50 text-xs bg-black/50 text-white px-2 py-1 rounded">
             {intelligentScrollData.userActivity.state}
             {intelligentScrollData.userActivity.isUserActive && ' (active)'}
             {intelligentScrollData.isLockedToMessage && (
               <div className="text-yellow-300">
-                🔒 {intelligentScrollData.lockedMessageId?.slice(-8)}
+                🔒 LOCKED - No Auto-Scroll
               </div>
             )}
           </div>
@@ -315,34 +256,9 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
           className="h-full w-full rounded-[inherit] [&>div]:!block"
         >
           <div className={cn(paddingX ? `px-${paddingX}` : '', paddingY ? `py-${paddingY}` : '')}>
-            {/* Render children with potential lock indicator injection */}
-            {React.Children.map(children, (child, index) => {
-              // If this is the locked element, add the indicator after it
-              if (React.isValidElement(child) && isLocked && lockedElement) {
-                const childElement = child as React.ReactElement;
-                
-                // Check if this child corresponds to the locked element
-                // This is a simplified check - in a real implementation you'd want more robust matching
-                const shouldShowIndicator = index === React.Children.count(children) - 1; // Show after last child for now
-                
-                return (
-                  <React.Fragment key={index}>
-                    {child}
-                    {shouldShowIndicator && intelligentScrollData.lockedMessageId && (
-                      <MessageLockIndicator
-                        messageId={intelligentScrollData.lockedMessageId}
-                        onUnlock={intelligentScrollData.unlockFromMessage}
-                        onScrollToBottom={scrollMethods.scrollToBottom}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              }
-              
-              return child;
-            })}
+            {children}
             
-            {/* Show lock indicator at bottom if locked but couldn't inject it above */}
+            {/* Show lock indicator when locked */}
             {isLocked && intelligentScrollData.lockedMessageId && (
               <MessageLockIndicator
                 messageId={intelligentScrollData.lockedMessageId}
