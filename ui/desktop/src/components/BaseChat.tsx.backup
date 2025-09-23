@@ -13,7 +13,6 @@
  * - Supports both user and assistant message rendering with tool call integration
  * - Manages loading states, error handling, and retry functionality
  * - Offers customization points through render props and configuration options
- * - **NEW**: Intelligent scrolling that respects user reading behavior
  *
  * Architecture:
  * - Uses a provider pattern (ChatContextManagerProvider) for state management
@@ -23,7 +22,6 @@
  *   - useRecipeManager: Recipe/agent configuration management
  *   - useFileDrop: Drag-and-drop file handling with previews
  *   - useCostTracking: Token usage and cost calculation
- *   - **NEW**: Intelligent scrolling system for better UX
  *
  * Customization Points:
  * - renderHeader(): Custom header content (used by Hub for insights/recipe controls)
@@ -32,7 +30,6 @@
  * - customChatInputProps: Props passed to ChatInput for specialized behavior
  * - customMainLayoutProps: Props passed to MainPanelLayout
  * - contentClassName: Custom CSS classes for the content area
- * - **NEW**: intelligentScrolling: Enable smart scroll behavior (default: true)
  *
  * File Handling:
  * - Supports drag-and-drop of files with visual feedback
@@ -57,7 +54,7 @@ import { View, ViewOptions } from '../utils/navigationUtils';
 import { ContextManagerProvider, useContextManager } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
-import { ScrollAreaEnhanced, ScrollAreaHandle } from './ui/scroll-area-enhanced';
+import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import ParameterInputModal from './ParameterInputModal';
 import { useChatEngine } from '../hooks/useChatEngine';
@@ -91,15 +88,6 @@ interface BaseChatProps {
   suppressEmptyState?: boolean;
   autoSubmit?: boolean;
   loadingChat: boolean;
-  // NEW: Intelligent scrolling configuration
-  intelligentScrolling?: boolean; // Enable intelligent scrolling (default: true)
-  scrollConfig?: {
-    idleTimeout?: number; // Time to wait before considering user idle (default: 4000ms)
-    activityDebounce?: number; // Debounce for activity detection (default: 100ms)
-    scrollVelocityThreshold?: number; // Minimum velocity for intentional scroll (default: 0.5)
-    autoScrollDelay?: number; // Delay before auto-scroll when idle at bottom (default: 200ms)
-    gracefulReturnDelay?: number; // Delay before graceful return when idle above (default: 1500ms)
-  };
 }
 
 function BaseChatContent({
@@ -120,8 +108,6 @@ function BaseChatContent({
   suppressEmptyState = false,
   autoSubmit = false,
   loadingChat = false,
-  intelligentScrolling = true, // Enable by default
-  scrollConfig = {},
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -131,11 +117,11 @@ function BaseChatContent({
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
   const { isCompacting, handleManualCompaction } = useContextManager();
 
-  // Legacy timeout ref for backward compatibility (when intelligent scrolling is disabled)
+  // Timeout ref for debouncing auto-scroll
   const autoScrollTimeoutRef = useRef<number | null>(null);
+  // Track if user was following when agent started responding
   const wasFollowingRef = useRef<boolean>(true);
 
-  // Legacy isNearBottom function for backward compatibility
   const isNearBottom = React.useCallback(() => {
     if (!scrollRef.current) return false;
 
@@ -151,10 +137,8 @@ function BaseChatContent({
     return distanceFromBottom <= 100;
   }, []);
 
-  // Legacy conditional auto-scroll function (used when intelligent scrolling is disabled)
-  const legacyConditionalAutoScroll = React.useCallback(() => {
-    if (intelligentScrolling) return; // Skip legacy behavior when intelligent scrolling is enabled
-
+  // Function to auto-scroll if user was following when agent started
+  const conditionalAutoScroll = React.useCallback(() => {
     // Clear any existing timeout
     if (autoScrollTimeoutRef.current) {
       clearTimeout(autoScrollTimeoutRef.current);
@@ -167,19 +151,7 @@ function BaseChatContent({
         scrollRef.current.scrollToBottom();
       }
     }, 150);
-  }, [intelligentScrolling]);
-
-  // Intelligent scroll handler for new messages
-  const handleNewMessage = React.useCallback(() => {
-    if (intelligentScrolling) {
-      // The intelligent scroll system will handle this automatically
-      // via the ScrollAreaEnhanced component's content change detection
-      return;
-    } else {
-      // Use legacy behavior
-      legacyConditionalAutoScroll();
-    }
-  }, [intelligentScrolling, legacyConditionalAutoScroll]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -215,15 +187,13 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
-      handleNewMessage();
+      conditionalAutoScroll();
 
       // Call the original callback if provided
       onMessageStreamFinish?.();
     },
     onMessageSent: () => {
-      if (!intelligentScrolling) {
-        wasFollowingRef.current = isNearBottom();
-      }
+      wasFollowingRef.current = isNearBottom();
 
       // Mark that user has started using the recipe
       if (recipeConfig) {
@@ -371,12 +341,10 @@ function BaseChatContent({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-          <ScrollAreaEnhanced
+          <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
-            autoScroll={!intelligentScrolling} // Use legacy auto-scroll when intelligent scrolling is disabled
-            intelligentScroll={intelligentScrolling} // Enable intelligent scrolling
-            scrollConfig={scrollConfig} // Pass configuration
+            autoScroll
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             data-drop-zone="true"
@@ -508,7 +476,7 @@ function BaseChatContent({
 
             {/* Custom content after messages */}
             {renderAfterMessages && renderAfterMessages()}
-          </ScrollAreaEnhanced>
+          </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
           {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
@@ -523,15 +491,6 @@ function BaseChatContent({
                 }
                 chatState={chatState}
               />
-            </div>
-          )}
-
-          {/* Debug info for intelligent scrolling (development only) */}
-          {intelligentScrolling && process.env.NODE_ENV === 'development' && scrollRef.current && (
-            <div className="absolute bottom-20 right-4 z-30 text-xs bg-black/70 text-white px-3 py-2 rounded-lg">
-              <div>Intelligent Scrolling: ON</div>
-              <div>User State: {scrollRef.current.getUserActivityState?.()}</div>
-              <div>Active: {scrollRef.current.isUserActive?.() ? 'Yes' : 'No'}</div>
             </div>
           )}
         </div>
