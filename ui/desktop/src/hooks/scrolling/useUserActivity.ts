@@ -61,8 +61,7 @@ export function useUserActivity(
   const idleTimeoutRef = useRef<number | null>(null);
   const messageLockTimeoutRef = useRef<number | null>(null);
   const isScrollingRef = useRef(false);
-  const lockedMessageTopRef = useRef<number | null>(null);
-  const lockedMessageBottomRef = useRef<number | null>(null);
+  const lockScrollPositionRef = useRef<number | null>(null);
 
   // Calculate if user is near bottom of scroll container
   const checkIsNearBottom = useCallback((): boolean => {
@@ -76,58 +75,31 @@ export function useUserActivity(
     return distanceFromBottom <= 100; // Within 100px of bottom
   }, [scrollContainerRef]);
 
-  // Get current message boundaries relative to scroll container
-  const getMessageBoundaries = useCallback((): { top: number; bottom: number } | null => {
-    if (!lockedElement || !scrollContainerRef.current) return null;
+  // Simple unlock check - just compare current scroll to lock position
+  const shouldUnlockBasedOnScroll = useCallback((): boolean => {
+    if (!scrollContainerRef.current || lockScrollPositionRef.current === null) {
+      console.log('❌ No scroll container or lock position');
+      return false;
+    }
     
-    const scrollContainer = scrollContainerRef.current;
-    const messageRect = lockedElement.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
+    const currentScrollTop = scrollContainerRef.current.scrollTop;
+    const lockPosition = lockScrollPositionRef.current;
+    const scrollDistance = Math.abs(currentScrollTop - lockPosition);
+    const threshold = 200; // 200px threshold for unlock
     
-    // Calculate message position relative to the scroll container's content
-    const messageTopInContainer = messageRect.top - containerRect.top + scrollContainer.scrollTop;
-    const messageBottomInContainer = messageRect.bottom - containerRect.top + scrollContainer.scrollTop;
+    const shouldUnlock = scrollDistance > threshold;
     
-    return {
-      top: messageTopInContainer,
-      bottom: messageBottomInContainer
-    };
-  }, [lockedElement, scrollContainerRef]);
-
-  // Check if user has scrolled past the locked message
-  const hasScrolledPastLockedMessage = useCallback((): boolean => {
-    if (!scrollContainerRef.current || !lockedElement) return false;
-    
-    const scrollContainer = scrollContainerRef.current;
-    const currentScrollTop = scrollContainer.scrollTop;
-    const viewportHeight = scrollContainer.clientHeight;
-    const viewportBottom = currentScrollTop + viewportHeight;
-    
-    const boundaries = getMessageBoundaries();
-    if (!boundaries) return false;
-    
-    // User has scrolled past if the entire message is above the current viewport
-    // Add buffer to prevent accidental unlocking
-    const buffer = 100; // 100px buffer
-    const hasScrolledPast = currentScrollTop > boundaries.bottom + buffer;
-    
-    // Also unlock if user scrolled way down past the message
-    const hasScrolledWayDown = boundaries.top + buffer < currentScrollTop - viewportHeight;
-    
-    console.log('🔍 Scroll past check:', {
+    console.log('🔍 UNLOCK CHECK:', {
       currentScrollTop,
-      viewportHeight,
-      viewportBottom,
-      messageTop: boundaries.top,
-      messageBottom: boundaries.bottom,
-      buffer,
-      hasScrolledPast,
-      hasScrolledWayDown,
-      shouldUnlock: hasScrolledPast || hasScrolledWayDown
+      lockPosition,
+      scrollDistance,
+      threshold,
+      shouldUnlock,
+      scrollDirection: currentScrollTop > lockPosition ? 'DOWN' : 'UP'
     });
     
-    return hasScrolledPast || hasScrolledWayDown;
-  }, [scrollContainerRef, lockedElement, getMessageBoundaries]);
+    return shouldUnlock;
+  }, [scrollContainerRef]);
 
   // Calculate scroll velocity for intent detection
   const calculateScrollVelocity = useCallback((currentScrollTop: number): number => {
@@ -149,14 +121,11 @@ export function useUserActivity(
     setLockedElement(element);
     setState(UserActivityState.LOCKED_TO_MESSAGE);
     
-    // Store the locked message boundaries
-    if (element) {
-      const boundaries = getMessageBoundaries();
-      if (boundaries) {
-        lockedMessageTopRef.current = boundaries.top;
-        lockedMessageBottomRef.current = boundaries.bottom;
-        console.log('📍 Stored locked message boundaries:', boundaries);
-      }
+    // Store current scroll position as the lock position
+    if (scrollContainerRef.current) {
+      const currentScrollTop = scrollContainerRef.current.scrollTop;
+      lockScrollPositionRef.current = currentScrollTop;
+      console.log('📍 Stored lock scroll position:', currentScrollTop);
     }
     
     // Clear existing timeouts
@@ -176,7 +145,7 @@ export function useUserActivity(
       unlockFromMessage();
     }, finalConfig.messageLockTimeout);
     
-  }, [finalConfig.messageLockTimeout, getMessageBoundaries]);
+  }, [finalConfig.messageLockTimeout, scrollContainerRef]);
 
   // Unlock from message and return to normal behavior
   const unlockFromMessage = useCallback(() => {
@@ -184,8 +153,7 @@ export function useUserActivity(
     
     setLockedMessageId(undefined);
     setLockedElement(undefined);
-    lockedMessageTopRef.current = null;
-    lockedMessageBottomRef.current = null;
+    lockScrollPositionRef.current = null;
     
     // Clear message lock timeout
     if (messageLockTimeoutRef.current) {
@@ -241,7 +209,7 @@ export function useUserActivity(
     }, finalConfig.activityDebounce);
   }, [finalConfig.activityDebounce, finalConfig.idleTimeout, checkIsNearBottom, state]);
 
-  // Handle scroll events - KEY: Check if scrolled past locked message
+  // Handle scroll events - SIMPLIFIED: Check scroll distance from lock position
   const handleScroll = useCallback((event: Event) => {
     const target = event.target as HTMLElement;
     if (!target) return;
@@ -252,17 +220,16 @@ export function useUserActivity(
     const nearBottom = checkIsNearBottom();
     setIsNearBottom(nearBottom);
     
-    // KEY LOGIC: If locked to message, check if user has scrolled past it
+    // KEY LOGIC: If locked to message, check scroll distance from lock position
     if (state === UserActivityState.LOCKED_TO_MESSAGE) {
-      // Only check if we have significant scroll movement to avoid jitter
-      if (velocity > 0.1) {
-        if (hasScrolledPastLockedMessage()) {
-          console.log('📜 User scrolled past locked message, unlocking');
-          unlockFromMessage();
-          return;
-        } else {
-          console.log('🔒 Still within locked message area, maintaining lock');
-        }
+      console.log('🔒 Locked state - checking unlock condition...');
+      
+      if (shouldUnlockBasedOnScroll()) {
+        console.log('✅ UNLOCKING: User scrolled far enough from lock position');
+        unlockFromMessage();
+        return;
+      } else {
+        console.log('🔒 STAYING LOCKED: Not scrolled far enough yet');
       }
       return; // Stay locked, don't change state
     }
@@ -286,7 +253,7 @@ export function useUserActivity(
       isScrollingRef.current = false;
     }, 50);
     
-  }, [calculateScrollVelocity, checkIsNearBottom, finalConfig.scrollVelocityThreshold, markUserActive, state, hasScrolledPastLockedMessage, unlockFromMessage]);
+  }, [calculateScrollVelocity, checkIsNearBottom, finalConfig.scrollVelocityThreshold, markUserActive, state, shouldUnlockBasedOnScroll, unlockFromMessage]);
 
   // Handle mouse activity
   const handleMouseActivity = useCallback((event: MouseEvent) => {
@@ -314,6 +281,7 @@ export function useUserActivity(
   const handleKeyboardActivity = useCallback((event: KeyboardEvent) => {
     // Escape key unlocks from message
     if (event.key === 'Escape' && state === UserActivityState.LOCKED_TO_MESSAGE) {
+      console.log('⌨️ Escape key pressed - unlocking');
       unlockFromMessage();
       return;
     }
@@ -414,19 +382,30 @@ export function useUserActivity(
       (state === UserActivityState.FOLLOWING && !isUserActive)
     );
 
-  // Debug logging for shouldAutoScroll
+  // Debug logging every second when locked
   useEffect(() => {
     if (state === UserActivityState.LOCKED_TO_MESSAGE) {
-      console.log('🔒 LOCKED STATE DEBUG:', {
-        state,
-        lockedMessageId,
-        messageTop: lockedMessageTopRef.current,
-        messageBottom: lockedMessageBottomRef.current,
-        currentScrollTop: scrollContainerRef.current?.scrollTop,
-        shouldAutoScroll
-      });
+      const interval = setInterval(() => {
+        if (scrollContainerRef.current && lockScrollPositionRef.current !== null) {
+          const currentScroll = scrollContainerRef.current.scrollTop;
+          const lockPosition = lockScrollPositionRef.current;
+          const distance = Math.abs(currentScroll - lockPosition);
+          
+          console.log('🔒 LOCK STATUS:', {
+            locked: true,
+            messageId: lockedMessageId,
+            currentScroll,
+            lockPosition,
+            distance,
+            threshold: 200,
+            shouldUnlock: distance > 200
+          });
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
     }
-  }, [state, lockedMessageId, shouldAutoScroll, scrollContainerRef]);
+  }, [state, lockedMessageId, scrollContainerRef]);
 
   return {
     state,
