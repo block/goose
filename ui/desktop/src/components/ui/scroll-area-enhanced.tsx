@@ -88,41 +88,70 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       scrollConfig
     );
 
-    // Handle message clicks for locking - PREVENT DEFAULT SCROLL BEHAVIOR
+    // Track if we're currently processing a message click to prevent interference
+    const isProcessingClickRef = React.useRef(false);
+
+    // Handle message clicks for locking - COMPLETELY PREVENT SCROLL BEHAVIOR
     const handleMessageClick = React.useCallback((event: MouseEvent) => {
       if (!intelligentScroll) return;
       
+      console.log('🖱️ Click detected, processing...', event.target);
+      
+      // Immediately prevent all default behaviors
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      
+      // Set processing flag to prevent other handlers
+      isProcessingClickRef.current = true;
+      
       const target = event.target as HTMLElement;
-      if (!target) return;
+      if (!target) {
+        isProcessingClickRef.current = false;
+        return;
+      }
       
       // Find the closest message element (look for data-message-id attribute)
       let messageElement = target.closest('[data-message-id]') as HTMLElement;
       if (!messageElement) {
         // Fallback: look for common message container classes
-        messageElement = target.closest('.message, [role="article"], .chat-message, .goose-message, .user-message') as HTMLElement;
+        messageElement = target.closest('.message, [role="article"], .chat-message, .goose-message, .user-message, [data-testid*="message"]') as HTMLElement;
       }
       
       if (messageElement) {
-        // PREVENT any default scrolling behavior
-        event.preventDefault();
-        event.stopPropagation();
+        console.log('🎯 Found message element:', messageElement);
         
         const messageId = messageElement.getAttribute('data-message-id') || 
                          messageElement.id || 
                          `message-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
-        console.log('🖱️ Message clicked - locking without scroll:', messageId, messageElement);
+        console.log('🔒 Locking to message WITHOUT any scrolling:', messageId);
+        
+        // Store current scroll position to prevent any movement
+        const currentScrollTop = viewportRef.current?.scrollTop || 0;
         
         // Add visual highlight to the clicked message
         messageElement.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
         messageElement.style.borderLeft = '3px solid rgb(59, 130, 246)';
         messageElement.style.transition = 'all 0.2s ease';
         
-        // Lock to this message WITHOUT scrolling
+        // Lock to this message WITHOUT any scrolling
         intelligentScrollData.lockToMessage(messageId, messageElement);
+        
+        // Ensure scroll position hasn't changed
+        setTimeout(() => {
+          if (viewportRef.current && viewportRef.current.scrollTop !== currentScrollTop) {
+            console.log('⚠️ Scroll position changed, restoring:', currentScrollTop);
+            viewportRef.current.scrollTop = currentScrollTop;
+          }
+          isProcessingClickRef.current = false;
+        }, 0);
         
         // Call external handler
         onMessageClick?.(messageId, messageElement);
+      } else {
+        console.log('❌ No message element found for click');
+        isProcessingClickRef.current = false;
       }
     }, [intelligentScroll, intelligentScrollData, onMessageClick]);
 
@@ -146,15 +175,40 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       if (!viewport) return;
 
       // Use capture phase to prevent other handlers from interfering
-      viewport.addEventListener('click', handleMessageClick, { capture: true });
+      // Also add multiple event types to catch all click variations
+      const events = ['click', 'mousedown', 'mouseup'];
+      
+      events.forEach(eventType => {
+        viewport.addEventListener(eventType, handleMessageClick, { 
+          capture: true, 
+          passive: false // Allow preventDefault
+        });
+      });
       
       return () => {
-        viewport.removeEventListener('click', handleMessageClick, { capture: true });
+        events.forEach(eventType => {
+          viewport.removeEventListener(eventType, handleMessageClick, { capture: true });
+        });
       };
     }, [intelligentScroll, handleMessageClick]);
 
+    // Override any scroll behavior when processing clicks
+    const handleScrollDuringClick = React.useCallback((event: Event) => {
+      if (isProcessingClickRef.current) {
+        console.log('🚫 Preventing scroll during message click processing');
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      }
+    }, []);
+
     // Legacy scroll handler for backward compatibility
     const handleLegacyScroll = React.useCallback(() => {
+      // Don't process scroll events if we're handling a click
+      if (isProcessingClickRef.current) {
+        return;
+      }
+      
       if (!viewportRef.current) return;
 
       const viewport = viewportRef.current;
@@ -170,8 +224,9 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
     // Track previous scroll height to detect content changes
     const prevScrollHeightRef = React.useRef<number>(0);
 
-    // Handle content changes
+    // Handle content changes - but not during click processing
     React.useEffect(() => {
+      if (isProcessingClickRef.current) return;
       if (!viewportRef.current) return;
 
       const viewport = viewportRef.current;
@@ -199,11 +254,17 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       const viewport = viewportRef.current;
       if (!viewport) return;
 
+      // Add scroll prevention during click processing
+      viewport.addEventListener('scroll', handleScrollDuringClick, { capture: true, passive: false });
+      
       // Always set up legacy scroll handler for backward compatibility
       viewport.addEventListener('scroll', handleLegacyScroll);
       
-      return () => viewport.removeEventListener('scroll', handleLegacyScroll);
-    }, [handleLegacyScroll]);
+      return () => {
+        viewport.removeEventListener('scroll', handleScrollDuringClick, { capture: true });
+        viewport.removeEventListener('scroll', handleLegacyScroll);
+      };
+    }, [handleLegacyScroll, handleScrollDuringClick]);
 
     // Expose methods to parent components
     React.useImperativeHandle(
