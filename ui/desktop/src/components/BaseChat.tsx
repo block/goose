@@ -1,9 +1,8 @@
 /**
  * BaseChat Component
- * 
- * A comprehensive chat interface component that serves as the foundation for all chat experiences
- * in the Goose Desktop application. This component handles the complete chat lifecycle including
- * message rendering, user input, file handling, and advanced features like recipe integration,
+ *
+ * BaseChat is the foundational chat component that provides the core conversational interface
+ * for the Goose Desktop application. It serves as the shared base for both Hub and Pair components,
  * offering a flexible and extensible chat experience.
  *
  * Key Responsibilities:
@@ -45,8 +44,9 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
@@ -69,12 +69,17 @@ import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 
+// Context for sharing current model info
+const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
+export const useCurrentModelInfo = () => useContext(CurrentModelContext);
+
 interface BaseChatProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView?: (view: View, options?: ViewOptions) => void;
-  setIsGoosehintsModalOpen?: (open: boolean) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageStreamFinish?: () => void;
+  onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
@@ -103,6 +108,7 @@ function BaseChatContent({
   setView,
   setIsGoosehintsModalOpen,
   onMessageStreamFinish,
+  onMessageSubmit,
   renderHeader,
   renderBeforeMessages,
   renderAfterMessages,
@@ -163,9 +169,19 @@ function BaseChatContent({
     }, 150);
   }, [intelligentScrolling]);
 
-  // CRITICAL FIX: Remove handleNewMessage entirely - it's not needed with intelligent scrolling
-  // The intelligent scroll system handles all message updates via content change detection
-  // This prevents the bypass that was causing the lock to break
+  // FIXED: Intelligent scroll handler for new messages - DON'T force scroll
+  const handleNewMessage = React.useCallback(() => {
+    if (intelligentScrolling) {
+      // CRITICAL: Don't call any scroll methods here!
+      // The intelligent scroll system handles this automatically via content change detection
+      // Calling scrollToBottom here would bypass the lock system
+      console.log('📝 Message stream finished - letting intelligent scroll system handle it');
+      return;
+    } else {
+      // Use legacy behavior only when intelligent scrolling is disabled
+      legacyConditionalAutoScroll();
+    }
+  }, [intelligentScrolling, legacyConditionalAutoScroll]);
 
   useEffect(() => {
     return () => {
@@ -178,15 +194,14 @@ function BaseChatContent({
   // Use shared chat engine
   const {
     messages,
-    setMessages,
-    input,
-    setInput,
+    filteredMessages,
     append,
-    isLoading,
-    stop,
-    reload,
     chatState,
     error,
+    setMessages,
+    input,
+    handleSubmit: engineHandleSubmit,
+    onStopGoose,
     sessionTokenCount,
     sessionInputTokens,
     sessionOutputTokens,
@@ -202,9 +217,12 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
-      // CRITICAL FIX: Completely remove the bypass logic
-      // Let the intelligent scroll system handle everything via content change detection
-      console.log('📝 Message stream finished - intelligent scrolling handles all updates');
+      // CRITICAL FIX: Completely skip handleNewMessage when using intelligent scrolling
+      // Let the intelligent scroll system handle ALL message updates via content change detection
+      if (!intelligentScrolling) {
+        handleNewMessage();
+      }
+      // Note: When intelligentScrolling=true, we skip handleNewMessage entirely      }
 
       // Call the original callback if provided
       onMessageStreamFinish?.();
@@ -229,26 +247,35 @@ function BaseChatContent({
     isGeneratingRecipe,
     isParameterModalOpen,
     setIsParameterModalOpen,
-    isRecipeWarningModalOpen,
-    setIsRecipeWarningModalOpen,
+    recipeParameters,
     handleParameterSubmit,
     handleAutoExecution,
-    isInitialRecipeLoad,
-    hasExistingConversation,
-  } = useRecipeManager({
-    chat,
-    setChat,
-    append,
-    setView,
-    setIsGoosehintsModalOpen,
-  });
+    recipeError,
+    setRecipeError,
+    isRecipeWarningModalOpen,
+    recipeAccepted,
+    handleRecipeAccept,
+    handleRecipeCancel,
+    hasSecurityWarnings,
+  } = useRecipeManager(chat, location.state?.recipeConfig);
 
-  // Track recipe usage
+  // Reset recipe usage tracking when recipe changes
   useEffect(() => {
-    if (recipeConfig?.title) {
-      if (recipeConfig.title !== currentRecipeTitle) {
-        setCurrentRecipeTitle(recipeConfig.title);
+    const previousTitle = currentRecipeTitle;
+    const newTitle = recipeConfig?.title || null;
+    const hasRecipeChanged = newTitle !== currentRecipeTitle;
+
+    if (hasRecipeChanged) {
+      setCurrentRecipeTitle(newTitle);
+
+      const isSwitchingBetweenRecipes = previousTitle && newTitle;
+      const isInitialRecipeLoad = !previousTitle && newTitle && messages.length === 0;
+      const hasExistingConversation = newTitle && messages.length > 0;
+
+      if (isSwitchingBetweenRecipes) {
+        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
         setHasStartedUsingRecipe(false);
+        setMessages([]);
       } else if (isInitialRecipeLoad) {
         setHasStartedUsingRecipe(false);
       } else if (hasExistingConversation) {
@@ -273,6 +300,8 @@ function BaseChatContent({
   const { sessionCosts } = useCostTracking({
     sessionInputTokens,
     sessionOutputTokens,
+    localInputTokens,
+    localOutputTokens,
     sessionMetadata,
   });
 
@@ -299,7 +328,16 @@ function BaseChatContent({
     if (recipeConfig && combinedTextFromInput.trim()) {
       setHasStartedUsingRecipe(true);
     }
+
+    // Call the callback if provided (for Hub to handle navigation)
+    if (onMessageSubmit && combinedTextFromInput.trim()) {
+      onMessageSubmit(combinedTextFromInput);
+    }
+
+    engineHandleSubmit(combinedTextFromInput);
   };
+
+  const toolCount = useToolCount(chat.sessionId);
 
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
@@ -356,45 +394,137 @@ function BaseChatContent({
             paddingY={0}
           >
             {/* Recipe agent header - sticky at top of chat container */}
-            {recipeConfig && (
-              <div className="sticky top-0 z-20 bg-background-default border-b border-border-subtle">
+            {recipeConfig?.title && (
+              <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
                 <AgentHeader
-                  recipeConfig={recipeConfig}
-                  hasStartedUsingRecipe={hasStartedUsingRecipe}
-                  onStartRecipe={() => setHasStartedUsingRecipe(true)}
+                  title={recipeConfig.title}
+                  profileInfo={
+                    recipeConfig.profile
+                      ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                      : undefined
+                  }
+                  onChangeProfile={() => {
+                    console.log('Change profile clicked');
+                  }}
+                  showBorder={true}
                 />
               </div>
             )}
 
-            {/* Content before messages */}
+            {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
 
-            {/* Main message list */}
-            <div className="flex-1 min-h-0">
-              <ProgressiveMessageList
-                messages={messages}
-                isLoading={isLoading}
-                onRenderingComplete={handleRenderingComplete}
-                disableAnimation={disableAnimation}
-                loadingChat={loadingChat}
-                chatState={chatState}
-                onMessageUpdate={onMessageUpdate}
-                sessionMetadata={sessionMetadata}
-                sessionCosts={sessionCosts}
-                isUserMessage={isUserMessage}
-                error={error}
-                clearError={clearError}
-                stop={stop}
-                reload={reload}
-                append={appendWithTracking}
-                disableSearch={disableSearch}
-                showPopularTopics={showPopularTopics}
-                suppressEmptyState={suppressEmptyState}
-                toolCallNotifications={toolCallNotifications}
-                commandHistory={commandHistory}
-                onManualCompaction={handleManualCompaction}
-                isCompacting={isCompacting}
-                loadingMessage={
+            {/* Recipe Activities - always show when recipe is active and accepted */}
+            {recipeConfig && recipeAccepted && !suppressEmptyState && (
+              <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
+                <RecipeActivities
+                  append={(text: string) => appendWithTracking(text)}
+                  activities={
+                    Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
+                  }
+                  title={recipeConfig.title}
+                  parameterValues={recipeParameters || {}}
+                />
+              </div>
+            )}
+
+            {/* Messages or Popular Topics */}
+            {
+              loadingChat ? null : filteredMessages.length > 0 ||
+                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
+                <>
+                  {disableSearch ? (
+                    // Render messages without SearchView wrapper when search is disabled
+                    <ProgressiveMessageList
+                      messages={filteredMessages}
+                      chat={chat}
+                      toolCallNotifications={toolCallNotifications}
+                      append={append}
+                      appendMessage={(newMessage) => {
+                        const updatedMessages = [...messages, newMessage];
+                        setMessages(updatedMessages);
+                      }}
+                      isUserMessage={isUserMessage}
+                      isStreamingMessage={chatState !== ChatState.Idle}
+                      onMessageUpdate={onMessageUpdate}
+                      onRenderingComplete={handleRenderingComplete}
+                    />
+                  ) : (
+                    // Render messages with SearchView wrapper when search is enabled
+                    <SearchView>
+                      <ProgressiveMessageList
+                        messages={filteredMessages}
+                        chat={chat}
+                        toolCallNotifications={toolCallNotifications}
+                        append={append}
+                        appendMessage={(newMessage) => {
+                          const updatedMessages = [...messages, newMessage];
+                          setMessages(updatedMessages);
+                        }}
+                        isUserMessage={isUserMessage}
+                        isStreamingMessage={chatState !== ChatState.Idle}
+                        onMessageUpdate={onMessageUpdate}
+                        onRenderingComplete={handleRenderingComplete}
+                      />
+                    </SearchView>
+                  )}
+
+                  {error && (
+                    <>
+                      <div className="flex flex-col items-center justify-center p-4">
+                        <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                          {error.message || 'Honk! Goose experienced an error while responding'}
+                        </div>
+
+                        {/* Action buttons for all errors including token limit errors */}
+                        <div className="flex gap-2 mt-2">
+                          <div
+                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                            onClick={async () => {
+                              clearError();
+
+                              await handleManualCompaction(messages, setMessages, append);
+                            }}
+                          >
+                            Summarize Conversation
+                          </div>
+                          <div
+                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                            onClick={async () => {
+                              // Find the last user message
+                              const lastUserMessage = messages.reduceRight(
+                                (found, m) => found || (m.role === 'user' ? m : null),
+                                null as Message | null
+                              );
+                              if (lastUserMessage) {
+                                await append(lastUserMessage);
+                              }
+                            }}
+                          >
+                            Retry Last Message
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="block h-8" />
+                </>
+              ) : !recipeConfig && showPopularTopics ? (
+                /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
+                <PopularChatTopics append={(text: string) => append(text)} />
+              ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
+            }
+
+            {/* Custom content after messages */}
+            {renderAfterMessages && renderAfterMessages()}
+          </ScrollAreaEnhanced>
+
+          {/* Fixed loading indicator at bottom left of chat container */}
+          {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
+            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+              <LoadingGoose
+                message={
                   loadingChat
                     ? 'loading conversation...'
                     : isCompacting
@@ -404,10 +534,7 @@ function BaseChatContent({
                 chatState={chatState}
               />
             </div>
-          </ScrollAreaEnhanced>
-
-          {/* Content after messages */}
-          {renderAfterMessages && renderAfterMessages()}
+          )}
 
           {/* Debug info for intelligent scrolling (development only) */}
           {intelligentScrolling && process.env.NODE_ENV === 'development' && scrollRef.current && (
@@ -425,66 +552,77 @@ function BaseChatContent({
           <ChatInput
             sessionId={chat.sessionId}
             handleSubmit={handleSubmit}
-            input={input}
-            setInput={setInput}
-            isLoading={isLoading}
-            stop={stop}
-            append={appendWithTracking}
+            chatState={chatState}
+            onStop={onStopGoose}
+            commandHistory={commandHistory}
+            initialValue={input || ''}
+            setView={setView}
+            numTokens={sessionTokenCount}
+            inputTokens={sessionInputTokens || localInputTokens}
+            outputTokens={sessionOutputTokens || localOutputTokens}
             droppedFiles={droppedFiles}
-            setDroppedFiles={setDroppedFiles}
+            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+            messages={messages}
+            setMessages={setMessages}
+            disableAnimation={disableAnimation}
+            sessionCosts={sessionCosts}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+            recipeConfig={recipeConfig}
+            recipeAccepted={recipeAccepted}
+            initialPrompt={initialPrompt}
+            toolCount={toolCount || 0}
             autoSubmit={autoSubmit}
+            append={append}
             {...customChatInputProps}
           />
         </div>
       </MainPanelLayout>
 
-      {/* Modals */}
-      <ParameterInputModal
-        isOpen={isParameterModalOpen}
-        onClose={() => setIsParameterModalOpen(false)}
-        parameters={filteredParameters}
-        onSubmit={handleParameterSubmit}
-        initialPrompt={initialPrompt}
-      />
-
+      {/* Recipe Warning Modal */}
       <RecipeWarningModal
         isOpen={isRecipeWarningModalOpen}
-        onClose={() => setIsRecipeWarningModalOpen(false)}
-        onConfirm={() => {
-          setIsRecipeWarningModalOpen(false);
-          setIsParameterModalOpen(true);
+        onConfirm={handleRecipeAccept}
+        onCancel={handleRecipeCancel}
+        recipeDetails={{
+          title: recipeConfig?.title,
+          description: recipeConfig?.description,
+          instructions: recipeConfig?.instructions || undefined,
         }}
-        recipeTitle={recipeConfig?.title || ''}
+        hasSecurityWarnings={hasSecurityWarnings}
       />
 
-      {/* Tool count alert */}
-      <ToolCountAlert />
+      {/* Recipe Parameter Modal */}
+      {isParameterModalOpen && filteredParameters.length > 0 && (
+        <ParameterInputModal
+          parameters={filteredParameters}
+          onSubmit={handleParameterSubmit}
+          onClose={() => setIsParameterModalOpen(false)}
+        />
+      )}
+
+      {/* Recipe Error Modal */}
+      {recipeError && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+          <div className="bg-background-default border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
+            <h3 className="text-lg font-medium text-textProminent mb-4">Recipe Creation Failed</h3>
+            <p className="text-textStandard mb-6">{recipeError}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setRecipeError(null)}
+                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No modals needed for the new simplified context manager */}
     </div>
   );
 }
 
-// Tool count alert component
-function ToolCountAlert() {
-  const { showAlert, alertMessage, dismissAlert } = useToolCount();
-
-  if (!showAlert) return null;
-
-  return (
-    <div className="fixed bottom-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg shadow-lg max-w-md">
-      <div className="flex justify-between items-start">
-        <div className="text-sm">{alertMessage}</div>
-        <button
-          onClick={dismissAlert}
-          className="ml-2 text-yellow-600 hover:text-yellow-800 font-bold"
-        >
-          ×
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Main component with context provider
 export default function BaseChat(props: BaseChatProps) {
   return (
     <ContextManagerProvider>
