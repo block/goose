@@ -588,7 +588,7 @@ export default function ProviderConfigurationModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] p-0 flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getModalIcon()}
@@ -597,7 +597,7 @@ export default function ProviderConfigurationModal() {
           <DialogDescription>{descriptionText}</DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
           {/* Contains information used to set up each provider */}
           {/* Only show the form when NOT in delete confirmation mode */}
           {!showDeleteConfirmation ? (
@@ -618,7 +618,7 @@ export default function ProviderConfigurationModal() {
           ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 px-6 py-4">
           <ProviderSetupActions
             requiredParameters={requiredParameters}
             onCancel={handleCancel}
