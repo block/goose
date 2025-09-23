@@ -54,6 +54,7 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
     const rootRef = React.useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
     const viewportRef = React.useRef<HTMLDivElement>(null);
     const viewportEndRef = React.useRef<HTMLDivElement>(null);
+    const lockIndicatorRef = React.useRef<HTMLDivElement>(null);
     
     // Legacy state for backward compatibility
     const [isFollowing, setIsFollowing] = React.useState(true);
@@ -117,22 +118,73 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
         // Lock to this message - this prevents future auto-scrolling
         intelligentScrollData.lockToMessage(messageId, messageElement);
         
+        // Position the lock indicator directly under this message
+        positionLockIndicator(messageElement);
+        
         // Call external handler
         onMessageClick?.(messageId, messageElement);
       }
     }, [intelligentScroll, intelligentScrollData, onMessageClick]);
 
+    // Position lock indicator under the locked message
+    const positionLockIndicator = React.useCallback((messageElement: HTMLElement) => {
+      if (!lockIndicatorRef.current || !viewportRef.current) return;
+      
+      const lockIndicator = lockIndicatorRef.current;
+      const viewport = viewportRef.current;
+      
+      // Get positions
+      const messageRect = messageElement.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+      
+      // Calculate position relative to viewport
+      const messageBottom = messageRect.bottom - viewportRect.top;
+      const scrollTop = viewport.scrollTop;
+      
+      // Position indicator right after the message
+      const indicatorTop = messageBottom + scrollTop;
+      
+      console.log('📍 Positioning lock indicator:', {
+        messageBottom,
+        scrollTop,
+        indicatorTop
+      });
+      
+      // Position the indicator
+      lockIndicator.style.position = 'absolute';
+      lockIndicator.style.top = `${indicatorTop}px`;
+      lockIndicator.style.left = '0';
+      lockIndicator.style.right = '0';
+      lockIndicator.style.zIndex = '20';
+      lockIndicator.style.visibility = 'visible';
+    }, []);
+
     // Remove highlight when unlocked
     React.useEffect(() => {
       const lockedElement = intelligentScrollData.userActivity.lockedElement;
       
-      if (intelligentScrollData.userActivity.state !== UserActivityState.LOCKED_TO_MESSAGE && lockedElement) {
+      if (intelligentScrollData.userActivity.state !== UserActivityState.LOCKED_TO_MESSAGE) {
         // Remove highlight
-        lockedElement.style.backgroundColor = '';
-        lockedElement.style.borderLeft = '';
-        lockedElement.style.transition = '';
+        if (lockedElement) {
+          lockedElement.style.backgroundColor = '';
+          lockedElement.style.borderLeft = '';
+          lockedElement.style.transition = '';
+        }
+        
+        // Hide lock indicator
+        if (lockIndicatorRef.current) {
+          lockIndicatorRef.current.style.visibility = 'hidden';
+        }
       }
     }, [intelligentScrollData.userActivity.state, intelligentScrollData.userActivity.lockedElement]);
+
+    // Reposition indicator when scrolling (if locked)
+    const handleScrollForIndicator = React.useCallback(() => {
+      if (intelligentScrollData.userActivity.state === UserActivityState.LOCKED_TO_MESSAGE && 
+          intelligentScrollData.userActivity.lockedElement) {
+        positionLockIndicator(intelligentScrollData.userActivity.lockedElement);
+      }
+    }, [intelligentScrollData.userActivity.state, intelligentScrollData.userActivity.lockedElement, positionLockIndicator]);
 
     // Set up click event listener for message locking
     React.useEffect(() => {
@@ -141,13 +193,17 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      // Simple click listener - no need for complex event prevention
+      // Simple click listener
       viewport.addEventListener('click', handleMessageClick);
+      
+      // Add scroll listener for repositioning indicator
+      viewport.addEventListener('scroll', handleScrollForIndicator, { passive: true });
       
       return () => {
         viewport.removeEventListener('click', handleMessageClick);
+        viewport.removeEventListener('scroll', handleScrollForIndicator);
       };
-    }, [intelligentScroll, handleMessageClick]);
+    }, [intelligentScroll, handleMessageClick, handleScrollForIndicator]);
 
     // Legacy scroll handler for backward compatibility
     const handleLegacyScroll = React.useCallback(() => {
@@ -191,10 +247,18 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
           }
         }
         
+        // Reposition lock indicator if locked (content height changed)
+        if (intelligentScrollData.userActivity.state === UserActivityState.LOCKED_TO_MESSAGE && 
+            intelligentScrollData.userActivity.lockedElement) {
+          setTimeout(() => {
+            positionLockIndicator(intelligentScrollData.userActivity.lockedElement!);
+          }, 100); // Small delay to let content settle
+        }
+        
         // Call external content change handler
         onContentChange?.();
       }
-    }, [children, autoScroll, intelligentScroll, isFollowing, intelligentScrollData, scrollMethods, onContentChange]);
+    }, [children, autoScroll, intelligentScroll, isFollowing, intelligentScrollData, scrollMethods, onContentChange, positionLockIndicator]);
 
     // Set up scroll event listener
     React.useEffect(() => {
@@ -223,8 +287,7 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       [scrollMethods, intelligentScrollData]
     );
 
-    // Find the locked message element to position the indicator
-    const lockedElement = intelligentScrollData.userActivity.lockedElement;
+    // Check if locked for rendering
     const isLocked = intelligentScrollData.userActivity.state === UserActivityState.LOCKED_TO_MESSAGE;
 
     return (
@@ -253,23 +316,33 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
         <div className={cn('absolute top-0 left-0 right-0 z-10 transition-all duration-200')} />
         <ScrollAreaPrimitive.Viewport
           ref={viewportRef}
-          className="h-full w-full rounded-[inherit] [&>div]:!block"
+          className="h-full w-full rounded-[inherit] [&>div]:!block relative"
         >
           <div className={cn(paddingX ? `px-${paddingX}` : '', paddingY ? `py-${paddingY}` : '')}>
             {children}
             
-            {/* Show lock indicator when locked */}
-            {isLocked && intelligentScrollData.lockedMessageId && (
+            {(autoScroll || intelligentScroll) && <div ref={viewportEndRef} style={{ height: '1px' }} />}
+          </div>
+          
+          {/* Positioned lock indicator - absolutely positioned under locked message */}
+          {isLocked && intelligentScrollData.lockedMessageId && (
+            <div 
+              ref={lockIndicatorRef}
+              style={{ 
+                position: 'absolute',
+                visibility: 'hidden', // Initially hidden, positioned by JS
+                width: '100%',
+                paddingLeft: paddingX ? `${paddingX * 4}px` : '24px',
+                paddingRight: paddingX ? `${paddingX * 4}px` : '24px'
+              }}
+            >
               <MessageLockIndicator
                 messageId={intelligentScrollData.lockedMessageId}
                 onUnlock={intelligentScrollData.unlockFromMessage}
                 onScrollToBottom={scrollMethods.scrollToBottom}
-                className="mb-4"
               />
-            )}
-            
-            {(autoScroll || intelligentScroll) && <div ref={viewportEndRef} style={{ height: '1px' }} />}
-          </div>
+            </div>
+          )}
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar />
         <ScrollAreaPrimitive.Corner />
