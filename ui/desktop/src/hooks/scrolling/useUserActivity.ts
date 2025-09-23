@@ -26,6 +26,7 @@ interface UserActivityData {
   lockedElement?: HTMLElement; // Reference to the locked element
   lockToMessage: (messageId: string, element?: HTMLElement) => void;
   unlockFromMessage: () => void;
+  clearPreviousMessageHighlight: () => void; // NEW: Clear previous highlight
 }
 
 const DEFAULT_CONFIG: Required<UserActivityConfig> = {
@@ -39,6 +40,7 @@ const DEFAULT_CONFIG: Required<UserActivityConfig> = {
  * Hook for detecting user activity and intent in chat scrolling context
  * 
  * Key behavior: Lock allows scrolling around message area but unlocks when user moves away
+ * NEW: Properly handles switching between different locked messages
  */
 export function useUserActivity(
   scrollContainerRef: React.RefObject<HTMLElement | null>,
@@ -62,6 +64,7 @@ export function useUserActivity(
   const messageLockTimeoutRef = useRef<number | null>(null);
   const isScrollingRef = useRef(false);
   const lockedMessageBoundsRef = useRef<{ top: number; bottom: number; height: number } | null>(null);
+  const previousLockedElementRef = useRef<HTMLElement | null>(null); // NEW: Track previous element
 
   // Calculate if user is near bottom of scroll container
   const checkIsNearBottom = useCallback((): boolean => {
@@ -94,6 +97,18 @@ export function useUserActivity(
       height: messageHeight
     };
   }, [lockedElement, scrollContainerRef]);
+
+  // NEW: Clear highlight from previous message
+  const clearPreviousMessageHighlight = useCallback(() => {
+    if (previousLockedElementRef.current) {
+      console.log('🧹 Clearing highlight from previous message');
+      const prevElement = previousLockedElementRef.current;
+      prevElement.style.backgroundColor = '';
+      prevElement.style.borderLeft = '';
+      prevElement.style.transition = '';
+      previousLockedElementRef.current = null;
+    }
+  }, []);
 
   // Smart unlock check - allows scrolling around message area
   const shouldUnlockBasedOnScroll = useCallback((): boolean => {
@@ -155,9 +170,23 @@ export function useUserActivity(
   const lockToMessage = useCallback((messageId: string, element?: HTMLElement) => {
     console.log('🔒 Locking to message:', messageId);
     
+    // NEW: Clear previous message highlight before setting new one
+    clearPreviousMessageHighlight();
+    
+    // Check if we're switching to a different message
+    const isSwitchingMessages = lockedMessageId && lockedMessageId !== messageId;
+    if (isSwitchingMessages) {
+      console.log('🔄 Switching from message', lockedMessageId, 'to', messageId);
+    }
+    
     setLockedMessageId(messageId);
     setLockedElement(element);
     setState(UserActivityState.LOCKED_TO_MESSAGE);
+    
+    // Store reference to current element for future cleanup
+    if (element) {
+      previousLockedElementRef.current = element;
+    }
     
     // Store the message bounds for smart unlocking
     if (element) {
@@ -185,11 +214,14 @@ export function useUserActivity(
       unlockFromMessage();
     }, finalConfig.messageLockTimeout);
     
-  }, [finalConfig.messageLockTimeout, getMessageBounds]);
+  }, [finalConfig.messageLockTimeout, getMessageBounds, clearPreviousMessageHighlight, lockedMessageId]);
 
   // Unlock from message and return to normal behavior
   const unlockFromMessage = useCallback(() => {
     console.log('🔓 Unlocking from message');
+    
+    // Clear highlight from current locked element
+    clearPreviousMessageHighlight();
     
     setLockedMessageId(undefined);
     setLockedElement(undefined);
@@ -208,7 +240,7 @@ export function useUserActivity(
     } else {
       setState(UserActivityState.ACTIVELY_READING);
     }
-  }, [checkIsNearBottom]);
+  }, [checkIsNearBottom, clearPreviousMessageHighlight]);
 
   // Mark user as active and reset timeouts
   const markUserActive = useCallback(() => {
@@ -413,6 +445,13 @@ export function useUserActivity(
     };
   }, [scrollContainerRef, handleScroll, handleMouseActivity, handleKeyboardActivity, handleWheel]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearPreviousMessageHighlight();
+    };
+  }, [clearPreviousMessageHighlight]);
+
   // Determine if auto-scroll should happen
   // NEVER auto-scroll when locked to a message
   const shouldAutoScroll = 
@@ -461,6 +500,7 @@ export function useUserActivity(
     lockedMessageId,
     lockedElement,
     lockToMessage,
-    unlockFromMessage
+    unlockFromMessage,
+    clearPreviousMessageHighlight // NEW: Expose for external use
   };
 }
