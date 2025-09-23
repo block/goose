@@ -1099,8 +1099,8 @@ impl Agent {
                     &toolshim_tools,
                 ).await?;
 
-                let mut added_message = false;
-                let mut messages_to_add = Vec::new();
+                let mut no_tools_called = true;
+                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
 
                 while let Some(next) = stream.next().await {
@@ -1139,6 +1139,7 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
+                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -1284,8 +1285,7 @@ impl Agent {
                                 let final_message_tool_resp = message_tool_response.lock().await.clone();
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
-                                added_message = true;
-                                messages_to_add.push(response);
+                                no_tools_called = false;
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
@@ -1327,18 +1327,19 @@ impl Agent {
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                 }
-                if !added_message {
+                let mut exit_chat = false;
+                if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
-                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
-                            continue
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
+                            exit_chat = true;
                         }
                     }
 
@@ -1346,7 +1347,8 @@ impl Agent {
                         Ok(should_retry) => {
                             if should_retry {
                                 info!("Retry logic triggered, restarting agent loop");
-                                continue;
+                            } else {
+                                exit_chat = true;
                             }
                         }
                         Err(e) => {
@@ -1354,9 +1356,9 @@ impl Agent {
                             yield AgentEvent::Message(Message::assistant().with_text(
                                 format!("Retry logic encountered an error: {}", e)
                             ));
+                            exit_chat = true;
                         }
                     }
-                    break;
                 }
 
                 if let Some(session_config) = &session {
@@ -1365,6 +1367,9 @@ impl Agent {
                     }
                 }
                 conversation.extend(messages_to_add);
+                if exit_chat {
+                    break;
+                }
 
                 tokio::task::yield_now().await;
             }

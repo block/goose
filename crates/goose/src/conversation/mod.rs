@@ -133,6 +133,23 @@ impl Default for Conversation {
     }
 }
 
+impl IntoIterator for Conversation {
+    type Item = Message;
+    type IntoIter = std::vec::IntoIter<Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+impl<'a> IntoIterator for &'a Conversation {
+    type Item = &'a Message;
+    type IntoIter = std::slice::Iter<'a, Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Fix a conversation that we're about to send to an LLM. So the last and first
 /// messages should always be from the user.
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
