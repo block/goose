@@ -7,6 +7,7 @@ use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
+use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -69,6 +70,23 @@ impl SessionUpdateBuilder {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe_json: None,
+        }
+    }
+
+    pub fn from_session(session_id: String, session: &Session) -> Self {
+        Self {
+            session_id,
+            description: Some(session.description.clone()),
+            working_dir: Some(session.working_dir.clone()),
+            extension_data: Some(session.extension_data.clone()),
+            total_tokens: Some(session.total_tokens),
+            input_tokens: Some(session.input_tokens),
+            output_tokens: Some(session.output_tokens),
+            accumulated_total_tokens: Some(session.accumulated_total_tokens),
+            accumulated_input_tokens: Some(session.accumulated_input_tokens),
+            accumulated_output_tokens: Some(session.accumulated_output_tokens),
+            schedule_id: Some(session.schedule_id.clone()),
+            recipe_json: Some(session.recipe_json.clone()),
         }
     }
 
@@ -152,7 +170,7 @@ impl SessionManager {
         let session_id = Uuid::new_v4().to_string();
         Self::instance()
             .await?
-            .create_session(session_id.clone(), working_dir, description)
+            .create_session(&session_id, &working_dir, &description)
             .await?;
         Self::get_session(&session_id, false).await
     }
@@ -296,9 +314,22 @@ impl SessionStorage {
         Ok(storage)
     }
 
+    async fn get_pool(db_path: &Path, create_if_missing: bool) -> Result<Pool<Sqlite>> {
+        let options = SqliteConnectOptions::new()
+            .filename(db_path)
+            .create_if_missing(create_if_missing);
+
+        sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to open SQLite database at '{}': {}",
+                db_path.display(),
+                e
+            )
+        })
+    }
+
     async fn open(db_path: &Path) -> Result<Self> {
-        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
-        let pool = sqlx::SqlitePool::connect(&database_url).await?;
+        let pool = Self::get_pool(db_path, false).await?;
 
         let storage = Self { pool };
         storage.run_migrations().await?;
@@ -306,8 +337,7 @@ impl SessionStorage {
     }
 
     async fn create(db_path: &Path) -> Result<Self> {
-        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
-        let pool = sqlx::SqlitePool::connect(&database_url).await?;
+        let pool = Self::get_pool(db_path, true).await?;
 
         sqlx::query(
             r#"
@@ -398,17 +428,45 @@ impl SessionStorage {
         let mut failed_count = 0;
 
         for (session_name, session_path) in sessions {
-            match self
-                .import_single_session(&session_name, &session_path)
-                .await
-            {
-                Ok(_) => {
-                    imported_count += 1;
-                    println!("  ✓ Imported: {}", session_name);
+            match legacy::load_session(&session_name, &session_path) {
+                Ok(session) => {
+                    match self
+                        .create_session(&session.id, &session.working_dir, &session.description)
+                        .await
+                    {
+                        Ok(_) => {
+                            let builder =
+                                SessionUpdateBuilder::from_session(session.id.clone(), &session);
+                            if let Err(e) = self.apply_update(builder).await {
+                                failed_count += 1;
+                                println!("  ✗ Failed to update session {}: {}", session_name, e);
+                                continue;
+                            }
+
+                            if let Some(conversation) = session.conversation {
+                                if let Err(e) =
+                                    self.replace_conversation(&session.id, &conversation).await
+                                {
+                                    failed_count += 1;
+                                    println!(
+                                        "  ✗ Failed to import messages for {}: {}",
+                                        session_name, e
+                                    );
+                                    continue;
+                                }
+                            }
+                            imported_count += 1;
+                            println!("  ✓ Imported: {}", session_name);
+                        }
+                        Err(e) => {
+                            failed_count += 1;
+                            println!("  ✗ Failed to import {}: {}", session_name, e);
+                        }
+                    }
                 }
                 Err(e) => {
                     failed_count += 1;
-                    println!("  ✗ Failed to import {}: {}", session_name, e);
+                    println!("  ✗ Failed to load {}: {}", session_name, e);
                 }
             }
         }
@@ -495,61 +553,6 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn import_single_session(
-        &self,
-        session_name: &str,
-        session_path: &Path,
-    ) -> Result<()> {
-        use crate::session::legacy;
-
-        let conversation = legacy::read_messages(session_path)?;
-        let metadata = legacy::read_metadata(session_path).await?;
-
-        sqlx::query(
-            r#"
-            INSERT INTO sessions (
-                id, description, working_dir,
-                extension_data, total_tokens, input_tokens, output_tokens,
-                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                schedule_id, recipe_json,
-                created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        "#,
-        )
-        .bind(session_name)
-        .bind(&metadata.description)
-        .bind(metadata.working_dir.to_string_lossy().as_ref())
-        .bind(serde_json::to_string(&metadata.extension_data)?)
-        .bind(metadata.total_tokens)
-        .bind(metadata.input_tokens)
-        .bind(metadata.output_tokens)
-        .bind(metadata.accumulated_total_tokens)
-        .bind(metadata.accumulated_input_tokens)
-        .bind(metadata.accumulated_output_tokens)
-        .bind(metadata.schedule_id)
-        .bind(metadata.recipe_json)
-        .execute(&self.pool)
-        .await?;
-
-        for message in conversation.iter() {
-            sqlx::query(
-                r#"
-                INSERT INTO messages (session_id, role, content_json, created_timestamp, timestamp)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            "#,
-            )
-            .bind(session_name)
-            .bind(role_to_string(&message.role))
-            .bind(serde_json::to_string(&message.content)?)
-            .bind(message.created)
-            .execute(&self.pool)
-            .await?;
-        }
-
-        Ok(())
-    }
-
     fn row_to_session(
         row: SessionRow,
         conversation: Option<Conversation>,
@@ -594,9 +597,9 @@ impl SessionStorage {
 
     async fn create_session(
         &self,
-        session_id: String,
-        working_dir: PathBuf,
-        description: String,
+        session_id: &String,
+        working_dir: &PathBuf,
+        description: &String,
     ) -> Result<()> {
         sqlx::query(
             r#"

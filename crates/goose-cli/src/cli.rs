@@ -19,7 +19,6 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -57,6 +56,16 @@ struct Identifier {
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
     session_id: Option<String>,
+
+    #[arg(
+        short,
+        long,
+        value_name = "PATH",
+        help = "Legacy: Path for the chat session",
+        long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
+jsonl' -> '20250325_200615')."
+    )]
+    path: Option<PathBuf>,
 }
 
 async fn get_session_id(identifier: Identifier) -> Result<String> {
@@ -70,6 +79,11 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
             .find(|s| s.description == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
+    } else if let Some(path) = identifier.path {
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
     } else {
         unreachable!()
     }

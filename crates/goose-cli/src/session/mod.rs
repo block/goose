@@ -1061,8 +1061,6 @@ impl CliSession {
                                         );
                                     }
                                 }
-
-                                // TODO(Douwe): also store in session
                                 self.messages.push(message.clone());
 
                                 if interactive {output::hide_thinking()};
