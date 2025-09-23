@@ -32,7 +32,7 @@ pub(crate) async fn get_agent_or_500(
     session_id: String,
 ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
     state
-        .get_session_agent(session_id, SessionExecutionMode::Interactive)
+        .get_agent(session_id, SessionExecutionMode::Interactive)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get session agent: {}", e);
@@ -46,7 +46,7 @@ pub(crate) async fn get_agent_or_json_error(
     session_id: String,
 ) -> Result<Arc<goose::agents::Agent>, Json<ErrorResponse>> {
     state
-        .get_session_agent(session_id, SessionExecutionMode::Interactive)
+        .get_agent(session_id, SessionExecutionMode::Interactive)
         .await
         .map_err(|e| {
             let msg = format!("Failed to get session agent: {}", e);
@@ -322,7 +322,7 @@ async fn update_agent_provider(
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, impl IntoResponse> {
     let agent = match state
-        .get_session_agent(
+        .get_agent(
             payload.session_id.clone(),
             SessionExecutionMode::Interactive,
         )

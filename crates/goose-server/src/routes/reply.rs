@@ -211,7 +211,7 @@ async fn reply_handler(
 
     drop(tokio::spawn(async move {
         let agent = match state
-            .get_session_agent(session_id.clone(), SessionExecutionMode::Interactive)
+            .get_agent(session_id.clone(), SessionExecutionMode::Interactive)
             .await
         {
             Ok(agent) => agent,

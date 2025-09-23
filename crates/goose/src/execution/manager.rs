@@ -74,7 +74,7 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_agent(
+    pub async fn get_or_create_agent(
         &self,
         session_id: String,
         mode: SessionExecutionMode,

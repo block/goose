@@ -117,7 +117,7 @@ async fn create_recipe(
     );
 
     let agent = state
-        .get_session_agent(request.session_id, SessionExecutionMode::Interactive)
+        .get_agent(request.session_id, SessionExecutionMode::Interactive)
         .await
         .map_err(|e| {
             (

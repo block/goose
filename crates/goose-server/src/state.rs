@@ -50,11 +50,13 @@ impl AppState {
         }
     }
 
-    pub async fn get_session_agent(
+    pub async fn get_agent(
         &self,
         session_id: String,
         mode: SessionExecutionMode,
     ) -> anyhow::Result<Arc<goose::agents::Agent>> {
-        self.agent_manager.get_agent(session_id, mode).await
+        self.agent_manager
+            .get_or_create_agent(session_id, mode)
+            .await
     }
 }
