@@ -15,7 +15,7 @@ interface UserActivityConfig {
   messageLockTimeout?: number; // ms to wait before unlocking from clicked message
 }
 
-interface UserActivityData {
+export interface UserActivityData {
   state: UserActivityState;
   isUserActive: boolean;
   lastActivityTime: number;
@@ -49,8 +49,12 @@ export function useUserActivity(
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   
   const [state, setState] = useState<UserActivityState>(UserActivityState.FOLLOWING);
-  const [isUserActive, setIsUserActive] = useState(false);
-  const [lastActivityTime, setLastActivityTime] = useState(Date.now());
+  const stateRef = useRef(state);  const [isUserActive, setIsUserActive] = useState(false);
+  
+  // Keep stateRef in sync with state
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);  const [lastActivityTime, setLastActivityTime] = useState(Date.now());
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [lockedMessageId, setLockedMessageId] = useState<string | undefined>();
@@ -249,7 +253,7 @@ export function useUserActivity(
     setLastActivityTime(now);
     
     // Don't reset timeouts if locked to a message
-    if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+    if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
       return;
     }
     
@@ -266,7 +270,7 @@ export function useUserActivity(
       setIsUserActive(false);
       
       // Don't set idle timeout if locked to message
-      if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+      if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
         return;
       }
       
@@ -293,7 +297,7 @@ export function useUserActivity(
     setIsNearBottom(nearBottom);
     
     // KEY LOGIC: If locked to message, use smart unlock detection
-    if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+    if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
       console.log('🔒 Locked state - checking smart unlock condition...');
       
       if (shouldUnlockBasedOnScroll()) {
@@ -335,7 +339,7 @@ export function useUserActivity(
       markUserActive();
       
       // Don't change state based on mouse movement if locked to message
-      if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+      if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
         return;
       }
       
@@ -368,7 +372,7 @@ export function useUserActivity(
       markUserActive();
       
       // If locked to message, don't unlock on keyboard - let scroll handler check position
-      if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+      if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
         console.log('⌨️ Keyboard navigation while locked, will check reading zone');
         return;
       }
@@ -388,7 +392,7 @@ export function useUserActivity(
     isScrollingRef.current = true;
     
     // If locked to message, don't unlock on wheel - let scroll handler check reading zone
-    if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+    if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
       console.log('🖱️ Wheel scroll while locked, will check reading zone');
       return;
     }
@@ -463,7 +467,7 @@ export function useUserActivity(
 
   // Debug logging every 2 seconds when locked
   useEffect(() => {
-    if (state === UserActivityState.LOCKED_TO_MESSAGE) {
+    if (stateRef.current === UserActivityState.LOCKED_TO_MESSAGE) {
       const interval = setInterval(() => {
         if (scrollContainerRef.current && lockedMessageBoundsRef.current) {
           const currentScroll = scrollContainerRef.current.scrollTop;
@@ -487,6 +491,8 @@ export function useUserActivity(
       }, 2000);
       
       return () => clearInterval(interval);
+    } else {
+      return undefined;
     }
   }, [state, lockedMessageId, scrollContainerRef]);
 

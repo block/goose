@@ -1,69 +1,103 @@
-import React from 'react';
-import { cn } from '../../utils';
+import React, { useEffect, useState } from 'react';
+import { Lock, Unlock, Eye, EyeOff } from 'lucide-react';
 
 interface MessageLockIndicatorProps {
   messageId: string;
   onUnlock: () => void;
-  onScrollToBottom: () => void;
-  className?: string;
+  isStreamingMessage?: boolean; // NEW: Whether a message is currently streaming
+  isFollowingStream?: boolean; // NEW: Whether user is following the stream
 }
 
-/**
- * Visual indicator shown under a locked message
- * Provides user feedback and unlock controls
- */
-export function MessageLockIndicator({ 
-  messageId, 
-  onUnlock, 
-  onScrollToBottom, 
-  className 
-}: MessageLockIndicatorProps) {
-  return (
-    <div className={cn(
-      "flex items-center justify-between",
-      "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800",
-      "rounded-lg px-3 py-2 mt-2 mb-4",
-      "text-sm text-blue-700 dark:text-blue-300",
-      "animate-in slide-in-from-top-2 duration-200",
-      className
-    )}>
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1">
-          <span className="text-blue-500">🔒</span>
-          <span className="font-medium">Auto-scroll locked</span>
-        </div>
-        <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-800/30 px-2 py-0.5 rounded">
-          Scroll away to unlock
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onUnlock}
-          className={cn(
-            "text-xs px-2 py-1 rounded",
-            "bg-blue-100 dark:bg-blue-800/30 text-blue-700 dark:text-blue-300",
-            "hover:bg-blue-200 dark:hover:bg-blue-800/50",
-            "transition-colors duration-150",
-            "border border-blue-200 dark:border-blue-700"
-          )}
-        >
-          Unlock Now
-        </button>
+export const MessageLockIndicator = React.forwardRef<HTMLDivElement, MessageLockIndicatorProps>(
+  ({ messageId, onUnlock, isStreamingMessage = false, isFollowingStream = false }, ref) => {
+    const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    // Position the indicator under the locked message
+    useEffect(() => {
+      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement;
+      if (!messageElement) return;
+
+      const updatePosition = () => {
+        const rect = messageElement.getBoundingClientRect();
+        const scrollContainer = messageElement.closest('[data-radix-scroll-area-viewport]');
+        const containerRect = scrollContainer?.getBoundingClientRect();
         
-        <button
-          onClick={onScrollToBottom}
-          className={cn(
-            "text-xs px-2 py-1 rounded",
-            "bg-blue-500 text-white",
-            "hover:bg-blue-600",
-            "transition-colors duration-150",
-            "border border-blue-500"
-          )}
-        >
-          Go to Bottom
-        </button>
+        if (containerRect) {
+          setPosition({
+            top: rect.bottom - containerRect.top + 8, // 8px below the message
+            left: rect.left - containerRect.left + 16, // 16px from left edge
+          });
+          setIsVisible(true);
+        }
+      };
+
+      updatePosition();
+      
+      // Update position on scroll or resize
+      const handleUpdate = () => updatePosition();
+      window.addEventListener('scroll', handleUpdate, true);
+      window.addEventListener('resize', handleUpdate);
+      
+      return () => {
+        window.removeEventListener('scroll', handleUpdate, true);
+        window.removeEventListener('resize', handleUpdate);
+      };
+    }, [messageId]);
+
+    if (!position || !isVisible) return null;
+
+    // Determine the appropriate icon and message based on stream state
+    const getIndicatorContent = () => {
+      if (isStreamingMessage && isFollowingStream) {
+        return {
+          icon: <Eye className="w-3 h-3" />,
+          text: "Following stream (locked to this message)",
+          bgColor: "bg-blue-500/90",
+          textColor: "text-white"
+        };
+      } else if (isStreamingMessage) {
+        return {
+          icon: <EyeOff className="w-3 h-3" />,
+          text: "Stream blocked (locked to this message)",
+          bgColor: "bg-orange-500/90",
+          textColor: "text-white"
+        };
+      } else {
+        return {
+          icon: <Lock className="w-3 h-3" />,
+          text: "Auto-scroll locked to this message",
+          bgColor: "bg-gray-800/90",
+          textColor: "text-white"
+        };
+      }
+    };
+
+    const { icon, text, bgColor, textColor } = getIndicatorContent();
+
+    return (
+      <div
+        ref={ref}
+        className="absolute z-50 pointer-events-auto"
+        style={{
+          top: position.top,
+          left: position.left,
+        }}
+      >
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border border-white/20 ${bgColor} ${textColor} text-sm`}>
+          {icon}
+          <span className="font-medium">{text}</span>
+          <button
+            onClick={onUnlock}
+            className="ml-2 p-1 hover:bg-white/20 rounded transition-colors"
+            title="Unlock and resume auto-scroll"
+          >
+            <Unlock className="w-3 h-3" />
+          </button>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+);
+
+MessageLockIndicator.displayName = 'MessageLockIndicator';

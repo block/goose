@@ -379,6 +379,7 @@ function BaseChatContent({
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
           <ScrollAreaEnhanced
+            isStreamingMessage={chatState !== ChatState.Idle}
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
             autoScroll={!intelligentScrolling} // Use legacy auto-scroll when intelligent scrolling is disabled
@@ -386,7 +387,7 @@ function BaseChatContent({
             scrollConfig={scrollConfig} // Pass configuration
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            onMessageClick={(messageId, element) => {
+            onMessageClick={(messageId, _element) => {
               console.log("🖱️ Message clicked in BaseChat:", messageId);
             }}
             data-drop-zone="true"

@@ -12,10 +12,6 @@ interface IntelligentScrollConfig {
   autoScrollDelay?: number; // Delay before auto-scroll when conditions are met
   gracefulReturnDelay?: number; // Delay before graceful return to bottom
   smoothScrollDuration?: number; // Duration for smooth scroll animations
-  
-  // NEW: Stream following config
-  streamFollowingEnabled?: boolean; // Enable stream following behavior
-  streamFollowingThreshold?: number; // Distance from bottom to consider "following"
 }
 
 interface ScrollMethods {
@@ -30,25 +26,20 @@ const DEFAULT_CONFIG: Required<IntelligentScrollConfig> = {
   messageLockTimeout: 30000, // 30 seconds
   autoScrollDelay: 300,
   gracefulReturnDelay: 2000,
-  smoothScrollDuration: 500,
-  streamFollowingEnabled: true, // Enable by default
-  streamFollowingThreshold: 100 // Within 100px of bottom
+  smoothScrollDuration: 500
 };
 
 /**
  * Hook for intelligent chat scrolling that respects user intent
  * 
- * Enhanced behavior:
- * - When user clicks a message, prevent auto-scroll on new messages (LOCK MODE)
- * - When user is at bottom during streaming, follow the stream (STREAM FOLLOWING)
+ * The core behavior is simple:
+ * - When user clicks a message, prevent auto-scroll on new messages
  * - When user manually scrolls or unlocks, resume normal behavior
  */
 export function useIntelligentScroll(
   scrollContainerRef: React.RefObject<HTMLElement | null>,
   scrollMethods: ScrollMethods,
-  config: IntelligentScrollConfig = {},
-  // NEW: Stream state detection
-  isStreamingMessage?: boolean
+  config: IntelligentScrollConfig = {}
 ) {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   
@@ -67,44 +58,6 @@ export function useIntelligentScroll(
   const pendingAutoScrollRef = useRef<boolean>(false);
   const userInterruptedRef = useRef<boolean>(false);
   const lastStateRef = useRef<UserActivityState>(activity.state);
-  
-  // NEW: Stream following state
-  const isStreamingRef = useRef<boolean>(false);
-  const wasFollowingStreamRef = useRef<boolean>(false);
-
-  // NEW: Check if user is close enough to bottom to be "following" the stream
-  const isNearBottomForStreaming = useCallback((): boolean => {
-    if (!scrollContainerRef.current || !finalConfig.streamFollowingEnabled) return false;
-    
-    const element = scrollContainerRef.current;
-    const scrollTop = element.scrollTop;
-    const scrollHeight = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    
-    return distanceFromBottom <= finalConfig.streamFollowingThreshold;
-  }, [scrollContainerRef, finalConfig.streamFollowingEnabled, finalConfig.streamFollowingThreshold]);
-
-  // NEW: Check if user should follow the stream
-  const shouldFollowStream = useCallback((): boolean => {
-    if (!finalConfig.streamFollowingEnabled || !isStreamingMessage) {
-      return false;
-    }
-    
-    // Never follow stream when locked to a specific message
-    if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
-      return false;
-    }
-    
-    // Follow if user is near bottom and not actively scrolling away
-    return isNearBottomForStreaming() && !activity.isUserActive;
-  }, [
-    finalConfig.streamFollowingEnabled,
-    isStreamingMessage,
-    activity.state,
-    activity.isUserActive,
-    isNearBottomForStreaming
-  ]);
 
   // Clear all timeouts - CRITICAL for preventing unwanted scrolls
   const clearTimeouts = useCallback(() => {
@@ -132,8 +85,8 @@ export function useIntelligentScroll(
       return;
     }
     
-    // Don't auto-scroll if user is actively scrolling (unless following stream)
-    if (activity.isUserActive && !shouldFollowStream()) {
+    // Don't auto-scroll if user is actively scrolling
+    if (activity.isUserActive) {
       console.log('🔒 BLOCKED: Auto-scroll execution prevented - user is active');
       pendingAutoScrollRef.current = false;
       return;
@@ -142,10 +95,9 @@ export function useIntelligentScroll(
     clearTimeouts();
     pendingAutoScrollRef.current = false;
     
-    console.log('🚀 EXECUTING: Auto-scroll for state:', activity.state, 
-                isStreamingMessage ? '(streaming)' : '(not streaming)');
+    console.log('🚀 EXECUTING: Auto-scroll for state:', activity.state);
     scrollMethods.scrollToBottom();
-  }, [scrollMethods, clearTimeouts, activity.isUserActive, activity.state, activity.lockedMessageId, shouldFollowStream, isStreamingMessage]);
+  }, [scrollMethods, clearTimeouts, activity.isUserActive, activity.state, activity.lockedMessageId]);
 
   // Execute graceful return to bottom (smoother animation)
   const executeGracefulReturn = useCallback(() => {
@@ -161,7 +113,7 @@ export function useIntelligentScroll(
       return;
     }
     
-    if (activity.isUserActive && !shouldFollowStream()) {
+    if (activity.isUserActive) {
       console.log('🔒 BLOCKED: Graceful return prevented - user is active');
       pendingAutoScrollRef.current = false;
       return;
@@ -179,14 +131,14 @@ export function useIntelligentScroll(
       top: targetScrollTop,
       behavior: 'smooth'
     });
-  }, [scrollContainerRef, scrollMethods, clearTimeouts, activity.isUserActive, activity.state, activity.lockedMessageId, executeAutoScroll, shouldFollowStream]);
+  }, [scrollContainerRef, scrollMethods, clearTimeouts, activity.isUserActive, activity.state, activity.lockedMessageId, executeAutoScroll]);
 
   // Schedule auto-scroll based on user activity state
   const scheduleAutoScroll = useCallback(() => {
     // CRITICAL: Always clear existing timeouts first
     clearTimeouts();
     
-    // CRITICAL: Never schedule when locked (unless following stream)
+    // CRITICAL: Never schedule when locked
     if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
       console.log('🔒 BLOCKED: Auto-scroll scheduling prevented - locked to message');
       pendingAutoScrollRef.current = false;
@@ -196,13 +148,6 @@ export function useIntelligentScroll(
     // Reset user interrupted flag when user becomes idle
     if (!activity.isUserActive) {
       userInterruptedRef.current = false;
-    }
-    
-    // NEW: Allow immediate scroll when following stream
-    if (shouldFollowStream()) {
-      console.log('📺 STREAM FOLLOWING: Immediate scroll for streaming content');
-      executeAutoScroll();
-      return;
     }
     
     if (activity.isUserActive || !activity.shouldAutoScroll) {
@@ -234,7 +179,7 @@ export function useIntelligentScroll(
       autoScrollTimeoutRef.current = window.setTimeout(executeFunction, delay);
       console.log('⏱️ SCHEDULED: Auto-scroll timeout set for', delay, 'ms');
     }
-  }, [activity.shouldAutoScroll, activity.state, activity.isUserActive, finalConfig, executeAutoScroll, executeGracefulReturn, clearTimeouts, shouldFollowStream]);
+  }, [activity.shouldAutoScroll, activity.state, activity.isUserActive, finalConfig, executeAutoScroll, executeGracefulReturn, clearTimeouts]);
 
   // Detect when user interrupts auto-scroll behavior
   useEffect(() => {
@@ -246,20 +191,6 @@ export function useIntelligentScroll(
     }
   }, [activity.state, activity.isUserActive, clearTimeouts]);
 
-  // NEW: Track streaming state changes
-  useEffect(() => {
-    const wasStreaming = isStreamingRef.current;
-    isStreamingRef.current = !!isStreamingMessage;
-    
-    if (isStreamingMessage && !wasStreaming) {
-      console.log('📺 STREAM STARTED: Checking if user should follow');
-      wasFollowingStreamRef.current = shouldFollowStream();
-    } else if (!isStreamingMessage && wasStreaming) {
-      console.log('📺 STREAM ENDED: Was following:', wasFollowingStreamRef.current);
-      wasFollowingStreamRef.current = false;
-    }
-  }, [isStreamingMessage, shouldFollowStream]);
-
   // Handle state changes
   useEffect(() => {
     const currentState = activity.state;
@@ -270,9 +201,7 @@ export function useIntelligentScroll(
         isUserActive: activity.isUserActive,
         shouldAutoScroll: activity.shouldAutoScroll,
         isNearBottom: activity.isNearBottom,
-        lockedMessageId: activity.lockedMessageId,
-        isStreaming: isStreamingMessage,
-        shouldFollowStream: shouldFollowStream()
+        lockedMessageId: activity.lockedMessageId
       });
       
       // CRITICAL: Clear timeouts on any state change
@@ -284,13 +213,13 @@ export function useIntelligentScroll(
     
     lastStateRef.current = currentState;
     
-    // Only schedule when not locked (stream following is handled separately)
+    // Only schedule when not locked
     if (currentState !== UserActivityState.LOCKED_TO_MESSAGE) {
       scheduleAutoScroll();
     }
-  }, [activity.state, activity.isUserActive, activity.shouldAutoScroll, activity.lockedMessageId, scheduleAutoScroll, clearTimeouts, isStreamingMessage, shouldFollowStream]);
+  }, [activity.state, activity.isUserActive, activity.shouldAutoScroll, activity.lockedMessageId, scheduleAutoScroll, clearTimeouts]);
 
-  // CORE FUNCTION: Handle new content (messages) - enhanced with stream following
+  // CORE FUNCTION: Handle new content (messages) - this is where locking prevents auto-scroll
   const handleContentChange = useCallback(() => {
     if (!scrollContainerRef.current) return;
     
@@ -300,24 +229,18 @@ export function useIntelligentScroll(
     if (hasNewContent) {
       lastContentHeightRef.current = currentHeight;
       
-      // CRITICAL: Don't auto-scroll when locked to a message (unless following stream)
+      // CRITICAL: Don't auto-scroll when locked to a message
       if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
         console.log('🔒 NEW MESSAGE BLOCKED: Auto-scroll prevented - locked to message:', activity.lockedMessageId);
+        // Also clear any existing timeouts that might have been set before lock
         clearTimeouts();
-        return;
-      }
-      
-      // NEW: Handle stream following
-      if (shouldFollowStream()) {
-        console.log('📺 STREAM CONTENT: Following streaming message');
-        executeAutoScroll();
         return;
       }
       
       console.log('📝 NEW CONTENT: Scheduling auto-scroll for state:', activity.state);
       scheduleAutoScroll();
     }
-  }, [scrollContainerRef, scheduleAutoScroll, activity.state, activity.lockedMessageId, clearTimeouts, shouldFollowStream, executeAutoScroll]);
+  }, [scrollContainerRef, scheduleAutoScroll, activity.state, activity.lockedMessageId, clearTimeouts]);
 
   // Manual scroll to bottom - unlocks message
   const scrollToBottomNow = useCallback(() => {
@@ -369,19 +292,17 @@ export function useIntelligentScroll(
         messageId: activity.lockedMessageId,
         pendingAutoScroll: pendingAutoScrollRef.current,
         hasAutoScrollTimeout: autoScrollTimeoutRef.current !== null,
-        hasGracefulTimeout: gracefulReturnTimeoutRef.current !== null,
-        isStreaming: isStreamingMessage,
-        shouldFollowStream: shouldFollowStream()
+        hasGracefulTimeout: gracefulReturnTimeoutRef.current !== null
       });
     }
-  }, [activity.state, activity.lockedMessageId, isStreamingMessage, shouldFollowStream]);
+  }, [activity.state, activity.lockedMessageId]);
 
   return {
     // User activity data
     userActivity: activity,
     
     // Scroll control methods
-    handleContentChange, // KEY: This handles both locking and stream following
+    handleContentChange, // KEY: This prevents auto-scroll when locked
     scrollToBottomNow,
     gracefulScrollToBottom,
     
@@ -393,10 +314,6 @@ export function useIntelligentScroll(
     isPendingAutoScroll: pendingAutoScrollRef.current,
     isLockedToMessage: activity.state === UserActivityState.LOCKED_TO_MESSAGE,
     lockedMessageId: activity.lockedMessageId,
-    
-    // NEW: Stream following information
-    isFollowingStream: shouldFollowStream(),
-    isStreamingMessage: !!isStreamingMessage,
     
     // Configuration
     config: finalConfig
