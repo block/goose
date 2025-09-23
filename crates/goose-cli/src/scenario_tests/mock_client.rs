@@ -91,11 +91,11 @@ impl McpClientTrait for MockClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Value,
+        arguments: Option<serde_json::Map<String, Value>>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
-            match handler(&arguments) {
+            match handler(&Value::Object(arguments.unwrap_or_default())) {
                 Ok(content) => Ok(CallToolResult {
                     content,
                     is_error: None,

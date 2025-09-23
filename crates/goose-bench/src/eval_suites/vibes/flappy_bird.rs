@@ -59,7 +59,9 @@ impl Evaluation for FlappyBird {
 
                             // Parse the arguments as JSON
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 // Only check command is write and correct filename
                                 args.get("command").and_then(Value::as_str) == Some("write")

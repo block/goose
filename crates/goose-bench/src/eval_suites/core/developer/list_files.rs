@@ -44,7 +44,7 @@ impl Evaluation for DeveloperListFiles {
                         // Check if the tool call is for shell with ls or rg --files
                         if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                             // Parse arguments as JSON Value first
-                            if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
+                            if let Ok(args) = serde_json::from_value::<Value>(serde_json::Value::Object(tool_call.arguments.clone().unwrap_or_default())) {
                                 tool_call.name == "developer__shell" &&
                                     args.get("command")
                                         .and_then(Value::as_str).is_some_and(|cmd| {
