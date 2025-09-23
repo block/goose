@@ -2969,6 +2969,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
+
         // Create some test files and directories
         fs::create_dir(temp_path.join("subdir1")).unwrap();
         fs::create_dir(temp_path.join("subdir2")).unwrap();
@@ -3025,6 +3028,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
+
         // Create more than 50 files to test the limit
         for i in 0..60 {
             fs::write(
@@ -3077,6 +3083,9 @@ mod tests {
     async fn test_text_editor_view_empty_directory() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
+
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
 
         let server = create_test_server();
 
