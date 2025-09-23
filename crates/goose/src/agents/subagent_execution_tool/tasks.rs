@@ -4,11 +4,17 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus, TaskType};
 use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::{Agent, AgentEvent, SessionConfig};
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
+use crate::providers::base::Provider;
+use crate::session;
 
 pub async fn process_task(
     task: &Task,
@@ -71,10 +77,9 @@ async fn get_task_result(
 
 async fn handle_inline_recipe_task(
     task: Task,
-    mut task_config: TaskConfig,
+    task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
     use crate::recipe::Recipe;
 
     let recipe_value = task
@@ -91,26 +96,168 @@ async fn handle_inline_recipe_task(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    task_config.extensions = recipe.extensions.clone();
+    let agent: Agent = Agent::new();
+    let agent_provider: Arc<dyn Provider> = task_config
+        .provider
+        .ok_or_else(|| "No provider configured for subagent".to_string())?;
+    if let Err(e) = agent.update_provider(agent_provider).await {
+        return Err(format!("Failed to set provider on sub agent: {}", e));
+    }
+
+    if let Some(recipe_extensions) = recipe.extensions {
+        for extension in recipe_extensions {
+            if let Err(e) = agent.add_extension(extension.clone()).await {
+                debug!(
+                    "Failed to add extension '{}' to subagent: {}",
+                    extension.name(),
+                    e
+                );
+                // Continue with other extensions even if one fails
+            }
+        }
+    }
+
+    let session_id_for_return = session::generate_session_id();
+    let session_file_path = match crate::session::storage::get_path(
+        crate::session::storage::Identifier::Name(session_id_for_return.clone()),
+    ) {
+        Ok(path) => path,
+        Err(e) => {
+            return Err(format!("Failed to get sub agent session file path: {}", e));
+        }
+    };
 
     let instruction = recipe
         .instructions
         .or(recipe.prompt)
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
-    let result = tokio::select! {
-        result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
-        _ = cancellation_token.cancelled() => {
-            return Err("Task cancelled".to_string());
+
+    let mut session_messages =
+        Conversation::new_unvalidated(vec![Message::user().with_text(instruction.clone())]);
+
+    let current_dir = match std::env::current_dir() {
+        Ok(cd) => cd,
+        Err(e) => {
+            return Err(format!(
+                "Failed to get current directory for sub agent: {}",
+                e
+            ));
         }
     };
+    let session_config = SessionConfig {
+        id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
+        working_dir: current_dir.clone(),
+        schedule_id: None,
+        execution_mode: None,
+        max_turns: task_config.max_turns.map(|v| v as u32),
+        retry_config: None,
+    };
 
-    match result {
-        Ok(result_text) => Ok(serde_json::json!({
-            "result": result_text
-        })),
+    let reply_result = agent
+        .reply(
+            session_messages.clone(),
+            Some(session_config.clone()),
+            Some(cancellation_token.clone()),
+        )
+        .await;
+
+    match reply_result {
+        Ok(mut stream) => {
+            use futures::StreamExt;
+
+            while let Some(message_result) = stream.next().await {
+                match message_result {
+                    Ok(AgentEvent::Message(msg)) => {
+                        session_messages.push(msg);
+                    }
+                    Ok(AgentEvent::McpNotification(_)) => {
+                        // Handle notifications if needed
+                    }
+                    Ok(AgentEvent::ModelChange { .. }) => {
+                        // Model change events are informational, just continue
+                    }
+                    Ok(AgentEvent::HistoryReplaced(_)) => {
+                        // Handle history replacement events if needed
+                    }
+                    Err(e) => {
+                        tracing::error!("Error receiving message from subagent: {}", e);
+                        break;
+                    }
+                }
+            }
+
+            // Extract text content based on return_last_only flag
+            let response_text = if return_last_only {
+                // Get only the last message's text content
+                session_messages
+                    .messages()
+                    .last()
+                    .and_then(|message| {
+                        message.content.iter().find_map(|content| match content {
+                            crate::conversation::message::MessageContent::Text(text_content) => {
+                                Some(text_content.text.clone())
+                            }
+                            _ => None,
+                        })
+                    })
+                    .unwrap_or_else(|| String::from("No text content in last message"))
+            } else {
+                // Extract all text content from all messages (original behavior)
+                let all_text_content: Vec<String> = session_messages
+                    .iter()
+                    .flat_map(|message| {
+                        message.content.iter().filter_map(|content| match content {
+                            crate::conversation::message::MessageContent::Text(text_content) => {
+                                Some(text_content.text.clone())
+                            }
+                            crate::conversation::message::MessageContent::ToolResponse(
+                                tool_response,
+                            ) => tool_response
+                                .tool_result
+                                .as_ref()
+                                .ok()
+                                .map(|contents| {
+                                    contents
+                                        .iter()
+                                        .filter_map(|content| match &content.raw {
+                                            rmcp::model::RawContent::Text(raw_text_content) => {
+                                                Some(raw_text_content.text.clone())
+                                            }
+                                            _ => None,
+                                        })
+                                        .collect::<Vec<String>>()
+                                })
+                                .filter(|texts: &Vec<String>| !texts.is_empty())
+                                .map(|texts| format!("Tool result: {}", texts.join("\n"))),
+                            _ => None,
+                        })
+                    })
+                    .collect();
+
+                all_text_content.join("\n")
+            };
+
+            match crate::session::storage::read_metadata(&session_file_path) {
+                Ok(mut updated_metadata) => {
+                    updated_metadata.message_count = session_messages.len();
+                    if let Err(e) = crate::session::storage::save_messages_with_metadata(
+                        &session_file_path,
+                        &updated_metadata,
+                        &session_messages,
+                    ) {
+                        tracing::error!("Failed to persist final messages: {}", e);
+                        return Err(format!("Failed to save messages: {}", e));
+                    }
+                    Ok(serde_json::json!({"result": response_text}))
+                }
+                Err(e) => {
+                    tracing::error!("Failed to read updated metadata before final save: {}", e);
+                    Err(format!("Failed to read metadata: {}", e))
+                }
+            }
+        }
         Err(e) => {
-            let error_msg = format!("Inline recipe execution failed: {}", e);
-            Err(error_msg)
+            return Err(format!("Agent failed to reply for subagent: {}", e));
         }
     }
 }
