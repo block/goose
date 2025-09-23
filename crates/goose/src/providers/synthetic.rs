@@ -149,14 +149,18 @@ mod tests {
         assert!(metadata.config_keys.len() >= 2);
 
         // Check that API key is required and secret
-        let api_key_config = metadata.config_keys.iter()
+        let api_key_config = metadata
+            .config_keys
+            .iter()
             .find(|k| k.name == "SYNTHETIC_API_KEY")
             .expect("SYNTHETIC_API_KEY should be in config");
         assert!(api_key_config.required);
         assert!(api_key_config.secret);
 
         // Check that host has default value
-        let host_config = metadata.config_keys.iter()
+        let host_config = metadata
+            .config_keys
+            .iter()
             .find(|k| k.name == "SYNTHETIC_HOST")
             .expect("SYNTHETIC_HOST should be in config");
         assert!(!host_config.required);
