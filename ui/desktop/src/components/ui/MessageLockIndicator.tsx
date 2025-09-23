@@ -33,7 +33,7 @@ export function MessageLockIndicator({
           <span className="font-medium">Auto-scroll locked</span>
         </div>
         <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-800/30 px-2 py-0.5 rounded">
-          Scroll past to unlock
+          Scroll away to unlock
         </div>
       </div>
       
