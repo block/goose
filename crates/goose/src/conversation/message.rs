@@ -1,5 +1,5 @@
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolResult};
+use crate::mcp_utils::{ToolCall, ToolResult};
 use rmcp::model::{
     AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
     RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
@@ -728,7 +728,7 @@ impl Message {
 mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
-    use mcp_core::ToolCall;
+    use crate::mcp_utils::ToolCall;
     use rmcp::model::{
         AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
         RawImageContent, ResourceContents,

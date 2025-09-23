@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::ExtensionManager;
-use mcp_core::ToolCall;
+use goose::mcp_utils::ToolCall;
 
 use test_case::test_case;
 

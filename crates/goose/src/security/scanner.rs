@@ -1,7 +1,7 @@
 use crate::conversation::message::Message;
 use crate::security::patterns::{PatternMatcher, RiskLevel};
 use anyhow::Result;
-use mcp_core::tool::ToolCall;
+use crate::mcp_utils::ToolCall;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]

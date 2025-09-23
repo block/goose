@@ -3,7 +3,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::ToolCall;
+use crate::mcp_utils::ToolCall;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -679,7 +679,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
     #[test]
     fn test_message_formatting_skips_tool_requests() {
         use crate::conversation::message::Message;
-        use mcp_core::tool::ToolCall;
+        use crate::mcp_utils::ToolCall;
 
         // Create a conversation with text, tool requests, and tool responses
         let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));

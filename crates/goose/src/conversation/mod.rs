@@ -380,7 +380,7 @@ pub fn debug_conversation_fix(
 mod tests {
     use crate::conversation::message::Message;
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-    use mcp_core::tool::ToolCall;
+    use crate::mcp_utils::ToolCall;
     use rmcp::model::Role;
     use serde_json::json;
 

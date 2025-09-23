@@ -1,7 +1,7 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use mcp_client::client::{Error, McpClientTrait};
+use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
     model::{
         CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,

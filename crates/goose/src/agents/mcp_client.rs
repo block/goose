@@ -1,3 +1,4 @@
+/// MCP client implementation for Goose
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,

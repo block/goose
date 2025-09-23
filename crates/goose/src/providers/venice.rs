@@ -12,7 +12,7 @@ use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
-use mcp_core::{ToolCall, ToolResult};
+use crate::mcp_utils::{ToolCall, ToolResult};
 use rmcp::model::{Role, Tool};
 
 // ---------- Capability Flags ----------

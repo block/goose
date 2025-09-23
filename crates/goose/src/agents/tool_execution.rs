@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
 use crate::permission::Permission;
-use mcp_core::ToolResult;
+use crate::mcp_utils::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that

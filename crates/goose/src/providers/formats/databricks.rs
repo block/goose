@@ -5,7 +5,7 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolCall;
+use crate::mcp_utils::ToolCall;
 use rmcp::model::{
     AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
 };

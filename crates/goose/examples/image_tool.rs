@@ -5,7 +5,7 @@ use goose::conversation::message::Message;
 use goose::providers::{
     bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider,
 };
-use mcp_core::tool::ToolCall;
+use goose::mcp_utils::ToolCall;
 use rmcp::model::{Content, Tool};
 use rmcp::object;
 use serde_json::json;

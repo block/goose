@@ -3,8 +3,8 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use mcp_core::handler::require_str_parameter;
-use mcp_core::ToolCall;
+use crate::mcp_utils::require_str_parameter;
+use crate::mcp_utils::ToolCall;
 use rmcp::service::ClientInitializeError;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{
@@ -30,7 +30,7 @@ use crate::agents::extension_malware_check;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
-use mcp_client::client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use rmcp::model::{
     Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents, ServerInfo, Tool,
 };
@@ -1042,8 +1042,8 @@ impl ExtensionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_client::client::Error;
-    use mcp_client::client::McpClientTrait;
+    use rmcp::ServiceError as Error;
+    use goose::agents::extension::McpClientTrait;
     use rmcp::model::CallToolResult;
     use rmcp::model::InitializeResult;
 

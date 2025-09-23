@@ -3,7 +3,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::ToolCall;
+use crate::mcp_utils::ToolCall;
 use rmcp::model::{ErrorCode, ErrorData, Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;

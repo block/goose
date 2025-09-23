@@ -320,7 +320,7 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
-            Ok(mcp_core::tool::ToolCall::new(
+            Ok(goose::mcp_utils::ToolCall::new(
                 "get_screenshot",
                 serde_json::json!({}),
             )),

@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use mcp_core::ToolResult;
+use crate::mcp_utils::ToolResult;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use crate::recipe::Recipe;

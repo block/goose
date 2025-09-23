@@ -3,7 +3,7 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
-use mcp_core::ToolCall;
+use crate::mcp_utils::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
 use rmcp::model::{AnnotateAble, ErrorCode, ErrorData, RawContent, Role, Tool};
 use std::borrow::Cow;

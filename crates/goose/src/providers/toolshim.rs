@@ -38,7 +38,7 @@ use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
-use mcp_core::tool::ToolCall;
+use crate::mcp_utils::ToolCall;
 use reqwest::Client;
 use rmcp::model::{RawContent, Tool};
 use serde_json::{json, Value};

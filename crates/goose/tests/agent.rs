@@ -620,7 +620,7 @@ mod final_output_tool_tests {
         agent.add_final_output_tool(response).await;
 
         // Simulate a final output tool call occurring.
-        let tool_call = mcp_core::tool::ToolCall::new(
+        let tool_call = goose::mcp_utils::ToolCall::new(
             FINAL_OUTPUT_TOOL_NAME,
             serde_json::json!({
                 "result": "Test output"
@@ -1039,7 +1039,8 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use mcp_core::tool::ToolCall;
+    use goose::session::storage::Identifier;
+    use goose::mcp_utils::ToolCall;
     use rmcp::model::Tool;
 
     struct MockToolProvider {}

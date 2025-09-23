@@ -271,7 +271,7 @@ pub fn apply_inspection_results_to_permissions(
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use mcp_core::ToolCall;
+    use crate::mcp_utils::ToolCall;
     use serde_json::json;
 
     #[test]

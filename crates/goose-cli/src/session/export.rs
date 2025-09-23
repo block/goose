@@ -370,7 +370,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
 mod tests {
     use super::*;
     use goose::conversation::message::{Message, ToolRequest, ToolResponse};
-    use mcp_core::tool::ToolCall;
+    use goose::mcp_utils::ToolCall;
     use rmcp::model::{Content, RawTextContent, TextContent};
     use serde_json::json;
 

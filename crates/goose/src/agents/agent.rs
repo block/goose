@@ -45,7 +45,7 @@ use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
-use mcp_core::ToolResult;
+use crate::mcp_utils::ToolResult;
 use regex::Regex;
 use rmcp::model::{
     Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
@@ -389,7 +389,7 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: mcp_core::tool::ToolCall,
+        tool_call: crate::mcp_utils::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Option<SessionConfig>,

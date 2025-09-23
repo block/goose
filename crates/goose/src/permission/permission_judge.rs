@@ -276,7 +276,7 @@ mod tests {
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::{ToolCall, ToolResult};
+    use crate::mcp_utils::{ToolCall, ToolResult};
     use rmcp::model::{Role, Tool};
     use serde_json::json;
     use tempfile::NamedTempFile;

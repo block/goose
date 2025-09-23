@@ -390,7 +390,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::Message;
     use anyhow::Result;
-    use mcp_core::tool::ToolCall;
+    use crate::mcp_utils::ToolCall;
     use rmcp::model::Content;
     use serde_json::json;
 

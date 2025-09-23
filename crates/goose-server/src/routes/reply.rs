@@ -17,7 +17,11 @@ use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
 };
-use mcp_core::ToolResult;
+use goose::{
+    permission::{Permission, PermissionConfirmation},
+    session,
+};
+use goose::mcp_utils::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::json;

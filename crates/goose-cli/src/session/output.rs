@@ -7,7 +7,7 @@ use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use mcp_core::tool::ToolCall;
+use goose::mcp_utils::ToolCall;
 use regex::Regex;
 use rmcp::model::PromptArgument;
 use serde_json::Value;
