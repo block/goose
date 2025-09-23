@@ -54,7 +54,31 @@ impl AppState {
 
     pub async fn reset(&self) {
         let mut agent = self.agent.write().await;
-        *agent = Arc::new(Agent::new());
+        let new_agent = Agent::new();
+        
+        // Re-initialize provider like we do at startup
+        let config = goose::config::Config::global();
+        
+        if let (Ok(provider_name), Ok(model_name)) = (
+            config.get_param::<String>("GOOSE_PROVIDER"),
+            config.get_param::<String>("GOOSE_MODEL")
+        ) {
+            if let Ok(model_config) = goose::model::ModelConfig::new(&model_name) {
+                if let Ok(provider) = goose::providers::create(&provider_name, model_config) {
+                    if let Err(e) = new_agent.update_provider(provider).await {
+                        tracing::error!("Failed to update agent provider during reset: {}", e);
+                    }
+                } else {
+                    tracing::error!("Failed to create provider during reset");
+                }
+            } else {
+                tracing::error!("Failed to create model config during reset");
+            }
+        } else {
+            tracing::warn!("No provider/model configured during reset");
+        }
+        
+        *agent = Arc::new(new_agent);
     }
 
     pub async fn mark_recipe_run_if_absent(&self, session_id: &str) -> bool {
