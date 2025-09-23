@@ -107,6 +107,17 @@
     ]
   },
   {
+    "id": "chrome-devtools-mcp",
+    "name": "Chrome DevTools",
+    "description": "Control and inspect a live Chrome browser",
+    "command": "npx -y chrome-devtools-mcp@latest",
+    "link": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "cloudflare-mcp",
     "name": "Cloudflare",
     "description": "Cloudflare API integration for DNS and domain management",
