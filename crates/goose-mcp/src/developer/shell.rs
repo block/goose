@@ -1,5 +1,5 @@
-use std::{env, process::Stdio, ffi::OsString};
 use goose::config::get_config_dir;
+use std::{env, ffi::OsString, process::Stdio};
 
 #[cfg(unix)]
 #[allow(unused_imports)] // False positive: trait is used for process_group method
