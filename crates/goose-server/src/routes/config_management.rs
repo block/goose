@@ -315,12 +315,25 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                                 goose::config::custom_providers::CustomProviderConfig,
                             >(&content)
                             {
+                                // Skip if this custom provider is already present in the registry
+                                if providers_metadata.iter().any(|m| m.name == custom_provider.name) {
+                                    continue;
+                                }
+
                                 // CustomProviderConfig => ProviderMetadata
                                 let default_model = custom_provider
                                     .models
                                     .first()
                                     .map(|m| m.name.clone())
                                     .unwrap_or_default();
+
+                                // Use a per-provider base URL key to avoid collisions with legacy
+                                // shared key names and to match the keys used when registering
+                                // custom providers into the runtime registry.
+                                // Ensure the key follows: CUSTOM_<ID>_BASE_URL where <ID> is the
+                                // provider name without the leading "custom_" and upper-cased.
+                                let provider_id = custom_provider.name.trim_start_matches("custom_");
+                                let base_url_key = format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
 
                                 let metadata = goose::providers::base::ProviderMetadata {
                                     name: custom_provider.name.clone(),
@@ -342,7 +355,7 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                                             None,
                                         ),
                                         goose::providers::base::ConfigKey::new(
-                                            "CUSTOM_PROVIDER_BASE_URL",
+                                            &base_url_key,
                                             true,
                                             false,
                                             Some(&custom_provider.base_url),

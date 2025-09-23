@@ -178,7 +178,12 @@ pub fn register_custom_providers(
         // "CUSTOM_PROVIDER_BASE_URL" for every provider which caused different
         // providers to read/write the same key and mix up values stored in the
         // keyring or config file.
-        let base_url_key = format!("{}_BASE_URL", config.name.to_uppercase());
+        //
+        // Ensure the per-provider key always uses the form: CUSTOM_<ID>_BASE_URL
+        // where <ID> is the provider name (without any leading "custom_") in
+        // upper-case. This avoids accidentally creating a shared/legacy key.
+        let provider_id = config.name.trim_start_matches("custom_");
+        let base_url_key = format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
         let description = config
             .description
             .clone()
