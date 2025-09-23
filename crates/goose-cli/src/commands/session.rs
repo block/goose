@@ -1,12 +1,12 @@
 use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
-use clap::builder::Str;
+
 use cliclack::{confirm, multiselect, select};
 use goose::session::{Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
 

@@ -9,16 +9,17 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
     pub id: String,
     pub working_dir: PathBuf,
@@ -35,6 +36,7 @@ pub struct Session {
     pub schedule_id: Option<String>,
     pub recipe_json: Option<String>,
     pub conversation: Option<Conversation>,
+    pub message_count: usize,
 }
 
 pub struct SessionUpdateBuilder {
@@ -162,10 +164,6 @@ impl SessionManager {
             .await
     }
 
-    pub async fn get_message_count(id: &str) -> Result<usize> {
-        Self::instance().await?.get_message_count(id).await
-    }
-
     pub fn update_session(id: &str) -> SessionUpdateBuilder {
         SessionUpdateBuilder::new(id.to_string())
     }
@@ -265,22 +263,12 @@ impl Default for Session {
             schedule_id: None,
             recipe_json: None,
             conversation: None,
+            message_count: 0,
         }
     }
 }
 
 impl Session {
-    pub async fn get_message_count(&self) -> Result<usize> {
-        if let Some(ref conversation) = self.conversation {
-            Ok(conversation.messages().len())
-        } else {
-            SessionManager::instance()
-                .await?
-                .get_message_count(&self.id)
-                .await
-        }
-    }
-
     pub fn without_messages(mut self) -> Self {
         self.conversation = None;
         self
@@ -308,7 +296,7 @@ impl SessionStorage {
         Ok(storage)
     }
 
-    async fn open(db_path: &PathBuf) -> Result<Self> {
+    async fn open(db_path: &Path) -> Result<Self> {
         let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
@@ -317,7 +305,7 @@ impl SessionStorage {
         Ok(storage)
     }
 
-    async fn create(db_path: &PathBuf) -> Result<Self> {
+    async fn create(db_path: &Path) -> Result<Self> {
         let database_url = format!("sqlite://{}", db_path.to_string_lossy());
         let pool = sqlx::SqlitePool::connect(&database_url).await?;
 
@@ -510,7 +498,7 @@ impl SessionStorage {
     async fn import_single_session(
         &self,
         session_name: &str,
-        session_path: &PathBuf,
+        session_path: &Path,
     ) -> Result<()> {
         use crate::session::legacy;
 
@@ -562,7 +550,11 @@ impl SessionStorage {
         Ok(())
     }
 
-    fn row_to_session(row: SessionRow, conversation: Option<Conversation>) -> Session {
+    fn row_to_session(
+        row: SessionRow,
+        conversation: Option<Conversation>,
+        message_count: usize,
+    ) -> Session {
         let (
             id,
             working_dir,
@@ -596,6 +588,7 @@ impl SessionStorage {
             schedule_id,
             recipe_json,
             conversation,
+            message_count,
         }
     }
 
@@ -636,13 +629,20 @@ impl SessionStorage {
         .await?
         .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
-        let conversation = if include_messages {
-            Some(self.get_conversation(&row.0).await?)
+        let (conversation, message_count) = if include_messages {
+            let conv = self.get_conversation(&row.0).await?;
+            let count = conv.messages().len();
+            (Some(conv), count)
         } else {
-            None
+            let count =
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
+                    .bind(&row.0)
+                    .fetch_one(&self.pool)
+                    .await? as usize;
+            (None, count)
         };
 
-        Ok(Self::row_to_session(row, conversation))
+        Ok(Self::row_to_session(row, conversation, message_count))
     }
 
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
@@ -803,22 +803,36 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        let rows = sqlx::query_as::<_, SessionRow>(
+        let rows = sqlx::query_as::<_, (
+            String, String, String, String, String, String,
+            Option<i32>, Option<i32>, Option<i32>,
+            Option<i32>, Option<i32>, Option<i32>,
+            Option<String>, Option<String>,
+            i64,
+        )>(
             r#"
-            SELECT id, working_dir, description, created_at, updated_at, extension_data,
-                   total_tokens, input_tokens, output_tokens,
-                   accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                   schedule_id, recipe_json
-            FROM sessions
-            ORDER BY updated_at DESC
+            SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json,
+                   COALESCE((SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id), 0) as message_count
+            FROM sessions s
+            ORDER BY s.updated_at DESC
         "#,
         )
-        .fetch_all(&self.pool)
-        .await?;
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| Self::row_to_session(row, None))
+            .map(|row| {
+                let count = row.14 as usize;
+                let session_row = (
+                    row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9, row.10,
+                    row.11, row.12, row.13,
+                );
+                Self::row_to_session(session_row, None, count)
+            })
             .collect())
     }
 
@@ -844,14 +858,5 @@ impl SessionStorage {
             .await?;
 
         Ok(())
-    }
-    async fn get_message_count(&self, session_id: &str) -> Result<usize> {
-        let count =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                .bind(session_id)
-                .fetch_one(&self.pool)
-                .await?;
-
-        Ok(count as usize)
     }
 }

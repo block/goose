@@ -276,7 +276,6 @@ impl Agent {
     pub(crate) async fn update_session_metrics(
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
-        messages_length: usize,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
         let session = SessionManager::get_session(session_id, false).await?;

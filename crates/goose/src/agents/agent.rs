@@ -268,7 +268,7 @@ impl Agent {
             .await;
 
         Ok(ReplyContext {
-            conversation: conversation,
+            conversation,
             tools,
             toolshim_tools,
             system_prompt,
@@ -1134,8 +1134,7 @@ impl Agent {
                             // Record usage for the session
                             if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage, conversation.len())
-                                        .await?;
+                                    Self::update_session_metrics(session_config, usage).await?;
                                 }
                             }
 

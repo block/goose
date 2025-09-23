@@ -321,18 +321,13 @@ async fn sessions_handler(
         Ok(session_tuples) => {
             let mut display_infos = Vec::new();
             for (session_name, session) in session_tuples {
-                let count = session
-                    .get_message_count()
-                    .await
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
                 display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
                     name: session.description,
                     created_at: parse_session_name_to_iso(&session_name),
                     working_dir: session.working_dir.to_string_lossy().into_owned(),
                     schedule_id: session.schedule_id,
-                    message_count: count,
+                    message_count: session.message_count,
                     total_tokens: session.total_tokens,
                     input_tokens: session.input_tokens,
                     output_tokens: session.output_tokens,

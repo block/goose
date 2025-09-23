@@ -113,7 +113,7 @@ async fn get_session_history(
         .take()
         .unwrap_or_default()
         .messages()
-        .into_iter()
+        .iter()
         .filter(|m| m.is_user_visible())
         .cloned()
         .collect();

@@ -12,7 +12,7 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
 use goose::conversation::Conversation;
-use goose::session;
+
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
@@ -227,13 +227,11 @@ async fn list_sessions() -> Json<serde_json::Value> {
             let mut session_info = Vec::new();
 
             for session in sessions {
-                let count = session.get_message_count().await.unwrap_or(0);
-
                 session_info.push(serde_json::json!({
                     "name": session.id,
                     "path": session.id,
                     "description": session.description,
-                    "message_count": count,
+                    "message_count": session.message_count,
                     "working_dir": session.working_dir
                 }));
             }
@@ -411,14 +409,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 async fn process_message_streaming(
     agent: &Agent,
     session_messages: Arc<Mutex<Conversation>>,
-    session_id: String,
+    _session_id: String,
     content: String,
     sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<()> {
     use futures::StreamExt;
     use goose::agents::SessionConfig;
     use goose::conversation::message::MessageContent;
-    use goose::session;
+
 
     let user_message = GooseMessage::user().with_text(content.clone());
 
@@ -448,9 +446,12 @@ async fn process_message_streaming(
         return Ok(());
     }
 
+    let session =
+        SessionManager::create_session(std::env::current_dir()?, "Web session".to_string()).await?;
+
     let session_config = SessionConfig {
-        id: session::generate_session_id(),
-        working_dir: std::env::current_dir()?,
+        id: session.id,
+        working_dir: session.working_dir,
         schedule_id: None,
         execution_mode: None,
         max_turns: None,
@@ -583,7 +584,7 @@ async fn process_message_streaming(
                             }
                         }
                     }
-                    Ok(AgentEvent::HistoryReplaced(new_messages)) => {
+                    Ok(AgentEvent::HistoryReplaced(_new_messages)) => {
                         tracing::info!("History replaced, compacting happened in reply");
                     }
                     Ok(AgentEvent::McpNotification(_notification)) => {

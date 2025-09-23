@@ -16,7 +16,8 @@ impl BenchBaseSession for CliSession {
         self.headless(message).await
     }
     fn session_file(&self) -> Option<PathBuf> {
-        self.session_file()
+        // Return None since CliSession doesn't have a session file concept
+        None
     }
     fn message_history(&self) -> Conversation {
         self.message_history()

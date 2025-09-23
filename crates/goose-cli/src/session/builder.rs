@@ -6,7 +6,7 @@ use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
-use goose::session;
+
 use goose::session::SessionManager;
 use rustyline::EditMode;
 use std::collections::HashSet;
@@ -269,12 +269,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 }
             }
         }
-    } else {
-        let session_id = session_config
-            .session_id
-            .unwrap_or_else(|| session::generate_session_id());
-
+    } else if let Some(session_id) = session_config.session_id {
         Some(session_id)
+    } else {
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "CLI Session".to_string(),
+        )
+        .await
+        .unwrap();
+        Some(session.id)
     };
 
     if session_config.resume {

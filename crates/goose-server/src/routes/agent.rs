@@ -7,12 +7,10 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
-use goose::conversation::message::Message;
-use goose::conversation::Conversation;
+
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
-use goose::session;
 use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -23,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
+
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {

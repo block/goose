@@ -49,19 +49,14 @@ pub fn read_messages(session_file: &Path) -> Result<Conversation> {
     let mut message_count = 0;
 
     // Skip first line (metadata)
-    if let Some(line_result) = lines.next() {
-        match line_result {
-            Ok(line) => {
-                // Try to parse as metadata, if it fails, treat as message
-                if serde_json::from_str::<Session>(&line).is_err() {
-                    // First line is a message, not metadata
-                    if let Ok(message) = serde_json::from_str(&line) {
-                        messages.push(message);
-                        message_count += 1;
-                    }
-                }
+    if let Some(Ok(line)) = lines.next() {
+        // Try to parse as metadata, if it fails, treat as message
+        if serde_json::from_str::<Session>(&line).is_err() {
+            // First line is a message, not metadata
+            if let Ok(message) = serde_json::from_str(&line) {
+                messages.push(message);
+                message_count += 1;
             }
-            Err(_) => {} // Skip unreadable first line
         }
     }
 
@@ -71,18 +66,15 @@ pub fn read_messages(session_file: &Path) -> Result<Conversation> {
             break;
         }
 
-        match line_result {
-            Ok(line) => {
-                if line.len() > MAX_LINE_LENGTH {
-                    continue;
-                }
-
-                if let Ok(message) = serde_json::from_str(&line) {
-                    messages.push(message);
-                    message_count += 1;
-                }
+        if let Ok(line) = line_result {
+            if line.len() > MAX_LINE_LENGTH {
+                continue;
             }
-            Err(_) => {} // Skip unreadable lines
+
+            if let Ok(message) = serde_json::from_str(&line) {
+                messages.push(message);
+                message_count += 1;
+            }
         }
     }
 

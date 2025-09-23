@@ -408,5 +408,6 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         extension_data: Default::default(),
         updated_at: "".to_string(),
         conversation: None,
+        message_count: 0,
     }
 }

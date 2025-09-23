@@ -471,7 +471,7 @@ impl CliSession {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
 
-                            let provider = self.agent.provider().await?;
+                            let _provider = self.agent.provider().await?;
 
                             output::show_thinking();
                             self.process_agent_response(true, CancellationToken::default())
@@ -679,7 +679,7 @@ impl CliSession {
                         output::show_thinking();
 
                         // Get the provider for summarization
-                        let provider = self.agent.provider().await?;
+                        let _provider = self.agent.provider().await?;
 
                         // Call the summarize_context method
                         let (summarized_messages, _token_counts, summarization_usage) = self

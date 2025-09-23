@@ -1,4 +1,3 @@
-use crate::session::extension_data::ExtensionData;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
@@ -22,7 +21,6 @@ use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflic
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session;
 use crate::session::{Session, SessionManager};
 
 // Track running tasks with their abort handles

@@ -206,14 +206,13 @@ async fn reply_handler(
     drop(tokio::spawn(async move {
         let agent = state.get_agent().await;
 
-        // Load session metadata to get the working directory and other config
-        let session_metadata = match SessionManager::get_session(&session_id, false).await {
+        let session = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
+                tracing::error!("Failed to read session for {}: {}", session_id, e);
                 let _ = stream_event(
                     MessageEvent::Error {
-                        error: format!("Failed to read session metadata: {}", e),
+                        error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
                     &cancel_token,
@@ -225,8 +224,8 @@ async fn reply_handler(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir: session_metadata.working_dir.clone(),
-            schedule_id: session_metadata.schedule_id.clone(),
+            working_dir: session.working_dir.clone(),
+            schedule_id: session.schedule_id.clone(),
             execution_mode: None,
             max_turns: None,
             retry_config: None,
@@ -324,18 +323,16 @@ async fn reply_handler(
 
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = SessionManager::get_session(&session_id, true).await {
-            let total_tokens = metadata.total_tokens.unwrap_or(0);
-            let message_count = metadata.get_message_count().await.unwrap_or(0);
-
+        if let Ok(session) = SessionManager::get_session(&session_id, true).await {
+            let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
                 counter.goose.session_completions = 1,
                 session_type = "app",
                 interface = "ui",
                 exit_type = "normal",
                 duration_ms = session_duration.as_millis() as u64,
-                total_tokens,
-                message_count,
+                total_tokens = total_tokens,
+                message_count = session.message_count,
                 "Session completed"
             );
 

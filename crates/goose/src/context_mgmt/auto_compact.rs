@@ -305,27 +305,8 @@ mod tests {
         message_count: usize,
         working_dir: &str,
     ) -> crate::session::Session {
-        use crate::conversation::message::Message;
         use crate::conversation::Conversation;
-        use rmcp::model::Role;
         use std::path::PathBuf;
-
-        let mut messages = Vec::new();
-        for i in 0..message_count {
-            let role = if i % 2 == 0 {
-                Role::User
-            } else {
-                Role::Assistant
-            };
-            let content = vec![MessageContent::text(format!("Test message {}", i))];
-            messages.push(Message::new(role, i as i64, content));
-        }
-
-        let conversation = if message_count > 0 {
-            Some(Conversation::new_unvalidated(messages))
-        } else {
-            None
-        };
 
         crate::session::Session {
             id: "test_session".to_string(),
@@ -342,7 +323,8 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             extension_data: extension_data::ExtensionData::new(),
-            conversation,
+            conversation: Some(Conversation::default()),
+            message_count: message_count,
         }
     }
 

@@ -855,7 +855,7 @@ pub async fn cli() -> Result<()> {
                     let (total_tokens, message_count) = session
                         .get_metadata()
                         .await
-                        .map(|m| (m.total_tokens.unwrap_or(0), m.get_message_count()))
+                        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
 
                     tracing::info!(
@@ -1067,7 +1067,7 @@ pub async fn cli() -> Result<()> {
                 let (total_tokens, message_count) = session
                     .get_metadata()
                     .await
-                    .map(|m| (m.total_tokens.unwrap_or(0), m.get_message_count()))
+                    .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));
 
                 tracing::info!(
@@ -1207,7 +1207,7 @@ pub async fn cli() -> Result<()> {
                     max_tool_repetitions: None,
                     max_turns: None,
                     scheduled_job_id: None,
-                    interactive: true, // Default case is always interactive
+                    interactive: true,
                     quiet: false,
                     sub_recipes: None,
                     final_output_response: None,
