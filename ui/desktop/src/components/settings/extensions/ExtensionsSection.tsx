@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
-import { useChatContext } from '../../../contexts/ChatContext';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
@@ -18,6 +17,7 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
+  sessionId: string; // Add required sessionId prop
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -27,6 +27,7 @@ interface ExtensionSectionProps {
 }
 
 export default function ExtensionsSection({
+  sessionId,
   deepLinkConfig,
   showEnvVars,
   hideButtons,
@@ -35,8 +36,6 @@ export default function ExtensionsSection({
   selectedExtensions = [],
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
-  const chatContext = useChatContext();
-  const sessionId = chatContext?.chat.sessionId;
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -89,11 +88,6 @@ export default function ExtensionsSection({
       return true;
     }
 
-    if (!sessionId) {
-      console.warn('Cannot toggle extension without session');
-      return false;
-    }
-
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
@@ -126,12 +120,6 @@ export default function ExtensionsSection({
     // Close the modal immediately
     handleModalClose();
 
-    if (!sessionId) {
-      console.warn('Cannot add extension without session');
-      await fetchExtensions();
-      return;
-    }
-
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({
@@ -155,12 +143,6 @@ export default function ExtensionsSection({
 
     // Close the modal immediately
     handleModalClose();
-
-    if (!sessionId) {
-      console.warn('Cannot update extension without session');
-      await fetchExtensions();
-      return;
-    }
 
     const extensionConfig = createExtensionConfig(formData);
     const originalName = selectedExtension.name;
@@ -186,12 +168,6 @@ export default function ExtensionsSection({
   const handleDeleteExtension = async (name: string) => {
     // Close the modal immediately
     handleModalClose();
-
-    if (!sessionId) {
-      console.warn('Cannot delete extension without session');
-      await fetchExtensions();
-      return;
-    }
 
     try {
       await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });

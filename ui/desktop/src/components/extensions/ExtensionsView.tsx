@@ -32,7 +32,11 @@ export default function ExtensionsView({
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
   const chatContext = useChatContext();
-  const sessionId = chatContext?.chat.sessionId;
+  const sessionId = chatContext?.chat.sessionId || '';
+
+  if (!sessionId) {
+    console.error('ExtensionsView: No session ID available');
+  }
 
   // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
   useEffect(() => {
@@ -111,6 +115,7 @@ export default function ExtensionsView({
         <div className="px-8 pb-16">
           <ExtensionsSection
             key={refreshKey}
+            sessionId={sessionId}
             deepLinkConfig={viewOptions.deepLinkConfig}
             showEnvVars={viewOptions.showEnvVars}
             hideButtons={true}
