@@ -9,7 +9,7 @@ import { FixedExtensionEntry } from '../ConfigContext';
 import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 import { Button } from '../ui/button';
 import SaveRecipeDialog from './shared/SaveRecipeDialog';
-import RecipeFormFields from './shared/RecipeFormFields';
+import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
 
 interface ViewRecipeModalProps {
