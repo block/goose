@@ -2775,7 +2775,6 @@ dependencies = [
  "jsonschema",
  "mcp-client",
  "mcp-core",
- "mcp-server",
  "nix 0.30.1",
  "once_cell",
  "rand 0.8.5",
@@ -2829,7 +2828,6 @@ dependencies = [
  "lopdf",
  "lru",
  "mcp-core",
- "mcp-server",
  "mpatch",
  "oauth2",
  "once_cell",
@@ -2887,7 +2885,6 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "mcp-core",
- "mcp-server",
  "reqwest 0.12.12",
  "rmcp",
  "schemars",
@@ -4108,26 +4105,6 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "utoipa",
-]
-
-[[package]]
-name = "mcp-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures",
- "mcp-core",
- "pin-project",
- "rmcp",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tower 0.4.13",
- "tower-service",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
