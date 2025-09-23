@@ -99,7 +99,7 @@ export default function ProgressiveMessageList({
 
         if (nextCount >= messages.length) {
           setIsLoading(false);
-          // Call the completion callback after a brief delay to ensure DOM is updated
+          // Call completion callback when done
           if (onRenderingComplete) {
             setTimeout(() => onRenderingComplete(), 50);
           }
@@ -117,119 +117,126 @@ export default function ProgressiveMessageList({
 
     return () => {
       if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+        clearTimeout(timeoutRef.current);
       }
     };
-  }, [
-    messages.length,
-    batchSize,
-    batchDelay,
-    showLoadingThreshold,
-    renderedCount,
-    onRenderingComplete,
-  ]);
+  }, [messages.length, batchSize, batchDelay, showLoadingThreshold, onRenderingComplete]);
 
-  // Cleanup on unmount
+  // Handle messages change - reset if message count changes significantly
+  useEffect(() => {
+    if (messages.length <= showLoadingThreshold) {
+      setRenderedCount(messages.length);
+      setIsLoading(false);
+    } else if (renderedCount > messages.length) {
+      // Messages were reduced (e.g., cleared), reset
+      setRenderedCount(Math.min(batchSize, messages.length));
+      setIsLoading(messages.length > showLoadingThreshold);
+    }
+  }, [messages.length, renderedCount, batchSize, showLoadingThreshold]);
+
+  // Cleanup timeout on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
+        clearTimeout(timeoutRef.current);
       }
     };
   }, []);
 
-  // Force complete rendering when search is active
-  useEffect(() => {
-    // Only add listener if we're actually loading
-    if (!isLoading) {
-      return;
+  // Force load all messages (e.g., for search)
+  const loadAllMessages = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
+    setRenderedCount(messages.length);
+    setIsLoading(false);
+    if (onRenderingComplete) {
+      setTimeout(() => onRenderingComplete(), 50);
+    }
+  }, [messages.length, onRenderingComplete]);
 
+  // Listen for Cmd/Ctrl+F to load all messages for search
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
-      const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
-
-      if (isSearchShortcut) {
-        // Immediately render all messages when search is triggered
-        setRenderedCount(messages.length);
-        setIsLoading(false);
-        if (timeoutRef.current) {
-          window.clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        loadAllMessages();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLoading, messages.length]);
+  }, [loadAllMessages]);
 
-  // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
+    if (!chat) {
+      console.warn('ProgressiveMessageList: chat prop is required but not provided');
+      return null;
+    }
+
     const messagesToRender = messages.slice(0, renderedCount);
-    return messagesToRender
-      .map((message, index) => {
-        // Use custom render function if provided
-        if (renderMessage) {
-          return renderMessage(message, index);
+
+    return messagesToRender.map((message, index) => {
+      // Use custom render function if provided
+      if (renderMessage) {
+        const customRendered = renderMessage(message, index);
+        if (customRendered !== null) {
+          return customRendered;
         }
+      }
 
-        // Default rendering logic (for BaseChat)
-        if (!chat) {
-          console.warn(
-            'ProgressiveMessageList: chat prop is required when not using custom renderMessage'
-          );
-          return null;
-        }
+      // Default rendering logic
+      if (!message.id) {
+        console.warn('Message missing ID:', message);
+        return null;
+      }
 
-        const isUser = isUserMessage(message);
+      const isUser = isUserMessage(message);
 
-        return (
-          <div
-            key={message.id && `${message.id}-${message.content.length}`}
-            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
-            data-testid="message-container"
-          >
-            {isUser ? (
-              <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
-                ) : (
-                  !hasOnlyToolResponses(message) && (
-                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
-                  )
-                )}
-              </>
-            ) : (
-              <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
-                ) : (
-                  <GooseMessage
-                    sessionId={chat.sessionId}
-                    messageHistoryIndex={chat.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    append={append}
-                    appendMessage={appendMessage}
-                    toolCallNotifications={toolCallNotifications}
-                    isStreaming={
-                      isStreamingMessage &&
-                      !isUser &&
-                      index === messagesToRender.length - 1 &&
-                      message.role === 'assistant'
-                    }
-                  />
-                )}
-              </>
-            )}
-          </div>
-        );
-      })
-      .filter(Boolean);
+      return (
+        <div
+          key={message.id && `${message.id}-${message.content.length}`}
+          className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
+          data-testid="message-container"
+          data-message-id={message.id} // CRITICAL: Add this for intelligent scrolling
+        >
+          {isUser ? (
+            <>
+              {hasCompactionMarker && hasCompactionMarker(message) ? (
+                <CompactionMarker message={message} />
+              ) : (
+                !hasOnlyToolResponses(message) && (
+                  <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                )
+              )}
+            </>
+          ) : (
+            <>
+              {hasCompactionMarker && hasCompactionMarker(message) ? (
+                <CompactionMarker message={message} />
+              ) : (
+                <GooseMessage
+                  sessionId={chat.sessionId}
+                  messageHistoryIndex={chat.messageHistoryIndex}
+                  message={message}
+                  messages={messages}
+                  append={append}
+                  appendMessage={appendMessage}
+                  toolCallNotifications={toolCallNotifications}
+                  isStreaming={
+                    isStreamingMessage &&
+                    !isUser &&
+                    index === messagesToRender.length - 1 &&
+                    message.role === 'assistant'
+                  }
+                />
+              )}
+            </>
+          )}
+        </div>
+      );
+    });
   }, [
     messages,
     renderedCount,
