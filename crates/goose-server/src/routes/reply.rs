@@ -610,7 +610,7 @@ mod tests {
                 model_config: mock_model_config,
             });
 
-            let state = AppState::new();
+            let state = AppState::new().await.unwrap();
 
             let app = routes(state);
 

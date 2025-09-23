@@ -1,24 +1,11 @@
 use axum::http::StatusCode;
 use axum::Router;
 use axum::{body::Body, http::Request};
-use etcetera::AppStrategy;
 use serde_json::json;
-use std::sync::Arc;
 use tower::ServiceExt;
 
 async fn create_test_app() -> Router {
-    let state = goose_server::AppState::new();
-
-    // Add scheduler setup like in the existing tests
-    let sched_storage_path = etcetera::choose_app_strategy(goose::config::APP_STRATEGY.clone())
-        .unwrap()
-        .data_dir()
-        .join("schedules.json");
-    let sched = goose::scheduler_factory::SchedulerFactory::create_legacy(sched_storage_path)
-        .await
-        .unwrap();
-    state.set_scheduler(sched).await;
-
+    let state = goose_server::AppState::new().await.unwrap();
     goose_server::routes::config_management::routes(state)
 }
 

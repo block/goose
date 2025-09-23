@@ -17,18 +17,14 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new() -> Arc<AppState> {
-        let agent_manager = Arc::new(AgentManager::new());
-        Arc::new(Self {
+    pub async fn new() -> anyhow::Result<Arc<AppState>> {
+        let agent_manager = Arc::new(AgentManager::new().await?);
+        Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
-        })
-    }
-
-    pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
-        self.agent_manager.set_scheduler(sched).await;
+        }))
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {

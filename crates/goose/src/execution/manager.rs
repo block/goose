@@ -2,10 +2,13 @@
 
 use super::SessionExecutionMode;
 use crate::agents::Agent;
+use crate::config::APP_STRATEGY;
 use crate::model::ModelConfig;
 use crate::providers::create;
+use crate::scheduler_factory::SchedulerFactory;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
+use etcetera::{choose_app_strategy, AppStrategy};
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -19,8 +22,20 @@ pub struct AgentManager {
 }
 
 impl AgentManager {
-    pub fn new() -> Self {
-        Self::with_max_sessions(100)
+    pub async fn new() -> Result<Self> {
+        // Construct scheduler with the standard goose-server path
+        let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
+            .data_dir()
+            .join("schedule.json");
+
+        let scheduler = SchedulerFactory::create(schedule_file_path).await?;
+
+        let capacity = NonZeroUsize::new(100).unwrap();
+        Ok(Self {
+            sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
+            scheduler: Arc::new(RwLock::new(Some(scheduler))),
+            default_provider: Arc::new(RwLock::new(None)),
+        })
     }
 
     pub fn with_max_sessions(max_sessions: usize) -> Self {
@@ -31,11 +46,6 @@ impl AgentManager {
             scheduler: Arc::new(RwLock::new(None)),
             default_provider: Arc::new(RwLock::new(None)),
         }
-    }
-
-    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
-        debug!("Setting scheduler on AgentManager");
-        *self.scheduler.write().await = Some(scheduler);
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
@@ -141,11 +151,5 @@ impl AgentManager {
 
     pub async fn session_count(&self) -> usize {
         self.sessions.read().await.len()
-    }
-}
-
-impl Default for AgentManager {
-    fn default() -> Self {
-        Self::new()
     }
 }
