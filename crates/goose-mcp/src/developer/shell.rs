@@ -9,6 +9,7 @@ use std::os::unix::process::CommandExt;
 pub struct ShellConfig {
     pub executable: String,
     pub args: Vec<String>,
+    #[allow(dead_code)]
     pub envs: Vec<(OsString, OsString)>,
 }
 
