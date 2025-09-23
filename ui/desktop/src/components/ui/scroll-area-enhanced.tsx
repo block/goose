@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useIntelligentScroll, UserActivityState } from '../../hooks/scrolling';
+import { MessageLockIndicator } from './MessageLockIndicator';
 import { cn } from '../../utils';
 
 type ScrollBehavior = 'auto' | 'smooth';
@@ -87,9 +88,9 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       scrollConfig
     );
 
-    // Handle message clicks for locking
+    // Handle message clicks for locking - PREVENT DEFAULT SCROLL BEHAVIOR
     const handleMessageClick = React.useCallback((event: MouseEvent) => {
-      if (!intelligentScroll || !onMessageClick) return;
+      if (!intelligentScroll) return;
       
       const target = event.target as HTMLElement;
       if (!target) return;
@@ -98,23 +99,44 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       let messageElement = target.closest('[data-message-id]') as HTMLElement;
       if (!messageElement) {
         // Fallback: look for common message container classes
-        messageElement = target.closest('.message, [role="article"], .chat-message') as HTMLElement;
+        messageElement = target.closest('.message, [role="article"], .chat-message, .goose-message, .user-message') as HTMLElement;
       }
       
       if (messageElement) {
+        // PREVENT any default scrolling behavior
+        event.preventDefault();
+        event.stopPropagation();
+        
         const messageId = messageElement.getAttribute('data-message-id') || 
                          messageElement.id || 
                          `message-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
-        console.log('🖱️ Message clicked:', messageId, messageElement);
+        console.log('🖱️ Message clicked - locking without scroll:', messageId, messageElement);
         
-        // Lock to this message
+        // Add visual highlight to the clicked message
+        messageElement.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        messageElement.style.borderLeft = '3px solid rgb(59, 130, 246)';
+        messageElement.style.transition = 'all 0.2s ease';
+        
+        // Lock to this message WITHOUT scrolling
         intelligentScrollData.lockToMessage(messageId, messageElement);
         
         // Call external handler
-        onMessageClick(messageId, messageElement);
+        onMessageClick?.(messageId, messageElement);
       }
-    }, [intelligentScroll, onMessageClick, intelligentScrollData]);
+    }, [intelligentScroll, intelligentScrollData, onMessageClick]);
+
+    // Remove highlight when unlocked
+    React.useEffect(() => {
+      const lockedElement = intelligentScrollData.userActivity.lockedElement;
+      
+      if (intelligentScrollData.userActivity.state !== UserActivityState.LOCKED_TO_MESSAGE && lockedElement) {
+        // Remove highlight
+        lockedElement.style.backgroundColor = '';
+        lockedElement.style.borderLeft = '';
+        lockedElement.style.transition = '';
+      }
+    }, [intelligentScrollData.userActivity.state, intelligentScrollData.userActivity.lockedElement]);
 
     // Set up click event listener for message locking
     React.useEffect(() => {
@@ -123,10 +145,11 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      viewport.addEventListener('click', handleMessageClick);
+      // Use capture phase to prevent other handlers from interfering
+      viewport.addEventListener('click', handleMessageClick, { capture: true });
       
       return () => {
-        viewport.removeEventListener('click', handleMessageClick);
+        viewport.removeEventListener('click', handleMessageClick, { capture: true });
       };
     }, [intelligentScroll, handleMessageClick]);
 
@@ -198,6 +221,10 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       [scrollMethods, intelligentScrollData]
     );
 
+    // Find the locked message element to position the indicator
+    const lockedElement = intelligentScrollData.userActivity.lockedElement;
+    const isLocked = intelligentScrollData.userActivity.state === UserActivityState.LOCKED_TO_MESSAGE;
+
     return (
       <ScrollAreaPrimitive.Root
         ref={rootRef}
@@ -227,7 +254,43 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
           className="h-full w-full rounded-[inherit] [&>div]:!block"
         >
           <div className={cn(paddingX ? `px-${paddingX}` : '', paddingY ? `py-${paddingY}` : '')}>
-            {children}
+            {/* Render children with potential lock indicator injection */}
+            {React.Children.map(children, (child, index) => {
+              // If this is the locked element, add the indicator after it
+              if (React.isValidElement(child) && isLocked && lockedElement) {
+                const childElement = child as React.ReactElement;
+                
+                // Check if this child corresponds to the locked element
+                // This is a simplified check - in a real implementation you'd want more robust matching
+                const shouldShowIndicator = index === React.Children.count(children) - 1; // Show after last child for now
+                
+                return (
+                  <React.Fragment key={index}>
+                    {child}
+                    {shouldShowIndicator && intelligentScrollData.lockedMessageId && (
+                      <MessageLockIndicator
+                        messageId={intelligentScrollData.lockedMessageId}
+                        onUnlock={intelligentScrollData.unlockFromMessage}
+                        onScrollToBottom={scrollMethods.scrollToBottom}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              }
+              
+              return child;
+            })}
+            
+            {/* Show lock indicator at bottom if locked but couldn't inject it above */}
+            {isLocked && intelligentScrollData.lockedMessageId && (
+              <MessageLockIndicator
+                messageId={intelligentScrollData.lockedMessageId}
+                onUnlock={intelligentScrollData.unlockFromMessage}
+                onScrollToBottom={scrollMethods.scrollToBottom}
+                className="mb-4"
+              />
+            )}
+            
             {(autoScroll || intelligentScroll) && <div ref={viewportEndRef} style={{ height: '1px' }} />}
           </div>
         </ScrollAreaPrimitive.Viewport>

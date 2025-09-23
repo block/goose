@@ -23,7 +23,7 @@ const DEFAULT_CONFIG: Required<IntelligentScrollConfig> = {
   idleTimeout: 4000,
   activityDebounce: 100,
   scrollVelocityThreshold: 0.3,
-  messageLockTimeout: 10000, // 10 seconds
+  messageLockTimeout: 15000, // 15 seconds
   autoScrollDelay: 300,
   gracefulReturnDelay: 2000,
   smoothScrollDuration: 500
@@ -219,7 +219,7 @@ export function useIntelligentScroll(
     }
   }, [activity.state, activity.isUserActive, activity.shouldAutoScroll, activity.lockedMessageId, scheduleAutoScroll]);
 
-  // Handle content changes (new messages)
+  // Handle content changes (new messages) - DO NOT AUTO-SCROLL WHEN LOCKED
   const handleContentChange = useCallback(() => {
     if (!scrollContainerRef.current) return;
     
@@ -230,7 +230,7 @@ export function useIntelligentScroll(
       lastContentHeightRef.current = currentHeight;
       console.log('📝 New content detected, current state:', activity.state);
       
-      // Don't schedule auto-scroll if locked to a message
+      // CRITICAL: Don't schedule auto-scroll if locked to a message
       if (activity.state === UserActivityState.LOCKED_TO_MESSAGE) {
         console.log('🔒 Skipping content change auto-scroll - locked to message');
         return;
@@ -242,7 +242,7 @@ export function useIntelligentScroll(
     }
   }, [scrollContainerRef, scheduleAutoScroll, activity.state]);
 
-  // Manual scroll to bottom (for external triggers)
+  // Manual scroll to bottom (for external triggers) - UNLOCKS MESSAGE
   const scrollToBottomNow = useCallback(() => {
     console.log('🎯 Manual scroll to bottom requested');
     
@@ -256,7 +256,7 @@ export function useIntelligentScroll(
     executeAutoScroll();
   }, [clearTimeouts, executeAutoScroll, activity]);
 
-  // Graceful scroll to bottom with visual feedback
+  // Graceful scroll to bottom with visual feedback - UNLOCKS MESSAGE
   const gracefulScrollToBottom = useCallback(() => {
     console.log('🎯 Manual graceful scroll to bottom requested');
     
@@ -270,9 +270,9 @@ export function useIntelligentScroll(
     executeGracefulReturn();
   }, [clearTimeouts, executeGracefulReturn, activity]);
 
-  // Lock to a specific message (exposed to parent components)
+  // Lock to a specific message (exposed to parent components) - PREVENTS AUTO-SCROLL
   const lockToMessage = useCallback((messageId: string, element?: HTMLElement) => {
-    console.log('🔒 Locking scroll to message:', messageId);
+    console.log('🔒 Locking scroll to message (no auto-scroll):', messageId);
     clearTimeouts(); // Clear any pending auto-scrolls
     activity.lockToMessage(messageId, element);
   }, [clearTimeouts, activity]);

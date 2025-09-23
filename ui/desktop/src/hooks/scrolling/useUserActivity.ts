@@ -5,7 +5,7 @@ export enum UserActivityState {
   IDLE_AT_BOTTOM = 'idle_at_bottom', 
   IDLE_ABOVE = 'idle_above',
   FOLLOWING = 'following',
-  LOCKED_TO_MESSAGE = 'locked_to_message' // NEW: User clicked on a specific message
+  LOCKED_TO_MESSAGE = 'locked_to_message' // User clicked on a specific message
 }
 
 interface UserActivityConfig {
@@ -23,6 +23,7 @@ interface UserActivityData {
   isNearBottom: boolean;
   shouldAutoScroll: boolean;
   lockedMessageId?: string; // ID of the message user clicked on
+  lockedElement?: HTMLElement; // Reference to the locked element
   lockToMessage: (messageId: string, element?: HTMLElement) => void;
   unlockFromMessage: () => void;
 }
@@ -31,7 +32,7 @@ const DEFAULT_CONFIG: Required<UserActivityConfig> = {
   idleTimeout: 4000, // 4 seconds
   activityDebounce: 100, // 100ms
   scrollVelocityThreshold: 0.3,
-  messageLockTimeout: 10000 // 10 seconds before auto-unlock
+  messageLockTimeout: 15000 // 15 seconds before auto-unlock
 };
 
 /**
@@ -52,6 +53,7 @@ export function useUserActivity(
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [lockedMessageId, setLockedMessageId] = useState<string | undefined>();
+  const [lockedElement, setLockedElement] = useState<HTMLElement | undefined>();
   
   // Refs for tracking scroll behavior
   const lastScrollTime = useRef(Date.now());
@@ -60,7 +62,6 @@ export function useUserActivity(
   const idleTimeoutRef = useRef<number | null>(null);
   const messageLockTimeoutRef = useRef<number | null>(null);
   const isScrollingRef = useRef(false);
-  const lockedElementRef = useRef<HTMLElement | null>(null);
 
   // Calculate if user is near bottom of scroll container
   const checkIsNearBottom = useCallback((): boolean => {
@@ -91,8 +92,8 @@ export function useUserActivity(
     console.log('🔒 Locking to message:', messageId);
     
     setLockedMessageId(messageId);
+    setLockedElement(element);
     setState(UserActivityState.LOCKED_TO_MESSAGE);
-    lockedElementRef.current = element || null;
     
     // Clear existing timeouts
     if (activityTimeoutRef.current) {
@@ -118,7 +119,7 @@ export function useUserActivity(
     console.log('🔓 Unlocking from message');
     
     setLockedMessageId(undefined);
-    lockedElementRef.current = null;
+    setLockedElement(undefined);
     
     // Clear message lock timeout
     if (messageLockTimeoutRef.current) {
@@ -186,7 +187,7 @@ export function useUserActivity(
     setIsNearBottom(nearBottom);
     
     // If locked to message, check if user is scrolling away significantly
-    if (state === UserActivityState.LOCKED_TO_MESSAGE && velocity > finalConfig.scrollVelocityThreshold) {
+    if (state === UserActivityState.LOCKED_TO_MESSAGE && velocity > finalConfig.scrollVelocityThreshold * 2) {
       console.log('📜 User scrolling away from locked message, unlocking');
       unlockFromMessage();
       return;
@@ -237,6 +238,12 @@ export function useUserActivity(
 
   // Handle keyboard activity
   const handleKeyboardActivity = useCallback((event: KeyboardEvent) => {
+    // Escape key unlocks from message
+    if (event.key === 'Escape' && state === UserActivityState.LOCKED_TO_MESSAGE) {
+      unlockFromMessage();
+      return;
+    }
+    
     // Track navigation keys that indicate reading intent
     const navigationKeys = [
       'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 
@@ -244,12 +251,6 @@ export function useUserActivity(
     ];
     
     if (navigationKeys.includes(event.key)) {
-      // Escape key unlocks from message
-      if (event.key === 'Escape' && state === UserActivityState.LOCKED_TO_MESSAGE) {
-        unlockFromMessage();
-        return;
-      }
-      
       markUserActive();
       
       // If locked to message and using navigation keys, unlock
@@ -273,9 +274,9 @@ export function useUserActivity(
     markUserActive();
     isScrollingRef.current = true;
     
-    // If locked to message and wheel scrolling, unlock
-    if (state === UserActivityState.LOCKED_TO_MESSAGE) {
-      console.log('🖱️ Wheel scroll while locked, unlocking');
+    // If locked to message and wheel scrolling significantly, unlock
+    if (state === UserActivityState.LOCKED_TO_MESSAGE && Math.abs(event.deltaY) > 10) {
+      console.log('🖱️ Significant wheel scroll while locked, unlocking');
       unlockFromMessage();
       return;
     }
@@ -365,6 +366,7 @@ export function useUserActivity(
     isNearBottom,
     shouldAutoScroll,
     lockedMessageId,
+    lockedElement,
     lockToMessage,
     unlockFromMessage
   };
