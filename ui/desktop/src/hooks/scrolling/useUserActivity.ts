@@ -98,11 +98,9 @@ export function useUserActivity(
       // Set idle timeout after activity stops
       idleTimeoutRef.current = window.setTimeout(() => {
         const nearBottom = checkIsNearBottom();
-        if (nearBottom) {
-          setState(UserActivityState.IDLE_AT_BOTTOM);
-        } else {
-          setState(UserActivityState.IDLE_ABOVE);
-        }
+        const newState = nearBottom ? UserActivityState.IDLE_AT_BOTTOM : UserActivityState.IDLE_ABOVE;
+        console.log('⏰ User became idle, setting state to:', newState, 'nearBottom:', nearBottom);
+        setState(newState);
       }, finalConfig.idleTimeout);
       
     }, finalConfig.activityDebounce);
@@ -119,8 +117,7 @@ export function useUserActivity(
     const nearBottom = checkIsNearBottom();
     setIsNearBottom(nearBottom);
     
-    // CRITICAL FIX: Always allow user to scroll away from bottom
-    // Any scroll activity should immediately switch to ACTIVELY_READING if not near bottom
+    // Any scroll activity should immediately switch to appropriate state
     if (velocity > 0) { // Any scroll movement
       markUserActive();
       isScrollingRef.current = true;
@@ -188,7 +185,7 @@ export function useUserActivity(
     
     const nearBottom = checkIsNearBottom();
     
-    // CRITICAL FIX: Respect wheel direction
+    // Respect wheel direction
     if (event.deltaY < 0) {
       // Scrolling up = always actively reading
       setState(UserActivityState.ACTIVELY_READING);
@@ -236,11 +233,25 @@ export function useUserActivity(
   }, [scrollContainerRef, handleScroll, handleMouseActivity, handleKeyboardActivity, handleWheel]);
 
   // Determine if auto-scroll should happen
-  // CRITICAL FIX: Only auto-scroll when user is truly idle or explicitly following
+  // CRITICAL: Make sure IDLE_ABOVE allows auto-scroll
   const shouldAutoScroll = 
     state === UserActivityState.IDLE_AT_BOTTOM ||
-    (state === UserActivityState.FOLLOWING && !isUserActive) ||
-    (state === UserActivityState.IDLE_ABOVE && isNearBottom);
+    state === UserActivityState.IDLE_ABOVE || // ✅ This should allow graceful return
+    (state === UserActivityState.FOLLOWING && !isUserActive);
+
+  // Debug logging for shouldAutoScroll
+  useEffect(() => {
+    console.log('🎯 shouldAutoScroll calculation:', {
+      state,
+      isUserActive,
+      shouldAutoScroll,
+      conditions: {
+        idleAtBottom: state === UserActivityState.IDLE_AT_BOTTOM,
+        idleAbove: state === UserActivityState.IDLE_ABOVE,
+        followingAndNotActive: state === UserActivityState.FOLLOWING && !isUserActive
+      }
+    });
+  }, [state, isUserActive, shouldAutoScroll]);
 
   return {
     state,
