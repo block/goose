@@ -54,7 +54,37 @@ impl AppState {
 
     pub async fn reset(&self) {
         let mut agent = self.agent.write().await;
-        *agent = Arc::new(Agent::new());
+        let new_agent = Agent::new();
+
+        // Only initialize provider when running in standalone goosed mode
+        // This prevents breaking the Electron app which manages its own provider setup
+        if std::env::var("GOOSE_STANDALONE_MODE").unwrap_or_else(|_| "false".to_string()) == "true"
+        {
+            tracing::info!("Running in standalone mode - initializing provider");
+
+            let config = goose::config::Config::global();
+
+            let provider_name: String = config
+                .get_param("GOOSE_PROVIDER")
+                .expect("No provider configured. Run 'goose configure' first");
+
+            let model_name: String = config
+                .get_param("GOOSE_MODEL")
+                .expect("No model configured. Run 'goose configure' first");
+
+            let model_config = goose::model::ModelConfig::new(&model_name)
+                .expect("Failed to create model configuration");
+
+            let provider = goose::providers::create(&provider_name, model_config)
+                .expect("Failed to create provider");
+
+            new_agent
+                .update_provider(provider)
+                .await
+                .expect("Failed to update agent provider");
+        }
+
+        *agent = Arc::new(new_agent);
     }
 
     pub async fn mark_recipe_run_if_absent(&self, session_id: &str) -> bool {

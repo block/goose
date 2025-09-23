@@ -30,12 +30,13 @@ dependencies = [
 
 [[package]]
 name = "agent-client-protocol"
-version = "0.1.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b91e5ec3ce05e8effb2a7a3b7b1a587daa6699b9f98bbde6a35e44b8c6c773a"
+checksum = "cc2526e80463b9742afed4829aedd6ae5632d6db778c6cc1fecb80c960c3521b"
 dependencies = [
  "anyhow",
  "async-broadcast",
+ "async-trait",
  "futures",
  "log",
  "parking_lot",
@@ -2823,6 +2824,7 @@ dependencies = [
  "indoc",
  "keyring",
  "lazy_static",
+ "libc",
  "lopdf",
  "lru",
  "mcp-core",
@@ -2847,6 +2849,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -6789,9 +6792,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.15"
+version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
+checksum = "14307c986784f72ef81c89db7d9e28d6ac26d16213b109ea501696195e6e3ce5"
 dependencies = [
  "bytes",
  "futures-core",

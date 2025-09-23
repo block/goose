@@ -33,6 +33,35 @@ pub async fn run() -> Result<()> {
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
     let new_agent = Agent::new();
+
+    // Only initialize provider and extensions when running in standalone goosed mode
+    // This prevents breaking the Electron app which manages its own provider setup
+    if std::env::var("GOOSE_STANDALONE_MODE").unwrap_or_else(|_| "false".to_string()) == "true" {
+        tracing::info!("Running in standalone mode - initializing provider and extensions");
+
+        // Initialize provider like the CLI does
+        let config = goose::config::Config::global();
+
+        let provider_name: String = config
+            .get_param("GOOSE_PROVIDER")
+            .expect("No provider configured. Run 'goose configure' first");
+
+        let model_name: String = config
+            .get_param("GOOSE_MODEL")
+            .expect("No model configured. Run 'goose configure' first");
+
+        let model_config = goose::model::ModelConfig::new(&model_name)
+            .expect("Failed to create model configuration");
+
+        let provider = goose::providers::create(&provider_name, model_config)
+            .expect("Failed to create provider");
+
+        new_agent
+            .update_provider(provider)
+            .await
+            .expect("Failed to update agent provider");
+    }
+
     let agent_ref = Arc::new(new_agent);
 
     let app_state = state::AppState::new(agent_ref.clone());

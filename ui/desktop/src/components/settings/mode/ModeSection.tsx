@@ -69,10 +69,7 @@ export const ModeSection = () => {
       ))}
 
       {/* Conversation Limits Dropdown */}
-      <ConversationLimitsDropdown
-        maxTurns={maxTurns}
-        onMaxTurnsChange={handleMaxTurnsChange}
-      />
+      <ConversationLimitsDropdown maxTurns={maxTurns} onMaxTurnsChange={handleMaxTurnsChange} />
     </div>
   );
 };

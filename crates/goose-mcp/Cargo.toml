@@ -71,10 +71,12 @@ tree-sitter-kotlin = "0.3.8"
 devgen-tree-sitter-swift = "0.21.0"
 streaming-iterator = "0.1"
 rayon = "1.10"
+libc = "0.2"
 # TODO: Fork mpatch or replace with a custom implementation using `similar` crate
 # for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
+tokio-util = "0.7.16"
 
 
 [dev-dependencies]

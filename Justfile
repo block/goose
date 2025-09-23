@@ -196,7 +196,7 @@ run-docs:
 # Run server
 run-server:
     @echo "Running server..."
-    cargo run -p goose-server
+    cargo run -p goose-server --bin goosed agent
 
 # Check if OpenAPI schema is up-to-date
 check-openapi-schema: generate-openapi
