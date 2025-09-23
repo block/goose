@@ -4,6 +4,7 @@ pub mod context_mgmt;
 pub mod conversation;
 pub mod execution;
 pub mod logging;
+pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
 pub mod permission;

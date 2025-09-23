@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 goose = { path = "../goose" }
-mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 schemars = "1.0"
