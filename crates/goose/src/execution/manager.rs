@@ -17,12 +17,12 @@ use tracing::{debug, info, warn};
 
 pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
-    scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
+    scheduler: Arc<dyn SchedulerTrait>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
 }
 
 impl AgentManager {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(max_sessions: Option<usize>) -> Result<Self> {
         // Construct scheduler with the standard goose-server path
         let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
             .data_dir()
@@ -30,30 +30,18 @@ impl AgentManager {
 
         let scheduler = SchedulerFactory::create(schedule_file_path).await?;
 
-        let capacity = NonZeroUsize::new(100).unwrap();
+        let capacity = NonZeroUsize::new(max_sessions.unwrap_or(100))
+            .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
+
         Ok(Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
-            scheduler: Arc::new(RwLock::new(Some(scheduler))),
+            scheduler,
             default_provider: Arc::new(RwLock::new(None)),
         })
     }
 
-    pub fn with_max_sessions(max_sessions: usize) -> Self {
-        let capacity =
-            NonZeroUsize::new(max_sessions).unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
-        Self {
-            sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
-            scheduler: Arc::new(RwLock::new(None)),
-            default_provider: Arc::new(RwLock::new(None)),
-        }
-    }
-
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
-        self.scheduler
-            .read()
-            .await
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
+        Ok(Arc::clone(&self.scheduler))
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
@@ -108,10 +96,8 @@ impl AgentManager {
         // Configure agent based on mode
         match &mode {
             SessionExecutionMode::Interactive | SessionExecutionMode::Background => {
-                if let Some(scheduler) = &*self.scheduler.read().await {
-                    debug!("Setting scheduler on agent for session {}", session_id);
-                    agent.set_scheduler(Arc::clone(scheduler)).await;
-                }
+                debug!("Setting scheduler on agent for session {}", session_id);
+                agent.set_scheduler(Arc::clone(&self.scheduler)).await;
             }
             SessionExecutionMode::SubTask { .. } => {
                 debug!(
