@@ -169,14 +169,16 @@ function BaseChatContent({
     }, 150);
   }, [intelligentScrolling]);
 
-  // Intelligent scroll handler for new messages
+  // FIXED: Intelligent scroll handler for new messages - DON'T force scroll
   const handleNewMessage = React.useCallback(() => {
     if (intelligentScrolling) {
-      // The intelligent scroll system will handle this automatically
-      // via the ScrollAreaEnhanced component's content change detection
+      // CRITICAL: Don't call any scroll methods here!
+      // The intelligent scroll system handles this automatically via content change detection
+      // Calling scrollToBottom here would bypass the lock system
+      console.log('📝 Message stream finished - letting intelligent scroll system handle it');
       return;
     } else {
-      // Use legacy behavior
+      // Use legacy behavior only when intelligent scrolling is disabled
       legacyConditionalAutoScroll();
     }
   }, [intelligentScrolling, legacyConditionalAutoScroll]);
@@ -215,7 +217,13 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
-      handleNewMessage();
+      // CRITICAL FIX: Only call handleNewMessage if NOT using intelligent scrolling
+      // The intelligent scroll system handles message completion via content change detection
+      if (!intelligentScrolling) {
+        handleNewMessage();
+      } else {
+        console.log('📝 Message stream finished - intelligent scrolling will handle via content change');
+      }
 
       // Call the original callback if provided
       onMessageStreamFinish?.();
