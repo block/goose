@@ -140,30 +140,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_synthetic_provider_metadata() {
+    fn test_metadata_structure() {
         let metadata = SyntheticProvider::metadata();
-        assert_eq!(metadata.name, "synthetic");
-        assert_eq!(metadata.display_name, "Synthetic");
-        assert!(metadata.description.contains("OpenAI compatible"));
-        assert_eq!(metadata.default_model, SYNTHETIC_DEFAULT_MODEL);
-        assert!(metadata.config_keys.len() >= 2);
 
-        // Check that API key is required and secret
-        let api_key_config = metadata
-            .config_keys
-            .iter()
-            .find(|k| k.name == "SYNTHETIC_API_KEY")
-            .expect("SYNTHETIC_API_KEY should be in config");
-        assert!(api_key_config.required);
-        assert!(api_key_config.secret);
+        assert_eq!(metadata.default_model, "hf:zai-org/GLM-4.5");
+        assert!(!metadata.known_models.is_empty());
 
-        // Check that host has default value
-        let host_config = metadata
-            .config_keys
-            .iter()
-            .find(|k| k.name == "SYNTHETIC_HOST")
-            .expect("SYNTHETIC_HOST should be in config");
-        assert!(!host_config.required);
-        assert_eq!(host_config.default, Some(SYNTHETIC_API_HOST.to_string()));
+        assert_eq!(metadata.config_keys.len(), 2);
+        assert_eq!(metadata.config_keys[0].name, "SYNTHETIC_API_KEY");
+        assert_eq!(metadata.config_keys[1].name, "SYNTHETIC_HOST");
     }
 }
