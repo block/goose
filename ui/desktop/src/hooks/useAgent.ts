@@ -90,6 +90,7 @@ export function useAgent(): UseAgentReturn {
             convertApiMessageToFrontendMessage(message)
           ),
           recipeConfig: sessionMetadata.recipe,
+          recipeParameters: sessionMetadata.recipe_parameters || null,
         };
 
         return chat;
@@ -151,6 +152,8 @@ export function useAgent(): UseAgentReturn {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
+            recipeParameters: agentSessionInfo.metadata.recipe_parameters,
+            recipeConfig: initContext.recipeConfig || agentSessionInfo.metadata.recipe || undefined,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -180,6 +183,7 @@ export function useAgent(): UseAgentReturn {
             messageHistoryIndex: 0,
             messages: messages,
             recipeConfig: recipeConfig,
+            recipeParameters: sessionMetadata.recipe_parameters || null,
           };
 
           setAgentState(AgentState.INITIALIZED);

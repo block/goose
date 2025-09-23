@@ -5,6 +5,7 @@ import {
   updateSystemPromptWithParameters,
   substituteParameters,
   filterValidUsedParameters,
+  updateSessionMetadataWithParameters,
 } from '../utils/providerUtils';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
@@ -71,6 +72,16 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
       if (finalRecipeConfig) {
+        // If the recipe comes from session metadata (not from navigation state),
+        // it means it was already accepted in a previous session, so auto-accept it
+        const isFromSessionMetadata = !recipeConfig && finalRecipeConfig;
+
+        if (isFromSessionMetadata) {
+          // Recipe loaded from session metadata should be automatically accepted
+          setRecipeAccepted(true);
+          return;
+        }
+
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipeConfig);
 
@@ -93,7 +104,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     };
 
     checkRecipeAcceptance();
-  }, [finalRecipeConfig]);
+  }, [finalRecipeConfig, recipeConfig]);
 
   // Filter parameters to only show valid ones that are actually used in the recipe
   const filteredParameters = useMemo(() => {
@@ -189,6 +200,9 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
         inputValues,
         finalRecipeConfig || undefined
       );
+
+      // Save recipe parameters to session metadata
+      await updateSessionMetadataWithParameters(chat.sessionId, inputValues);
     } catch (error) {
       console.error('Failed to update system prompt with parameters:', error);
     }

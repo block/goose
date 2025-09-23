@@ -72,6 +72,8 @@ pub struct SessionMetadata {
     pub extension_data: ExtensionData,
 
     pub recipe: Option<Recipe>,
+    /// Recipe parameter values entered by the user
+    pub recipe_parameters: Option<std::collections::HashMap<String, String>>,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -95,6 +97,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             #[serde(default)]
             extension_data: ExtensionData,
             recipe: Option<Recipe>,
+            recipe_parameters: Option<std::collections::HashMap<String, String>>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -118,6 +121,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             working_dir,
             extension_data: helper.extension_data,
             recipe: helper.recipe,
+            recipe_parameters: helper.recipe_parameters,
         })
     }
 }
@@ -144,6 +148,7 @@ impl SessionMetadata {
             accumulated_output_tokens: None,
             extension_data: ExtensionData::new(),
             recipe: None,
+            recipe_parameters: None,
         }
     }
 }

@@ -1545,6 +1545,54 @@
         ]
       }
     },
+    "/sessions/{session_id}/recipe_parameters": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_recipe_parameters",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRecipeParametersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session recipe parameters updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/status": {
       "get": {
         "tags": [
@@ -3601,6 +3649,14 @@
             ],
             "nullable": true
           },
+          "recipe_parameters": {
+            "type": "object",
+            "description": "Recipe parameter values entered by the user",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
@@ -3999,6 +4055,21 @@
         "properties": {
           "cron": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateSessionRecipeParametersRequest": {
+        "type": "object",
+        "required": [
+          "recipeParameters"
+        ],
+        "properties": {
+          "recipeParameters": {
+            "type": "object",
+            "description": "Recipe parameter values entered by the user",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },

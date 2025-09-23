@@ -42,6 +42,13 @@ pub struct UpdateSessionMetadataRequest {
     description: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSessionRecipeParametersRequest {
+    /// Recipe parameter values entered by the user
+    recipe_parameters: HashMap<String, String>,
+}
+
 const MAX_DESCRIPTION_LENGTH: usize = 200;
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -300,6 +307,46 @@ async fn update_session_metadata(
 }
 
 #[utoipa::path(
+    put,
+    path = "/sessions/{session_id}/recipe_parameters",
+    request_body = UpdateSessionRecipeParametersRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session recipe parameters updated successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+// Update session recipe parameters
+async fn update_session_recipe_parameters(
+    Path(session_id): Path<String>,
+    Json(request): Json<UpdateSessionRecipeParametersRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()))
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Read current metadata
+    let mut metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Update recipe parameters
+    metadata.recipe_parameters = Some(request.recipe_parameters);
+
+    // Save updated metadata
+    session::update_metadata(&session_path, &metadata)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
     delete,
     path = "/sessions/{session_id}/delete",
     params(
@@ -345,6 +392,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/sessions/{session_id}/metadata",
             put(update_session_metadata),
+        )
+        .route(
+            "/sessions/{session_id}/recipe_parameters",
+            put(update_session_recipe_parameters),
         )
         .with_state(state)
 }

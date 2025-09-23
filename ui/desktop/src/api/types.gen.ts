@@ -771,6 +771,12 @@ export type SessionMetadata = {
     output_tokens?: number | null;
     recipe?: Recipe | null;
     /**
+     * Recipe parameter values entered by the user
+     */
+    recipe_parameters?: {
+        [key: string]: string;
+    } | null;
+    /**
      * ID of the schedule that triggered this session, if any
      */
     schedule_id?: string | null;
@@ -920,6 +926,15 @@ export type UpdateRouterToolSelectorRequest = {
 
 export type UpdateScheduleRequest = {
     cron: string;
+};
+
+export type UpdateSessionRecipeParametersRequest = {
+    /**
+     * Recipe parameter values entered by the user
+     */
+    recipeParameters: {
+        [key: string]: string;
+    };
 };
 
 export type UpsertConfigQuery = {
@@ -2171,6 +2186,40 @@ export type GetSessionHistoryResponses = {
 };
 
 export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
+
+export type UpdateSessionRecipeParametersData = {
+    body: UpdateSessionRecipeParametersRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/recipe_parameters';
+};
+
+export type UpdateSessionRecipeParametersErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionRecipeParametersResponses = {
+    /**
+     * Session recipe parameters updated successfully
+     */
+    200: unknown;
+};
 
 export type StatusData = {
     body?: never;

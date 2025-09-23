@@ -134,6 +134,7 @@ async fn start_agent(
         accumulated_output_tokens: Some(0),
         extension_data: Default::default(),
         recipe: payload.recipe,
+        recipe_parameters: None,
     };
 
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
