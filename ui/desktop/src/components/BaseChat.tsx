@@ -379,6 +379,9 @@ function BaseChatContent({
             scrollConfig={scrollConfig} // Pass configuration
             onDrop={handleDrop}
             onDragOver={handleDragOver}
+            onMessageClick={(messageId, element) => {
+              console.log("🖱️ Message clicked in BaseChat:", messageId);
+            }}
             data-drop-zone="true"
             paddingX={6}
             paddingY={0}

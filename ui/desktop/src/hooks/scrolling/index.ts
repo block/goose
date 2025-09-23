@@ -8,12 +8,13 @@
  * - User activity detection (scroll, mouse, keyboard, wheel)
  * - Intelligent auto-scroll based on user state
  * - Graceful return to bottom after idle periods
+ * - Message locking when user clicks on specific messages
  * - Smooth animations and transitions
  * - Configurable timing and thresholds
  * 
  * Usage:
  * ```tsx
- * const { userActivity, handleContentChange, scrollToBottomNow } = 
+ * const { userActivity, handleContentChange, lockToMessage } = 
  *   useIntelligentScroll(scrollRef, scrollMethods);
  * ```
  */

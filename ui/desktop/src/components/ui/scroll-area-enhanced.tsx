@@ -10,6 +10,10 @@ export interface ScrollAreaHandle {
   scrollToPosition: (options: { top: number; behavior?: ScrollBehavior }) => void;
   getUserActivityState: () => UserActivityState;
   isUserActive: () => boolean;
+  lockToMessage: (messageId: string, element?: HTMLElement) => void;
+  unlockFromMessage: () => void;
+  isLockedToMessage: () => boolean;
+  getLockedMessageId: () => string | undefined;
 }
 
 interface ScrollAreaEnhancedProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
@@ -23,11 +27,14 @@ interface ScrollAreaEnhancedProps extends React.ComponentPropsWithoutRef<typeof 
     idleTimeout?: number;
     activityDebounce?: number;
     scrollVelocityThreshold?: number;
+    messageLockTimeout?: number;
     autoScrollDelay?: number;
     gracefulReturnDelay?: number;
   };
   // Callback when content changes (for triggering intelligent scroll)
   onContentChange?: () => void;
+  // Callback when message is clicked (for message locking)
+  onMessageClick?: (messageId: string, element: HTMLElement) => void;
 }
 
 const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhancedProps>(
@@ -40,6 +47,7 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
     paddingY, 
     scrollConfig = {},
     onContentChange,
+    onMessageClick,
     ...props 
   }, ref) => {
     const rootRef = React.useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
@@ -78,6 +86,49 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
       scrollMethods,
       scrollConfig
     );
+
+    // Handle message clicks for locking
+    const handleMessageClick = React.useCallback((event: MouseEvent) => {
+      if (!intelligentScroll || !onMessageClick) return;
+      
+      const target = event.target as HTMLElement;
+      if (!target) return;
+      
+      // Find the closest message element (look for data-message-id attribute)
+      let messageElement = target.closest('[data-message-id]') as HTMLElement;
+      if (!messageElement) {
+        // Fallback: look for common message container classes
+        messageElement = target.closest('.message, [role="article"], .chat-message') as HTMLElement;
+      }
+      
+      if (messageElement) {
+        const messageId = messageElement.getAttribute('data-message-id') || 
+                         messageElement.id || 
+                         `message-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        console.log('🖱️ Message clicked:', messageId, messageElement);
+        
+        // Lock to this message
+        intelligentScrollData.lockToMessage(messageId, messageElement);
+        
+        // Call external handler
+        onMessageClick(messageId, messageElement);
+      }
+    }, [intelligentScroll, onMessageClick, intelligentScrollData]);
+
+    // Set up click event listener for message locking
+    React.useEffect(() => {
+      if (!intelligentScroll) return;
+      
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+
+      viewport.addEventListener('click', handleMessageClick);
+      
+      return () => {
+        viewport.removeEventListener('click', handleMessageClick);
+      };
+    }, [intelligentScroll, handleMessageClick]);
 
     // Legacy scroll handler for backward compatibility
     const handleLegacyScroll = React.useCallback(() => {
@@ -139,6 +190,10 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
         scrollToPosition: scrollMethods.scrollToPosition,
         getUserActivityState: () => intelligentScrollData.userActivity.state,
         isUserActive: () => intelligentScrollData.userActivity.isUserActive,
+        lockToMessage: intelligentScrollData.lockToMessage,
+        unlockFromMessage: intelligentScrollData.unlockFromMessage,
+        isLockedToMessage: () => intelligentScrollData.isLockedToMessage,
+        getLockedMessageId: () => intelligentScrollData.lockedMessageId,
       }),
       [scrollMethods, intelligentScrollData]
     );
@@ -150,6 +205,7 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
         data-scrolled={isScrolled}
         data-intelligent-scroll={intelligentScroll}
         data-user-state={intelligentScroll ? intelligentScrollData.userActivity.state : undefined}
+        data-locked-message={intelligentScroll ? intelligentScrollData.lockedMessageId : undefined}
         {...props}
       >
         {/* Visual indicator for intelligent scroll state (optional, for debugging) */}
@@ -157,6 +213,11 @@ const ScrollAreaEnhanced = React.forwardRef<ScrollAreaHandle, ScrollAreaEnhanced
           <div className="absolute top-2 right-2 z-50 text-xs bg-black/50 text-white px-2 py-1 rounded">
             {intelligentScrollData.userActivity.state}
             {intelligentScrollData.userActivity.isUserActive && ' (active)'}
+            {intelligentScrollData.isLockedToMessage && (
+              <div className="text-yellow-300">
+                🔒 {intelligentScrollData.lockedMessageId?.slice(-8)}
+              </div>
+            )}
           </div>
         )}
         
