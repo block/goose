@@ -964,15 +964,6 @@ pub async fn cli() -> Result<()> {
                             })
                             .unwrap_or_else(|| "unknown".to_string());
 
-                    tracing::info!(
-                        counter.goose.recipe_runs = 1,
-                        recipe_name = %recipe_display_name,
-                        recipe_version = %recipe_version,
-                        session_type = "recipe",
-                        interface = "cli",
-                        "Recipe execution started"
-                    );
-
                     if explain {
                         explain_recipe(&recipe_name, params)?;
                         return Ok(());
@@ -984,6 +975,16 @@ pub async fn cli() -> Result<()> {
                         }
                         return Ok(());
                     }
+
+                    tracing::info!(
+                        counter.goose.recipe_runs = 1,
+                        recipe_name = %recipe_display_name,
+                        recipe_version = %recipe_version,
+                        session_type = "recipe",
+                        interface = "cli",
+                        "Recipe execution started"
+                    );
+
                     let (input_config, recipe_info) =
                         extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
                     (input_config, Some(recipe_info))

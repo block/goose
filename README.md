@@ -1,6 +1,6 @@
 <div align="center">
 
-# codename goose
+# goose
 
 _a local, extensible, open source AI agent that automates engineering tasks_
 

@@ -2,17 +2,6 @@ import { gsap } from 'gsap';
 import SplitType from 'split-type';
 import { useEffect, useRef } from 'react';
 
-// Utility debounce function
-export const debounce = <T extends (...args: unknown[]) => void>(func: T, delay: number): T => {
-  let timerId: ReturnType<typeof setTimeout>;
-  return ((...args: unknown[]) => {
-    window.clearTimeout(timerId);
-    timerId = setTimeout(() => {
-      func(...args);
-    }, delay);
-  }) as T;
-};
-
 interface TextSplitterOptions {
   resizeCallback?: () => void;
   splitTypeTypes?: ('lines' | 'words' | 'chars')[];
@@ -61,16 +50,8 @@ export class TextSplitter {
     resizeObserver.observe(this.textElement);
   }
 
-  revert() {
-    return this.splitText.revert();
-  }
-
   getLines(): HTMLElement[] {
     return this.splitText.lines ?? [];
-  }
-
-  getWords(): HTMLElement[] {
-    return this.splitText.words ?? [];
   }
 
   getChars(): HTMLElement[] {

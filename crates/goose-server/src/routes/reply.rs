@@ -178,17 +178,24 @@ async fn reply_handler(
         "Session started"
     );
 
-    if let Some(recipe_name) = &request.recipe_name {
-        let recipe_version = request.recipe_version.as_deref().unwrap_or("unknown");
+    if let (Some(recipe_name), Some(session_id)) =
+        (request.recipe_name.clone(), request.session_id.clone())
+    {
+        if state.mark_recipe_run_if_absent(&session_id).await {
+            let recipe_version = request
+                .recipe_version
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
 
-        tracing::info!(
-            counter.goose.recipe_runs = 1,
-            recipe_name = %recipe_name,
-            recipe_version = %recipe_version,
-            session_type = "app",
-            interface = "ui",
-            "Recipe execution started"
-        );
+            tracing::info!(
+                counter.goose.recipe_runs = 1,
+                recipe_name = %recipe_name,
+                recipe_version = %recipe_version,
+                session_type = "app",
+                interface = "ui",
+                "Recipe execution started"
+            );
+        }
     }
 
     let (tx, rx) = mpsc::channel(100);

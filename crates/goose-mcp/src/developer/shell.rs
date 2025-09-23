@@ -1,6 +1,9 @@
-use std::{env, ffi::OsString};
-
+use std::{env, process::Stdio, ffi::OsString};
 use goose::config::get_config_dir;
+
+#[cfg(unix)]
+#[allow(unused_imports)] // False positive: trait is used for process_group method
+use std::os::unix::process::CommandExt;
 
 #[derive(Debug, Clone)]
 pub struct ShellConfig {
@@ -100,5 +103,72 @@ pub fn normalize_line_endings(text: &str) -> String {
     } else {
         // Ensure LF line endings on Unix
         text.replace("\r\n", "\n")
+    }
+}
+
+/// Configure a shell command with process group support for proper child process tracking.
+///
+/// On Unix systems, creates a new process group so child processes can be killed together.
+/// On Windows, the default behavior already supports process tree termination.
+pub fn configure_shell_command(
+    shell_config: &ShellConfig,
+    command: &str,
+) -> tokio::process::Command {
+    let mut command_builder = tokio::process::Command::new(&shell_config.executable);
+    command_builder
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .env("GOOSE_TERMINAL", "1")
+        .args(&shell_config.args)
+        .arg(command);
+
+    // On Unix systems, create a new process group so we can kill child processes
+    #[cfg(unix)]
+    {
+        command_builder.process_group(0);
+    }
+
+    command_builder
+}
+
+/// Kill a process and all its child processes using platform-specific approaches.
+///
+/// On Unix systems, kills the entire process group.
+/// On Windows, kills the process tree.
+pub async fn kill_process_group(
+    child: &mut tokio::process::Child,
+    pid: Option<u32>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(unix)]
+    {
+        if let Some(pid) = pid {
+            // Try SIGTERM first
+            let _sigterm_result = unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
+
+            // Wait a brief moment for graceful shutdown
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+            // Force kill with SIGKILL
+            let _sigkill_result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
+        }
+
+        // Last fallback, return the result of tokio's kill
+        child.kill().await.map_err(|e| e.into())
+    }
+
+    #[cfg(windows)]
+    {
+        if let Some(pid) = pid {
+            // Use taskkill to kill the process tree on Windows
+            let _kill_result = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/T", "/PID", &pid.to_string()])
+                .output()
+                .await;
+        }
+
+        // Return the result of tokio's kill
+        child.kill().await.map_err(|e| e.into())
     }
 }

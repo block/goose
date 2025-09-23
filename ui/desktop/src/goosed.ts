@@ -47,9 +47,19 @@ const checkServerStatus = async (): Promise<boolean> => {
 
 const connectToExternalBackend = async (
   workingDir: string,
-  port: number = 3000
+  port: number = 3000,
+  serverSecret: string
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
+
+  // Configure the client BEFORE checking server status
+  client.setConfig({
+    baseUrl: `http://127.0.0.1:${port}`,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Secret-Key': serverSecret,
+    },
+  });
 
   const isReady = await checkServerStatus();
   if (!isReady) {
@@ -94,7 +104,7 @@ export const startGoosed = async (
   dir = path.resolve(path.normalize(dir));
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return connectToExternalBackend(dir, 3000);
+    return connectToExternalBackend(dir, 3000, serverSecret);
   }
 
   // Validate that the directory actually exists and is a directory

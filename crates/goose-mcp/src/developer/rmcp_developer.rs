@@ -5,13 +5,13 @@ use indoc::{formatdoc, indoc};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
-        Implementation, ListPromptsResult, LoggingLevel, LoggingMessageNotificationParam,
-        PaginatedRequestParam, Prompt, PromptArgument, PromptMessage, PromptMessageRole, Role,
-        ServerCapabilities, ServerInfo,
+        CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
+        GetPromptRequestParam, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
+        LoggingMessageNotificationParam, PaginatedRequestParam, Prompt, PromptArgument,
+        PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
-    service::RequestContext,
+    service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
@@ -20,21 +20,23 @@ use std::{
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
-    process::Stdio,
     sync::{Arc, Mutex},
 };
 use xcap::{Monitor, Window};
 
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::Command,
+    sync::RwLock,
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
+use tokio_util::sync::CancellationToken;
 
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
-use super::shell::{expand_path, get_shell_config, is_absolute_path};
+use super::shell::{
+    configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
+};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -173,6 +175,10 @@ pub struct DeveloperServer {
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
     code_analyzer: CodeAnalyzer,
+    #[cfg(test)]
+    pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    #[cfg(not(test))]
+    running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -264,11 +270,12 @@ impl ServerHandler for DeveloperServer {
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
 
-                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
-                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
+                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
+                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`
 
-                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-                Not batching file edits using `diff` is an error and wastes context, time, and inference.
+                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
 
                 {}
 
@@ -290,11 +297,12 @@ impl ServerHandler for DeveloperServer {
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
-                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
+                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
+                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`
 
-                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-                Not batching file edits using `diff` is an error and wastes context, time, and inference.
+                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
@@ -317,7 +325,6 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
-              - Pathnames: Use absolute paths and avoid cd unless explicitly requested
         "#};
 
         let windows_specific = indoc! {r#"
@@ -502,6 +509,27 @@ impl ServerHandler for DeveloperServer {
             ))),
         }
     }
+
+    /// Called when the client cancels a specific request.
+    /// This method cancels the running process associated with the given request_id.
+    #[allow(clippy::manual_async_fn)]
+    fn on_cancelled(
+        &self,
+        notification: CancelledNotificationParam,
+        _context: NotificationContext<RoleServer>,
+    ) -> impl Future<Output = ()> + Send + '_ {
+        async move {
+            let request_id = notification.request_id.to_string();
+            let processes = self.running_processes.read().await;
+
+            if let Some(token) = processes.get(&request_id) {
+                token.cancel();
+                tracing::debug!("Found process for request {}, cancelling token", request_id);
+            } else {
+                tracing::warn!("No process found for request ID: {}", request_id);
+            }
+        }
+    }
 }
 
 impl Default for DeveloperServer {
@@ -527,6 +555,7 @@ impl DeveloperServer {
             editor_model,
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
+            running_processes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -810,7 +839,7 @@ impl DeveloperServer {
     /// this tool does not run indefinitely.
     #[tool(
         name = "shell",
-        description = "Execute a command in the shell. Returns output and error concatenated. Avoid commands with large output, use background commands for long-running processes."
+        description = "Execute a command in the shell.This will return the output and error concatenated into a single string, as you would see from running on the command line. There will also be an indication of if the command succeeded or failed. Avoid commands that produce a large amount of output, and consider piping those outputs to files. If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that this tool does not run indefinitely."
     )]
     pub async fn shell(
         &self,
@@ -820,12 +849,38 @@ impl DeveloperServer {
         let params = params.0;
         let command = &params.command;
         let peer = context.peer;
+        let request_id = context.id;
 
         // Validate the shell command
         self.validate_shell_command(command)?;
 
+        let cancellation_token = CancellationToken::new();
+        // Track the process using the request ID
+        {
+            let mut processes = self.running_processes.write().await;
+            let request_id_str = request_id.to_string();
+            processes.insert(request_id_str.clone(), cancellation_token.clone());
+        }
+
         // Execute the command and capture output
-        let output_str = self.execute_shell_command(command, &peer).await?;
+        let output_result = self
+            .execute_shell_command(command, &peer, cancellation_token.clone())
+            .await;
+
+        // Clean up the process from tracking
+        {
+            let mut processes = self.running_processes.write().await;
+            let request_id_str = request_id.to_string();
+            let was_present = processes.remove(&request_id_str).is_some();
+            if !was_present {
+                tracing::warn!(
+                    "Process for request_id {} was not in tracking map when trying to remove",
+                    request_id
+                );
+            }
+        }
+
+        let output_str = output_result?;
 
         // Validate output size
         self.validate_shell_output_size(command, &output_str)?;
@@ -892,39 +947,55 @@ impl DeveloperServer {
         &self,
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
+        cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
-        // Execute the command using platform-specific shell
-        let mut child = Command::new(&shell_config.executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .envs(shell_config.envs)
-            .env("GOOSE_TERMINAL", "1")
-            .args(&shell_config.args)
-            .arg(command)
+        let mut child = configure_shell_command(&shell_config, command)
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        // Stream the output
-        let output_str = self
-            .stream_shell_output(
-                child.stdout.take().unwrap(),
-                child.stderr.take().unwrap(),
-                peer.clone(),
-            )
-            .await?;
+        let pid = child.id();
+        if let Some(pid) = pid {
+            tracing::debug!("Shell process spawned with PID: {}", pid);
+        } else {
+            tracing::warn!("Shell process spawned but PID not available");
+        }
 
-        // Wait for the command to complete
-        child
-            .wait()
-            .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        // Stream the output and wait for completion with cancellation support
+        let output_task = self.stream_shell_output(
+            child.stdout.take().unwrap(),
+            child.stderr.take().unwrap(),
+            peer.clone(),
+        );
 
-        Ok(output_str)
+        tokio::select! {
+            output_result = output_task => {
+                // Wait for the process to complete
+                let _exit_status = child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                output_result
+            }
+            _ = cancellation_token.cancelled() => {
+                tracing::info!("Cancellation token triggered! Attempting to kill process and all child processes");
+
+                // Kill the process and its children using platform-specific approach
+                match kill_process_group(&mut child, pid).await {
+                    Ok(_) => {
+                        tracing::debug!("Successfully killed shell process and child processes");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to kill shell process and child processes: {}", e);
+                    }
+                }
+
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Shell command was cancelled by user".to_string(),
+                    None,
+                ))
+            }
+        }
     }
 
     /// Stream shell output in real-time and return the combined output.
@@ -1165,19 +1236,12 @@ impl DeveloperServer {
         let expanded = expand_path(path_str);
         let path = Path::new(&expanded);
 
-        let suggestion = cwd.join(path);
-
-        match is_absolute_path(&expanded) {
-            true => Ok(path.to_path_buf()),
-            false => Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "The path {} is not an absolute path, did you possibly mean {}?",
-                    path_str,
-                    suggestion.to_string_lossy(),
-                ),
-                None,
-            )),
+        // If the path is absolute, return it as-is
+        if is_absolute_path(&expanded) {
+            Ok(path.to_path_buf())
+        } else {
+            // For relative paths, resolve them relative to the current working directory
+            Ok(cwd.join(path))
         }
     }
 
@@ -1343,11 +1407,16 @@ impl DeveloperServer {
 mod tests {
     use super::*;
     use rmcp::handler::server::wrapper::Parameters;
-    use rmcp::model::NumberOrString;
-    use rmcp::service::serve_directly;
+    use rmcp::model::{CancelledNotificationParam, NumberOrString};
+    use rmcp::service::{serve_directly, NotificationContext};
+    use rmcp::ServerHandler;
     use serial_test::serial;
-    use std::fs;
+    use std::{
+        fs,
+        time::{Duration, Instant},
+    };
     use tempfile::TempDir;
+    use tokio::time::timeout;
 
     fn create_test_server() -> DeveloperServer {
         DeveloperServer::new()
@@ -3315,5 +3384,322 @@ Additional instructions here.
         assert!(instructions.contains("Custom hints file content"));
         assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
         std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_path_absolute() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let absolute_path = temp_dir.path().join("test.txt");
+        let absolute_path_str = absolute_path.to_str().unwrap();
+
+        let resolved = server.resolve_path(absolute_path_str).unwrap();
+        assert_eq!(resolved, absolute_path);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_path_relative() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let relative_path = "subdir/test.txt";
+
+        let resolved = server.resolve_path(relative_path).unwrap();
+        let expected = std::env::current_dir().unwrap().join("subdir/test.txt");
+        assert_eq!(resolved, expected);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_with_absolute_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let absolute_path = temp_dir.path().join("absolute_test.txt");
+        let absolute_path_str = absolute_path.to_str().unwrap();
+
+        let write_params = Parameters(TextEditorParams {
+            path: absolute_path_str.to_string(),
+            command: "write".to_string(),
+            view_range: None,
+            file_text: Some("Absolute path test".to_string()),
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(write_params).await;
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&absolute_path).unwrap();
+        assert_eq!(content.trim(), "Absolute path test");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_with_relative_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let relative_path = "relative_test.txt";
+
+        let write_params = Parameters(TextEditorParams {
+            path: relative_path.to_string(),
+            command: "write".to_string(),
+            view_range: None,
+            file_text: Some("Relative path test".to_string()),
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(write_params).await;
+        assert!(result.is_ok());
+
+        let absolute_path = temp_dir.path().join(relative_path);
+        let content = fs::read_to_string(&absolute_path).unwrap();
+        assert_eq!(content.trim(), "Relative path test");
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)] // Unix-specific test using sleep command
+    fn test_shell_command_cancellation() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let request_id = NumberOrString::Number(123);
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: request_id.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Start a long-running shell command in the background
+            let server_clone = server.clone();
+            let shell_task = tokio::spawn(async move {
+                server_clone
+                    .shell(
+                        Parameters(ShellParams {
+                            command: "sleep 30".to_string(),
+                        }),
+                        context,
+                    )
+                    .await
+            });
+
+            // Give the command a moment to start
+            tokio::time::sleep(Duration::from_millis(200)).await;
+
+            // Verify the process is tracked
+            {
+                let processes = server.running_processes.read().await;
+                assert!(processes.contains_key("123"), "Process should be tracked");
+            }
+
+            let start_time = Instant::now();
+
+            // Cancel the command
+            let cancel_params = CancelledNotificationParam {
+                request_id: request_id,
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Wait for the shell task to complete
+            let result = timeout(Duration::from_secs(5), shell_task).await;
+            let elapsed = start_time.elapsed();
+
+            // Verify the task completed due to cancellation (not timeout)
+            assert!(result.is_ok(), "Shell task should complete within timeout");
+            let task_result = result.unwrap();
+            assert!(task_result.is_ok(), "Shell task should not panic");
+
+            // Verify the command was cancelled quickly (much less than 30 seconds)
+            assert!(
+                elapsed < Duration::from_secs(5),
+                "Command should be cancelled quickly, took {:?}",
+                elapsed
+            );
+
+            // Verify the process is no longer tracked
+            {
+                let processes = server.running_processes.read().await;
+                assert!(
+                    !processes.contains_key("123"),
+                    "Process should be removed from tracking"
+                );
+            }
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)] // Unix-specific test using shell commands
+    fn test_child_process_cancellation() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let request_id = NumberOrString::Number(456);
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: request_id.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Start a command that spawns child processes
+            let server_clone = server.clone();
+            let shell_task = tokio::spawn(async move {
+                server_clone
+                    .shell(
+                        Parameters(ShellParams {
+                            command: "bash -c 'sleep 60 & wait'".to_string(),
+                        }),
+                        context,
+                    )
+                    .await
+            });
+
+            // Give the command time to start and spawn child processes
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let start_time = Instant::now();
+
+            // Cancel the command
+            let cancel_params = CancelledNotificationParam {
+                request_id: request_id,
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Wait for completion
+            let result = timeout(Duration::from_secs(5), shell_task).await;
+            let elapsed = start_time.elapsed();
+
+            assert!(result.is_ok(), "Shell task should complete within timeout");
+            assert!(
+                elapsed < Duration::from_secs(5),
+                "Command with child processes should be cancelled quickly, took {:?}",
+                elapsed
+            );
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_cancel_nonexistent_process() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            // Try to cancel a process that doesn't exist
+            let cancel_params = CancelledNotificationParam {
+                request_id: NumberOrString::Number(999),
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            // This should not panic or cause issues
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Verify no processes are tracked
+            let processes = server.running_processes.read().await;
+            assert!(processes.is_empty(), "No processes should be tracked");
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)]
+    fn test_successful_shell_command_completion() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: NumberOrString::Number(789),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Run a quick command that should complete successfully
+            let result = server
+                .shell(
+                    Parameters(ShellParams {
+                        command: "echo 'Hello, World!'".to_string(),
+                    }),
+                    context,
+                )
+                .await;
+
+            assert!(
+                result.is_ok(),
+                "Simple shell command should succeed: {:?}",
+                result
+            );
+
+            // Verify no processes are left tracked after completion
+            let processes = server.running_processes.read().await;
+            assert!(
+                !processes.contains_key("789"),
+                "Process should be cleaned up after completion"
+            );
+
+            cleanup_test_service(running_service, peer);
+        });
     }
 }
