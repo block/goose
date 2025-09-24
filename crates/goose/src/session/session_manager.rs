@@ -14,7 +14,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
 
@@ -167,14 +166,37 @@ impl SessionManager {
     }
 
     pub async fn create_session(working_dir: PathBuf, description: String) -> Result<Session> {
-        let session_id = Uuid::new_v4().to_string();
-        Self::instance()
-            .await?
-            .create_session(&session_id, &working_dir, &description)
-            .await?;
+        let today = chrono::Utc::now().format("%Y%m%d").to_string();
+        let storage = Self::instance().await?;
+
+        let mut tx = storage.pool.begin().await?;
+
+        let max_idx = sqlx::query_scalar::<_, Option<i32>>(
+            "SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER)) FROM sessions WHERE id LIKE ?",
+        )
+        .bind(format!("{}_%", today))
+        .fetch_one(&mut *tx)
+        .await?
+        .unwrap_or(0);
+
+        let session_id = format!("{}_{}", today, max_idx + 1);
+
+        sqlx::query(
+            r#"
+        INSERT INTO sessions (id, description, working_dir, extension_data)
+        VALUES (?, ?, ?, '{}')
+    "#,
+        )
+        .bind(&session_id)
+        .bind(&description)
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
         Self::get_session(&session_id, false).await
     }
-
     pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
         Self::instance()
             .await?
@@ -782,26 +804,29 @@ impl SessionStorage {
         session_id: &str,
         conversation: &Conversation,
     ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
         for message in conversation.messages() {
             sqlx::query(
                 r#"
-                INSERT INTO messages (session_id, role, content_json, created_timestamp)
-                VALUES (?, ?, ?, ?)
-            "#,
+            INSERT INTO messages (session_id, role, content_json, created_timestamp)
+            VALUES (?, ?, ?, ?)
+        "#,
             )
             .bind(session_id)
             .bind(role_to_string(&message.role))
             .bind(serde_json::to_string(&message.content)?)
             .bind(message.created)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         }
 
+        tx.commit().await?;
         Ok(())
     }
 

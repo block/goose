@@ -65,8 +65,16 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
                 .or_insert(serde_json::json!(format_timestamp(modified_time)?));
             obj.entry("extension_data").or_insert(serde_json::json!({}));
             obj.entry("message_count").or_insert(serde_json::json!(0));
-        }
 
+            if let Some(desc) = obj.get_mut("description") {
+                if let Some(desc_str) = desc.as_str() {
+                    *desc = serde_json::json!(desc_str
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" "));
+                }
+            }
+        }
         session = serde_json::from_value(metadata_json)?;
         session.id = session_name.to_string();
     }

@@ -476,7 +476,12 @@ pub trait Provider: Send + Sync {
             )
             .await?;
 
-        let description = result.0.as_concat_text();
+        let description = result
+            .0
+            .as_concat_text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
 
         Ok(safe_truncate(&description, 100))
     }
