@@ -86,7 +86,7 @@ impl Conversation {
         }
     }
 
-    pub fn iter(&self) -> std::slice::Iter<Message> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Message> {
         self.0.iter()
     }
 

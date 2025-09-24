@@ -83,6 +83,10 @@ export type ContextManageRequest = {
      * Collection of messages to be managed
      */
     messages: Array<Message>;
+    /**
+     * Optional session ID for session-specific agent
+     */
+    sessionId: string;
 };
 
 /**

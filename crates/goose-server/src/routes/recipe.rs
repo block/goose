@@ -103,7 +103,7 @@ pub struct ListRecipeResponse {
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
+) -> Result<Json<CreateRecipeResponse>, StatusCode> {
     tracing::info!(
         "Recipe creation request received for session_id: {}",
         request.session_id
@@ -119,7 +119,7 @@ async fn create_recipe(
                     recipe: None,
                     error: Some(error_message),
                 };
-                return Err((StatusCode::BAD_REQUEST, Json(error_response)));
+                return Ok(Json(error_response));
             }
         };
 
@@ -131,11 +131,11 @@ async fn create_recipe(
                 recipe: None,
                 error: Some(error_message),
             };
-            return Err((StatusCode::BAD_REQUEST, Json(error_response)));
+            return Ok(Json(error_response));
         }
     };
 
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent.create_recipe(conversation).await;
@@ -156,12 +156,11 @@ async fn create_recipe(
         }
         Err(e) => {
             tracing::error!("Error details: {:?}", e);
-            let error_message = format!("Recipe creation failed: {}", e);
             let error_response = CreateRecipeResponse {
                 recipe: None,
-                error: Some(error_message),
+                error: Some(format!("Failed to create recipe: {}", e)),
             };
-            Err((StatusCode::BAD_REQUEST, Json(error_response)))
+            Ok(Json(error_response))
         }
     }
 }

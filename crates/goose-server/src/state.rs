@@ -1,18 +1,15 @@
-use goose::agents::Agent;
+use axum::http::StatusCode;
+use goose::execution::manager::AgentManager;
+use goose::execution::SessionExecutionMode;
 use goose::scheduler_trait::SchedulerTrait;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::sync::RwLock;
-
-type AgentRef = Arc<Agent>;
-
 #[derive(Clone)]
 pub struct AppState {
-    agent: Arc<RwLock<AgentRef>>,
-    pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
+    pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
@@ -20,71 +17,23 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(agent: AgentRef) -> Arc<AppState> {
-        Arc::new(Self {
-            agent: Arc::new(RwLock::new(agent)),
-            scheduler: Arc::new(RwLock::new(None)),
+    pub async fn new() -> anyhow::Result<Arc<AppState>> {
+        let agent_manager = Arc::new(AgentManager::new(None).await?);
+        Ok(Arc::new(Self {
+            agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
-        })
-    }
-
-    pub async fn get_agent(&self) -> AgentRef {
-        self.agent.read().await.clone()
-    }
-
-    pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
-        let mut guard = self.scheduler.write().await;
-        *guard = Some(sched);
+        }))
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
-        self.scheduler
-            .read()
-            .await
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
+        self.agent_manager.scheduler().await
     }
 
     pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {
         let mut map = self.recipe_file_hash_map.lock().await;
         *map = hash_map;
-    }
-
-    pub async fn reset(&self) {
-        let mut agent = self.agent.write().await;
-        let new_agent = Agent::new();
-
-        // Only initialize provider when running in standalone goosed mode
-        // This prevents breaking the Electron app which manages its own provider setup
-        if std::env::var("GOOSE_STANDALONE_MODE").unwrap_or_else(|_| "false".to_string()) == "true"
-        {
-            tracing::info!("Running in standalone mode - initializing provider");
-
-            let config = goose::config::Config::global();
-
-            let provider_name: String = config
-                .get_param("GOOSE_PROVIDER")
-                .expect("No provider configured. Run 'goose configure' first");
-
-            let model_name: String = config
-                .get_param("GOOSE_MODEL")
-                .expect("No model configured. Run 'goose configure' first");
-
-            let model_config = goose::model::ModelConfig::new(&model_name)
-                .expect("Failed to create model configuration");
-
-            let provider = goose::providers::create(&provider_name, model_config)
-                .expect("Failed to create provider");
-
-            new_agent
-                .update_provider(provider)
-                .await
-                .expect("Failed to update agent provider");
-        }
-
-        *agent = Arc::new(new_agent);
     }
 
     pub async fn mark_recipe_run_if_absent(&self, session_id: &str) -> bool {
@@ -95,5 +44,28 @@ impl AppState {
             sessions.insert(session_id.to_string());
             true
         }
+    }
+
+    pub async fn get_agent(
+        &self,
+        session_id: String,
+        mode: SessionExecutionMode,
+    ) -> anyhow::Result<Arc<goose::agents::Agent>> {
+        self.agent_manager
+            .get_or_create_agent(session_id, mode)
+            .await
+    }
+
+    /// Get agent for route handlers - always uses Interactive mode and converts any error to 500
+    pub async fn get_agent_for_route(
+        &self,
+        session_id: String,
+    ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
+        self.get_agent(session_id, SessionExecutionMode::Interactive)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get agent: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })
     }
 }
