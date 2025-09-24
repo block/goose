@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone } from './icons';
+import { Attach, Send, Close, Microphone, Action } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -18,6 +18,7 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import ActionPopover from './ActionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
@@ -235,6 +236,19 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
   });
+  const [actionPopover, setActionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    selectedIndex: number;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    selectedIndex: 0,
+  });
+  const actionPopoverRef = useRef<{
+    getDisplayActions: () => any[];
+    selectAction: (index: number) => void;
+  }>(null);
   const mentionPopoverRef = useRef<{
     getDisplayFiles: () => FileItemWithMatch[];
     selectFile: (index: number) => void;
@@ -647,38 +661,59 @@ export default function ChatInput({
   };
 
   const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
-    // Find the last @ before the cursor
+    // Find the last @ and / before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    // Determine which symbol is closer to cursor
+    const isSlashTrigger = lastSlashIndex > lastAtIndex;
+    const triggerIndex = isSlashTrigger ? lastSlashIndex : lastAtIndex;
 
-    if (lastAtIndex === -1) {
-      // No @ found, close mention popover
+    if (triggerIndex === -1) {
+      // No trigger symbol found, close both popovers
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
-    // Check if there's a space between @ and cursor (which would end the mention)
-    const afterAt = beforeCursor.slice(lastAtIndex + 1);
-    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+    // Check if there's a space between trigger symbol and cursor (which would end the trigger)
+    const afterTrigger = beforeCursor.slice(triggerIndex + 1);
+    if (afterTrigger.includes(' ') || afterTrigger.includes('\n')) {
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
     // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
 
-    setMentionPopover((prev) => ({
-      ...prev,
-      isOpen: true,
-      position: {
-        x: textAreaRect.left,
-        y: textAreaRect.top, // Position at the top of the textarea
-      },
-      query: afterAt,
-      mentionStart: lastAtIndex,
-      selectedIndex: 0, // Reset selection when query changes
-      // filteredFiles will be populated by the MentionPopover component
-    }));
+    if (isSlashTrigger) {
+      // Open action popover for / trigger
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover({
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        selectedIndex: 0,
+      });
+    } else {
+      // Open mention popover for @ trigger (existing functionality)
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
+      setMentionPopover((prev) => ({
+        ...prev,
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        query: afterTrigger,
+        mentionStart: triggerIndex,
+        selectedIndex: 0,
+      }));
+    }
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -1133,6 +1168,53 @@ export default function ChatInput({
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
       }
     }, 0);
+  };
+
+  const handleActionButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    
+    setActionPopover({
+      isOpen: true,
+      position: {
+        x: buttonRect.left,
+        y: buttonRect.top,
+      },
+      selectedIndex: 0,
+    });
+  };
+
+  const handleActionSelect = (actionId: string) => {
+    // If this was triggered by / symbol, replace it with the action
+    const currentValue = displayValue;
+    const cursorPosition = textAreaRef.current?.selectionStart || 0;
+    const beforeCursor = currentValue.slice(0, cursorPosition);
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    if (lastSlashIndex !== -1) {
+      // Check if the / is still active (no space after it)
+      const afterSlash = beforeCursor.slice(lastSlashIndex + 1);
+      if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
+        // Replace / with action text
+        const beforeSlash = currentValue.slice(0, lastSlashIndex);
+        const afterCursor = currentValue.slice(cursorPosition);
+        const actionText = `[Action: ${actionId}]`;
+        const newValue = beforeSlash + actionText + afterCursor;
+        
+        setDisplayValue(newValue);
+        setValue(newValue);
+        
+        // Set cursor position after the inserted action text
+        setTimeout(() => {
+          if (textAreaRef.current) {
+            const newCursorPosition = beforeSlash.length + actionText.length;
+            textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+          }
+        }, 0);
+      }
+    }
+    
+    console.log('Action selected:', actionId);
+    setActionPopover(prev => ({ ...prev, isOpen: false }));
   };
 
   const hasSubmittableContent =
@@ -1642,6 +1724,18 @@ export default function ChatInput({
           selectedIndex={mentionPopover.selectedIndex}
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
+          }
+        />
+
+        <ActionPopover
+          ref={actionPopoverRef}
+          isOpen={actionPopover.isOpen}
+          onClose={() => setActionPopover((prev) => ({ ...prev, isOpen: false }))}
+          onSelect={handleActionSelect}
+          position={actionPopover.position}
+          selectedIndex={actionPopover.selectedIndex}
+          onSelectedIndexChange={(index) =>
+            setActionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
       </div>
