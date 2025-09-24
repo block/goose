@@ -27,7 +27,6 @@ pub async fn run() -> Result<()> {
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
     let app_state = state::AppState::new().await?;
-    app_state.agent_manager.configure_default_provider().await?;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

@@ -600,15 +600,15 @@ mod tests {
         use super::*;
         use axum::{body::Body, http::Request};
         use goose::conversation::message::Message;
-        use std::sync::Arc;
+        use serde_json::json;
         use tower::ServiceExt;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
             let mock_model_config = ModelConfig::new("test-model").unwrap();
-            let _mock_provider = Arc::new(MockProvider {
+            let mock_provider = MockProvider {
                 model_config: mock_model_config,
-            });
+            };
 
             let state = AppState::new().await.unwrap();
 

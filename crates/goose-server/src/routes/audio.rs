@@ -391,13 +391,13 @@ pub fn routes(state: Arc<AppState>) -> Router {
 mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
+    use serde_json::json;
     use tower::ServiceExt;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_transcribe_endpoint_requires_auth() {
         let state = AppState::new().await.unwrap();
         let app = routes(state);
-
         // Test without auth header
         let request = Request::builder()
             .uri("/audio/transcribe")
@@ -419,7 +419,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_transcribe_endpoint_validates_size() {
         let state = AppState::new().await.unwrap();
         let app = routes(state);
@@ -446,7 +446,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_transcribe_endpoint_validates_mime_type() {
         let state = AppState::new().await.unwrap();
         let app = routes(state);

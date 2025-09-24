@@ -33,11 +33,15 @@ impl AgentManager {
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(100))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
 
-        Ok(Self {
+        let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
             scheduler,
             default_provider: Arc::new(RwLock::new(None)),
-        })
+        };
+
+        let _ = manager.configure_default_provider().await;
+
+        Ok(manager)
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
@@ -50,16 +54,17 @@ impl AgentManager {
     }
 
     pub async fn configure_default_provider(&self) -> Result<()> {
-        // Try GOOSE_DEFAULT_PROVIDER first (original behavior)
         let provider_name = std::env::var("GOOSE_DEFAULT_PROVIDER")
-            // Fall back to GOOSE_PROVIDER__TYPE (what UI sets)
             .or_else(|_| std::env::var("GOOSE_PROVIDER__TYPE"))
             .ok();
 
         let model_name = std::env::var("GOOSE_DEFAULT_MODEL")
-            // Fall back to GOOSE_PROVIDER__MODEL (what UI sets)
             .or_else(|_| std::env::var("GOOSE_PROVIDER__MODEL"))
             .ok();
+
+        if provider_name.is_none() || model_name.is_none() {
+            return Ok(());
+        }
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
             match ModelConfig::new(&model_name) {
@@ -86,23 +91,23 @@ impl AgentManager {
         session_id: String,
         mode: SessionExecutionMode,
     ) -> Result<Arc<Agent>> {
-        // Try to get existing agent with write lock (for LRU update)
-        {
+
+        let agent = {
             let mut sessions = self.sessions.write().await;
             if let Some(agent) = sessions.get(&session_id) {
                 debug!("Found existing agent for session {}", session_id);
                 return Ok(Arc::clone(agent));
             }
-        }
 
-        info!(
-            "Creating new agent for session {} with mode {}",
-            session_id, mode
-        );
+            info!(
+                "Creating new agent for session {} with mode {}",
+                session_id, mode
+            );
+            let agent = Arc::new(Agent::new());
+            sessions.put(session_id.clone(), Arc::clone(&agent));
+            agent
+        };
 
-        let agent = Arc::new(Agent::new());
-
-        // Configure agent based on mode
         match &mode {
             SessionExecutionMode::Interactive | SessionExecutionMode::Background => {
                 debug!("Setting scheduler on agent for session {}", session_id);
@@ -123,9 +128,6 @@ impl AgentManager {
             );
             let _ = agent.update_provider(Arc::clone(provider)).await;
         }
-
-        let mut sessions = self.sessions.write().await;
-        sessions.put(session_id.clone(), Arc::clone(&agent));
 
         Ok(agent)
     }
