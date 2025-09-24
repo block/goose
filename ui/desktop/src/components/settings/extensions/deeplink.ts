@@ -1,6 +1,5 @@
 import type { ExtensionConfig } from '../../../api';
 import { toastService } from '../../../toasts';
-import { activateExtension } from './extension-manager';
 import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
 
 /**
@@ -180,7 +179,11 @@ export async function addExtensionFromDeepLink(
 
   try {
     console.log('No env vars required, activating extension directly');
-    await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
+    // Note: deeplink activation doesn't have access to sessionId
+    // The extension will be added to config but not activated in the current session
+    // It will be activated when the next session starts
+    console.warn('Extension will be added to config but requires a session to activate');
+    await addExtensionFn(config.name, config, true);
   } catch (error) {
     console.error('Failed to activate extension from deeplink:', error);
     throw error;

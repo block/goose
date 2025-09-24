@@ -7,7 +7,6 @@ use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
-use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
@@ -743,7 +742,8 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
-            let _ = run_server(&name).await;
+            crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
+            let _ = goose_mcp::mcp_server_runner::run_mcp_server(&name).await;
         }
         Some(Command::Acp {}) => {
             let _ = run_acp_agent().await;

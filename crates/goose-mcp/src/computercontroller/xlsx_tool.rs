@@ -73,7 +73,7 @@ impl XlsxTool {
         // Iterate through all rows
         for row_num in 1..=worksheet.get_highest_row() {
             for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((row_num, col_num)) {
+                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
                     let coord = cell.get_coordinate();
                     max_col = max_col.max(*coord.get_col_num() as usize);
                     max_row = max_row.max(*coord.get_row_num() as usize);
@@ -87,7 +87,7 @@ impl XlsxTool {
     pub fn get_column_names(&self, worksheet: &Worksheet) -> Result<Vec<String>> {
         let mut names = Vec::new();
         for col_num in 1..=worksheet.get_highest_column() {
-            if let Some(cell) = worksheet.get_cell((1, col_num)) {
+            if let Some(cell) = worksheet.get_cell((col_num, 1)) {
                 names.push(cell.get_value().into_owned());
             } else {
                 names.push(String::new());
@@ -104,7 +104,7 @@ impl XlsxTool {
         for row_idx in start_row..=end_row {
             let mut row_values = Vec::new();
             for col_idx in start_col..=end_col {
-                let cell_value = if let Some(cell) = worksheet.get_cell((row_idx, col_idx)) {
+                let cell_value = if let Some(cell) = worksheet.get_cell((col_idx, row_idx)) {
                     CellValue {
                         value: cell.get_value().into_owned(),
                         formula: if cell.get_formula().is_empty() {
@@ -146,7 +146,7 @@ impl XlsxTool {
             .context("Worksheet not found")?;
 
         worksheet
-            .get_cell_mut((row, col))
+            .get_cell_mut((col, row))
             .set_value(value.to_string());
         Ok(())
     }
@@ -173,7 +173,7 @@ impl XlsxTool {
 
         for row_num in 1..=worksheet.get_highest_row() {
             for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((row_num, col_num)) {
+                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
                     let cell_value = if !case_sensitive {
                         cell.get_value().to_lowercase()
                     } else {
@@ -192,7 +192,7 @@ impl XlsxTool {
     }
 
     pub fn get_cell_value(&self, worksheet: &Worksheet, row: u32, col: u32) -> Result<CellValue> {
-        let cell = worksheet.get_cell((row, col)).context("Cell not found")?;
+        let cell = worksheet.get_cell((col, row)).context("Cell not found")?;
 
         Ok(CellValue {
             value: cell.get_value().into_owned(),
@@ -323,10 +323,21 @@ mod tests {
         assert_eq!(data_cell.value, "Canada");
         assert!(data_cell.formula.is_none());
 
+        // Test B1 cell (known value from FinancialSample.xlsx)
+        let b1_cell = xlsx.get_cell_value(worksheet, 1, 2)?;
+        assert_eq!(b1_cell.value, "Country");
+        assert!(b1_cell.formula.is_none());
+
+        // Test A2 cell (known value from FinancialSample.xlsx)
+        let a2_cell = xlsx.get_cell_value(worksheet, 2, 1)?;
+        assert_eq!(a2_cell.value, "Government");
+        assert!(a2_cell.formula.is_none());
+
         println!(
             "Header cell: {:#?}\nData cell: {:#?}",
             header_cell, data_cell
         );
+        println!("B1: {:#?}\nA2: {:#?}", b1_cell, a2_cell);
         Ok(())
     }
 

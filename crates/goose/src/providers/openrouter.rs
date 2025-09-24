@@ -17,6 +17,7 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use rmcp::model::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
+pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-1.5";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
@@ -26,6 +27,7 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-opus-4",
     "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
+    "google/gemini-flash-1.5",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
@@ -43,6 +45,8 @@ impl_provider_default!(OpenRouterProvider);
 
 impl OpenRouterProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config

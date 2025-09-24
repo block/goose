@@ -2963,6 +2963,157 @@ mod tests {
         assert!(text.text.contains("100: Line 100"));
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
+
+        // Create some test files and directories
+        fs::create_dir(temp_path.join("subdir1")).unwrap();
+        fs::create_dir(temp_path.join("subdir2")).unwrap();
+        fs::create_dir(temp_path.join("another_dir")).unwrap();
+
+        fs::write(temp_path.join("file1.txt"), "content1").unwrap();
+        fs::write(temp_path.join("file2.rs"), "content2").unwrap();
+        fs::write(temp_path.join("README.md"), "content3").unwrap();
+
+        let server = create_test_server();
+
+        // Test viewing a directory
+        let result = server
+            .text_editor(Parameters(TextEditorParams {
+                command: "view".to_string(),
+                path: temp_path.to_str().unwrap().to_string(),
+                view_range: None,
+                file_text: None,
+                old_str: None,
+                new_str: None,
+                insert_line: None,
+                diff: None,
+            }))
+            .await;
+
+        assert!(result.is_ok());
+        let content = result.unwrap().content;
+        assert_eq!(content.len(), 1);
+
+        // Check the content is a text message with directory listing
+        let text_content = content[0].as_text().expect("Expected text content");
+        let output = &text_content.text;
+
+        // Check that it identifies as a directory
+        assert!(output.contains("is a directory"));
+        assert!(output.contains("Contents:"));
+
+        // Check directories are listed with trailing slash
+        assert!(output.contains("Directories:"));
+        assert!(output.contains("another_dir/"));
+        assert!(output.contains("subdir1/"));
+        assert!(output.contains("subdir2/"));
+
+        // Check files are listed
+        assert!(output.contains("Files:"));
+        assert!(output.contains("file1.txt"));
+        assert!(output.contains("file2.rs"));
+        assert!(output.contains("README.md"));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_directory_with_many_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
+
+        // Create more than 50 files to test the limit
+        for i in 0..60 {
+            fs::write(
+                temp_path.join(format!("file{:03}.txt", i)),
+                format!("content{}", i),
+            )
+            .unwrap();
+        }
+
+        // Create some directories too
+        for i in 0..10 {
+            fs::create_dir(temp_path.join(format!("dir{:02}", i))).unwrap();
+        }
+
+        let server = create_test_server();
+
+        let result = server
+            .text_editor(Parameters(TextEditorParams {
+                command: "view".to_string(),
+                path: temp_path.to_str().unwrap().to_string(),
+                view_range: None,
+                file_text: None,
+                old_str: None,
+                new_str: None,
+                insert_line: None,
+                diff: None,
+            }))
+            .await;
+
+        assert!(result.is_ok());
+        let content = result.unwrap().content;
+        assert_eq!(content.len(), 1);
+
+        let text_content = content[0].as_text().expect("Expected text content");
+        let output = &text_content.text;
+
+        // Check that it shows the limit message
+        assert!(output.contains("... and"));
+        assert!(output.contains("more items"));
+        assert!(output.contains("(showing first 50 items)"));
+
+        // Count the actual number of items shown (should be 50)
+        let dir_count = output.matches("/\n").count(); // directories end with /
+        let file_count = output.matches(".txt\n").count(); // only counting .txt files for simplicity
+        assert!(dir_count + file_count <= 50);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_empty_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Set the current directory before creating the server
+        std::env::set_current_dir(&temp_path).unwrap();
+
+        let server = create_test_server();
+
+        let result = server
+            .text_editor(Parameters(TextEditorParams {
+                command: "view".to_string(),
+                path: temp_path.to_str().unwrap().to_string(),
+                view_range: None,
+                file_text: None,
+                old_str: None,
+                new_str: None,
+                insert_line: None,
+                diff: None,
+            }))
+            .await;
+
+        assert!(result.is_ok());
+        let content = result.unwrap().content;
+        assert_eq!(content.len(), 1);
+
+        let text_content = content[0].as_text().expect("Expected text content");
+        let output = &text_content.text;
+
+        // Check that it shows empty directory message
+        assert!(output.contains("is a directory"));
+        assert!(output.contains("(empty directory)"));
+    }
+
     #[test]
     #[serial]
     fn test_shell_output_truncation() {

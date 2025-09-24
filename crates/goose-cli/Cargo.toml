@@ -19,7 +19,6 @@ goose = { path = "../goose" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
-mcp-server = { path = "../mcp-server" }
 mcp-core = { path = "../mcp-core" }
 rmcp = { workspace = true }
 agent-client-protocol = "0.4.0"
