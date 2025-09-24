@@ -664,7 +664,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                       variant="mono"
                     />
                     <label htmlFor="hide-scheduler-chats" className="text-sm text-text-muted cursor-pointer">
-                      Hide Scheduler chats
+                      Hide Scheduler Chats
                     </label>
                   </div>
                 </div>
