@@ -575,9 +575,6 @@ async fn process_message_streaming(
         }
     }
 
-    let provider = agent.provider().await?;
-    SessionManager::maybe_update_description(&session_id, provider).await?;
-
     let mut sender = sender.lock().await;
     let _ = sender
         .send(Message::Text(
