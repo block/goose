@@ -91,7 +91,6 @@ impl AgentManager {
         session_id: String,
         mode: SessionExecutionMode,
     ) -> Result<Arc<Agent>> {
-
         let agent = {
             let mut sessions = self.sessions.write().await;
             if let Some(agent) = sessions.get(&session_id) {
