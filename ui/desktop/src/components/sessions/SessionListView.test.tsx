@@ -235,7 +235,7 @@ describe('SessionListView - isSchedulerSession', () => {
         id: 'some-session-id',
         metadata: {
           schedule_id: null,
-          description: null as any
+          description: undefined
         }
       };
       expect(isSchedulerSession(session)).toBe(true);
@@ -246,7 +246,7 @@ describe('SessionListView - isSchedulerSession', () => {
         id: 'some-session-id',
         metadata: {
           schedule_id: null,
-          description: undefined as any
+          description: undefined
         }
       };
       expect(isSchedulerSession(session)).toBe(true);
@@ -307,12 +307,12 @@ describe('SessionListView - isSchedulerSession', () => {
         // Scheduler with null description
         {
           id: 'ghi789',
-          metadata: { schedule_id: null, description: null as any }
+          metadata: { schedule_id: null, description: undefined }
         }
       ];
 
-      schedulerSessions.forEach((session, index) => {
-        expect(isSchedulerSession(session)).toBe(true, `Failed for scheduler session ${index}`);
+      schedulerSessions.forEach((session) => {
+        expect(isSchedulerSession(session)).toBe(true);
       });
     });
 
@@ -340,8 +340,8 @@ describe('SessionListView - isSchedulerSession', () => {
         }
       ];
 
-      userSessions.forEach((session, index) => {
-        expect(isSchedulerSession(session)).toBe(false, `Failed for user session ${index}`);
+      userSessions.forEach((session) => {
+        expect(isSchedulerSession(session)).toBe(false);
       });
     });
   });

@@ -163,6 +163,8 @@ interface SearchContainerElement extends HTMLDivElement {
 }
 
 // Helper function to determine if a session was created by the scheduler
+// Optimized for performance with early returns and cached regex
+const timestampRegex = /^\d{8}_\d{6}$/;
 const isSchedulerSession = (session: Session): boolean => {
   // Check if the session has a schedule_id (any schedule_id indicates it's a scheduler session)
   const scheduleId = session.metadata.schedule_id;
@@ -177,15 +179,12 @@ const isSchedulerSession = (session: Session): boolean => {
   // Secondary check: empty descriptions (scheduler often doesn't set meaningful descriptions)
   // This catches automated/scheduled sessions that lack user-provided names
   if (!description || description.trim() === '') {
-    console.log(`Identified scheduler session by empty description: "${session.id}"`);
     return true;
   }
   
   // Tertiary check: timestamp-only descriptions (scheduler often generates these)
   // This catches scheduler sessions that have null schedule_id due to bugs
-  // Check if session ID matches description exactly and both follow timestamp format
-  if (description === session.id && /^\d{8}_\d{6}$/.test(session.id)) {
-    console.log(`Identified scheduler session by timestamp pattern: "${session.id}"`);
+  if (description === session.id && timestampRegex.test(session.id)) {
     return true;
   }
   
@@ -326,7 +325,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       } catch (error) {
         console.warn('Failed to save hide_scheduler_chats to localStorage:', error);
       }
-    }, [hideSchedulerChats]);
+    }, [hideSchedulerChats, isLoading, sessions.length, showContent]);
 
     // Effect to handle scheduler toggle animation
     useEffect(() => {
@@ -338,7 +337,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           setIsFiltering(false);
         }, 300);
       }
-    }, [hideSchedulerChats]);
+    }, [hideSchedulerChats, isLoading, sessions.length, showContent]);
 
     // Combined filtering effect - handles both search and scheduler filtering
     useEffect(() => {
