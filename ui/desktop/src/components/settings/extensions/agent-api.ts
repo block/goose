@@ -14,7 +14,8 @@ interface ApiResponse {
 export async function extensionApiCall(
   endpoint: string,
   payload: ExtensionConfig | string,
-  options: ToastServiceOptions & { isDelete?: boolean } = {}
+  options: ToastServiceOptions & { isDelete?: boolean } = {},
+  sessionId: string
 ): Promise<Response> {
   // Configure toast notifications
   toastService.configure(options);
@@ -43,6 +44,16 @@ export async function extensionApiCall(
   }
 
   try {
+    // Build the request body
+    let requestBody: ExtensionConfig | { name: string; session_id: string };
+    if (typeof payload === 'object') {
+      // For adding extensions (ExtensionConfig)
+      requestBody = { ...payload, session_id: sessionId };
+    } else {
+      // For removing extensions (just the name string)
+      requestBody = { name: payload, session_id: sessionId };
+    }
+
     // Step 2: Make the API call
     const response = await fetch(getApiUrl(endpoint), {
       method: 'POST',
@@ -50,7 +61,7 @@ export async function extensionApiCall(
         'Content-Type': 'application/json',
         'X-Secret-Key': await window.electron.getSecretKey(),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestBody),
     });
 
     // Step 3: Handle non-successful responses
@@ -142,7 +153,8 @@ async function parseResponseData(response: Response): Promise<ApiResponse> {
  */
 export async function addToAgent(
   extension: ExtensionConfig,
-  options: ToastServiceOptions = {}
+  options: ToastServiceOptions = {},
+  sessionId: string
 ): Promise<Response> {
   try {
     if (extension.type === 'stdio') {
@@ -151,7 +163,7 @@ export async function addToAgent(
 
     extension.name = sanitizeName(extension.name);
 
-    return await extensionApiCall('/extensions/add', extension, options);
+    return await extensionApiCall('/extensions/add', extension, options, sessionId);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error instanceof Error && error.message && error.message.includes('428')) {
@@ -170,10 +182,11 @@ export async function addToAgent(
  */
 export async function removeFromAgent(
   name: string,
-  options: ToastServiceOptions & { isDelete?: boolean } = {}
+  options: ToastServiceOptions & { isDelete?: boolean } = {},
+  sessionId: string
 ): Promise<Response> {
   try {
-    return await extensionApiCall('/extensions/remove', sanitizeName(name), options);
+    return await extensionApiCall('/extensions/remove', sanitizeName(name), options, sessionId);
   } catch (error) {
     const action = options.isDelete ? 'remove' : 'deactivate';
     console.error(`Failed to ${action} extension ${name} from agent:`, error);

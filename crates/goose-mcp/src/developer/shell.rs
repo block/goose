@@ -1,4 +1,5 @@
-use std::{env, process::Stdio};
+use goose::config::get_config_dir;
+use std::{env, ffi::OsString, process::Stdio};
 
 #[cfg(unix)]
 #[allow(unused_imports)] // False positive: trait is used for process_group method
@@ -8,30 +9,23 @@ use std::os::unix::process::CommandExt;
 pub struct ShellConfig {
     pub executable: String,
     pub args: Vec<String>,
+    #[allow(dead_code)]
+    pub envs: Vec<(OsString, OsString)>,
 }
 
 impl Default for ShellConfig {
     fn default() -> Self {
-        if cfg!(windows) {
-            // Detect the default shell on Windows
-            #[cfg(windows)]
-            {
-                Self::detect_windows_shell()
-            }
-            #[cfg(not(windows))]
-            {
-                // This branch should never be taken on non-Windows
-                // but we need it for compilation
-                Self {
-                    executable: "cmd".to_string(),
-                    args: vec!["/c".to_string()],
-                }
-            }
-        } else {
-            // Use bash on Unix/macOS (keep existing behavior)
+        #[cfg(windows)]
+        {
+            Self::detect_windows_shell()
+        }
+        #[cfg(not(windows))]
+        {
+            let bash_env = get_config_dir().join(".bash_env").into_os_string();
             Self {
                 executable: "bash".to_string(),
                 args: vec!["-c".to_string()],
+                envs: vec![(OsString::from("BASH_ENV"), bash_env)],
             }
         }
     }
@@ -50,6 +44,7 @@ impl ShellConfig {
                     "-NonInteractive".to_string(),
                     "-Command".to_string(),
                 ],
+                envs: vec![],
             }
         } else if let Ok(ps_path) = which::which("powershell") {
             // Windows PowerShell 5.1
@@ -60,12 +55,14 @@ impl ShellConfig {
                     "-NonInteractive".to_string(),
                     "-Command".to_string(),
                 ],
+                envs: vec![],
             }
         } else {
             // Fall back to cmd.exe
             Self {
                 executable: "cmd".to_string(),
                 args: vec!["/c".to_string()],
+                envs: vec![],
             }
         }
     }
@@ -125,6 +122,12 @@ pub fn configure_shell_command(
         .stdin(Stdio::null())
         .kill_on_drop(true)
         .env("GOOSE_TERMINAL", "1")
+        .env("GIT_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
+        .env("GIT_SEQUENCE_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
+        .env("VISUAL", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
+        .env("EDITOR", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_PAGER", "cat")
         .args(&shell_config.args)
         .arg(command);
 

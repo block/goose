@@ -148,12 +148,18 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
+
+          const sessionMetadata = agentSessionInfo.metadata;
+
+          // Pass the recipe config to initializeSystem so it can inject instructions
+          const recipeConfigForInit =
+            initContext.recipeConfig || sessionMetadata.recipe || undefined;
           await initializeSystem(agentSessionInfo.session_id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
             recipeParameters: agentSessionInfo.metadata.recipe_parameters,
-            recipeConfig: initContext.recipeConfig || agentSessionInfo.metadata.recipe || undefined,
+            recipeConfig: recipeConfigForInit,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -163,8 +169,6 @@ export function useAgent(): UseAgentReturn {
               console.error('Failed to initialize cost database:', error);
             }
           }
-
-          const sessionMetadata = agentSessionInfo.metadata;
           // Use the recipe config from initContext if available, otherwise fall back to session metadata
           const recipeConfig = initContext.recipeConfig || sessionMetadata.recipe;
 

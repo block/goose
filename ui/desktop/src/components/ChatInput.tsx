@@ -6,7 +6,7 @@ import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
