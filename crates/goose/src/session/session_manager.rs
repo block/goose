@@ -1,7 +1,7 @@
 use crate::config::APP_STRATEGY;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -69,23 +69,6 @@ impl SessionUpdateBuilder {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe_json: None,
-        }
-    }
-
-    pub fn from_session(session_id: String, session: &Session) -> Self {
-        Self {
-            session_id,
-            description: Some(session.description.clone()),
-            working_dir: Some(session.working_dir.clone()),
-            extension_data: Some(session.extension_data.clone()),
-            total_tokens: Some(session.total_tokens),
-            input_tokens: Some(session.input_tokens),
-            output_tokens: Some(session.output_tokens),
-            accumulated_total_tokens: Some(session.accumulated_total_tokens),
-            accumulated_input_tokens: Some(session.accumulated_input_tokens),
-            accumulated_output_tokens: Some(session.accumulated_output_tokens),
-            schedule_id: Some(session.schedule_id.clone()),
-            recipe_json: Some(session.recipe_json.clone()),
         }
     }
 
@@ -231,16 +214,27 @@ impl SessionManager {
         Self::instance().await?.delete_session(id).await
     }
 
-    pub async fn generate_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn maybe_update_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = Self::get_session(id, true).await?;
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
-        let description = provider.generate_session_name(&conversation).await?;
-        Self::update_session(id)
-            .description(description)
-            .apply()
-            .await
+
+        let user_message_count = conversation
+            .messages()
+            .iter()
+            .filter(|m| matches!(m.role, Role::User))
+            .count();
+
+        if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
+            let description = provider.generate_session_name(&conversation).await?;
+            Self::update_session(id)
+                .description(description)
+                .apply()
+                .await
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -451,41 +445,16 @@ impl SessionStorage {
 
         for (session_name, session_path) in sessions {
             match legacy::load_session(&session_name, &session_path) {
-                Ok(session) => {
-                    match self
-                        .create_session(&session.id, &session.working_dir, &session.description)
-                        .await
-                    {
-                        Ok(_) => {
-                            let builder =
-                                SessionUpdateBuilder::from_session(session.id.clone(), &session);
-                            if let Err(e) = self.apply_update(builder).await {
-                                failed_count += 1;
-                                println!("  ✗ Failed to update session {}: {}", session_name, e);
-                                continue;
-                            }
-
-                            if let Some(conversation) = session.conversation {
-                                if let Err(e) =
-                                    self.replace_conversation(&session.id, &conversation).await
-                                {
-                                    failed_count += 1;
-                                    println!(
-                                        "  ✗ Failed to import messages for {}: {}",
-                                        session_name, e
-                                    );
-                                    continue;
-                                }
-                            }
-                            imported_count += 1;
-                            println!("  ✓ Imported: {}", session_name);
-                        }
-                        Err(e) => {
-                            failed_count += 1;
-                            println!("  ✗ Failed to import {}: {}", session_name, e);
-                        }
+                Ok(session) => match self.import_legacy_session(&session).await {
+                    Ok(_) => {
+                        imported_count += 1;
+                        println!("  ✓ Imported: {}", session_name);
                     }
-                }
+                    Err(e) => {
+                        failed_count += 1;
+                        println!("  ✗ Failed to import {}: {}", session_name, e);
+                    }
+                },
                 Err(e) => {
                     failed_count += 1;
                     println!("  ✗ Failed to load {}: {}", session_name, e);
@@ -497,6 +466,40 @@ impl SessionStorage {
             "Import complete: {} successful, {} failed",
             imported_count, failed_count
         );
+        Ok(())
+    }
+
+    async fn import_legacy_session(&self, session: &Session) -> Result<()> {
+        sqlx::query(
+            r#"
+        INSERT INTO sessions (
+            id, description, working_dir, created_at, updated_at, extension_data,
+            total_tokens, input_tokens, output_tokens,
+            accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+            schedule_id, recipe_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+        )
+        .bind(&session.id)
+        .bind(&session.description)
+        .bind(session.working_dir.to_string_lossy().as_ref())
+        .bind(&session.created_at)
+        .bind(&session.updated_at)
+        .bind(serde_json::to_string(&session.extension_data)?)
+        .bind(session.total_tokens)
+        .bind(session.input_tokens)
+        .bind(session.output_tokens)
+        .bind(session.accumulated_total_tokens)
+        .bind(session.accumulated_input_tokens)
+        .bind(session.accumulated_output_tokens)
+        .bind(&session.schedule_id)
+        .bind(&session.recipe_json)
+        .execute(&self.pool)
+        .await?;
+
+        if let Some(conversation) = &session.conversation {
+            self.replace_conversation(&session.id, conversation).await?;
+        }
         Ok(())
     }
 
@@ -615,27 +618,6 @@ impl SessionStorage {
             conversation,
             message_count,
         }
-    }
-
-    async fn create_session(
-        &self,
-        session_id: &String,
-        working_dir: &PathBuf,
-        description: &String,
-    ) -> Result<()> {
-        sqlx::query(
-            r#"
-            INSERT INTO sessions (id, description, working_dir, extension_data)
-            VALUES (?, ?, ?, '{}')
-        "#,
-        )
-        .bind(&session_id)
-        .bind(&description)
-        .bind(working_dir.to_string_lossy().as_ref())
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {

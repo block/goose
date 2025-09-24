@@ -1042,6 +1042,15 @@ impl Agent {
                     SessionManager::replace_conversation(&session_config.id, &conversation).await?;
                 }
             }
+            let provider = self.provider().await?;
+            let session_id = session_config.id.clone();
+            tokio::spawn(async move {
+                if let Err(e) =
+                    SessionManager::maybe_update_description(&session_id, provider).await
+                {
+                    warn!("Failed to generate session description: {}", e);
+                }
+            });
         }
 
         Ok(Box::pin(async_stream::try_stream! {
