@@ -1,4 +1,3 @@
-use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
@@ -47,7 +46,7 @@ async fn manage_context(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
-    let agent = get_agent_or_500(&state, request.session_id).await?;
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     let mut processed_messages = Conversation::new_unvalidated(vec![]);
     let mut token_counts: Vec<usize> = vec![];

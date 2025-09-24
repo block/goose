@@ -1,3 +1,4 @@
+use axum::http::StatusCode;
 use goose::execution::manager::AgentManager;
 use goose::execution::SessionExecutionMode;
 use goose::scheduler_trait::SchedulerTrait;
@@ -6,7 +7,6 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
@@ -54,5 +54,18 @@ impl AppState {
         self.agent_manager
             .get_or_create_agent(session_id, mode)
             .await
+    }
+
+    /// Get agent for route handlers - always uses Interactive mode and converts any error to 500
+    pub async fn get_agent_for_route(
+        &self,
+        session_id: String,
+    ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
+        self.get_agent(session_id, SessionExecutionMode::Interactive)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get agent: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })
     }
 }

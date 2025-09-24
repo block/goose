@@ -3,7 +3,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -266,7 +265,7 @@ async fn add_extension(
         },
     };
 
-    let agent = get_agent_or_500(&state, session_id.clone()).await?;
+    let agent = state.get_agent_for_route(session_id).await?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -299,7 +298,7 @@ async fn remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    let agent = get_agent_or_500(&state, request.session_id).await?;
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     match agent.remove_extension(&request.name).await {
         Ok(_) => Ok(Json(ExtensionResponse {

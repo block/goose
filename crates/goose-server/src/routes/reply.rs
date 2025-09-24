@@ -1,4 +1,3 @@
-use crate::routes::agent::get_agent_or_500;
 use crate::state::AppState;
 use axum::{
     extract::{DefaultBodyLimit, State},
@@ -488,7 +487,7 @@ pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let agent = get_agent_or_500(&state, request.session_id.clone()).await?;
+    let agent = state.get_agent_for_route(request.session_id).await?;
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -536,7 +535,7 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = get_agent_or_500(&state, payload.session_id).await?;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }

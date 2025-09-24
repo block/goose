@@ -5,7 +5,6 @@ use std::sync::Arc;
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
-use goose::execution::SessionExecutionMode;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 
@@ -110,24 +109,13 @@ pub struct ListRecipeResponse {
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
+) -> Result<Json<CreateRecipeResponse>, StatusCode> {
     tracing::info!(
         "Recipe creation request received with {} messages",
         request.messages.len()
     );
 
-    let agent = state
-        .get_agent(request.session_id, SessionExecutionMode::Interactive)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(CreateRecipeResponse {
-                    recipe: None,
-                    error: Some(e.to_string()),
-                }),
-            )
-        })?;
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent
@@ -156,12 +144,7 @@ async fn create_recipe(
         }
         Err(e) => {
             tracing::error!("Error details: {:?}", e);
-            let error_message = format!("Recipe creation failed: {}", e);
-            let error_response = CreateRecipeResponse {
-                recipe: None,
-                error: Some(error_message),
-            };
-            Err((StatusCode::BAD_REQUEST, Json(error_response)))
+            Err(StatusCode::BAD_REQUEST)
         }
     }
 }
