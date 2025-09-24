@@ -119,7 +119,10 @@ pub async fn upsert_config(
         if let Value::Bool(b) = &query.value {
             if *b {
                 tracing::info!(key = %query.key, "Skipping upsert for secret key with boolean true (presence-only)");
-                return Ok(Json(Value::String(format!("Skipped secret upsert for {} (presence-only)", query.key))));
+                return Ok(Json(Value::String(format!(
+                    "Skipped secret upsert for {} (presence-only)",
+                    query.key
+                ))));
             }
         }
     }
@@ -316,7 +319,10 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                             >(&content)
                             {
                                 // Skip if this custom provider is already present in the registry
-                                if providers_metadata.iter().any(|m| m.name == custom_provider.name) {
+                                if providers_metadata
+                                    .iter()
+                                    .any(|m| m.name == custom_provider.name)
+                                {
                                     continue;
                                 }
 
@@ -332,8 +338,10 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                                 // custom providers into the runtime registry.
                                 // Ensure the key follows: CUSTOM_<ID>_BASE_URL where <ID> is the
                                 // provider name without the leading "custom_" and upper-cased.
-                                let provider_id = custom_provider.name.trim_start_matches("custom_");
-                                let base_url_key = format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
+                                let provider_id =
+                                    custom_provider.name.trim_start_matches("custom_");
+                                let base_url_key =
+                                    format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
 
                                 let metadata = goose::providers::base::ProviderMetadata {
                                     name: custom_provider.name.clone(),
@@ -770,7 +778,6 @@ pub async fn update_custom_provider(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    
     // Log incoming update for debugging
     let payload_value = serde_json::to_value(&request).unwrap_or(serde_json::Value::Null);
     tracing::info!(id = %id, payload = ?payload_value, "update_custom_provider called");
@@ -783,7 +790,8 @@ pub async fn update_custom_provider(
     }
 
     // Read existing config
-    let content = std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let content =
+        std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut config: goose::config::custom_providers::CustomProviderConfig =
         serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -827,7 +835,8 @@ pub async fn update_custom_provider(
 
     // Save updated JSON atomically
     let tmp = file_path.with_extension("json.tmp");
-    let json_content = serde_json::to_string_pretty(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let json_content =
+        serde_json::to_string_pretty(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     std::fs::write(&tmp, &json_content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     std::fs::rename(&tmp, &file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -838,7 +847,6 @@ pub async fn update_custom_provider(
 
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
-
 
 #[utoipa::path(
     get,
@@ -852,7 +860,6 @@ pub async fn update_custom_provider(
 pub async fn get_custom_provider(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<goose::config::custom_providers::CustomProviderConfig>, StatusCode> {
-    
     let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
     let file_path = custom_providers_dir.join(format!("{}.json", id));
 
@@ -860,7 +867,8 @@ pub async fn get_custom_provider(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let content = std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let content =
+        std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let config: goose::config::custom_providers::CustomProviderConfig =
         serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -910,7 +918,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers", post(create_custom_provider))
         .route(
             "/config/custom-providers/{id}",
-            get(get_custom_provider).delete(remove_custom_provider).put(update_custom_provider),
+            get(get_custom_provider)
+                .delete(remove_custom_provider)
+                .put(update_custom_provider),
         )
         .with_state(state)
 }
