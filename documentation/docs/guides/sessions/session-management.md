@@ -75,7 +75,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 ## Name Session
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Within the Desktop app, sessions are automatically named based on the context of your initial prompt.
+        In the Desktop app, session tiles display auto-generated descriptions based on the context of your initial prompt.
 
         You can edit session descriptions after they're created:
 
