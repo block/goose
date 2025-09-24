@@ -124,7 +124,6 @@ impl AgentManager {
             let _ = agent.update_provider(Arc::clone(provider)).await;
         }
 
-        // Store in LRU cache (automatically evicts oldest if at capacity)
         let mut sessions = self.sessions.write().await;
         sessions.put(session_id.clone(), Arc::clone(&agent));
 
