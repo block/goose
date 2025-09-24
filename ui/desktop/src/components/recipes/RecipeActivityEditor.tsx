@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 
 export default function RecipeActivityEditor({
-  activities,
+  activities = [],
   setActivities,
   onBlur,
 }: {
-  activities: string[];
+  activities?: string[];
   setActivities: (prev: string[]) => void;
   onBlur?: () => void;
 }) {

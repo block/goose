@@ -33,7 +33,7 @@ interface RecipeFormFieldsProps {
   onGlobalChange?: (value: boolean) => void;
 }
 
-export default function RecipeFormFields({
+export function RecipeFormFields({
   form,
   showRecipeNameField = false,
   showSaveLocationField = false,
@@ -137,7 +137,7 @@ export default function RecipeFormFields({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="recipe-form">
       {/* Title Field */}
       <form.Field name="title">
         {(field: FormFieldApi<string>) => (
@@ -166,6 +166,7 @@ export default function RecipeFormFields({
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
               }`}
               placeholder="Recipe title"
+              data-testid="title-input"
             />
             {field.state.meta.errors.length > 0 && (
               <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
@@ -197,6 +198,7 @@ export default function RecipeFormFields({
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
               }`}
               placeholder="Brief description of what this recipe does"
+              data-testid="description-input"
             />
             {field.state.meta.errors.length > 0 && (
               <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
@@ -242,6 +244,7 @@ export default function RecipeFormFields({
               }`}
               placeholder="Detailed instructions for the AI, hidden from the user..."
               rows={8}
+              data-testid="instructions-input"
             />
             <p className="text-xs text-text-muted mt-1">
               Use {`{{parameter_name}}`} to define parameters that users can fill in
@@ -293,6 +296,7 @@ export default function RecipeFormFields({
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               placeholder="Pre-filled prompt when the recipe starts..."
               rows={3}
+              data-testid="prompt-input"
             />
           </div>
         )}
@@ -324,6 +328,12 @@ export default function RecipeFormFields({
               };
               field.handleChange([...field.state.value, newParam]);
               setNewParameterName('');
+              // Expand the newly added parameter by default
+              setExpandedParameters((prev) => {
+                const newSet = new Set(prev);
+                newSet.add(newParam.key);
+                return newSet;
+              });
             }
           };
 
@@ -479,16 +489,18 @@ export default function RecipeFormFields({
         <form.Field name="recipeName">
           {(field: FormFieldApi<string | undefined>) => (
             <div>
-              <RecipeNameField
-                id="recipe-name-field"
-                value={field.state.value || ''}
-                onChange={(value) => {
-                  field.handleChange(value);
-                  onRecipeNameChange?.(value);
-                }}
-                onBlur={field.handleBlur}
-                errors={field.state.meta.errors}
-              />
+              <div data-testid="recipe-name-field">
+                <RecipeNameField
+                  id="recipe-name-field"
+                  value={field.state.value || ''}
+                  onChange={(value) => {
+                    field.handleChange(value);
+                    onRecipeNameChange?.(value);
+                  }}
+                  onBlur={field.handleBlur}
+                  errors={field.state.meta.errors}
+                />
+              </div>
             </div>
           )}
         </form.Field>
@@ -498,7 +510,7 @@ export default function RecipeFormFields({
       {showSaveLocationField && (
         <form.Field name="global">
           {(field: FormFieldApi<boolean>) => (
-            <div>
+            <div data-testid="save-location-field">
               <label className="block text-sm font-medium text-text-standard mb-2">
                 Save Location
               </label>
@@ -513,6 +525,7 @@ export default function RecipeFormFields({
                       onGlobalChange?.(true);
                     }}
                     className="mr-2"
+                    data-testid="global-radio"
                   />
                   <span className="text-sm text-text-standard">
                     Global - Available across all Goose sessions
@@ -528,6 +541,7 @@ export default function RecipeFormFields({
                       onGlobalChange?.(false);
                     }}
                     className="mr-2"
+                    data-testid="directory-radio"
                   />
                   <span className="text-sm text-text-standard">
                     Directory - Available in the working directory

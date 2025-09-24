@@ -4,7 +4,7 @@ import { Recipe } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import { X, Save, Play, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
-import RecipeFormFields from './shared/RecipeFormFields';
+import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
 import { createRecipe } from '../../api/sdk.gen';
 import { toastError } from '../../toasts';
@@ -227,10 +227,16 @@ export default function CreateRecipeFromSessionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4"
+      data-testid="create-recipe-modal"
+    >
       <div className="bg-background-default border border-borderSubtle rounded-lg w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-borderSubtle shrink-0">
+        <div
+          className="flex items-center justify-between p-6 border-b border-borderSubtle shrink-0"
+          data-testid="modal-header"
+        >
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-background-default rounded-full flex items-center justify-center">
               <Geese className="w-6 h-6 text-iconProminent" />
@@ -247,43 +253,61 @@ export default function CreateRecipeFromSessionModal({
             variant="ghost"
             size="sm"
             className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            data-testid="close-button"
           >
             <X className="w-5 h-5" />
           </Button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0" data-testid="modal-content">
           {isAnalyzing ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[300px] space-y-4">
+            <div
+              className="flex flex-col items-center justify-center h-full min-h-[300px] space-y-4"
+              data-testid="analyzing-state"
+            >
               <div className="flex items-center space-x-3">
-                <Loader2 className="w-6 h-6 animate-spin text-iconProminent" />
-                <div className="text-lg font-medium text-textProminent">
+                <Loader2
+                  className="w-6 h-6 animate-spin text-iconProminent"
+                  data-testid="analysis-spinner"
+                />
+                <div
+                  className="text-lg font-medium text-textProminent"
+                  data-testid="analyzing-title"
+                >
                   Analyzing your conversation...
                 </div>
               </div>
-              <div className="text-textSubtle text-center max-w-md">{analysisStage}</div>
+              <div className="text-textSubtle text-center max-w-md" data-testid="analysis-stage">
+                {analysisStage}
+              </div>
               <div className="flex items-center space-x-2 text-textSubtle">
                 <Geese className="w-5 h-5 animate-pulse" />
                 <span className="text-sm">Extracting insights from your chat</span>
               </div>
             </div>
           ) : (
-            <RecipeFormFields
-              form={form}
-              showRecipeNameField={true}
-              showSaveLocationField={true}
-              autoGenerateRecipeName={true}
-            />
+            <div data-testid="form-state">
+              <RecipeFormFields
+                form={form}
+                showRecipeNameField={true}
+                showSaveLocationField={true}
+                autoGenerateRecipeName={true}
+              />
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-borderSubtle shrink-0">
+        <div
+          className="flex items-center justify-between p-6 border-t border-borderSubtle shrink-0"
+          data-testid="modal-footer"
+        >
           <Button
             onClick={onClose}
             variant="ghost"
             className="px-4 py-2 text-textSubtle rounded-lg hover:bg-bgSubtle transition-colors"
+            data-testid="cancel-button"
           >
             Cancel
           </Button>
@@ -292,22 +316,24 @@ export default function CreateRecipeFromSessionModal({
             {isAnalyzing ? (
               <div />
             ) : createdRecipe ? (
-              <>
+              <div data-testid="success-state">
                 <Button
                   onClick={handleDone}
                   variant="outline"
                   className="px-4 py-2 border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors"
+                  data-testid="done-button"
                 >
                   Done
                 </Button>
                 <Button
                   onClick={handleStartRecipe}
                   className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors"
+                  data-testid="start-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />
                   Start Recipe
                 </Button>
-              </>
+              </div>
             ) : (
               <Button
                 onClick={() => {
@@ -315,6 +341,7 @@ export default function CreateRecipeFromSessionModal({
                 }}
                 disabled={!isFormValid || isCreating}
                 className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="create-recipe-button"
               >
                 <Save className="w-4 h-4 mr-2" />
                 {isCreating ? 'Creating...' : 'Create Recipe'}
