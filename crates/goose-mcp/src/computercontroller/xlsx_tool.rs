@@ -355,12 +355,12 @@ mod tests {
         // A2 should be row=2, col=1
         let a2 = xlsx.get_cell_value(worksheet, 2, 1)?;
         println!("A2 (2,1): {}", a2.value);
-        assert_eq!(a2.value, "Country");
+        assert_eq!(a2.value, "Government");
 
         // B1 should be row=1, col=2
         let b1 = xlsx.get_cell_value(worksheet, 1, 2)?;
         println!("B1 (1,2): {}", b1.value);
-        assert_eq!(b1.value, "Government");
+        assert_eq!(b1.value, "Country");
 
         // B2 should be row=2, col=2
         let b2 = xlsx.get_cell_value(worksheet, 2, 2)?;
@@ -386,14 +386,14 @@ mod tests {
 
         // Test that A2 (row 2, column 1) returns the correct value
         let a2_value = xlsx.get_cell_value(worksheet, 2, 1)?;
-        assert_eq!(a2_value.value, "Country", "A2 should contain 'Country'");
+        assert_eq!(
+            a2_value.value, "Government",
+            "A2 should contain 'Government'"
+        );
 
         // Test that B1 (row 1, column 2) returns its own value, not A2's
         let b1_value = xlsx.get_cell_value(worksheet, 1, 2)?;
-        assert_eq!(
-            b1_value.value, "Government",
-            "B1 should contain 'Government'"
-        );
+        assert_eq!(b1_value.value, "Country", "B1 should contain 'Country'");
 
         // Additional verification with ranges
         let range = xlsx.get_range(worksheet, "A1:B2")?;
@@ -402,12 +402,12 @@ mod tests {
             "A1 should be 'Segment'"
         );
         assert_eq!(
-            range.values[0][1].value, "Government",
-            "B1 should be 'Government'"
+            range.values[0][1].value, "Country",
+            "B1 should be 'Country'"
         );
         assert_eq!(
-            range.values[1][0].value, "Country",
-            "A2 should be 'Country'"
+            range.values[1][0].value, "Government",
+            "A2 should be 'Government'"
         );
         assert_eq!(range.values[1][1].value, "Canada", "B2 should be 'Canada'");
 
