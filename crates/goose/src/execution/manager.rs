@@ -50,23 +50,32 @@ impl AgentManager {
     }
 
     pub async fn configure_default_provider(&self) -> Result<()> {
-        if let Ok(provider_name) = std::env::var("GOOSE_DEFAULT_PROVIDER") {
-            if let Ok(model_name) = std::env::var("GOOSE_DEFAULT_MODEL") {
-                match ModelConfig::new(&model_name) {
-                    Ok(model_config) => match create(&provider_name, model_config) {
-                        Ok(provider) => {
-                            self.set_default_provider(provider).await;
-                            info!(
-                                "Configured default provider: {} with model: {}",
-                                provider_name, model_name
-                            );
-                        }
-                        Err(e) => {
-                            warn!("Failed to create default provider {}: {}", provider_name, e)
-                        }
-                    },
-                    Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
-                }
+        // Try GOOSE_DEFAULT_PROVIDER first (original behavior)
+        let provider_name = std::env::var("GOOSE_DEFAULT_PROVIDER")
+            // Fall back to GOOSE_PROVIDER__TYPE (what UI sets)
+            .or_else(|_| std::env::var("GOOSE_PROVIDER__TYPE"))
+            .ok();
+
+        let model_name = std::env::var("GOOSE_DEFAULT_MODEL")
+            // Fall back to GOOSE_PROVIDER__MODEL (what UI sets)
+            .or_else(|_| std::env::var("GOOSE_PROVIDER__MODEL"))
+            .ok();
+
+        if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
+            match ModelConfig::new(&model_name) {
+                Ok(model_config) => match create(&provider_name, model_config) {
+                    Ok(provider) => {
+                        self.set_default_provider(provider).await;
+                        info!(
+                            "Configured default provider: {} with model: {}",
+                            provider_name, model_name
+                        );
+                    }
+                    Err(e) => {
+                        warn!("Failed to create default provider {}: {}", provider_name, e)
+                    }
+                },
+                Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
             }
         }
         Ok(())
