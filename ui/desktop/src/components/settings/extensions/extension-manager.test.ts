@@ -274,7 +274,7 @@ describe('Extension Manager', () => {
         sessionId: 'test-session',
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
 
@@ -289,7 +289,7 @@ describe('Extension Manager', () => {
         sessionId: 'test-session',
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
 
@@ -307,7 +307,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       // addToConfig is called during the rollback (toggleOff)
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
@@ -326,9 +326,9 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Config failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, undefined);
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
     });
 
     it('should update config even if agent removal fails when toggling off', async () => {
@@ -345,7 +345,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
   });
@@ -364,7 +364,7 @@ describe('Extension Manager', () => {
       expect(mockRemoveFromAgent).toHaveBeenCalledWith(
         'test-extension',
         { isDelete: true },
-        undefined
+        'test-session'
       );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
@@ -385,7 +385,7 @@ describe('Extension Manager', () => {
       expect(mockRemoveFromAgent).toHaveBeenCalledWith(
         'test-extension',
         { isDelete: true },
-        undefined
+        'test-session'
       );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
@@ -407,7 +407,7 @@ describe('Extension Manager', () => {
       expect(mockRemoveFromAgent).toHaveBeenCalledWith(
         'test-extension',
         { isDelete: true },
-        undefined
+        'test-session'
       );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
