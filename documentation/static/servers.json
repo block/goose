@@ -107,6 +107,17 @@
     ]
   },
   {
+    "id": "chrome-devtools-mcp",
+    "name": "Chrome DevTools",
+    "description": "Control and inspect a live Chrome browser",
+    "command": "npx -y chrome-devtools-mcp@latest",
+    "link": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "cloudflare-mcp",
     "name": "Cloudflare",
     "description": "Cloudflare API integration for DNS and domain management",
@@ -336,6 +347,17 @@
     "description": "GitMCP for Goose documentation",
     "command": "npx mcp-remote https://block.gitmcp.io/goose/",
     "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "i-ching",
+    "name": "I Ching",
+    "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
+    "command": "i-ching-mcp-server",
+    "link": "https://github.com/threemachines/i-ching",
+    "installation_notes": "Install from crates.io using: cargo install i-ching",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
@@ -644,6 +666,17 @@
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uv package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+    {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
+    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

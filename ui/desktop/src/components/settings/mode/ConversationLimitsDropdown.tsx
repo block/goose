@@ -7,9 +7,9 @@ interface ConversationLimitsDropdownProps {
   onMaxTurnsChange: (value: number) => void;
 }
 
-export const ConversationLimitsDropdown = ({ 
-  maxTurns, 
-  onMaxTurnsChange 
+export const ConversationLimitsDropdown = ({
+  maxTurns,
+  onMaxTurnsChange,
 }: ConversationLimitsDropdownProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -24,19 +24,17 @@ export const ConversationLimitsDropdown = ({
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all group"
       >
         <h3 className="text-text-default font-medium">Conversation Limits</h3>
-        
-        <ChevronDown 
+
+        <ChevronDown
           className={`w-4 h-4 text-text-muted transition-transform duration-200 ease-in-out ${
             isExpanded ? 'rotate-180' : 'rotate-0'
-          }`} 
+          }`}
         />
       </button>
 
-      <div 
+      <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          isExpanded 
-            ? 'max-h-96 opacity-100 mt-2' 
-            : 'max-h-0 opacity-0 mt-0'
+          isExpanded ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
         }`}
       >
         <div className="space-y-3 pb-2">
