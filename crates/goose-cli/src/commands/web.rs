@@ -11,21 +11,19 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
-use goose::conversation::Conversation;
 
+use axum::response::Redirect;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::error;
 
-type SessionStore = Arc<RwLock<std::collections::HashMap<String, Arc<Mutex<Conversation>>>>>;
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
 
 #[derive(Clone)]
 struct AppState {
     agent: Arc<Agent>,
-    sessions: SessionStore,
     cancellations: CancellationStore,
 }
 
@@ -123,7 +121,6 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 
     let state = AppState {
         agent: Arc::new(agent),
-        sessions: Arc::new(RwLock::new(std::collections::HashMap::new())),
         cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
     };
 
@@ -169,8 +166,19 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
     Ok(())
 }
 
-async fn serve_index() -> Html<&'static str> {
-    Html(include_str!("../../static/index.html"))
+async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
+    match SessionManager::create_session(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        "Web session".to_string(),
+    )
+    .await
+    {
+        Ok(session) => Ok(Redirect::permanent(&format!("/session/{}", session.id))),
+        Err(e) => Err((
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create session: {}", e),
+        )),
+    }
 }
 
 async fn serve_session(
@@ -279,38 +287,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                             session_id,
                             ..
                         }) => {
-                            // Get or create session in memory (for fast access during processing)
-                            let session_messages = {
-                                let sessions = state.sessions.read().await;
-                                if let Some(session) = sessions.get(&session_id) {
-                                    session.clone()
-                                } else {
-                                    drop(sessions);
-                                    let mut sessions = state.sessions.write().await;
-
-                                    let existing_messages =
-                                        SessionManager::get_session(&session_id, true)
-                                            .await
-                                            .unwrap()
-                                            .conversation
-                                            .unwrap_or_default();
-
-                                    let new_session = Arc::new(Mutex::new(existing_messages));
-                                    sessions.insert(session_id.clone(), new_session.clone());
-                                    new_session
-                                }
-                            };
-                            // Clone sender for async processing
                             let sender_clone = sender.clone();
                             let agent = state.agent.clone();
-                            let session_id2 = session_id.clone();
+                            let session_id_clone = session_id.clone();
 
-                            // Process message in a separate task to allow streaming
                             let task_handle = tokio::spawn(async move {
                                 let result = process_message_streaming(
                                     &agent,
-                                    session_messages,
-                                    session_id2,
+                                    session_id_clone,
                                     content,
                                     sender_clone,
                                 )
@@ -321,25 +305,21 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 }
                             });
 
-                            // Store the abort handle
                             {
                                 let mut cancellations = state.cancellations.write().await;
                                 cancellations
                                     .insert(session_id.clone(), task_handle.abort_handle());
                             }
 
-                            // Wait for task completion and handle abort
+                            // Handle task completion and cleanup
                             let sender_for_abort = sender.clone();
                             let session_id_for_cleanup = session_id.clone();
                             let cancellations_for_cleanup = state.cancellations.clone();
 
                             tokio::spawn(async move {
                                 match task_handle.await {
-                                    Ok(_) => {
-                                        // Task completed normally
-                                    }
+                                    Ok(_) => {}
                                     Err(e) if e.is_cancelled() => {
-                                        // Task was aborted
                                         let mut sender = sender_for_abort.lock().await;
                                         let _ = sender
                                             .send(Message::Text(
@@ -359,11 +339,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     }
                                 }
 
-                                // Clean up cancellation token
-                                {
-                                    let mut cancellations = cancellations_for_cleanup.write().await;
-                                    cancellations.remove(&session_id_for_cleanup);
-                                }
+                                let mut cancellations = cancellations_for_cleanup.write().await;
+                                cancellations.remove(&session_id_for_cleanup);
                             });
                         }
                         Ok(WebSocketMessage::Cancel { session_id }) => {
@@ -408,8 +385,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
 async fn process_message_streaming(
     agent: &Agent,
-    session_messages: Arc<Mutex<Conversation>>,
-    _session_id: String,
+    session_id: String,
     content: String,
     sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<()> {
@@ -417,17 +393,8 @@ async fn process_message_streaming(
     use goose::agents::SessionConfig;
     use goose::conversation::message::MessageContent;
 
-
     let user_message = GooseMessage::user().with_text(content.clone());
 
-    // Messages will be auto-compacted in agent.reply() if needed
-    let messages: Conversation = {
-        let mut session_msgs = session_messages.lock().await;
-        session_msgs.push(user_message.clone());
-        session_msgs.clone()
-    };
-
-    // Persist messages to JSONL file with provider for automatic description generation
     let provider = agent.provider().await;
     if provider.is_err() {
         let error_msg = "I'm not properly configured yet. Please configure a provider through the CLI first using `goose configure`.".to_string();
@@ -446,11 +413,12 @@ async fn process_message_streaming(
         return Ok(());
     }
 
-    let session =
-        SessionManager::create_session(std::env::current_dir()?, "Web session".to_string()).await?;
+    let session = SessionManager::get_session(&session_id, true).await?;
+    let mut messages = session.conversation.unwrap_or_default();
+    messages.push(user_message);
 
     let session_config = SessionConfig {
-        id: session.id,
+        id: session.id.clone(),
         working_dir: session.working_dir,
         schedule_id: None,
         execution_mode: None,
@@ -466,16 +434,11 @@ async fn process_message_streaming(
             while let Some(result) = stream.next().await {
                 match result {
                     Ok(AgentEvent::Message(message)) => {
-                        // Add message to our session TODO(Douwe): actually do that
-                        {
-                            let mut session_msgs = session_messages.lock().await;
-                            session_msgs.push(message.clone());
-                        }
-                        // Handle different message content types
+                        SessionManager::add_message(&session_id, &message).await?;
+
                         for content in &message.content {
                             match content {
                                 MessageContent::Text(text) => {
-                                    // Send the text response
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -490,7 +453,6 @@ async fn process_message_streaming(
                                         .await;
                                 }
                                 MessageContent::ToolRequest(req) => {
-                                    // Send tool request notification
                                     let mut sender = sender.lock().await;
                                     if let Ok(tool_call) = &req.tool_call {
                                         let _ = sender
@@ -508,13 +470,8 @@ async fn process_message_streaming(
                                             .await;
                                     }
                                 }
-                                MessageContent::ToolResponse(_resp) => {
-                                    // Tool responses are already included in the complete message stream
-                                    // and will be persisted to session history. No need to send separate
-                                    // WebSocket messages as this would cause duplicates.
-                                }
+                                MessageContent::ToolResponse(_resp) => {}
                                 MessageContent::ToolConfirmationRequest(confirmation) => {
-                                    // Send tool confirmation request
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -531,8 +488,6 @@ async fn process_message_streaming(
                                         ))
                                         .await;
 
-                                    // For now, auto-approve in web mode
-                                    // TODO: Implement proper confirmation UI
                                     agent.handle_confirmation(
                                         confirmation.id.clone(),
                                         goose::permission::PermissionConfirmation {
@@ -542,7 +497,6 @@ async fn process_message_streaming(
                                     ).await;
                                 }
                                 MessageContent::Thinking(thinking) => {
-                                    // Send thinking indicator
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -555,7 +509,6 @@ async fn process_message_streaming(
                                         .await;
                                 }
                                 MessageContent::ContextLengthExceeded(msg) => {
-                                    // Send context exceeded notification
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -569,18 +522,15 @@ async fn process_message_streaming(
                                         ))
                                         .await;
 
-                                    // For now, auto-summarize in web mode
-                                    // TODO: Implement proper UI for context handling
                                     let (summarized_messages, _, _) =
                                         agent.summarize_context(messages.messages()).await?;
-                                    {
-                                        let mut session_msgs = session_messages.lock().await;
-                                        *session_msgs = summarized_messages;
-                                    }
+                                    SessionManager::replace_conversation(
+                                        &session_id,
+                                        &summarized_messages,
+                                    )
+                                    .await?;
                                 }
-                                _ => {
-                                    // Handle other message types as needed
-                                }
+                                _ => {}
                             }
                         }
                     }
@@ -588,15 +538,11 @@ async fn process_message_streaming(
                         tracing::info!("History replaced, compacting happened in reply");
                     }
                     Ok(AgentEvent::McpNotification(_notification)) => {
-                        // Handle MCP notifications if needed
-                        // For now, we'll just log them
                         tracing::info!("Received MCP notification in web interface");
                     }
                     Ok(AgentEvent::ModelChange { model, mode }) => {
-                        // Log model change
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
-
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         let mut sender = sender.lock().await;
@@ -629,7 +575,9 @@ async fn process_message_streaming(
         }
     }
 
-    // Send completion message
+    let provider = agent.provider().await?;
+    SessionManager::maybe_update_description(&session_id, provider).await?;
+
     let mut sender = sender.lock().await;
     let _ = sender
         .send(Message::Text(
