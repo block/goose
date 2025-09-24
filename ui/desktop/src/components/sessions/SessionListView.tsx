@@ -162,10 +162,25 @@ interface SearchContainerElement extends HTMLDivElement {
   _searchHighlighter: SearchHighlighter | null;
 }
 
-// Helper function to determine if a session was created by the scheduler
+/**
+ * Determines if a session was created by the scheduler system.
+ * Uses dual detection logic to handle both current and legacy scheduler sessions.
+ * 
+ * Detection methods:
+ * 1. Primary: Check for non-null schedule_id metadata (current scheduler sessions)
+ * 2. Secondary: Pattern matching for timestamp-based session IDs (legacy fallback)
+ * 
+ * @param session - The session object to analyze
+ * @returns true if the session appears to be scheduler-generated
+ */
 // Optimized for performance with early returns and cached regex
-const timestampRegex = /^\d{8}_\d{6}$/;
+// Regex pattern for scheduler-generated timestamp IDs (YYYYMMDD_HHMMSS format)
+const SCHEDULER_TIMESTAMP_PATTERN = /^\d{8}_\d{6}$/;
 const isSchedulerSession = (session: Session): boolean => {
+  // Guard against malformed session data
+  if (!session || !session.metadata) {
+    return false;
+  }
   // Check if the session has a schedule_id (any schedule_id indicates it's a scheduler session)
   const scheduleId = session.metadata.schedule_id;
   
@@ -184,7 +199,7 @@ const isSchedulerSession = (session: Session): boolean => {
   
   // Tertiary check: timestamp-only descriptions (scheduler often generates these)
   // This catches scheduler sessions that have null schedule_id due to bugs
-  if (description === session.id && timestampRegex.test(session.id)) {
+  if (description === session.id && SCHEDULER_TIMESTAMP_PATTERN.test(session.id)) {
     return true;
   }
   
