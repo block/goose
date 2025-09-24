@@ -1,10 +1,11 @@
-import React, { useState, useEffect, memo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
-
-const CodeBlock = lazy(() => import('./CodeBlock'));
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -15,33 +16,93 @@ interface MarkdownContentProps {
   className?: string;
 }
 
-const LightweightCodeBlock = function LightweightCodeBlock({
+// Memoized CodeBlock component to prevent re-rendering when props haven't changed
+const CodeBlock = memo(function CodeBlock({
+  language,
   children,
 }: {
-  children: React.ReactNode;
+  language: string;
+  children: string;
 }) {
-  return (
-    // This mimics the code block from react-syntax-highlighter, but without the actual highlighting,
-    // just so we have a fallback that isn't too jarringly different while the highlighter lazy-loads
-    <div
-      style={{
-        background: 'rgb(40, 44, 52)',
-        color: 'rgb(171, 178, 191)',
-        whiteSpace: 'pre',
-        lineHeight: 1.5,
-        tabSize: 2,
-        padding: '1em',
-        margin: '0px',
-        overflow: 'auto',
-        borderRadius: '0.3em',
-      }}
-    >
-      <code className="break-all whitespace-pre-wrap" style={{ fontFamily: 'monospace' }}>
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(children);
+      setCopied(true);
+
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Memoize the SyntaxHighlighter component to prevent re-rendering
+  // Only re-render if language or children change
+  const memoizedSyntaxHighlighter = useMemo(() => {
+    // For very large code blocks, consider truncating or lazy loading
+    const isLargeCodeBlock = children.length > 10000; // 10KB threshold
+
+    if (isLargeCodeBlock) {
+      console.log(`Large code block detected (${children.length} chars), consider optimization`);
+    }
+
+    return (
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          width: '100%',
+          maxWidth: '100%',
+        }}
+        codeTagProps={{
+          style: {
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            overflowWrap: 'break-word',
+            fontFamily: 'var(--font-sans)',
+          },
+        }}
+        // Performance optimizations for SyntaxHighlighter
+        showLineNumbers={false} // Disable line numbers for better performance
+        wrapLines={false} // Disable line wrapping for better performance
+        lineProps={undefined} // Don't add extra props to each line
+      >
         {children}
-      </code>
+      </SyntaxHighlighter>
+    );
+  }, [language, children]);
+
+  return (
+    <div className="relative group w-full">
+      <button
+        onClick={handleCopy}
+        className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300 font-sans text-sm
+                 opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                 hover:bg-gray-600/50 hover:text-gray-100 z-10"
+        title="Copy code"
+      >
+        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+      </button>
+      <div className="w-full overflow-x-auto">{memoizedSyntaxHighlighter}</div>
     </div>
   );
-};
+});
 
 const MarkdownCode = memo(
   React.forwardRef(function MarkdownCode(
@@ -50,11 +111,9 @@ const MarkdownCode = memo(
   ) {
     const match = /language-(\w+)/.exec(className || '');
     return !inline && match ? (
-      <Suspense fallback={<LightweightCodeBlock>{children}</LightweightCodeBlock>}>
-        <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
-      </Suspense>
+      <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
+      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-sans">
         {children}
       </code>
     );
