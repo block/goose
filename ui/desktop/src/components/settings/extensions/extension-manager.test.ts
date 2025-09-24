@@ -50,7 +50,7 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledWith(
         mockExtensionConfig,
         { silent: false },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
@@ -70,7 +70,7 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledWith(
         mockExtensionConfig,
         { silent: false },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
@@ -91,10 +91,10 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledWith(
         mockExtensionConfig,
         { silent: false },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, undefined);
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
     });
   });
 
@@ -108,7 +108,11 @@ describe('Extension Manager', () => {
         extensionConfig: mockExtensionConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: true }, undefined);
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: true },
+        'test-session'
+      );
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
@@ -125,7 +129,7 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledWith(
         mockExtensionConfig,
         { silent: false },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
@@ -185,7 +189,7 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'test-extension' },
         { silent: true },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'test-extension',
@@ -217,13 +221,13 @@ describe('Extension Manager', () => {
       expect(mockRemoveFromAgent).toHaveBeenCalledWith(
         'old-extension',
         { silent: true },
-        undefined
+        'test-session'
       );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('old-extension');
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'new-extension' },
         { silent: true },
-        undefined
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'new-extension',

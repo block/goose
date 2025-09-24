@@ -74,7 +74,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify(mockExtensionConfig),
+        body: JSON.stringify({ ...mockExtensionConfig, session_id: 'test-session' }),
       });
 
       expect(mockToastService.loading).toHaveBeenCalledWith({
@@ -110,7 +110,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify({ name: 'test-extension' }),
+        body: JSON.stringify({ name: 'test-extension', session_id: 'test-session' }),
       });
 
       expect(mockToastService.loading).not.toHaveBeenCalled(); // No loading toast for removal
@@ -264,6 +264,7 @@ describe('Agent API', () => {
           ...mockExtensionConfig,
           name: 'testextension',
           cmd: '/path/to/python',
+          session_id: 'test-session',
         }),
       });
     });
@@ -305,6 +306,7 @@ describe('Agent API', () => {
         body: JSON.stringify({
           ...sseConfig,
           name: 'sseextension',
+          session_id: 'test-session',
         }),
       });
     });
@@ -326,7 +328,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify({ name: 'testextension' }),
+        body: JSON.stringify({ name: 'testextension', session_id: 'test-session' }),
       });
     });
 
