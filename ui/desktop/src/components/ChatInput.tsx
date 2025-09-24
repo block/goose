@@ -1651,7 +1651,7 @@ export default function ChatInput({
               onClick={handleFileSelect}
               variant="ghost"
               size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
               <Attach className="w-4 h-4 min-[1050px]:mr-1" />
               <span className="text-xs hidden min-[1050px]:inline">Attach</span>
@@ -1690,7 +1690,6 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-<<<<<<< HEAD
           <div className="flex items-center h-full">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1722,38 +1721,6 @@ export default function ChatInput({
               <TooltipContent>Generate diagnostics bundle</TooltipContent>
             </Tooltip>
           )}
-||||||| parent of 4d50846dc5 (feat: Standardize bottom bar component styling and add responsive design)
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
-=======
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => setIsGoosehintsModalOpen?.(true)}
-                variant="ghost"
-                size="sm"
-                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
-              >
-                <FolderKey size={16} className="min-[1050px]:mr-1" />
-                <span className="text-xs hidden min-[1050px]:inline">Hints</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Configure goosehints</TooltipContent>
-          </Tooltip>
->>>>>>> 4d50846dc5 (feat: Standardize bottom bar component styling and add responsive design)
         </div>
 
         {sessionId && diagnosticsOpen && (
