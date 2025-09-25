@@ -151,8 +151,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       textarea.style.minHeight = 'auto';
       textarea.style.maxHeight = 'none';
       
+      // Also reset display constraints
+      display.style.height = 'auto';
+      display.style.minHeight = 'auto';
+      display.style.maxHeight = 'none';
+      
+      // Reset display content constraints too
+      const displayContent = display.firstElementChild as HTMLElement;
+      if (displayContent) {
+        displayContent.style.minHeight = 'auto';
+        displayContent.style.height = 'auto';
+      }
+      
       // Force a reflow to ensure the browser recalculates dimensions
       textarea.offsetHeight;
+      display.offsetHeight;
       
       const textareaScrollHeight = textarea.scrollHeight;
       
@@ -178,10 +191,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       
       // Force the display layer to have the same scrollable content area
       // This ensures that when the textarea scrolls, the display can show the same content
-      const displayContent = display.firstElementChild as HTMLElement;
       if (displayContent) {
-        // Make sure the content area matches the textarea's scroll height
-        displayContent.style.minHeight = `${textareaScrollHeight}px`;
+        // Only set minHeight if content is taller than the container, otherwise let it be natural
+        if (textareaScrollHeight > finalHeight) {
+          displayContent.style.minHeight = `${textareaScrollHeight}px`;
+        } else {
+          displayContent.style.minHeight = 'auto';
+        }
       }
       
       // Sync scroll positions
@@ -189,10 +205,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       display.scrollLeft = textarea.scrollLeft;
       
       console.log('🔄 SYNC HEIGHT:', {
+        value: textarea.value,
+        valueLength: textarea.value.length,
         textareaScrollHeight,
         desiredHeight,
         finalHeight,
         maxHeight,
+        minHeight,
         scrollTop: textarea.scrollTop,
         textareaHeight: textarea.style.height,
         displayHeight: display.style.height,
