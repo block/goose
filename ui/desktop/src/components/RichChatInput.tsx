@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { checkSpelling, MisspelledWord } from '../utils/smartSpellCheck';
+import { checkSpelling, MisspelledWord } from '../utils/realSpellCheck';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
