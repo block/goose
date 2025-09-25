@@ -43,6 +43,7 @@ pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
 pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
 pub const BEDROCK_DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
 pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
+pub const BEDROCK_MAX_MODEL_RESULTS: i32 = 500;
 
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
@@ -181,7 +182,57 @@ impl BedrockProvider {
         }
     }
 
-    async fn fetch_on_demand_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_inference_profiles(&self, profile_type: aws_sdk_bedrock::types::InferenceProfileType) -> Result<Vec<String>, ProviderError> {
+        let bedrock_control_client = Client::new(&self.sdk_config);
+        let response = bedrock_control_client
+            .list_inference_profiles()
+            .max_results(BEDROCK_MAX_MODEL_RESULTS)
+            .type_equals(profile_type.clone())
+            .send()
+            .await
+            .map_err(|err| { match err.into_service_error() {
+                    ListInferenceProfilesError::AccessDeniedException(bedrock_err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
+                    }
+                    ListInferenceProfilesError::ThrottlingException(bedrock_err) => {
+                        ProviderError::RateLimitExceeded(format!(
+                            "Bedrock throttling error: {:?}",
+                            bedrock_err
+                        ))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+                }
+            });
+
+        match response {
+            Ok(profiles_result) => {
+                let profiles: Vec<String> = match profiles_result.inference_profile_summaries {
+                    Some(summaries) => {
+                        summaries
+                            .into_iter()
+                            .map(|s| {
+                                match profile_type {
+                                    aws_sdk_bedrock::types::InferenceProfileType::SystemDefined => s.inference_profile_id().to_string(),
+                                    aws_sdk_bedrock::types::InferenceProfileType::Application => s.inference_profile_arn().to_string(),
+                                    _ => s.inference_profile_arn().to_string()
+                                }
+                            })
+                            .collect()
+                    }
+                    None => {
+                        Vec::new()
+                    }
+                };
+
+                Ok(profiles)
+            }
+            Err(err) => {
+                return Err(err)
+            }
+        }
+    }
+
+    async fn fetch_foundation_models(&self) -> Result<Vec<String>, ProviderError> {
         let bedrock_control_client = Client::new(&self.sdk_config);
         let response = bedrock_control_client
             .list_foundation_models()
@@ -204,7 +255,7 @@ impl BedrockProvider {
 
         match response {
             Ok(models_result) => {
-                let mut models: Vec<String> = match models_result.model_summaries {
+                let models: Vec<String> = match models_result.model_summaries {
                     Some(summaries) => {
                         summaries
                             .into_iter()
@@ -217,55 +268,6 @@ impl BedrockProvider {
                         Vec::new()
                     }
                 };
-
-                models.sort();
-
-                Ok(models)
-            }
-            Err(err) => {
-                return Err(err)
-            }
-        }
-    }
-
-    async fn fetch_inference_profiles(&self) -> Result<Vec<String>, ProviderError> {
-        let bedrock_control_client = Client::new(&self.sdk_config);
-        let response = bedrock_control_client
-            .list_inference_profiles()
-            .type_equals(aws_sdk_bedrock::types::InferenceProfileType::Application)
-            .send()
-            .await
-            .map_err(|err| { match err.into_service_error() {
-                    ListInferenceProfilesError::AccessDeniedException(bedrock_err) => {
-                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
-                    }
-                    ListInferenceProfilesError::ThrottlingException(bedrock_err) => {
-                        ProviderError::RateLimitExceeded(format!(
-                            "Bedrock throttling error: {:?}",
-                            bedrock_err
-                        ))
-                    }
-                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
-                }
-            });
-
-        match response {
-            Ok(profiles_result) => {
-                let mut models: Vec<String> = match profiles_result.inference_profile_summaries {
-                    Some(profiles) => {
-                        profiles
-                            .into_iter()
-                            .map(|s| {
-                                s.inference_profile_arn().to_string()
-                            })
-                            .collect()
-                    }
-                    None => {
-                        Vec::new()
-                    }
-                };
-
-                models.sort();
 
                 Ok(models)
             }
@@ -342,22 +344,38 @@ impl Provider for BedrockProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let mut profile_results = match self.fetch_inference_profiles().await {
+        let mut application_profiles = match self.fetch_inference_profiles(aws_sdk_bedrock::types::InferenceProfileType::Application).await {
             Ok(profiles) => profiles,
             Err(profile_error) => return Err(profile_error)
         };
 
-        let mut model_results = match self.fetch_on_demand_models().await {
+        let mut system_profiles = match self.fetch_inference_profiles(aws_sdk_bedrock::types::InferenceProfileType::SystemDefined).await {
+            Ok(profiles) => profiles,
+            Err(profile_error) => return Err(profile_error)
+        };
+
+        let mut foundation_models = match self.fetch_foundation_models().await {
             Ok(models) => models,
             Err(model_error) => return Err(model_error)
         };
 
+        // System profiles and foundation models are invokable
+        // by ID not ARN. But some models have a profile and
+        // some don't. Some models require the profile, so they
+        // aren't in the bare list of foundation models. As a result,
+        // we need to combine the two lists and dedupe.
+        system_profiles.append(&mut foundation_models);
+        
+        system_profiles.sort_unstable();
+        system_profiles.dedup();
+
         // We want application inference profiles before
         // the list of available on demand models since
-        // they are user created and more likely to be what
-        // they want.
-        profile_results.append(&mut model_results);
+        // they are user/account created and more likely
+        // to be what they want to use.
+        application_profiles.sort_unstable();        
+        application_profiles.append(&mut system_profiles);
 
-        Ok(Some(profile_results))
+        Ok(Some(application_profiles))
     }
 }
