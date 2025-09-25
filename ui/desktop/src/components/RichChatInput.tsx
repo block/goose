@@ -964,7 +964,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           border: 'none',
           outline: 'none',
           resize: 'none',
-          color: 'rgba(0, 0, 0, 0)', // Fully transparent text but allows selection
+          color: 'transparent', // Use CSS transparent instead of rgba
           caretColor: 'transparent', // Hide caret (we show our own)
           pointerEvents: 'auto', // Ensure it can receive mouse events
           fontFamily: 'Cash Sans, sans-serif', // Match exact font
@@ -975,6 +975,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
+          WebkitTextFillColor: 'transparent', // Webkit-specific transparent text
         }}
         rows={rows}
       />
