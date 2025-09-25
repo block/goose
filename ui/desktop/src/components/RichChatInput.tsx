@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { checkSpelling, MisspelledWord } from '../utils/smartSpellCheck';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
@@ -101,7 +102,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const displayRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number }[]>([]);
+  const [misspelledWords, setMisspelledWords] = useState<MisspelledWord[]>([]);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
