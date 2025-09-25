@@ -15,6 +15,7 @@ pub const GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR: &str = "GOOSE_SUBAGENT_MAX_TURNS";
 pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
+    pub parent_session_id: Option<String>,
     pub max_turns: Option<usize>,
     pub extensions: Option<Vec<crate::agents::extension::ExtensionConfig>>,
 }
@@ -32,10 +33,11 @@ impl fmt::Debug for TaskConfig {
 
 impl TaskConfig {
     /// Create a new TaskConfig with all required dependencies
-    pub fn new(provider: Option<Arc<dyn Provider>>) -> Self {
+    pub fn new(provider: Option<Arc<dyn Provider>>, parent_session_id: Option<String>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             provider,
+            parent_session_id,
             max_turns: Some(
                 env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
                     .ok()

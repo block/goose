@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -43,6 +44,8 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::ExtensionState;
+use crate::session::{extension_data, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -457,8 +460,19 @@ impl Agent {
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
+            let parent_session_id: Option<String> = session.as_ref().and_then(|session_config| {
+                if let Identifier::Path(path_str) = &session_config.id {
+                    // Convert string to Path and extract the file stem (filename without extension)
+                    let path = Path::new(path_str);
+                    path.file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .map(|stem| stem.to_string())
+                } else {
+                    None
+                }
+            });
 
-            let task_config = TaskConfig::new(provider);
+            let task_config = TaskConfig::new(provider, parent_session_id);
             subagent_execute_task_tool::run_tasks(
                 arguments,
                 task_config,
