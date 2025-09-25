@@ -23,6 +23,7 @@ use crate::providers::retry::ProviderRetry;
 use rmcp::model::Tool;
 
 const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
+const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet-latest";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-0",
     "claude-sonnet-4-20250514",
@@ -30,8 +31,6 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-20250514",
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-latest",
     "claude-3-opus-latest",
 ];
 
@@ -50,6 +49,8 @@ impl_provider_default!(AnthropicProvider);
 
 impl AnthropicProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
@@ -179,16 +180,17 @@ impl Provider for AnthropicProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        let payload = create_request(model_config, system, messages, tools)?;
 
         let response = self
             .with_retry(|| async { self.post(&payload).await })
@@ -201,9 +203,9 @@ impl Provider for AnthropicProvider {
         tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
-        let model = get_model(&json_response);
+        let response_model = get_model(&json_response);
         emit_debug_trace(&self.model, &payload, &json_response, &usage);
-        let provider_usage = ProviderUsage::new(model, usage);
+        let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
             provider_usage
@@ -271,7 +273,7 @@ impl Provider for AnthropicProvider {
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
-        let model_config = self.model.clone();
+        let model = self.model.clone();
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
@@ -280,7 +282,7 @@ impl Provider for AnthropicProvider {
             pin!(message_stream);
             while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
             }
         }))

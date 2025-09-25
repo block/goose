@@ -1,0 +1,8 @@
+{
+  "label": "Managing Sessions",
+  "position": 1,
+  "link": {
+    "type": "doc",
+    "id": "guides/sessions/index"
+  }
+}

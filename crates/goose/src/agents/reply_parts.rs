@@ -1,9 +1,9 @@
 use anyhow::Result;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
+use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
@@ -52,8 +52,7 @@ impl Agent {
         }
 
         // Prepare system prompt
-        let extension_manager = self.extension_manager.read().await;
-        let extensions_info = extension_manager.get_extensions_info().await;
+        let extensions_info = self.extension_manager.get_extensions_info().await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -64,7 +63,9 @@ impl Agent {
         let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
-            extension_manager.suggest_disable_extensions_prompt().await,
+            self.extension_manager
+                .suggest_disable_extensions_prompt()
+                .await,
             Some(model_name),
             router_enabled,
         );
@@ -81,28 +82,6 @@ impl Agent {
         }
 
         Ok((tools, toolshim_tools, system_prompt))
-    }
-
-    /// Categorize tools based on their annotations
-    /// Returns:
-    /// - read_only_tools: Tools with read-only annotations
-    /// - non_read_tools: Tools without read-only annotations
-    pub(crate) fn categorize_tools_by_annotation(
-        tools: &[Tool],
-    ) -> (HashSet<String>, HashSet<String>) {
-        tools
-            .iter()
-            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
-                match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
-                        acc.0.insert(tool.name.to_string());
-                    }
-                    _ => {
-                        acc.1.insert(tool.name.to_string());
-                    }
-                }
-                acc
-            })
     }
 
     /// Generate a response from the LLM provider
@@ -172,14 +151,18 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            provider
+            debug!("WAITING_LLM_STREAM_START");
+            let msg_stream = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?
+                .await?;
+            debug!("WAITING_LLM_STREAM_END");
+            msg_stream
         } else {
+            debug!("WAITING_LLM_START");
             let (message, mut usage) = provider
                 .complete(
                     system_prompt.as_str(),
@@ -187,6 +170,7 @@ impl Agent {
                     &tools,
                 )
                 .await?;
+            debug!("WAITING_LLM_END");
 
             // Ensure we have token counts for non-streaming case
             usage
@@ -261,12 +245,13 @@ impl Agent {
             }
         }
 
-        let filtered_message = Message {
-            id: response.id.clone(),
-            role: response.role.clone(),
-            created: response.created,
-            content: filtered_content,
-        };
+        let mut filtered_message =
+            Message::new(response.role.clone(), response.created, filtered_content);
+
+        // Preserve the ID if it exists
+        if let Some(id) = response.id.clone() {
+            filtered_message = filtered_message.with_id(id);
+        }
 
         // Categorize tool requests
         let mut frontend_requests = Vec::new();

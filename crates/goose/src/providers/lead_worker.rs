@@ -326,8 +326,9 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.get_model_config()
     }
 
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -475,8 +476,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -488,6 +490,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: format!("Response from {}", self.name),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -635,8 +638,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -653,6 +657,7 @@ mod tests {
                         vec![MessageContent::Text(
                             RawTextContent {
                                 text: format!("Response from {}", self.name),
+                                meta: None,
                             }
                             .no_annotation(),
                         )],

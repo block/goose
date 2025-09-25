@@ -12,10 +12,11 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
+Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
+
 :::tip Tutorials
 Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
 :::
-
 
 ## Built-in Extensions
 Out of the box, Goose is installed with a few extensions but with only the `Developer` extension enabled by default.
@@ -26,6 +27,7 @@ Here are the built-in extensions:
 - [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
 - [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it.
 - [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about Goose.
+- [Auto Visualiser](/docs/mcp/autovisualiser-mcp): Automatically generates graphical data visualizations in conversations.
 
 
 #### Toggling Built-in Extensions
@@ -104,6 +106,10 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 ## Adding Extensions
 
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
+
+:::warning Airgapped Environments
+If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting#airgappedoffline-environment-issues) for workarounds.
+:::
 
 ### MCP Servers
 
@@ -660,4 +666,4 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 
 Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
-[extensions-directory]: https://block.github.io/goose/v1/extensions
+[extensions-directory]: /extensions

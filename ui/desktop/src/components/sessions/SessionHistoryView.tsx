@@ -11,7 +11,7 @@ import {
   LoaderCircle,
   AlertCircle,
 } from 'lucide-react';
-import { type SessionDetails } from '../../sessions';
+import { resumeSession, type SessionDetails } from '../../sessions';
 import { Button } from '../ui/button';
 import { toast } from 'react-toastify';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -28,7 +28,7 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
+import { ContextManagerProvider } from '../context_management/ContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
@@ -38,14 +38,11 @@ const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
   }
-  if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-    return false;
-  }
-  return true;
+  return !message.content.every((c) => c.type === 'toolConfirmationRequest');
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages.filter((message) => message.display ?? true);
+  return messages;
 };
 
 interface SessionHistoryViewProps {
@@ -106,13 +103,13 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ChatContextManagerProvider>
+            <ContextManagerProvider>
               <div className="max-w-4xl mx-auto w-full">
                 <SearchView>
                   <ProgressiveMessageList
                     messages={filteredMessages}
                     chat={{
-                      id: 'session-preview',
+                      sessionId: 'session-preview',
                       messageHistoryIndex: filteredMessages.length,
                     }}
                     toolCallNotifications={new Map()}
@@ -128,7 +125,7 @@ const SessionMessages: React.FC<{
                   />
                 </SearchView>
               </div>
-            </ChatContextManagerProvider>
+            </ContextManagerProvider>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />
@@ -189,7 +186,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         session.metadata.working_dir,
         session.messages,
         session.metadata.description || 'Shared Session',
-        session.metadata.total_tokens
+        session.metadata.total_tokens || 0
       );
 
       const shareableLink = `goose://sessions/${shareToken}`;
@@ -219,31 +216,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   };
 
   const handleLaunchInNewWindow = () => {
-    if (session) {
-      console.log('Launching session in new window:', session.session_id);
-      console.log('Session details:', session);
-
-      // Get the working directory from the session metadata
-      const workingDir = session.metadata?.working_dir;
-
-      if (workingDir) {
-        console.log(
-          `Opening new window with session ID: ${session.session_id}, in working dir: ${workingDir}`
-        );
-
-        // Create a new chat window with the working directory and session ID
-        window.electron.createChatWindow(
-          undefined, // query
-          workingDir, // dir
-          undefined, // version
-          session.session_id // resumeSessionId
-        );
-
-        console.log('createChatWindow called successfully');
-      } else {
-        console.error('No working directory found in session metadata');
-        toast.error('Could not launch session: Missing working directory');
-      }
+    try {
+      resumeSession(session);
+    } catch (error) {
+      toast.error(`Could not launch session: ${error instanceof Error ? error.message : error}`);
     }
   };
 
@@ -312,7 +288,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                     {session.metadata.total_tokens !== null && (
                       <span className="flex items-center">
                         <Target className="w-4 h-4 mr-1" />
-                        {session.metadata.total_tokens.toLocaleString()}
+                        {(session.metadata.total_tokens || 0).toLocaleString()}
                       </span>
                     )}
                   </div>

@@ -20,12 +20,12 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 
 ### CLI and Desktop Formats
 
-The Goose CLI supports CLI and Desktop recipe formats:
+Goose recipes use two formats:
 
-- **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file
-- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level
+- **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file. This format is used when recipes are created via the CLI `/recipe` command and [Recipe Generator](/recipe-generator) YAML option.
+- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level. This format is used when recipes are created from Goose Desktop.
 
-The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands.
+The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands. The Desktop can [import](/docs/guides/recipes/storing-recipes#importing-recipes) and use YAML recipes (or deeplinks) in either CLI or Desktop format.
 
 <details>
 <summary>Format Examples</summary>
@@ -213,7 +213,7 @@ The `settings` field allows you to configure the AI model and provider settings 
 ```yaml
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 ```
 
@@ -459,7 +459,7 @@ extensions:
 
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 
 retry:

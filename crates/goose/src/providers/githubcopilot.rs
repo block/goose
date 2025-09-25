@@ -30,11 +30,11 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "o1",
     "o3-mini",
     "claude-3.7-sonnet",
-    "claude-3.5-sonnet",
+    "claude-sonnet-4-20250514",
 ];
 
 pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-3.5-sonnet"];
+    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4-20250514"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -401,16 +401,17 @@ impl Provider for GithubCopilotProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request with retry
         let response = self
@@ -426,9 +427,9 @@ impl Provider for GithubCopilotProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present

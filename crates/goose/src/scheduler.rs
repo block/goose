@@ -1298,6 +1298,8 @@ async fn run_scheduled_job_internal(
                             accumulated_total_tokens: None,
                             accumulated_input_tokens: None,
                             accumulated_output_tokens: None,
+                            extension_data: crate::session::ExtensionData::new(),
+                            recipe: None,
                         };
                         if let Err(e_fb) = crate::session::storage::save_messages_with_metadata(
                             &session_file_path,
@@ -1390,8 +1392,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -1403,6 +1406,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Mocked scheduled response".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

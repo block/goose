@@ -120,6 +120,50 @@ pub async fn check_compaction_needed(
     })
 }
 
+/// Perform compaction on messages without checking thresholds
+///
+/// This function directly performs compaction on the provided messages.
+/// If the most recent message is a user message, it will be preserved by removing it
+/// before compaction and adding it back afterwards.
+///
+/// # Arguments
+/// * `agent` - The agent to use for context management
+/// * `messages` - The current message history
+///
+/// # Returns
+/// * `AutoCompactResult` containing the compacted messages and metadata
+pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
+    info!("Performing message compaction");
+
+    // Check if the most recent message is a user message
+    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
+    {
+        if matches!(last_message.role, rmcp::model::Role::User) {
+            // Remove the last user message before compaction
+            (&messages[..messages.len() - 1], Some(last_message.clone()))
+        } else {
+            (messages, None)
+        }
+    } else {
+        (messages, None)
+    };
+
+    // Perform the compaction on messages excluding the preserved user message
+    let (mut compacted_messages, _, summarization_usage) =
+        agent.summarize_context(messages_to_compact).await?;
+
+    // Add back the preserved user message if it exists
+    if let Some(user_message) = preserved_user_message {
+        compacted_messages.push(user_message);
+    }
+
+    Ok(AutoCompactResult {
+        compacted: true,
+        messages: compacted_messages,
+        summarization_usage,
+    })
+}
+
 /// Check if messages need compaction and compact them if necessary
 ///
 /// This is a convenience wrapper function that combines checking and compaction.
@@ -177,17 +221,19 @@ pub async fn check_and_compact_messages(
     };
 
     // Perform the compaction on messages excluding the preserved user message
-    let (mut compacted_messages, _, summarization_usage) =
+    // The summarize_context method already handles the visibility properly
+    let (mut summary_messages, _, summarization_usage) =
         agent.summarize_context(messages_to_compact).await?;
 
     // Add back the preserved user message if it exists
+    // (keeps default visibility: both true)
     if let Some(user_message) = preserved_user_message {
-        compacted_messages.push(user_message);
+        summary_messages.push(user_message);
     }
 
     Ok(AutoCompactResult {
         compacted: true,
-        messages: compacted_messages,
+        messages: summary_messages,
         summarization_usage,
     })
 }
@@ -221,8 +267,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -235,6 +282,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Summary of conversation".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -268,6 +316,8 @@ mod tests {
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
+            extension_data: crate::session::ExtensionData::new(),
+            recipe: None,
         }
     }
 
@@ -432,8 +482,9 @@ mod tests {
             );
         }
 
-        // Should have fewer messages (summarized)
-        assert!(result.messages.len() <= messages.len());
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]
@@ -593,6 +644,8 @@ mod tests {
             create_test_message("First message"),
             create_test_message("Second message"),
             create_test_message("Third message"),
+            create_test_message("Fourth message"),
+            create_test_message("Fifth message"),
         ];
 
         // Create session metadata with high token count to trigger compaction
@@ -615,8 +668,10 @@ mod tests {
 
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
-        // Should have fewer messages after compaction
-        assert!(result.messages.len() <= messages.len());
+
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]

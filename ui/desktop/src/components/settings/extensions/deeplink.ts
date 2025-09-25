@@ -1,6 +1,5 @@
 import type { ExtensionConfig } from '../../../api';
 import { toastService } from '../../../toasts';
-import { activateExtension } from './extension-manager';
 import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
 
 /**
@@ -14,7 +13,7 @@ function getStdioConfig(
   timeout: number
 ) {
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['cu', 'docker', 'jbang', 'npx', 'uvx', 'goosed', 'npx.cmd'];
+  const allowedCommands = ['cu', 'docker', 'jbang', 'npx', 'uvx', 'goosed', 'npx.cmd', 'i-ching-mcp-server'];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(
       'Invalid Command',
@@ -166,9 +165,13 @@ export async function addExtensionFromDeepLink(
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
-  // Check if extension requires env vars and go to settings if so
-  if (config.envs && Object.keys(config.envs).length > 0) {
-    console.log('Environment variables required, redirecting to settings');
+  // Check if extension requires env vars or headers and go to settings if so
+  const hasEnvVars = config.envs && Object.keys(config.envs).length > 0;
+  const hasHeaders =
+    config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
+
+  if (hasEnvVars || hasHeaders) {
+    console.log('Environment variables or headers required, redirecting to settings');
     console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
     setView('settings', { deepLinkConfig: config, showEnvVars: true });
     return;
@@ -176,7 +179,11 @@ export async function addExtensionFromDeepLink(
 
   try {
     console.log('No env vars required, activating extension directly');
-    await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
+    // Note: deeplink activation doesn't have access to sessionId
+    // The extension will be added to config but not activated in the current session
+    // It will be activated when the next session starts
+    console.warn('Extension will be added to config but requires a session to activate');
+    await addExtensionFn(config.name, config, true);
   } catch (error) {
     console.error('Failed to activate extension from deeplink:', error);
     throw error;

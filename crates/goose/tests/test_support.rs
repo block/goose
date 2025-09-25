@@ -411,5 +411,7 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_total_tokens: Some(100),
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
+        extension_data: Default::default(),
+        recipe: None,
     }
 }

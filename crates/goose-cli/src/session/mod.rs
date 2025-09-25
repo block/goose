@@ -374,6 +374,7 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
+        let message_text = message.as_concat_text();
 
         self.push_message(message);
         // Get the provider from the agent for description generation
@@ -393,6 +394,24 @@ impl Session {
                 working_dir,
             )
             .await?;
+        }
+
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) = crate::project_tracker::update_project_tracker(
+            Some(&message_text),
+            session_id.as_deref(),
+        ) {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
         }
 
         self.process_agent_response(false, cancel_token).await?;
@@ -473,6 +492,21 @@ impl Session {
 
                             self.push_message(Message::user().with_text(&content));
 
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
+
                             let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
@@ -490,9 +524,18 @@ impl Session {
                             }
 
                             output::show_thinking();
+                            let start_time = Instant::now();
                             self.process_agent_response(true, CancellationToken::default())
                                 .await?;
                             output::hide_thinking();
+
+                            // Display elapsed time
+                            let elapsed = start_time.elapsed();
+                            let elapsed_str = format_elapsed_time(elapsed);
+                            println!(
+                                "\n{}",
+                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                            );
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -581,7 +624,7 @@ impl Session {
                     // Check if mode is valid
                     if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
                         output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
                             mode
                         ));
                         continue;
@@ -892,7 +935,7 @@ impl Session {
             .reply(
                 self.messages.clone(),
                 session_config.clone(),
-                Some(cancel_token),
+                Some(cancel_token.clone()),
             )
             .await?;
 
@@ -908,16 +951,31 @@ impl Session {
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
-                                // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
+                                // Format the confirmation prompt - use security message if present, otherwise use generic message
+                                let prompt = if let Some(security_message) = &confirmation.prompt {
+                                    println!("\n{}", security_message);
+                                    "Do you allow this tool call?".to_string()
+                                } else {
+                                    "Goose would like to call the above tool, do you allow?".to_string()
+                                };
 
                                 // Get confirmation from user
-                                let permission_result = cliclack::select(prompt)
-                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
-                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                    .interact();
+                                let permission_result = if confirmation.prompt.is_none() {
+                                    // No security message - show all options including "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                } else {
+                                    // Security message present - don't show "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                };
 
                                 let permission = match permission_result {
                                     Ok(p) => p, // If Ok, use the selected permission
@@ -1236,18 +1294,114 @@ impl Session {
                         }
 
                         Some(Err(e)) => {
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+
+                                output::render_text(
+                                    "Context limit reached. Performing auto-compaction...",
+                                    Some(Color::Yellow),
+                                    true
+                                );
+
+                                // Try auto-compaction first - keep the stream alive!
+                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
+                                    self.messages = compact_result.messages;
+
+                                    // Persist the compacted messages
+                                    if let Some(session_file) = &self.session_file {
+                                        let provider = self.agent.provider().await.ok();
+                                        let working_dir = std::env::current_dir().ok();
+                                        if let Err(e) = session::persist_messages_with_schedule_id(
+                                            session_file,
+                                            &self.messages,
+                                            provider,
+                                            self.scheduled_job_id.clone(),
+                                            working_dir,
+                                        ).await {
+                                            eprintln!("Failed to persist compacted messages: {}", e);
+                                        }
+                                    }
+
+                                    output::render_text(
+                                        "Compaction complete. Conversation has been automatically compacted to continue.",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+
+                                    // Restart the stream after successful compaction - keep the stream alive!
+                                    stream = self
+                                        .agent
+                                        .reply(
+                                            self.messages.clone(),
+                                            session_config.clone(),
+                                            Some(cancel_token.clone())
+                                        )
+                                        .await?;
+                                    continue;
+                                }
+                                // Auto-compaction failed, fall through to common error handling below
+                            }
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
                             }
-                            output::render_error(
-                                "The error above was an exception we were not able to handle.\n\
-                                These errors are often related to connection or authentication\n\
-                                We've removed the conversation up to the most recent user message\n\
-                                - depending on the error you may be able to continue",
-                            );
+
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+                                    output::render_error(&format!("Error: Context length exceeded: {}", e));
+
+                                    let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
+                                    let selected = match cliclack::select(prompt.to_string())
+                                        .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                        .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                        .interact()
+                                    {
+                                        Ok(choice) => Some(choice),
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                // If interrupted, do nothing and let user handle it manually
+                                                output::render_text("Operation cancelled. You can use /clear or /summarize to continue.", Some(Color::Yellow), true);
+                                                None
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
+
+                                    if let Some(choice) = selected {
+                                        match choice {
+                                            "clear" => {
+                                                self.messages.clear();
+                                                let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                                output::render_text(&msg, Some(Color::Yellow), true);
+                                            }
+                                            "summarize" => {
+                                                // Use the helper function to summarize context
+                                                let message_suffix = "Goose summarized messages for you.";
+                                                if let Err(e) = Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await {
+                                                    output::render_error(&format!("Failed to summarize: {}", e));
+                                                    output::render_text("Consider using /clear to start fresh.", Some(Color::Yellow), true);
+                                                }
+                                            }
+                                            _ => {
+                                                unreachable!()
+                                            }
+                                        }
+                                    }
+                            } else {
+                                output::render_error(
+                                    "The error above was an exception we were not able to handle.\n\
+                                    These errors are often related to connection or authentication\n\
+                                    We've removed the conversation up to the most recent user message\n\
+                                    - depending on the error you may be able to continue",
+                                );
+                            }
                             break;
                         }
                         None => break,
@@ -1674,4 +1828,89 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_elapsed_time_under_60_seconds() {
+        // Test sub-second duration
+        let duration = Duration::from_millis(500);
+        assert_eq!(format_elapsed_time(duration), "0.50s");
+
+        // Test exactly 1 second
+        let duration = Duration::from_secs(1);
+        assert_eq!(format_elapsed_time(duration), "1.00s");
+
+        // Test 45.75 seconds
+        let duration = Duration::from_millis(45750);
+        assert_eq!(format_elapsed_time(duration), "45.75s");
+
+        // Test 59.99 seconds
+        let duration = Duration::from_millis(59990);
+        assert_eq!(format_elapsed_time(duration), "59.99s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes() {
+        // Test exactly 60 seconds (1 minute)
+        let duration = Duration::from_secs(60);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+
+        // Test 61 seconds (1 minute 1 second)
+        let duration = Duration::from_secs(61);
+        assert_eq!(format_elapsed_time(duration), "1m 01s");
+
+        // Test 90 seconds (1 minute 30 seconds)
+        let duration = Duration::from_secs(90);
+        assert_eq!(format_elapsed_time(duration), "1m 30s");
+
+        // Test 119 seconds (1 minute 59 seconds)
+        let duration = Duration::from_secs(119);
+        assert_eq!(format_elapsed_time(duration), "1m 59s");
+
+        // Test 120 seconds (2 minutes)
+        let duration = Duration::from_secs(120);
+        assert_eq!(format_elapsed_time(duration), "2m 00s");
+
+        // Test 605 seconds (10 minutes 5 seconds)
+        let duration = Duration::from_secs(605);
+        assert_eq!(format_elapsed_time(duration), "10m 05s");
+
+        // Test 3661 seconds (61 minutes 1 second)
+        let duration = Duration::from_secs(3661);
+        assert_eq!(format_elapsed_time(duration), "61m 01s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_edge_cases() {
+        // Test zero duration
+        let duration = Duration::from_secs(0);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test very small duration (1 millisecond)
+        let duration = Duration::from_millis(1);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test fractional seconds are truncated for minute display
+        // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
+        let duration = Duration::from_millis(60500);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
 }

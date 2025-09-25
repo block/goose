@@ -19,22 +19,62 @@ export default function ExtensionList({
   isStatic,
   disableConfiguration: _disableConfiguration,
 }: ExtensionListProps) {
-  // Sort extensions alphabetically by their friendly title
-  const sortedExtensions = [...extensions].sort((a, b) =>
+  // Separate enabled and disabled extensions
+  const enabledExtensions = extensions.filter((ext) => ext.enabled);
+  const disabledExtensions = extensions.filter((ext) => !ext.enabled);
+  // Sort each group alphabetically by their friendly title
+  const sortedEnabledExtensions = [...enabledExtensions].sort((a, b) =>
+    getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))
+  );
+  const sortedDisabledExtensions = [...disabledExtensions].sort((a, b) =>
     getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))
   );
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
-      {sortedExtensions.map((extension) => (
-        <ExtensionItem
-          key={extension.name}
-          extension={extension}
-          onToggle={onToggle}
-          onConfigure={onConfigure}
-          isStatic={isStatic}
-        />
-      ))}
+    <div className="space-y-8">
+      {sortedEnabledExtensions.length > 0 && (
+        <div>
+          <h2 className="text-lg font-medium text-text-default mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            Enabled Extensions ({sortedEnabledExtensions.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
+            {sortedEnabledExtensions.map((extension) => (
+              <ExtensionItem
+                key={extension.name}
+                extension={extension}
+                onToggle={onToggle}
+                onConfigure={onConfigure}
+                isStatic={isStatic}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sortedDisabledExtensions.length > 0 && (
+        <div>
+          <h2 className="text-lg font-medium text-text-muted mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+            Available Extensions ({sortedDisabledExtensions.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
+            {sortedDisabledExtensions.map((extension) => (
+              <ExtensionItem
+                key={extension.name}
+                extension={extension}
+                onToggle={onToggle}
+                onConfigure={onConfigure}
+                isStatic={isStatic}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {extensions.length === 0 && (
+        <div className="text-center text-text-muted py-8">No extensions available</div>
+      )}
     </div>
   );
 }

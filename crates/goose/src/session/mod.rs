@@ -1,3 +1,4 @@
+pub mod extension_data;
 pub mod info;
 pub mod storage;
 
@@ -9,4 +10,5 @@ pub use storage::{
     SessionMetadata,
 };
 
+pub use extension_data::{ExtensionData, ExtensionState, TodoState};
 pub use info::{get_valid_sorted_sessions, SessionInfo};

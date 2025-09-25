@@ -78,6 +78,7 @@ type ElectronAPI = {
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
   getSecretKey: () => Promise<string>;
+  getGoosedHostPort: () => Promise<string | null>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
@@ -96,6 +97,8 @@ type ElectronAPI = {
   // Functions for image pasting
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
   deleteTempFile: (filePath: string) => void;
+  // Function for opening external URLs securely
+  openExternal: (url: string) => Promise<void>;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
@@ -122,23 +125,15 @@ const electronAPI: ElectronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => {
-    // Add fallback to localStorage if config from preload is empty or missing
     if (!config || Object.keys(config).length === 0) {
-      try {
-        if (window.localStorage) {
-          const storedConfig = localStorage.getItem('gooseConfig');
-          if (storedConfig) {
-            return JSON.parse(storedConfig);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse stored config from localStorage:', e);
-      }
+      console.warn(
+        'No config provided by main process. This may indicate an initialization issue.'
+      );
     }
     return config;
   },
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
+  directoryChooser: () => ipcRenderer.invoke('directory-chooser'),
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -174,6 +169,7 @@ const electronAPI: ElectronAPI = {
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
+  getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
@@ -207,6 +203,9 @@ const electronAPI: ElectronAPI = {
   },
   deleteTempFile: (filePath: string): void => {
     ipcRenderer.send('delete-temp-file', filePath);
+  },
+  openExternal: (url: string): Promise<void> => {
+    return ipcRenderer.invoke('open-external', url);
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);

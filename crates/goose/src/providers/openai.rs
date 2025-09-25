@@ -29,6 +29,7 @@ use crate::providers::formats::openai::response_to_streaming_message;
 use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
+pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
@@ -59,6 +60,8 @@ impl_provider_default!(OpenAiProvider);
 
 impl OpenAiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENAI_API_KEY")?;
         let host: String = config
@@ -118,7 +121,16 @@ impl OpenAiProvider {
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
-        let host = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
+        let host = if let Some(port) = url.port() {
+            format!(
+                "{}://{}:{}",
+                url.scheme(),
+                url.host_str().unwrap_or(""),
+                port
+            )
+        } else {
+            format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+        };
         let base_path = url.path().trim_start_matches('/').to_string();
         let base_path = if base_path.is_empty() {
             "v1/chat/completions".to_string()
@@ -193,16 +205,17 @@ impl Provider for OpenAiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
         let json_response = self.post(&payload).await?;
 

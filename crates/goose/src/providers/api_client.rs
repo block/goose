@@ -297,8 +297,14 @@ impl ApiClient {
 
     fn build_url(&self, path: &str) -> Result<url::Url> {
         use url::Url;
-        let base_url =
+        let mut base_url =
             Url::parse(&self.host).map_err(|e| anyhow::anyhow!("Invalid base URL: {}", e))?;
+
+        let base_path = base_url.path();
+        if !base_path.is_empty() && base_path != "/" && !base_path.ends_with('/') {
+            base_url.set_path(&format!("{}/", base_path));
+        }
+
         base_url
             .join(path)
             .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
@@ -335,6 +341,12 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
+        // Log the JSON payload being sent to the LLM
+        tracing::debug!(
+            "LLM_REQUEST: {}",
+            serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string())
+        );
+
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
     }

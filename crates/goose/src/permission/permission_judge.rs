@@ -144,7 +144,11 @@ pub async fn detect_read_only_tools(
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
     let res = provider
-        .complete(&system_prompt, check_messages.messages(), &[tool.clone()])
+        .complete(
+            &system_prompt,
+            check_messages.messages(),
+            std::slice::from_ref(&tool),
+        )
         .await;
 
     // Process the response and return an empty vector if the response is invalid
@@ -155,7 +159,7 @@ pub async fn detect_read_only_tools(
     }
 }
 
-// Define return structure
+/// Result of permission checking for tool requests
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,
@@ -292,8 +296,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

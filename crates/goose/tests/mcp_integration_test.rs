@@ -49,6 +49,40 @@ enum TestMode {
     ],
     vec![]
 )]
+#[test_case(
+    vec!["cargo", "run", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec![
+        ToolCall::new("text_editor", json!({
+            "command": "view",
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt"
+        })),
+        ToolCall::new("text_editor", json!({
+            "command": "str_replace",
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
+            "old_str": "# codename goose",
+            "new_str": "# codename goose (modified by test)"
+        })),
+        // Test shell command to verify file was modified
+        ToolCall::new("shell", json!({
+            "command": "cat ~/goose/crates/goose/tests/tmp/goose.txt"
+        })),
+        // Test text_editor tool to restore original content
+        ToolCall::new("text_editor", json!({
+            "command": "str_replace",
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
+            "old_str": "# codename goose (modified by test)",
+            "new_str": "# codename goose"
+        })),
+        ToolCall::new("list_windows", json!({})),
+        ToolCall::new("screen_capture", json!({
+            "display": 0
+        })),
+        ToolCall::new("image_processor", json!({
+            "path": "~/goose/crates/goose/tests/tmp/goose-test.png"
+        })),
+    ],
+    vec![]
+)]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
@@ -126,7 +160,7 @@ async fn test_replayed_session(
         available_tools: vec![],
     };
 
-    let mut extension_manager = ExtensionManager::new();
+    let extension_manager = ExtensionManager::new();
 
     let result = extension_manager.add_extension(extension_config).await;
     assert!(result.is_ok(), "Failed to add extension: {:?}", result);

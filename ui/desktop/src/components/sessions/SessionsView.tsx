@@ -12,6 +12,7 @@ interface SessionsViewProps {
 
 const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   const [selectedSession, setSelectedSession] = useState<SessionDetails | null>(null);
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialSessionId, setInitialSessionId] = useState<string | null>(null);
@@ -20,6 +21,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   const loadSessionDetails = async (sessionId: string) => {
     setIsLoadingSession(true);
     setError(null);
+    setShowSessionHistory(true);
     try {
       const sessionDetails = await fetchSessionDetails(sessionId);
       setSelectedSession(sessionDetails);
@@ -28,6 +30,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       setError('Failed to load session details. Please try again later.');
       // Keep the selected session null if there's an error
       setSelectedSession(null);
+      setShowSessionHistory(false);
 
       const errorMessage = err instanceof Error ? err.message : String(err);
       toastError({
@@ -59,23 +62,23 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   }, [location.state, handleSelectSession]);
 
   const handleBackToSessions = () => {
-    setSelectedSession(null);
+    setShowSessionHistory(false);
     setError(null);
   };
 
   const handleRetryLoadSession = () => {
     if (selectedSession) {
-      loadSessionDetails(selectedSession.session_id);
+      loadSessionDetails(selectedSession.sessionId);
     }
   };
 
-  // If we're loading an initial session or have a selected session, show the session history view
+  // If we're loading an initial session or have a selected showSessionHistory, show the session history view
   // Otherwise, show the sessions list view
-  return selectedSession || (isLoadingSession && initialSessionId) ? (
+  return (showSessionHistory && selectedSession) || (isLoadingSession && initialSessionId) ? (
     <SessionHistoryView
       session={
         selectedSession || {
-          session_id: initialSessionId || '',
+          sessionId: initialSessionId || '',
           messages: [],
           metadata: {
             description: 'Loading...',
@@ -91,7 +94,11 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       onRetry={handleRetryLoadSession}
     />
   ) : (
-    <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+    <SessionListView
+      setView={setView}
+      onSelectSession={handleSelectSession}
+      selectedSessionId={selectedSession?.sessionId ?? null}
+    />
   );
 };
 

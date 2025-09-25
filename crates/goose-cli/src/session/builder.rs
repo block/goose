@@ -7,8 +7,10 @@ use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
 use rustyline::EditMode;
+use std::collections::HashSet;
 use std::process;
 use std::sync::Arc;
+use tokio::task::JoinSet;
 
 use super::output;
 use super::Session;
@@ -254,11 +256,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             process::exit(1);
         });
 
-    // Configure tool monitoring if max_tool_repetitions is set
-    if let Some(max_repetitions) = session_config.max_tool_repetitions {
-        agent.configure_tool_monitor(Some(max_repetitions)).await;
-    }
-
     // Handle session file resolution and resuming
     let session_file: Option<std::path::PathBuf> = if session_config.no_session {
         None
@@ -355,38 +352,54 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             .collect()
     };
 
-    for extension in extensions_to_run {
-        if let Err(e) = agent.add_extension(extension.clone()).await {
-            let err = e.to_string();
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start extension '{}': {}",
-                    extension.name(),
-                    err
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without extension '{}'",
-                    extension.name()
-                ))
-                .yellow()
-            );
+    let mut set = JoinSet::new();
+    let agent_ptr = Arc::new(agent);
 
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension.name(),
-                &err,
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
+    let mut waiting_on = HashSet::new();
+    for extension in extensions_to_run {
+        waiting_on.insert(extension.name());
+        let agent_ptr = agent_ptr.clone();
+        set.spawn(async move {
+            (
+                extension.name(),
+                agent_ptr.add_extension(extension.clone()).await,
             )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
+        });
+    }
+
+    let get_message = |waiting_on: &HashSet<String>| {
+        let mut names: Vec<_> = waiting_on.iter().cloned().collect();
+        names.sort();
+        format!("starting {} extensions: {}", names.len(), names.join(", "))
+    };
+
+    let spinner = cliclack::spinner();
+    spinner.start(get_message(&waiting_on));
+
+    let mut offer_debug = Vec::new();
+    while let Some(result) = set.join_next().await {
+        match result {
+            Ok((name, Ok(_))) => {
+                waiting_on.remove(&name);
+                spinner.set_message(get_message(&waiting_on));
             }
+            Ok((name, Err(e))) => offer_debug.push((name, e)),
+            Err(e) => tracing::error!("failed to add extension: {}", e),
+        }
+    }
+
+    spinner.clear();
+
+    for (name, err) in offer_debug {
+        if let Err(debug_err) = offer_extension_debugging_help(
+            &name,
+            &err.to_string(),
+            Arc::clone(&provider_for_display),
+            session_config.interactive,
+        )
+        .await
+        {
+            eprintln!("Note: Could not start debugging session: {}", debug_err);
         }
     }
 
@@ -405,7 +418,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     // Create new session
     let mut session = Session::new(
-        agent,
+        Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_file.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),

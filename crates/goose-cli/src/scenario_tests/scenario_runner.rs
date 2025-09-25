@@ -136,6 +136,9 @@ async fn run_provider_scenario_with_validation<F>(
 where
     F: Fn(&ScenarioResult) -> Result<()>,
 {
+    use goose::config::ExtensionConfig;
+    use tokio::sync::Mutex;
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
@@ -193,10 +196,23 @@ where
     let mock_client = weather_client();
 
     let agent = Agent::new();
-    {
-        let mut extension_manager = agent.extension_manager.write().await;
-        extension_manager.add_client("weather_extension".to_string(), Box::new(mock_client));
-    }
+    agent
+        .extension_manager
+        .add_client(
+            "weather_extension".to_string(),
+            ExtensionConfig::Builtin {
+                name: "".to_string(),
+                display_name: None,
+                description: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            },
+            Arc::new(Mutex::new(Box::new(mock_client))),
+            None,
+            None,
+        )
+        .await;
 
     agent
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)

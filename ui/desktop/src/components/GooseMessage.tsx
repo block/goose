@@ -7,6 +7,12 @@ import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
+import ToolCallChain from './ToolCallChain';
+import {
+  identifyConsecutiveToolCalls,
+  shouldHideMessage,
+  getChainForMessage,
+} from '../utils/toolCallChaining';
 import {
   Message,
   getTextContent,
@@ -18,10 +24,12 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { cn } from '../utils';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
   // anything before this index should not render any buttons, but anything after should
+  sessionId: string;
   messageHistoryIndex: number;
   message: Message;
   messages: Message[];
@@ -33,6 +41,7 @@ interface GooseMessageProps {
 }
 
 export default function GooseMessage({
+  sessionId,
   messageHistoryIndex,
   message,
   metadata,
@@ -60,18 +69,23 @@ export default function GooseMessage({
     }
 
     const cotRaw = match[1].trim();
-    const visible = text.replace(match[0], '').trim();
-    return { visibleText: visible, cotText: cotRaw.length > 0 ? cotRaw : null };
+    const visibleText = text.replace(regex, '').trim();
+
+    return {
+      visibleText,
+      cotText: cotRaw || null,
+    };
   };
 
-  const { visibleText: textWithoutCot, cotText } = splitChainOfThought(textContent);
+  // Split out Chain-of-Thought
+  const { visibleText, cotText } = splitChainOfThought(textContent);
 
-  // Extract image paths from the visible part of the message (exclude CoT)
-  const imagePaths = extractImagePaths(textWithoutCot);
+  // Extract image paths from the message content
+  const imagePaths = extractImagePaths(visibleText);
 
   // Remove image paths from text for display
   const displayText =
-    imagePaths.length > 0 ? removeImagePathsFromText(textWithoutCot, imagePaths) : textWithoutCot;
+    imagePaths.length > 0 ? removeImagePathsFromText(visibleText, imagePaths) : visibleText;
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
@@ -79,11 +93,53 @@ export default function GooseMessage({
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
 
+  // Get current message index
+  const messageIndex = messages.findIndex((msg) => msg.id === message.id);
+
+  // Enhanced chain detection that works during streaming
+  const toolCallChains = useMemo(() => {
+    // Always run chain detection, but handle streaming messages specially
+    const chains = identifyConsecutiveToolCalls(messages);
+
+    // If this message is streaming and has tool calls but no text,
+    // check if it should extend an existing chain
+    if (isStreaming && toolRequests.length > 0 && !displayText.trim()) {
+      // Look for an existing chain that this message could extend
+      const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+      if (previousMessage) {
+        const prevToolRequests = getToolRequests(previousMessage);
+
+        // If previous message has tool calls (with or without text), extend its chain
+        if (prevToolRequests.length > 0) {
+          // Find if previous message is part of a chain
+          const prevChain = chains.find((chain) => chain.includes(messageIndex - 1));
+          if (prevChain) {
+            // Extend the existing chain to include this streaming message
+            const extendedChains = chains.map((chain) =>
+              chain === prevChain ? [...chain, messageIndex] : chain
+            );
+            return extendedChains;
+          } else {
+            // Create a new chain with previous and current message
+            return [...chains, [messageIndex - 1, messageIndex]];
+          }
+        }
+      }
+    }
+
+    return chains;
+  }, [messages, isStreaming, messageIndex, toolRequests, displayText]);
+
+  // Check if this message should be hidden (part of chain but not first)
+  const shouldHide = shouldHideMessage(messageIndex, toolCallChains);
+
+  // Get the chain this message belongs to
+  const messageChain = getChainForMessage(messageIndex, toolCallChains);
+
   // Extract URLs under a few conditions
   // 1. The message is purely text
   // 2. The link wasn't also present in the previous message
   // 3. The message contains the explicit http:// or https:// protocol at the beginning
-  const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
   const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
@@ -145,10 +201,17 @@ export default function GooseMessage({
     appendMessage,
   ]);
 
+  // If this message should be hidden (part of chain but not first), don't render it
+  if (shouldHide) {
+    return null;
+  }
+
+  // Determine rendering logic based on chain membership and content
+  const isFirstInChain = messageChain && messageChain[0] === messageIndex;
+
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
-        {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-textSubtle select-none">
@@ -160,77 +223,92 @@ export default function GooseMessage({
           </details>
         )}
 
-        {/* Visible assistant response */}
         {displayText && (
           <div className="flex flex-col group">
-            <div className={`goose-message-content py-2`}>
-              <div ref={contentRef}>{<MarkdownContent content={displayText} />}</div>
+            <div ref={contentRef} className="w-full">
+              <MarkdownContent content={displayText} />
             </div>
 
-            {/* Render images if any */}
+            {/* Image previews */}
             {imagePaths.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2 mb-2">
+              <div className="mt-4">
                 {imagePaths.map((imagePath, index) => (
-                  <ImagePreview key={index} src={imagePath} alt={`Image ${index + 1}`} />
+                  <ImagePreview key={index} src={imagePath} />
                 ))}
               </div>
             )}
 
-            {/* Only show timestamp and copy link when not streaming */}
-            <div className="relative flex justify-start">
-              {toolRequests.length === 0 && !isStreaming && (
-                <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                  {timestamp}
-                </div>
-              )}
-              {displayText &&
-                message.content.every((content) => content.type === 'text') &&
-                !isStreaming && (
+            {toolRequests.length === 0 && (
+              <div className="relative flex justify-start">
+                {!isStreaming && (
+                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                    {timestamp}
+                  </div>
+                )}
+                {message.content.every((content) => content.type === 'text') && !isStreaming && (
                   <div className="absolute left-0 pt-1">
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
                   </div>
                 )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
         {toolRequests.length > 0 && (
-          <div className="relative flex flex-col w-full">
-            {toolRequests.map((toolRequest) => (
-              <div className={`goose-message-tool pb-2`} key={toolRequest.id}>
-                <ToolCallWithResponse
-                  // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
-                  isCancelledMessage={
-                    messageIndex < messageHistoryIndex &&
-                    toolResponsesMap.get(toolRequest.id) == undefined
-                  }
-                  toolRequest={toolRequest}
-                  toolResponse={toolResponsesMap.get(toolRequest.id)}
-                  notifications={toolCallNotifications.get(toolRequest.id)}
-                  isStreamingMessage={isStreaming}
-                />
+          <div className={cn(displayText && 'mt-2')}>
+            {isFirstInChain ? (
+              <ToolCallChain
+                messages={messages}
+                chainIndices={messageChain}
+                toolCallNotifications={toolCallNotifications}
+                toolResponsesMap={toolResponsesMap}
+                messageHistoryIndex={messageHistoryIndex}
+                isStreaming={isStreaming}
+              />
+            ) : !messageChain ? (
+              <div className="relative flex flex-col w-full">
+                <div className="flex flex-col gap-3">
+                  {toolRequests.map((toolRequest) => (
+                    <div className="goose-message-tool" key={toolRequest.id}>
+                      <ToolCallWithResponse
+                        isCancelledMessage={
+                          messageIndex < messageHistoryIndex &&
+                          toolResponsesMap.get(toolRequest.id) == undefined
+                        }
+                        toolRequest={toolRequest}
+                        toolResponse={toolResponsesMap.get(toolRequest.id)}
+                        notifications={toolCallNotifications.get(toolRequest.id)}
+                        isStreamingMessage={isStreaming}
+                        append={append}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                  {!isStreaming && timestamp}
+                </div>
               </div>
-            ))}
-            <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-              {!isStreaming && timestamp}
-            </div>
+            ) : null}
           </div>
         )}
 
         {hasToolConfirmation && (
           <ToolCallConfirmation
+            sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationId={toolConfirmationContent.id}
-            toolName={toolConfirmationContent.toolName}
+            toolConfirmationContent={toolConfirmationContent}
           />
         )}
       </div>
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+      {/* TEMPORARILY DISABLED (dorien-koelemeijer): This is causing issues in properly "generating" tool calls
+       that contain links and prevents security scanning */}
       {/* eslint-disable-next-line no-constant-binary-expression */}
       {false && urls.length > 0 && (
-        <div className="flex flex-wrap mt-[16px]">
+        <div className="mt-4">
           {urls.map((url, index) => (
             <LinkPreview key={index} url={url} />
           ))}

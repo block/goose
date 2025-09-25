@@ -51,12 +51,23 @@
     ]
   },
   {
+    "id": "autovisualiser",
+    "name": "Auto Visualiser",
+    "description": "Automatic data visualisation via MCP-UI",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/autovisualiser",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration",
-    "command": "npx -y blender-mcp",
+    "command": "uvx blender-mcp",
     "link": "https://github.com/ahujasid/blender-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
@@ -94,6 +105,17 @@
         "required": true
       }
     ]
+  },
+  {
+    "id": "chrome-devtools-mcp",
+    "name": "Chrome DevTools",
+    "description": "Control and inspect a live Chrome browser",
+    "command": "npx -y chrome-devtools-mcp@latest",
+    "link": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
   },
   {
     "id": "cloudflare-mcp",
@@ -330,6 +352,17 @@
     "environmentVariables": []
   },
   {
+    "id": "i-ching",
+    "name": "I Ching",
+    "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
+    "command": "i-ching-mcp-server",
+    "link": "https://github.com/threemachines/i-ching",
+    "installation_notes": "Install from crates.io using: cargo install i-ching",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate Goose with any JetBrains IDE",
@@ -437,6 +470,23 @@
     "environmentVariables": []
   },
   {
+    "id": "openmetadata",
+    "name": "OpenMetadata",
+    "description": "Bring OpenMetadata's single source of truth across your data systems to agents",
+    "command": "npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}",
+    "link": "https://open-metadata.org/mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+        {
+            "name": "AUTH_HEADER",
+            "description": "OpenMetadata Personal Access Token",
+            "required": true
+        }
+    ]
+  },  
+  {
     "id": "pdf_read",
     "name": "PDF Reader",
     "description": "Read large and complex PDF documents",
@@ -532,6 +582,18 @@
     "environmentVariables": []
   },
   {
+    "id": "rube-mcp",
+    "name": "Rube",
+    "description": "Connect with 500+ apps like Slack, Gmail, Notion and more through unified integrations",
+    "type": "streamable-http",
+    "url": "https://rube.app/mcp",
+    "link": "https://rube.app",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "selenium-mcp",
     "name": "Selenium",
     "description": "Web browser automation and testing",
@@ -621,6 +683,17 @@
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uv package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+    {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
+    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

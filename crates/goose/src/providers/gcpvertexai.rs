@@ -455,10 +455,7 @@ impl Provider for GcpVertexAIProvider {
         Self: Sized,
     {
         let model_strings: Vec<String> = vec![
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35),
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35V2),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
-            GcpVertexAIModel::Claude(ClaudeVersion::Haiku35),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
@@ -523,23 +520,24 @@ impl Provider for GcpVertexAIProvider {
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create request and context
-        let (request, context) = create_request(&self.model, system, messages, tools)?;
+        let (request, context) = create_request(model_config, system, messages, tools)?;
 
         // Send request and process response
         let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(&self.model, &request, &response, &usage);
+        emit_debug_trace(model_config, &request, &response, &usage);
 
         // Convert response to message
         let message = response_to_message(response, context)?;
@@ -607,7 +605,7 @@ mod tests {
     fn test_url_construction() {
         use url::Url;
 
-        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet-v2@20241022");
+        let model_config = ModelConfig::new_or_fail("claude-sonnet-4-20250514");
         let context = RequestContext::new(&model_config.model_name).unwrap();
         let api_model_id = context.model.to_string();
 
@@ -639,7 +637,8 @@ mod tests {
             .iter()
             .map(|m| m.name.clone())
             .collect();
-        assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
+        assert!(model_names.contains(&"claude-3-7-sonnet@20250219".to_string()));
+        assert!(model_names.contains(&"claude-sonnet-4@20250514".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
         // Should contain the original 2 config keys plus 4 new retry-related ones

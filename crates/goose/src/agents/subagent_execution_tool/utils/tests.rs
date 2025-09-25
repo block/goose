@@ -1,4 +1,4 @@
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskStatus};
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskStatus, TaskType};
 use crate::agents::subagent_execution_tool::utils::{
     count_by_status, get_task_name, strip_ansi_codes,
 };
@@ -23,7 +23,7 @@ mod test_get_task_name {
     fn test_extracts_sub_recipe_name() {
         let sub_recipe_task = Task {
             id: "task_1".to_string(),
-            task_type: "sub_recipe".to_string(),
+            task_type: TaskType::SubRecipe,
             payload: json!({
                 "sub_recipe": {
                     "name": "my_recipe",
@@ -38,14 +38,14 @@ mod test_get_task_name {
     }
 
     #[test]
-    fn falls_back_to_task_id_for_text_instruction() {
-        let text_task = Task {
+    fn falls_back_to_task_id_for_inline_recipe() {
+        let inline_task = Task {
             id: "task_2".to_string(),
-            task_type: "text_instruction".to_string(),
-            payload: json!({"text_instruction": "do something"}),
+            task_type: TaskType::InlineRecipe,
+            payload: json!({"recipe": {"instructions": "do something"}}),
         };
 
-        let task_info = create_task_info_with_defaults(text_task, TaskStatus::Pending);
+        let task_info = create_task_info_with_defaults(inline_task, TaskStatus::Pending);
 
         assert_eq!(get_task_name(&task_info), "task_2");
     }
@@ -54,7 +54,7 @@ mod test_get_task_name {
     fn falls_back_to_task_id_when_sub_recipe_name_missing() {
         let malformed_task = Task {
             id: "task_3".to_string(),
-            task_type: "sub_recipe".to_string(),
+            task_type: TaskType::SubRecipe,
             payload: json!({
                 "sub_recipe": {
                     "recipe_path": "/path/to/recipe"
@@ -72,7 +72,7 @@ mod test_get_task_name {
     fn falls_back_to_task_id_when_sub_recipe_missing() {
         let malformed_task = Task {
             id: "task_4".to_string(),
-            task_type: "sub_recipe".to_string(),
+            task_type: TaskType::SubRecipe,
             payload: json!({}), // missing "sub_recipe" field
         };
 
@@ -88,7 +88,7 @@ mod count_by_status {
     fn create_test_task(id: &str, status: TaskStatus) -> TaskInfo {
         let task = Task {
             id: id.to_string(),
-            task_type: "test".to_string(),
+            task_type: TaskType::InlineRecipe,
             payload: json!({}),
         };
         create_task_info_with_defaults(task, status)

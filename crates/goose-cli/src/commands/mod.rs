@@ -1,7 +1,8 @@
+pub mod acp;
 pub mod bench;
 pub mod configure;
 pub mod info;
-pub mod mcp;
+pub mod project;
 pub mod recipe;
 pub mod schedule;
 pub mod session;

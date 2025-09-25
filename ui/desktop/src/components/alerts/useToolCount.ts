@@ -3,7 +3,7 @@ import { getTools } from '../../api';
 
 const { clearTimeout } = window;
 
-export const useToolCount = () => {
+export const useToolCount = (sessionId: string) => {
   const [toolCount, setToolCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -11,7 +11,7 @@ export const useToolCount = () => {
 
     const fetchTools = async () => {
       try {
-        const response = await getTools();
+        const response = await getTools({ query: { session_id: sessionId } });
         if (!response.error && response.data) {
           setToolCount(response.data.length);
         } else {
@@ -30,7 +30,7 @@ export const useToolCount = () => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, []);
+  }, [sessionId]);
 
   return toolCount;
 };

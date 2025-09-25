@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { initializeAgent } from '../agent';
 import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
-import { ProviderMetadata } from '../api';
+import { ProviderMetadata, updateAgentProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import {
   getModelDisplayName,
@@ -26,7 +25,7 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
-  changeModel: (model: Model) => Promise<void>;
+  changeModel: (sessionId: string | null, model: Model) => Promise<void>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getCurrentModelAndProviderForDisplay: () => Promise<{ model: string; provider: string }>;
@@ -44,49 +43,42 @@ const ModelAndProviderContext = createContext<ModelAndProviderContextType | unde
 export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> = ({ children }) => {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
-  const { read, upsert, getProviders, config } = useConfig();
+  const { read, upsert, getProviders } = useConfig();
 
   const changeModel = useCallback(
-    async (model: Model) => {
+    async (sessionId: string | null, model: Model) => {
       const modelName = model.name;
       const providerName = model.provider;
-      try {
-        await initializeAgent({
-          model: model.name,
-          provider: model.provider,
-        });
-      } catch (error) {
-        console.error(`Failed to change model at agent step -- ${modelName} ${providerName}`);
-        toastError({
-          title: CHANGE_MODEL_ERROR_TITLE,
-          msg: SWITCH_MODEL_AGENT_ERROR_MSG,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
-        // don't write to config
-        return;
-      }
+      let phase = 'agent';
 
       try {
+        if (sessionId) {
+          await updateAgentProvider({
+            body: {
+              session_id: sessionId,
+              provider: providerName,
+              model: modelName,
+            },
+          });
+        }
+
+        phase = 'config';
         await upsert('GOOSE_PROVIDER', providerName, false);
         await upsert('GOOSE_MODEL', modelName, false);
 
-        // Update local state
         setCurrentProvider(providerName);
         setCurrentModel(modelName);
-      } catch (error) {
-        console.error(`Failed to change model at config step -- ${modelName} ${providerName}}`);
-        toastError({
-          title: CHANGE_MODEL_ERROR_TITLE,
-          msg: CONFIG_UPDATE_ERROR_MSG,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
-        // agent and config will be out of sync at this point
-        // TODO: reset agent to use current config settings
-      } finally {
-        // show toast
+
         toastSuccess({
           title: CHANGE_MODEL_TOAST_TITLE,
           msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model.alias ?? modelName} from ${model.subtext ?? providerName}`,
+        });
+      } catch (error) {
+        console.error(`Failed to change model at ${phase} step -- ${modelName} ${providerName}`);
+        toastError({
+          title: CHANGE_MODEL_ERROR_TITLE,
+          msg: phase === 'agent' ? SWITCH_MODEL_AGENT_ERROR_MSG : CONFIG_UPDATE_ERROR_MSG,
+          traceback: error instanceof Error ? error.message : String(error),
         });
       }
     },
@@ -182,19 +174,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   useEffect(() => {
     refreshCurrentModelAndProvider();
   }, [refreshCurrentModelAndProvider]);
-
-  // Extract config values for dependency array
-  const configObj = config as Record<string, unknown>;
-  const gooseModel = configObj?.GOOSE_MODEL;
-  const gooseProvider = configObj?.GOOSE_PROVIDER;
-
-  // Listen for config changes and refresh when GOOSE_MODEL or GOOSE_PROVIDER changes
-  useEffect(() => {
-    // Only refresh if the config has loaded and model/provider values exist
-    if (config && Object.keys(config).length > 0 && (gooseModel || gooseProvider)) {
-      refreshCurrentModelAndProvider();
-    }
-  }, [config, gooseModel, gooseProvider, refreshCurrentModelAndProvider]);
 
   const contextValue = useMemo(
     () => ({

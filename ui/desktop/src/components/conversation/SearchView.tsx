@@ -1,7 +1,7 @@
 import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } from 'react';
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import '../../styles/search.css';
 
 /**

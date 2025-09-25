@@ -39,6 +39,7 @@ export interface CreateRecipeRequest {
     contact?: string;
     metadata?: string;
   };
+  session_id: string;
 }
 
 export type CreateRecipeResponse = ApiCreateRecipeResponse;
@@ -69,6 +70,7 @@ export async function createRecipe(request: CreateRecipeRequest): Promise<Create
       messages: request.messages.map(convertFrontendMessageToApiMessage),
       title: request.title,
       description: request.description,
+      session_id: request.session_id,
       activities: request.activities || undefined,
       author: request.author
         ? {

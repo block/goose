@@ -15,13 +15,16 @@ tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
+lru = "0.12"
 mcp-client = { path = "../mcp-client" }
 mcp-core = { path = "../mcp-core" }
 rmcp = { workspace = true, features = [
     "reqwest",
     "transport-child-process",
     "transport-sse-client",
+    "transport-sse-client-reqwest",
     "transport-streamable-http-client",
+    "transport-streamable-http-client-reqwest",
 ] }
 anyhow = "1.0"
 thiserror = "1.0"
@@ -80,7 +83,7 @@ urlencoding = "2.1"
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
-aws-sdk-bedrockruntime = "1.74.0"
+aws-sdk-bedrockruntime = "1.106.0"
 
 # For SageMaker TGI provider
 aws-sdk-sagemakerruntime = "1.62.0"

@@ -4,6 +4,7 @@ import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
+// TODO(Douwe): We should not need this anymore
 export const DEFAULT_CHAT_TITLE = 'New Chat';
 
 interface ChatContextType {
@@ -13,14 +14,13 @@ interface ChatContextType {
   hasActiveSession: boolean;
   setRecipeConfig: (recipe: Recipe | null) => void;
   clearRecipeConfig: () => void;
-  setRecipeParameters: (parameters: Record<string, string> | null) => void;
-  clearRecipeParameters: () => void;
   // Draft functionality
   draft: string;
   setDraft: (draft: string) => void;
   clearDraft: () => void;
   // Context identification
   contextKey: string; // 'hub' or 'pair-{sessionId}'
+  agentWaitingMessage: string | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -30,12 +30,14 @@ interface ChatProviderProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   contextKey?: string; // Optional context key, defaults to 'hub'
+  agentWaitingMessage: string | null;
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({
   children,
   chat,
   setChat,
+  agentWaitingMessage,
   contextKey = 'hub',
 }) => {
   const draftContext = useDraftContext();
@@ -54,12 +56,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const resetChat = () => {
     const newSessionId = generateSessionId();
     setChat({
-      id: newSessionId,
+      sessionId: newSessionId,
       title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
       recipeConfig: null, // Clear recipe when resetting chat
-      recipeParameters: null, // Clear parameters when resetting chat
+      recipeParameters: null, // Clear  when resetting chat
     });
     // Clear draft when resetting chat
     clearDraft();
@@ -79,20 +81,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     });
   };
 
-  const setRecipeParameters = (parameters: Record<string, string> | null) => {
-    setChat({
-      ...chat,
-      recipeParameters: parameters,
-    });
-  };
-
-  const clearRecipeParameters = () => {
-    setChat({
-      ...chat,
-      recipeParameters: null,
-    });
-  };
-
   const hasActiveSession = chat.messages.length > 0;
 
   const value: ChatContextType = {
@@ -102,12 +90,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     hasActiveSession,
     setRecipeConfig,
     clearRecipeConfig,
-    setRecipeParameters,
-    clearRecipeParameters,
     draft,
     setDraft,
     clearDraft,
     contextKey,
+    agentWaitingMessage,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

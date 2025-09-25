@@ -214,12 +214,11 @@ impl CursorAgentProvider {
                         };
 
                         let message_content = vec![MessageContent::text(text_content)];
-                        let response_message = Message {
-                            id: None,
-                            role: Role::Assistant,
-                            created: chrono::Utc::now().timestamp(),
-                            content: message_content,
-                        };
+                        let response_message = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            message_content,
+                        );
 
                         let usage = Usage::default();
 
@@ -233,12 +232,11 @@ impl CursorAgentProvider {
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
-        let response_message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
         let usage = Usage::default();
 
         Ok((response_message, usage))
@@ -366,12 +364,11 @@ impl CursorAgentProvider {
             println!("================================");
         }
 
-        let message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::text(description.clone())],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 
@@ -407,11 +404,12 @@ impl Provider for CursorAgentProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -428,7 +426,7 @@ impl Provider for CursorAgentProvider {
         // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
-            "model": self.model.model_name,
+            "model": model_config.model_name,
             "system": system,
             "messages": messages.len()
         });
@@ -438,11 +436,11 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
 
         Ok((
             message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
+            ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
     }
 }

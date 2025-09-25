@@ -31,6 +31,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Goose transforms text-based responses into engaging graphical and interactive user experiences."
       link="/docs/guides/interactive-chat/mcp-ui"
     />
+    <Card 
+      title="Auto Visualiser Extension"
+      description="Generate interactive data visualizations automatically in Goose."
+      link="/docs/mcp/autovisualiser-mcp"
+    />
   </div>
 </div>
 
@@ -41,6 +46,21 @@ import styles from '@site/src/components/Card/styles.module.css';
       title="MCP UI: Bringing the Browser into the Agent"
       description="MCP-UI servers return content that Goose Desktop renders as rich, embeddable UI."
       link="/blog/2025/08/11/mcp-ui-post-browser-world"
+    />
+    <Card      
+      title="MCP-UI: The Future of Agentic Interfaces"
+      description="AI agents need to move beyond walls of text to rich and interactive UX."
+      link="/blog/2025/08/25/mcp-ui-future-agentic-interfaces"
+    />
+    <Card      
+      title="Auto Visualiser with MCP-UI"
+      description="Automatically render visual representations of data as you interact with it, powered by MCP-UI"
+      link="/blog/2025/08/27/autovisualiser-with-mcp-ui"
+    />
+    <Card      
+      title="How to Make An MCP Server MCP-UI Compatible"
+      description="Making an MCP server MCP-UI compatible requires just a few lines of code"
+      link="/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible"
     />
   </div>
 </div>
