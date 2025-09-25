@@ -118,7 +118,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   // Spell check the content
   const performSpellCheck = useCallback(async (text: string) => {
+    console.log('🔍 SPELL CHECK: Checking text:', text);
     const misspelled = await checkSpelling(text);
+    console.log('🔍 SPELL CHECK: Found misspelled words:', misspelled);
     setMisspelledWords(misspelled);
   }, []);
 
@@ -321,17 +323,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             key={`misspelled-${keyCounter++}`} 
             className="inline whitespace-pre-wrap"
             style={{
-              // Much more visible red styling
-              borderBottom: '3px solid #dc2626',
-              backgroundColor: 'rgba(220, 38, 38, 0.2)',
-              color: '#991b1b',
-              fontWeight: '500',
-              paddingBottom: '2px',
-              paddingTop: '1px',
-              paddingLeft: '2px',
-              paddingRight: '2px',
-              borderRadius: '3px',
-              boxShadow: '0 1px 2px rgba(220, 38, 38, 0.3)'
+              // ULTRA visible styling - bright red background
+              backgroundColor: '#fecaca', // Light red background
+              color: '#dc2626', // Red text
+              fontWeight: 'bold',
+              padding: '4px 6px',
+              borderRadius: '4px',
+              border: '2px solid #dc2626',
+              boxShadow: '0 2px 4px rgba(220, 38, 38, 0.5)',
+              textDecoration: 'underline wavy #dc2626'
             }}
             title={`Possible misspelling: ${content}`}
           >
