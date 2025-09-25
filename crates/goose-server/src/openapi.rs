@@ -7,7 +7,7 @@ use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
-use goose::session::Session;
+use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
     RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
@@ -407,7 +407,6 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
-        super::routes::session::SessionInsights,
         super::routes::session::UpdateSessionDescriptionRequest,
         Message,
         MessageContent,
@@ -444,6 +443,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         PrincipalType,
         ModelInfo,
         Session,
+        SessionInsights,
         Conversation,
         goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,

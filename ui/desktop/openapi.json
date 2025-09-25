@@ -3712,47 +3712,9 @@
         "type": "object",
         "required": [
           "totalSessions",
-          "mostActiveDirs",
-          "totalTokens",
-          "recentActivity"
+          "totalTokens"
         ],
         "properties": {
-          "mostActiveDirs": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "allOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                ]
-              }
-            },
-            "description": "Most active working directories with session counts"
-          },
-          "recentActivity": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "allOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                ]
-              }
-            },
-            "description": "Activity trend for the last 7 days"
-          },
           "totalSessions": {
             "type": "integer",
             "description": "Total number of sessions",

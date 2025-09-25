@@ -33,12 +33,9 @@ export function SessionInsights() {
       } catch (error) {
         console.error('Failed to load insights:', error);
         setError(error instanceof Error ? error.message : 'Failed to load insights');
-        // Set fallback insights data so the UI can still render
         setInsights({
           totalSessions: 0,
-          mostActiveDirs: [],
           totalTokens: 0,
-          recentActivity: [],
         });
       } finally {
         setIsLoading(false);

@@ -736,14 +736,6 @@ export type SessionDisplayInfo = {
 
 export type SessionInsights = {
     /**
-     * Most active working directories with session counts
-     */
-    mostActiveDirs: Array<Array<string & number>>;
-    /**
-     * Activity trend for the last 7 days
-     */
-    recentActivity: Array<Array<string & number>>;
-    /**
      * Total number of sessions
      */
     totalSessions: number;

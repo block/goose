@@ -56,6 +56,15 @@ pub struct SessionUpdateBuilder {
     recipe: Option<Option<Recipe>>,
 }
 
+#[derive(Serialize, ToSchema, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInsights {
+    /// Total number of sessions
+    total_sessions: usize,
+    /// Total tokens used across all sessions
+    total_tokens: i64,
+}
+
 impl SessionUpdateBuilder {
     fn new(session_id: String) -> Self {
         Self {
@@ -215,6 +224,10 @@ impl SessionManager {
 
     pub async fn delete_session(id: &str) -> Result<()> {
         Self::instance().await?.delete_session(id).await
+    }
+
+    pub async fn get_insights() -> Result<SessionInsights> {
+        Self::instance().await?.get_insights().await
     }
 
     pub async fn maybe_update_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
@@ -879,5 +892,22 @@ impl SessionStorage {
             .await?;
 
         Ok(())
+    }
+
+    async fn get_insights(&self) -> Result<SessionInsights> {
+        let row = sqlx::query_as::<_, (i64, Option<i64>)>(
+            r#"
+            SELECT COUNT(*) as total_sessions,
+                   COALESCE(SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)), 0) as total_tokens
+            FROM sessions
+            "#,
+        )
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(SessionInsights {
+            total_sessions: row.0 as usize,
+            total_tokens: row.1.unwrap_or(0),
+        })
     }
 }
