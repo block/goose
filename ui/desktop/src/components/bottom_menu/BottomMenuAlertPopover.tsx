@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
+import { isEqual } from 'lodash';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
@@ -104,15 +105,10 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       return;
     }
 
-    // Find new or changed alerts
+    // Find new or changed alerts using deep comparison
     const changedAlerts = alerts.filter((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
-      return (
-        !prevAlert ||
-        prevAlert.type !== alert.type ||
-        prevAlert.message !== alert.message ||
-        prevAlert.key !== alert.key
-      );
+      return !prevAlert || !isEqual(prevAlert, alert);
     });
 
     previousAlertsRef.current = alerts;
