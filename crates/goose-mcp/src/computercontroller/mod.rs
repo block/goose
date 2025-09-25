@@ -417,7 +417,7 @@ impl ComputerControllerServer {
             tool_router: Self::tool_router(),
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
-            http_client: Client::builder().user_agent("Goose/1.0").build().unwrap(),
+            http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
             instructions,
             system_automation,
         }

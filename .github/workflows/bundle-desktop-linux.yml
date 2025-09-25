@@ -180,21 +180,21 @@ jobs:
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-deb
+          name: goose-linux-x64-deb
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-rpm
+          name: goose-linux-x64-rpm
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64
+          name: goose-linux-x64
           path: |
             ui/desktop/out/make/deb/x64/*.deb
             ui/desktop/out/make/rpm/x64/*.rpm

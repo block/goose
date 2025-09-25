@@ -95,7 +95,7 @@ npm run make
 
 #### From Build Directory
 ```bash
-./out/Goose-linux-x64/Goose
+./out/goose-linux-x64/goose
 ```
 
 #### Install DEB Package (if built)
@@ -122,8 +122,8 @@ These are harmless and don't affect functionality. To suppress them, create a la
 
 ```bash
 #!/bin/bash
-cd /path/to/goose/ui/desktop/out/Goose-linux-x64
-./Goose 2>&1 | grep -v "GLib-GObject" | grep -v "browser_main_loop"
+cd /path/to/goose/ui/desktop/out/goose-linux-x64
+./goose 2>&1 | grep -v "GLib-GObject" | grep -v "browser_main_loop"
 ```
 
 #### Server Binary Not Found
@@ -155,10 +155,10 @@ For active development:
 Create `~/.local/share/applications/goose.desktop`:
 ```ini
 [Desktop Entry]
-Name=Goose AI Agent
+Name=goose AI Agent
 Comment=Local AI agent for development tasks
-Exec=/path/to/goose/ui/desktop/out/Goose-linux-x64/Goose %U
-Icon=/path/to/goose/ui/desktop/out/Goose-linux-x64/resources/app.asar.unpacked/src/images/icon.png
+Exec=/path/to/goose/ui/desktop/out/goose-linux-x64/goose %U
+Icon=/path/to/goose/ui/desktop/out/goose-linux-x64/resources/app.asar.unpacked/src/images/icon.png
 Terminal=false
 Type=Application
 Categories=Development;Utility;
@@ -169,8 +169,8 @@ MimeType=x-scheme-handler/goose
 ### System-wide Installation
 To install system-wide:
 ```bash
-sudo cp -r out/Goose-linux-x64 /opt/goose
-sudo ln -s /opt/goose/Goose /usr/local/bin/goose-gui
+sudo cp -r out/goose-linux-x64 /opt/goose
+sudo ln -s /opt/goose/goose /usr/local/bin/goose-gui
 ```
 
 ## Contributing
