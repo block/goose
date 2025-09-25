@@ -162,10 +162,9 @@ async fn test_replayed_session(
 
     let extension_manager = ExtensionManager::new();
 
-    let result = extension_manager.add_extension(extension_config).await;
-    assert!(result.is_ok(), "Failed to add extension: {:?}", result);
-
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
+        extension_manager.add_extension(extension_config).await?;
+
         let mut results = Vec::new();
         for tool_call in tool_calls {
             let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
