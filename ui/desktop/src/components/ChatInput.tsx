@@ -572,7 +572,7 @@ export default function ChatInput({
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
-        key: `context-${numTokens}-${tokenLimit}`, // Add a key to force re-render
+        key: `context-${numTokens}-${tokenLimit}`, // Force re-render on token count change
       });
     }
 
