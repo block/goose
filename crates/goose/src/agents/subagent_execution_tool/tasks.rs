@@ -74,7 +74,7 @@ async fn handle_inline_recipe_task(
     mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    use crate::agents::subagent_handler::run_complete_subagent_task_with_options_stream;
+    use crate::agents::subagent_handler::run_complete_subagent_task;
     use crate::recipe::Recipe;
 
     let recipe_value = task
@@ -99,7 +99,7 @@ async fn handle_inline_recipe_task(
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
 
     let result = tokio::select! {
-        result = run_complete_subagent_task_with_options_stream(
+        result = run_complete_subagent_task(
             instruction,
             task_config,
             return_last_only,

@@ -13,13 +13,12 @@ use rmcp::model::{ErrorCode, ErrorData};
 use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
-pub async fn run_complete_subagent_task_with_options_stream(
+pub async fn run_complete_subagent_task(
     text_instruction: String,
     task_config: TaskConfig,
     return_last_only: bool,
 ) -> Result<String, anyhow::Error> {
-    // Execute the task using a standalone agent instance
-    let messages = run_standalone_task(text_instruction, task_config)
+    let messages = get_agent_messages(text_instruction, task_config)
         .await
         .map_err(|e| {
             ErrorData::new(
@@ -93,7 +92,7 @@ pub async fn run_complete_subagent_task_with_options_stream(
     Ok(response_text)
 }
 
-fn run_standalone_task(
+fn get_agent_messages(
     text_instruction: String,
     task_config: TaskConfig,
 ) -> BoxFuture<'static, Result<Conversation>> {
