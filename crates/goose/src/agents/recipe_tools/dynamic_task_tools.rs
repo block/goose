@@ -179,7 +179,6 @@ pub fn task_params_to_inline_recipe(
 
     // Handle extensions
     if let Some(extensions) = task_param.get("extensions") {
-        tracing::info!("extensions: {:?}", extensions);
         if let Some(ext_configs) = process_extensions(extensions, loaded_extensions) {
             builder = builder.extensions(ext_configs);
         }
