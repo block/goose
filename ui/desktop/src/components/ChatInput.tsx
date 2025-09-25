@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone } from './icons';
+import { Attach, Send, Close, Microphone, Action } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -19,12 +19,15 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import ActionPopover from './ActionPopover';
+import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
+import { RichChatInput, RichChatInputRef } from './RichChatInput';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
@@ -232,6 +235,23 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
   });
+  const [actionPopover, setActionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    selectedIndex: number;
+    cursorPosition?: number;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    selectedIndex: 0,
+    cursorPosition: 0,
+  });
+  const actionPopoverRef = useRef<{
+    getDisplayActions: () => any[];
+    selectAction: (index: number) => void;
+  }>(null);
+  
+  // Action pills for visual display
   const mentionPopoverRef = useRef<{
     getDisplayFiles: () => FileItemWithMatch[];
     selectFile: (index: number) => void;
@@ -348,7 +368,7 @@ export default function ChatInput({
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textAreaRef = useRef<RichChatInputRef>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
@@ -639,7 +659,7 @@ export default function ChatInput({
 
   const debouncedAutosize = useMemo(
     () =>
-      debounce((element: HTMLTextAreaElement) => {
+      debounce((element: HTMLElement) => {
         element.style.height = '0px'; // Reset height
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
@@ -649,67 +669,89 @@ export default function ChatInput({
 
   useEffect(() => {
     if (textAreaRef.current) {
-      debouncedAutosize(textAreaRef.current);
+      const element = (textAreaRef.current as any).contentRef?.current; if (element) { debouncedAutosize(element); }
     }
   }, [debouncedAutosize, displayValue]);
 
   // Reset textarea height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
-      textAreaRef.current.style.height = 'auto';
+      const element = (textAreaRef.current as any)?.contentRef?.current; if (element && element.style) { element.style.height = 'auto'; }
     }
   }, [displayValue]);
 
-  const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = evt.target.value;
-    const cursorPosition = evt.target.selectionStart;
+  //   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
+  //     const val = evt.target.value;
+  //     const cursorPosition = evt.target.selectionStart;
+  // 
+  //     setDisplayValue(val); // Update display immediately
+  //     updateValue(val); // Update actual value immediately for better responsiveness
+  //     debouncedSaveDraft(val); // Save draft with debounce
+  //     // Mark that the user has typed something
+  //     setHasUserTyped(true);
+  // 
+  //     // Check for @ mention
+  //     checkForMention(val, cursorPosition, evt.target);
+  //   };
 
-    setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
-    // Mark that the user has typed something
-    setHasUserTyped(true);
-
-    // Check for @ mention
-    checkForMention(val, cursorPosition, evt.target);
-  };
-
-  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
-    // Find the last @ before the cursor
+  const checkForMention = (text: string, cursorPosition: number, textArea: any) => {
+    // Find the last @ and / before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    // Determine which symbol is closer to cursor
+    const isSlashTrigger = lastSlashIndex > lastAtIndex;
+    const triggerIndex = isSlashTrigger ? lastSlashIndex : lastAtIndex;
 
-    if (lastAtIndex === -1) {
-      // No @ found, close mention popover
+    if (triggerIndex === -1) {
+      // No trigger symbol found, close both popovers
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
-    // Check if there's a space between @ and cursor (which would end the mention)
-    const afterAt = beforeCursor.slice(lastAtIndex + 1);
-    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+    // Check if there's a space between trigger symbol and cursor (which would end the trigger)
+    const afterTrigger = beforeCursor.slice(triggerIndex + 1);
+    if (afterTrigger.includes(' ') || afterTrigger.includes('\n')) {
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
     // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
 
-    setMentionPopover((prev) => ({
-      ...prev,
-      isOpen: true,
-      position: {
-        x: textAreaRect.left,
-        y: textAreaRect.top, // Position at the top of the textarea
-      },
-      query: afterAt,
-      mentionStart: lastAtIndex,
-      selectedIndex: 0, // Reset selection when query changes
-      // filteredFiles will be populated by the MentionPopover component
-    }));
+    if (isSlashTrigger) {
+      // Open action popover for / trigger
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover({
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        selectedIndex: 0,
+        cursorPosition: cursorPosition,
+      });
+    } else {
+      // Open mention popover for @ trigger (existing functionality)
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
+      setMentionPopover((prev) => ({
+        ...prev,
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        query: afterTrigger,
+        mentionStart: triggerIndex,
+        selectedIndex: 0,
+      }));
+    }
   };
 
-  const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (evt: React.ClipboardEvent<HTMLDivElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
 
@@ -838,7 +880,7 @@ export default function ChatInput({
     setIsComposing(false);
   };
 
-  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLDivElement>) => {
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
@@ -1026,6 +1068,9 @@ export default function ChatInput({
           chatContext.clearDraft();
         }
 
+        // Clear selected actions when message is sent
+        // Actions cleared when message sent
+
         // Clear both parent and local dropped files after processing
         if (onFilesProcessed && droppedFiles.length > 0) {
           onFilesProcessed();
@@ -1056,7 +1101,7 @@ export default function ChatInput({
     }
   }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (evt: React.KeyboardEvent<HTMLDivElement>) => {
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -1144,26 +1189,104 @@ export default function ChatInput({
   };
 
   const handleMentionFileSelect = (filePath: string) => {
-    // Replace the @ mention with the file path
+    console.log('📁 handleMentionFileSelect called with:', filePath);
+    
+    // Extract just the filename from the full path for the pill
+    const fileName = filePath.split('/').pop() || filePath;
+    console.log('📁 Extracted filename:', fileName);
+    
+    // Create @filename format for pill detection
+    const mentionText = `@${fileName}`;
+    console.log('📁 Creating mention text:', mentionText);
+    
+    // Replace the @ mention with @filename format
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    const newValue = `${beforeMention}${mentionText} ${afterMention}`;
+    
+    console.log('📁 New value will be:', newValue);
 
     setDisplayValue(newValue);
     setValue(newValue);
     setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
 
-    // Set cursor position after the inserted file path
+    // Set cursor position after the inserted mention and space
+    const newCursorPosition = beforeMention.length + mentionText.length + 1;
     setTimeout(() => {
       if (textAreaRef.current) {
-        const newCursorPosition = beforeMention.length + filePath.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+        textAreaRef.current.focus();
       }
     }, 0);
   };
+
+  const handleActionButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    
+    setActionPopover({
+      isOpen: true,
+      position: {
+        x: buttonRect.left,
+        y: buttonRect.top,
+      },
+      selectedIndex: 0,
+      cursorPosition: textAreaRef.current?.getBoundingClientRect ? 0 : 0, // Will be set by RichChatInput
+    });
+  };
+
+    // Helper function to get action info
+  const getActionInfo = (actionId: string) => {
+    const actionMap = {
+      'quick-task': { label: 'Quick Task', icon: <Zap size={12} /> },
+      'generate-code': { label: 'Generate Code', icon: <Code size={12} /> },
+      'create-document': { label: 'Create Document', icon: <FileText size={12} /> },
+      'search-files': { label: 'Search Files', icon: <Search size={12} /> },
+      'run-command': { label: 'Run Command', icon: <Play size={12} /> },
+      'settings': { label: 'Settings', icon: <Settings size={12} /> },
+    };
+    return actionMap[actionId as keyof typeof actionMap] || { label: actionId, icon: <Zap size={12} /> };
+  };
+
+  const handleActionSelect = (actionId: string) => {
+    const actionInfo = getActionInfo(actionId);
+    
+    // Get current cursor position from the RichChatInput
+    const currentValue = displayValue;
+    const cursorPosition = actionPopover.cursorPosition || 0;
+    const beforeCursor = currentValue.slice(0, cursorPosition);
+    const afterCursor = currentValue.slice(cursorPosition);
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    if (lastSlashIndex !== -1) {
+      const afterSlash = beforeCursor.slice(lastSlashIndex + 1);
+      // Check if we're still in the same "word" after the slash
+      if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
+        // Replace the /query with [Action] text
+        const beforeSlash = currentValue.slice(0, lastSlashIndex);
+        const actionText = `[${actionInfo.label}]`;
+        const newValue = beforeSlash + actionText + " " + afterCursor;
+        
+        setDisplayValue(newValue);
+        setValue(newValue);
+        
+        // Set cursor position after the action text and space
+        const newCursorPosition = lastSlashIndex + actionText.length + 1;
+        setTimeout(() => {
+          if (textAreaRef.current) {
+            textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+            textAreaRef.current.focus();
+          }
+        }, 0);
+      }
+    }
+    
+    console.log('Action selected:', actionId, 'at position:', cursorPosition);
+    setActionPopover(prev => ({ ...prev, isOpen: false }));
+  };
+
 
   const hasSubmittableContent =
     displayValue.trim() ||
@@ -1290,13 +1413,30 @@ export default function ChatInput({
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">
-          <textarea
+                  
+
+        <RichChatInput
             data-testid="chat-input"
             autoFocus
-            id="dynamic-textarea"
             placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
             value={displayValue}
-            onChange={handleChange}
+            onChange={(newValue, cursorPos) => {
+              setDisplayValue(newValue);
+              updateValue(newValue);
+              debouncedSaveDraft(newValue);
+              setHasUserTyped(true);
+              
+              // Check for @ mention and / action triggers
+              if (cursorPos !== undefined) {
+                const syntheticTarget = {
+                  getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
+                  selectionStart: cursorPos,
+                  selectionEnd: cursorPos,
+                  value: newValue,
+                };
+                checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
+              }
+            }}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
@@ -1583,7 +1723,25 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher />
+        <div className="w-px h-4 bg-border-default mx-2" />
+
+        {/* Action button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              onClick={handleActionButtonClick}
+              variant="ghost"
+              size="sm"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
+            >
+              <Action className="w-4 h-4 min-[1050px]:mr-1" />
+              <span className="text-xs hidden min-[1050px]:inline">Actions</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Quick Actions</TooltipContent>
+        </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Attach button */}
@@ -1594,9 +1752,10 @@ export default function ChatInput({
               onClick={handleFileSelect}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
-              <Attach className="w-4 h-4" />
+              <Attach className="w-4 h-4 min-[1050px]:mr-1" />
+              <span className="text-xs hidden min-[1050px]:inline">Attach</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
@@ -1608,13 +1767,11 @@ export default function ChatInput({
           {/* Cost Tracker */}
           {COST_TRACKING_ENABLED && (
             <>
-              <div className="flex items-center h-full ml-1 mr-1">
-                <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
-                  sessionCosts={sessionCosts}
-                />
-              </div>
+              <CostTracker
+                inputTokens={inputTokens}
+                outputTokens={outputTokens}
+                sessionCosts={sessionCosts}
+              />
             </>
           )}
           <Tooltip>
@@ -1632,21 +1789,20 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setIsGoosehintsModalOpen?.(true)}
+                variant="ghost"
+                size="sm"
+                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
+              >
+                <FolderKey size={16} className="min-[1050px]:mr-1" />
+                <span className="text-xs hidden min-[1050px]:inline">Hints</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Configure goosehints</TooltipContent>
+          </Tooltip>
         </div>
 
         <MentionPopover
@@ -1659,6 +1815,18 @@ export default function ChatInput({
           selectedIndex={mentionPopover.selectedIndex}
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
+          }
+        />
+
+        <ActionPopover
+          ref={actionPopoverRef}
+          isOpen={actionPopover.isOpen}
+          onClose={() => setActionPopover((prev) => ({ ...prev, isOpen: false }))}
+          onSelect={handleActionSelect}
+          position={actionPopover.position}
+          selectedIndex={actionPopover.selectedIndex}
+          onSelectedIndexChange={(index) =>
+            setActionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
       </div>

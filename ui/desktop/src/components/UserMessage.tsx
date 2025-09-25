@@ -4,6 +4,7 @@ import ImagePreview from './ImagePreview';
 import { extractUrls } from '../utils/urlUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import MarkdownContent from './MarkdownContent';
+import MessageContent from './MessageContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
@@ -40,6 +41,11 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
   // Extract URLs which explicitly contain the http:// or https:// protocol
   const urls = useMemo(() => extractUrls(displayText, []), [displayText]);
+
+  // Check if the message contains action pills
+  const hasActionPills = useMemo(() => {
+    return /\[[^\]]+\]/.test(displayText);
+  }, [displayText]);
 
   // Effect to handle message content changes and ensure persistence
   useEffect(() => {
@@ -202,10 +208,17 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
               <div className="flex flex-col group">
                 <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
                   <div ref={contentRef}>
-                    <MarkdownContent
-                      content={displayText}
-                      className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
-                    />
+                    {hasActionPills ? (
+                      <MessageContent
+                        content={displayText}
+                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
+                      />
+                    ) : (
+                      <MarkdownContent
+                        content={displayText}
+                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
+                      />
+                    )}
                   </div>
                 </div>
 
