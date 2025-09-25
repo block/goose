@@ -28,11 +28,12 @@ pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
 // Picked this default since it's available on most regions
-pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-opus-4-20250514-v1:0";
+pub const BEDROCK_DEFAULT_MODEL: &str = "global.anthropic.claude-sonnet-4-20250514-v1:0";
 // A selection of models that are available for on-demand inference
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "global.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
     "deepseek.v3-v1:0",
     "meta.llama3-1-405b-instruct-v1:0",
     "mistral.mixtral-8x7b-instruct-v0:1",
