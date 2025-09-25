@@ -383,36 +383,60 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         parts.push(
           <span 
             key={`misspelled-${keyCounter++}`} 
-            className="inline whitespace-pre-wrap cursor-pointer"
+            data-misspelled="true"
+            className="inline whitespace-pre-wrap cursor-pointer select-none"
             style={{
-              // ULTRA visible styling - bright red background
-              backgroundColor: '#fecaca', // Light red background
+              // Enhanced styling for better visibility and interaction
+              backgroundColor: '#fef2f2', // Very light red background
               color: '#dc2626', // Red text
-              fontWeight: 'bold',
-              padding: '4px 6px',
-              borderRadius: '4px',
-              border: '2px solid #dc2626',
-              boxShadow: '0 2px 4px rgba(220, 38, 38, 0.5)',
+              fontWeight: '500',
+              padding: '2px 4px',
+              borderRadius: '3px',
+              border: '1px solid #fca5a5',
               textDecoration: 'underline wavy #dc2626',
+              textDecorationThickness: '2px',
+              textUnderlineOffset: '2px',
               pointerEvents: 'auto', // Override parent's pointer-events: none
               userSelect: 'none', // Prevent text selection interference
               position: 'relative', // Ensure it's above other elements
-              zIndex: 10 // Higher z-index than parent
+              zIndex: 10, // Higher z-index than parent
+              transition: 'all 0.15s ease',
             }}
-            title={`Hover for suggestions: ${content}`}
+            title={`Click or hover for suggestions: ${content}`}
             onClick={(e) => {
               console.log('🖱️ CLICK: Clicked on misspelled word:', content);
-              console.log('🖱️ CLICK: Event target:', e.target);
-              console.log('🖱️ CLICK: Current target:', e.currentTarget);
-            }}
-            onMouseOver={(e) => {
-              console.log('🖱️ MOUSEOVER: Mouse over misspelled word:', content);
+              e.preventDefault();
+              e.stopPropagation();
+              
+              if (misspelledData) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                console.log('🖱️ CLICK: Element rect:', rect);
+                
+                // Show tooltip on click - positioned at center of word
+                const tooltipData = {
+                  isVisible: true,
+                  position: { 
+                    x: rect.left + rect.width / 2, 
+                    y: rect.top 
+                  },
+                  misspelledWord: misspelledData.word,
+                  suggestions: misspelledData.suggestions || [],
+                  wordStart: misspelledData.start,
+                  wordEnd: misspelledData.end,
+                  isHoveringTooltip: false,
+                };
+                console.log('🖱️ CLICK: Setting tooltip data:', tooltipData);
+                setTooltip(tooltipData);
+              }
             }}
             onMouseEnter={(e) => {
               console.log('🖱️ MOUSEENTER: Mouse entered misspelled word:', content);
-              console.log('🖱️ MOUSEENTER: Event target:', e.target);
-              console.log('🖱️ MOUSEENTER: Current target:', e.currentTarget);
-              console.log('🖱️ MOUSEENTER: Misspelled data:', misspelledData);
+              
+              // Add hover effect
+              e.currentTarget.style.backgroundColor = '#fee2e2';
+              e.currentTarget.style.borderColor = '#f87171';
+              e.currentTarget.style.transform = 'scale(1.02)';
+              
               if (misspelledData) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 console.log('🖱️ MOUSEENTER: Element rect:', rect);
@@ -426,15 +450,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
                   suggestions: misspelledData.suggestions || [],
                   wordStart: misspelledData.start,
                   wordEnd: misspelledData.end,
+                  isHoveringTooltip: false,
                 };
                 console.log('🖱️ MOUSEENTER: Setting tooltip data:', tooltipData);
                 setTooltip(tooltipData);
-              } else {
-                console.log('🖱️ MOUSEENTER: No misspelled data found for word:', content);
               }
             }}
             onMouseLeave={(e) => {
               console.log('🖱️ MOUSELEAVE: Mouse left misspelled word:', content);
+              
+              // Remove hover effect
+              e.currentTarget.style.backgroundColor = '#fef2f2';
+              e.currentTarget.style.borderColor = '#fca5a5';
+              e.currentTarget.style.transform = 'scale(1)';
+              
               // Add a small delay before hiding to allow moving to tooltip
               setTimeout(() => {
                 setTooltip(prev => {
@@ -444,7 +473,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
                   }
                   return prev;
                 });
-              }, 100);
+              }, 150);
             }}
           >
             {content}
@@ -661,7 +690,22 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   // Hide tooltip when clicking outside or when component loses focus
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (displayRef.current && !displayRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      
+      // Don't hide if clicking on the tooltip itself or its children
+      const tooltipElement = document.querySelector('[data-spell-tooltip="true"]');
+      if (tooltipElement && tooltipElement.contains(target)) {
+        return;
+      }
+      
+      // Don't hide if clicking on a misspelled word
+      const misspelledElement = target as Element;
+      if (misspelledElement?.closest?.('[data-misspelled="true"]')) {
+        return;
+      }
+      
+      // Hide tooltip if clicking outside the input area
+      if (displayRef.current && !displayRef.current.contains(target)) {
         setTooltip(prev => ({ ...prev, isVisible: false }));
       }
     };

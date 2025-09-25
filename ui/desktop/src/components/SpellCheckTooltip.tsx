@@ -24,6 +24,7 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
   onMouseLeave,
 }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   console.log('🖱️ TOOLTIP COMPONENT: Rendering with props:', {
     isVisible,
@@ -31,6 +32,62 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
     suggestions,
     misspelledWord
   });
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex(prev => 
+            Math.min(prev + 1, suggestions.length - 1)
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex(prev => Math.max(prev - 1, 0));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (suggestions[selectedIndex]) {
+            onSuggestionSelect(suggestions[selectedIndex]);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          onIgnore(); // Close tooltip on escape
+          break;
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+          e.preventDefault();
+          const numIndex = parseInt(e.key) - 1;
+          if (suggestions[numIndex]) {
+            onSuggestionSelect(suggestions[numIndex]);
+          }
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible, suggestions, selectedIndex, onSuggestionSelect, onIgnore]);
+
+  // Reset selected index when suggestions change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [suggestions]);
+
+  // Auto-focus tooltip when it becomes visible
+  useEffect(() => {
+    if (isVisible && tooltipRef.current) {
+      tooltipRef.current.focus();
+    }
+  }, [isVisible]);
 
   if (!isVisible) {
     console.log('🖱️ TOOLTIP COMPONENT: Not visible, returning null');
@@ -42,18 +99,21 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
   return (
     <div
       ref={tooltipRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg py-2 min-w-48 max-w-64"
+      tabIndex={-1} // Make it focusable for keyboard events
+      data-spell-tooltip="true" // For click detection
+      className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl py-2 min-w-48 max-w-64 outline-none"
       style={{
         left: position.x,
-        top: position.y - 1, // Only 1px from the top of the misspelled word
-        transform: 'translateY(-100%)', // Position above the word
+        top: position.y - 8, // Position slightly above the word
+        transform: 'translateX(-50%) translateY(-100%)', // Center horizontally and position above
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.1)',
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       {/* Header */}
-      <div className="px-3 py-1 text-xs text-text-muted border-b border-borderSubtle mb-1">
-        Suggestions for "{misspelledWord}"
+      <div className="px-3 py-1 text-xs text-gray-600 border-b border-gray-200 mb-1 font-medium">
+        Suggestions for "<span className="text-red-600 font-semibold">{misspelledWord}</span>"
       </div>
 
       {/* Suggestions */}
@@ -62,10 +122,26 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
           {suggestions.slice(0, 5).map((suggestion, index) => (
             <button
               key={index}
-              onClick={() => onSuggestionSelect(suggestion)}
-              className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-bgSubtle transition-colors flex items-center gap-2"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🖱️ SUGGESTION CLICKED:', suggestion);
+                onSuggestionSelect(suggestion);
+              }}
+              onMouseEnter={() => setSelectedIndex(index)}
+              className={`w-full text-left px-3 py-2 text-sm transition-all duration-150 flex items-center gap-2 ${
+                selectedIndex === index
+                  ? 'bg-blue-50 text-blue-900 border-l-2 border-blue-500'
+                  : 'text-gray-800 hover:bg-gray-50'
+              }`}
             >
-              <span className="w-4 h-4 flex items-center justify-center text-xs bg-blue-500 text-white rounded text-[10px]">
+              <span 
+                className={`w-5 h-5 flex items-center justify-center text-xs rounded text-[10px] font-bold ${
+                  selectedIndex === index
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-400 text-white'
+                }`}
+              >
                 {index + 1}
               </span>
               <span className="font-medium truncate">{suggestion}</span>
@@ -73,28 +149,45 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
           ))}
         </div>
       ) : (
-        <div className="px-3 py-2 text-sm text-text-muted italic">
+        <div className="px-3 py-2 text-sm text-gray-500 italic">
           No suggestions available
         </div>
       )}
 
       {/* Separator */}
-      <div className="border-t border-borderSubtle my-1" />
+      <div className="border-t border-gray-200 my-1" />
 
       {/* Additional actions */}
       <button
-        onClick={onAddToDictionary}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-muted hover:bg-bgSubtle transition-colors"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🖱️ ADD TO DICTIONARY CLICKED');
+          onAddToDictionary();
+        }}
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2"
       >
+        <span className="text-green-600">+</span>
         Add to dictionary
       </button>
       
       <button
-        onClick={onIgnore}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-muted hover:bg-bgSubtle transition-colors"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🖱️ IGNORE CLICKED');
+          onIgnore();
+        }}
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2"
       >
+        <span className="text-gray-400">×</span>
         Ignore word
       </button>
+
+      {/* Keyboard hints */}
+      <div className="px-3 py-1 text-[10px] text-gray-400 border-t border-gray-200 mt-1">
+        Press 1-5 to select • ↑↓ to navigate • Enter to apply • Esc to close
+      </div>
     </div>
   );
 };
