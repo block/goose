@@ -77,9 +77,6 @@ enum TestMode {
         ToolCall::new("screen_capture", json!({
             "display": 0
         })),
-        ToolCall::new("image_processor", json!({
-            "path": "~/goose/crates/goose/tests/tmp/goose-test.png"
-        })),
     ],
     vec![]
 )]
