@@ -264,33 +264,79 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, []);
 
+  // Track the last spell checked text to avoid unnecessary re-checks
+  const lastSpellCheckedTextRef = useRef<string>('');
+  const spellCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Spell check the content using Electron's system spell checker
-  const performSpellCheck = useCallback(async (text: string) => {
-    console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text);
+  const performSpellCheck = useCallback(async (text: string, isIncremental = false) => {
+    console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text, 'incremental:', isIncremental);
     
+    // Skip if we've already checked this exact text
+    if (text === lastSpellCheckedTextRef.current) {
+      console.log('🔍 ELECTRON SPELL CHECK: Skipping - text unchanged');
+      return;
+    }
+
     // Use the Electron spell checking function
     try {
       const misspelledWords = await checkSpelling(text);
       console.log('🔍 ELECTRON SPELL CHECK: System spell check result:', misspelledWords);
-      setMisspelledWords(misspelledWords);
+      
+      // Only update if the text hasn't changed since we started checking
+      if (text === value) {
+        setMisspelledWords(misspelledWords);
+        lastSpellCheckedTextRef.current = text;
+      } else {
+        console.log('🔍 ELECTRON SPELL CHECK: Discarding stale result - text changed during check');
+      }
     } catch (error) {
       console.error('🔍 ELECTRON SPELL CHECK: Error performing spell check:', error);
       // Fallback to no spell checking on error
-      setMisspelledWords([]);
-    }
-  }, []);
-
-  // Debounced spell check
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (value.trim()) {
-        performSpellCheck(value);
-      } else {
+      if (text === value) {
         setMisspelledWords([]);
       }
-    }, 500); // Debounce spell check by 500ms
+    }
+  }, [value]);
 
-    return () => clearTimeout(timeoutId);
+  // Smart spell check timing - check after word completion and with shorter delays
+  useEffect(() => {
+    // Clear any existing timeout
+    if (spellCheckTimeoutRef.current) {
+      clearTimeout(spellCheckTimeoutRef.current);
+    }
+
+    if (!value.trim()) {
+      setMisspelledWords([]);
+      lastSpellCheckedTextRef.current = '';
+      return;
+    }
+
+    // Detect if user just completed a word (typed space, punctuation, or newline)
+    const lastChar = value[value.length - 1];
+    const isWordBoundary = /[\s\n\.,!?;:]/.test(lastChar);
+    
+    // Use different delays based on context
+    let delay: number;
+    if (isWordBoundary) {
+      // Just completed a word - check quickly
+      delay = 150;
+    } else {
+      // Still typing within a word - wait longer to avoid interrupting
+      delay = 300;
+    }
+
+    console.log('🔍 SPELL CHECK TIMING: Setting timeout with delay:', delay, 'isWordBoundary:', isWordBoundary, 'lastChar:', lastChar);
+
+    spellCheckTimeoutRef.current = setTimeout(() => {
+      performSpellCheck(value, !isWordBoundary);
+    }, delay);
+
+    return () => {
+      if (spellCheckTimeoutRef.current) {
+        clearTimeout(spellCheckTimeoutRef.current);
+      }
+    };
   }, [value, performSpellCheck]);
 
   // Parse and render content with action pills, mention pills, spell checking, and cursor
