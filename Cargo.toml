@@ -15,6 +15,7 @@ uninlined_format_args = "allow"
 
 [workspace.dependencies]
 rmcp = { version = "0.8.1", features = ["schemars", "auth"] }
+cc = "1.0.106"
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]
