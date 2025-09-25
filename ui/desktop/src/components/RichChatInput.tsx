@@ -126,6 +126,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
   
+  // Scroll synchronization
+  const handleTextareaScroll = useCallback(() => {
+    if (hiddenTextareaRef.current && displayRef.current) {
+      displayRef.current.scrollTop = hiddenTextareaRef.current.scrollTop;
+      displayRef.current.scrollLeft = hiddenTextareaRef.current.scrollLeft;
+    }
+  }, []);
+  
   // Spell check tooltip state
   const [tooltip, setTooltip] = useState<{
     isVisible: boolean;
@@ -731,7 +739,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         disabled={disabled}
         data-testid={testId}
         spellCheck={false} // Disable browser spell check - we handle it ourselves
-        className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
+        className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white overflow-y-auto"
+        onScroll={handleTextareaScroll}
         onMouseMove={(e) => {
           // Improved hover detection with better coordinate mapping
           const textarea = e.currentTarget;
@@ -844,7 +853,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative`}
+        className={`${className} cursor-text relative overflow-y-auto`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
