@@ -111,8 +111,6 @@ pub async fn classify_planner_response(
         )
         .await?;
 
-    // println!("classify_planner_response: {result:?}\n"); // TODO: remove
-
     let predicted = result.as_concat_text();
     if predicted.to_lowercase().contains("plan") {
         Ok(PlannerResponseType::Plan)
