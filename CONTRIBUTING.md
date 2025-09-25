@@ -67,9 +67,9 @@ Every hacktoberfest PR and contribution will earn you points on our [leaderboard
 | 🐰 **Medium** | 10 points | For average tasks that take additional time to complete and/or require some product knowledge. |
 | 🐂 **Large** | 15 points | For heavy tasks that takes lots of time to complete and/or possibly require deep product knowledge. |
 
-### Prizes You Can Win
+#### Prizes You Can Win
 
-- **Top 5**: $100 gift card to our brand new goose swag shop and $100 of LLM credits!
+- **Top 5**: $100 gift card to our [brand new goose swag shop](https://www.gooseswag.xyz/) and $100 of LLM credits!
 - **Top 6-10**: $50 gift cards for goose swag shop and $50 of LLM credits!
 - **Top 11-20**: $25 of LLM credits!
 
