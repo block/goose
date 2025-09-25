@@ -4,6 +4,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use chrono::Utc;
+use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
@@ -37,6 +39,7 @@ use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
+use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
@@ -50,7 +53,7 @@ use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
 use regex::Regex;
 use rmcp::model::{
-    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Role, ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -61,7 +64,7 @@ use super::final_output_tool::FinalOutputTool;
 use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
@@ -181,6 +184,123 @@ impl Agent {
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
             autopilot: Mutex::new(AutoPilot::new()),
         }
+    }
+
+    #[instrument(skip(task_config))]
+    pub fn run_standalone_task(
+        text_instruction: String,
+        task_config: TaskConfig,
+        event_sender: Option<tokio::sync::mpsc::UnboundedSender<Message>>,
+    ) -> BoxFuture<'static, Result<Conversation>> {
+        Box::pin(async move {
+            let agent = Agent::new();
+            agent.initialize_for_task(&task_config).await?;
+            agent
+                .execute_task_sequence(text_instruction, task_config, event_sender)
+                .await
+        })
+    }
+
+    async fn initialize_for_task(&self, task_config: &TaskConfig) -> Result<()> {
+        debug!("Configuring standalone agent for task: {}", task_config.id);
+
+        let provider = task_config
+            .provider()
+            .ok_or_else(|| anyhow!("No provider configured for standalone task"))?;
+        self.update_provider(Arc::clone(provider)).await?;
+
+        let extensions_to_add = if let Some(ref extensions) = task_config.extensions {
+            extensions.clone()
+        } else {
+            ExtensionConfigManager::get_all()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|ext| ext.enabled)
+                .map(|ext| ext.config)
+                .collect::<Vec<ExtensionConfig>>()
+        };
+
+        for extension in extensions_to_add {
+            if let Err(e) = self.extension_manager.add_extension(extension).await {
+                debug!("Failed to add extension to standalone agent: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn execute_task_sequence(
+        &self,
+        instruction: String,
+        task_config: TaskConfig,
+        event_sender: Option<tokio::sync::mpsc::UnboundedSender<Message>>,
+    ) -> BoxFuture<'_, Result<Conversation>> {
+        Box::pin(async move {
+            let user_message = Message::user().with_text(instruction);
+            let conversation = Conversation::new_unvalidated(vec![user_message]);
+
+            let tools = self
+                .extension_manager
+                .get_prefixed_tools(None)
+                .await
+                .unwrap_or_default();
+            let system_prompt = build_subagent_system_prompt(&task_config, &tools)?;
+            let previous_override = {
+                let prompt_manager = self.prompt_manager.lock().await;
+                prompt_manager.system_prompt_override()
+            };
+            {
+                let mut prompt_manager = self.prompt_manager.lock().await;
+                prompt_manager.set_system_prompt_override(system_prompt);
+            }
+
+            let mut stream = self
+                .reply_internal(conversation.clone(), None, None)
+                .await?;
+            let mut final_conversation = conversation;
+            let mut assistant_turns = 0u32;
+            let max_turns = task_config
+                .max_turns
+                .map(|turns| turns as u32)
+                .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS as u32);
+            let mut stop_after_message = false;
+
+            while let Some(event) = stream.next().await {
+                match event? {
+                    AgentEvent::Message(message) => {
+                        if let Some(sender) = &event_sender {
+                            let _ = sender.send(message.clone());
+                        }
+                        if message.role == Role::Assistant {
+                            assistant_turns = assistant_turns.saturating_add(1);
+                            if assistant_turns >= max_turns {
+                                stop_after_message = true;
+                            }
+                        }
+                        final_conversation.push(message);
+                    }
+                    AgentEvent::HistoryReplaced(history) => {
+                        final_conversation = Conversation::new_unvalidated(history);
+                    }
+                    AgentEvent::McpNotification(_) | AgentEvent::ModelChange { .. } => {}
+                }
+
+                if stop_after_message {
+                    break;
+                }
+            }
+
+            {
+                let mut prompt_manager = self.prompt_manager.lock().await;
+                if let Some(override_text) = previous_override {
+                    prompt_manager.set_system_prompt_override(override_text);
+                } else {
+                    prompt_manager.clear_system_prompt_override();
+                }
+            }
+
+            Ok(final_conversation)
+        })
     }
 
     /// Create a tool inspection manager with default inspectors
@@ -1720,6 +1840,54 @@ impl Agent {
         tracing::info!("Recipe creation completed successfully");
         Ok(recipe)
     }
+}
+
+fn build_subagent_system_prompt(
+    task_config: &TaskConfig,
+    available_tools: &[Tool],
+) -> Result<String> {
+    let mut context = HashMap::new();
+
+    context.insert(
+        "current_date_time",
+        Value::String(Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()),
+    );
+    context.insert("subagent_id", Value::String(task_config.id.clone()));
+
+    if let Some(max_turns) = task_config.max_turns {
+        context.insert(
+            "max_turns",
+            Value::Number(serde_json::Number::from(max_turns as u64)),
+        );
+    }
+
+    let tools_with_descriptions: Vec<String> = available_tools
+        .iter()
+        .map(|tool| {
+            if let Some(description) = &tool.description {
+                format!("{}: {}", tool.name, description)
+            } else {
+                tool.name.to_string()
+            }
+        })
+        .collect();
+
+    context.insert(
+        "available_tools",
+        Value::String(if tools_with_descriptions.is_empty() {
+            "None".to_string()
+        } else {
+            tools_with_descriptions.join(", ")
+        }),
+    );
+
+    context.insert(
+        "tool_count",
+        Value::Number(serde_json::Number::from(available_tools.len() as u64)),
+    );
+
+    render_global_file("subagent_system.md", &context)
+        .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))
 }
 
 #[cfg(test)]

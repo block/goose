@@ -39,6 +39,16 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
+    /// Retrieve the current override, if any.
+    pub fn system_prompt_override(&self) -> Option<String> {
+        self.system_prompt_override.clone()
+    }
+
+    /// Clear any override and fall back to the default system prompt.
+    pub fn clear_system_prompt_override(&mut self) {
+        self.system_prompt_override = None;
+    }
+
     /// Normalize a model name (replace - and / with _, lower case)
     fn normalize_model_name(name: &str) -> String {
         name.replace(['-', '/', '.'], "_").to_lowercase()

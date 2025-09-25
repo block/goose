@@ -21,7 +21,7 @@ pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
 pub fn create_dynamic_task_tool() -> Tool {
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
         object!({
             "type": "object",
             "properties": {
@@ -96,7 +96,9 @@ fn process_extensions(
     _loaded_extensions: &[String],
 ) -> Option<Vec<ExtensionConfig>> {
     // First try to deserialize as ExtensionConfig array
-    if let Ok(ext_configs) = serde_json::from_value::<Vec<ExtensionConfig>>(extensions.clone()) {
+    let ext_configs =
+        serde_json::from_value::<Vec<ExtensionConfig>>(extensions.clone()).unwrap_or_default();
+    if !ext_configs.is_empty() {
         return Some(ext_configs);
     }
 
@@ -111,9 +113,9 @@ fn process_extensions(
         let mut converted_extensions = Vec::new();
 
         for ext in arr {
-            if let Some(name_str) = ext.as_str() {
+            if let Some(name_str) = get_extension_name(&ext) {
                 // Look up the full extension config by name
-                match crate::config::ExtensionConfigManager::get_config_by_name(name_str) {
+                match crate::config::ExtensionConfigManager::get_config_by_name(&name_str) {
                     Ok(Some(config)) => {
                         // Check if the extension is enabled
                         if crate::config::ExtensionConfigManager::is_enabled(&config.key())
@@ -155,6 +157,18 @@ fn apply_if_ok<T: serde::de::DeserializeOwned>(
     }
 }
 
+fn get_extension_name(ext: &Value) -> Option<String> {
+    if let Some(name_str) = ext.as_str() {
+        return Some(name_str.to_string());
+    }
+    if let Some(obj) = ext.as_object() {
+        return obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+    }
+    None
+}
 pub fn task_params_to_inline_recipe(
     task_param: &Value,
     loaded_extensions: &[String],

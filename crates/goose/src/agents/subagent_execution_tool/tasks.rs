@@ -3,12 +3,14 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus, TaskType};
 use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::conversation::message::Message;
 
 pub async fn process_task(
     task: &Task,
@@ -47,7 +49,23 @@ async fn get_task_result(
 ) -> Result<Value, String> {
     match task.task_type {
         TaskType::InlineRecipe => {
-            handle_inline_recipe_task(task, task_config, cancellation_token).await
+            let (message_tx, mut message_rx) = mpsc::unbounded_channel::<Message>();
+            let tracker_clone = task_execution_tracker.clone();
+            let task_id_clone = task.id.clone();
+
+            tokio::spawn(async move {
+                while let Some(message) = message_rx.recv().await {
+                    let text = message.as_concat_text();
+                    if text.trim().is_empty() {
+                        continue;
+                    }
+                    for line in text.lines() {
+                        tracker_clone.send_live_output(&task_id_clone, line).await;
+                    }
+                }
+            });
+
+            handle_inline_recipe_task(task, task_config, cancellation_token, Some(message_tx)).await
         }
         TaskType::SubRecipe => {
             let (command, output_identifier) = build_command(&task)?;
@@ -73,8 +91,9 @@ async fn handle_inline_recipe_task(
     task: Task,
     mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
+    event_sender: Option<mpsc::UnboundedSender<Message>>,
 ) -> Result<Value, String> {
-    use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
+    use crate::agents::subagent_handler::run_complete_subagent_task_with_options_stream;
     use crate::recipe::Recipe;
 
     let recipe_value = task
@@ -98,7 +117,12 @@ async fn handle_inline_recipe_task(
         .or(recipe.prompt)
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
     let result = tokio::select! {
-        result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
+        result = run_complete_subagent_task_with_options_stream(
+            instruction,
+            task_config,
+            return_last_only,
+            event_sender,
+        ) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }

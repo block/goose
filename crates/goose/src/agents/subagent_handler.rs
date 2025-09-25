@@ -1,35 +1,26 @@
-use crate::agents::subagent::SubAgent;
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::Agent;
+use crate::conversation::message::Message;
 use anyhow::Result;
 use rmcp::model::{ErrorCode, ErrorData};
+use tokio::sync::mpsc::UnboundedSender;
 
-/// Standalone function to run a complete subagent task
-pub async fn run_complete_subagent_task(
-    text_instruction: String,
-    task_config: TaskConfig,
-) -> Result<String, anyhow::Error> {
-    run_complete_subagent_task_with_options(text_instruction, task_config, false).await
-}
-
-/// Standalone function to run a complete subagent task with output options
-pub async fn run_complete_subagent_task_with_options(
+pub async fn run_complete_subagent_task_with_options_stream(
     text_instruction: String,
     task_config: TaskConfig,
     return_last_only: bool,
+    event_sender: Option<UnboundedSender<Message>>,
 ) -> Result<String, anyhow::Error> {
-    // Create the subagent with the parent agent's provider
-    let subagent = SubAgent::new(task_config.clone()).await.map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to create subagent: {}", e),
-            None,
-        )
-    })?;
-
-    // Execute the subagent task
-    let messages = subagent
-        .reply_subagent(text_instruction, task_config)
-        .await?;
+    // Execute the task using a standalone agent instance
+    let messages = Agent::run_standalone_task(text_instruction, task_config, event_sender)
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
 
     // Extract text content based on return_last_only flag
     let response_text = if return_last_only {
