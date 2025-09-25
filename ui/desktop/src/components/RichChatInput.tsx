@@ -388,7 +388,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
                 height: "1em", 
                 width: "1px",
                 left: "0px",
-                top: "0.125em", // Align with text baseline
+                top: "0.25em", // Align with text baseline
                 verticalAlign: "baseline"
               }} 
             />
