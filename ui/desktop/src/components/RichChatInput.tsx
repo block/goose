@@ -545,6 +545,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               e.preventDefault();
               e.stopPropagation();
               
+              // Ensure textarea maintains focus after click
+              setTimeout(() => {
+                if (hiddenTextareaRef.current) {
+                  hiddenTextareaRef.current.focus();
+                }
+              }, 0);
+              
               if (misspelledData) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 console.log('🖱️ CLICK: Element rect:', rect);
