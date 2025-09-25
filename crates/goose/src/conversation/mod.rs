@@ -379,7 +379,7 @@ mod tests {
             0,
             "Fixed conversation should have no issues, but found: {:?}\n\n{}",
             issues_with_fixed,
-            debug_conversation_fix(&messages, &fixed.messages(), &issues)
+            debug_conversation_fix(&messages, fixed.messages(), &issues)
         );
         (fixed.messages().clone(), issues)
     }

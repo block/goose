@@ -172,7 +172,7 @@ description: "A test recipe"
             build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
-        println!("{}", err.to_string());
+        println!("{}", err);
 
         match err {
             RecipeError::TemplateRendering { source } => {
@@ -258,7 +258,7 @@ description: "A test recipe"
             build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
-        println!("{}", err.to_string());
+        println!("{}", err);
         match err {
             RecipeError::TemplateRendering { source } => {
                 assert!(source.to_string().to_lowercase().contains("missing"));

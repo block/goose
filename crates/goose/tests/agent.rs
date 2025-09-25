@@ -540,9 +540,7 @@ mod schedule_tool_tests {
 mod final_output_tool_tests {
     use super::*;
     use futures::stream;
-    use goose::agents::final_output_tool::{
-        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    };
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
@@ -1151,7 +1149,7 @@ mod max_turns_tests {
         }
 
         assert!(
-            responses.len() >= 1,
+            !responses.is_empty(),
             "Expected at least 1 response, got {}",
             responses.len()
         );

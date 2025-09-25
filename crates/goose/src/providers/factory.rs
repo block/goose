@@ -363,9 +363,6 @@ mod tests {
         _guard.set("GOOSE_CONTEXT_LIMIT", "64000");
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
 
-        match result {
-            Ok(_) => {}
-            Err(_) => {}
-        }
+        if let Ok(_) = result {}
     }
 }

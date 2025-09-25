@@ -33,6 +33,12 @@ pub struct ConfigurableMockScheduler {
 }
 
 #[allow(dead_code)]
+impl Default for ConfigurableMockScheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigurableMockScheduler {
     pub fn new() -> Self {
         Self {
@@ -335,6 +341,12 @@ prompt: "Hello world"
 // Test builder for easy setup
 pub struct ScheduleToolTestBuilder {
     scheduler: Arc<ConfigurableMockScheduler>,
+}
+
+impl Default for ScheduleToolTestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ScheduleToolTestBuilder {

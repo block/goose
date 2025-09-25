@@ -333,7 +333,7 @@ mod tests {
         assert!(tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc.contains("read-only operation")));
+            .is_some_and(|desc| desc.contains("read-only operation")));
     }
 
     #[test]

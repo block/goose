@@ -626,24 +626,24 @@ mod tests {
     #[test]
     fn test_make_full() {
         assert_eq!(
-            make_full_cmd("uvx", &vec!["mcp_slack".to_string()]),
+            make_full_cmd("uvx", &["mcp_slack".to_string()]),
             "uvx mcp_slack"
         );
         assert_eq!(
-            make_full_cmd("uvx", &vec!["mcp_slack ".to_string()]),
+            make_full_cmd("uvx", &["mcp_slack ".to_string()]),
             "uvx mcp_slack"
         );
         assert_eq!(
             make_full_cmd(
                 "uvx",
-                &vec!["mcp_slack".to_string(), "--verbose".to_string()]
+                &["mcp_slack".to_string(), "--verbose".to_string()]
             ),
             "uvx mcp_slack --verbose"
         );
         assert_eq!(
             make_full_cmd(
                 "uvx",
-                &vec!["mcp_slack".to_string(), " --verbose".to_string()]
+                &["mcp_slack".to_string(), " --verbose".to_string()]
             ),
             "uvx mcp_slack --verbose"
         );
@@ -1088,14 +1088,14 @@ mod tests {
         // With bypass enabled, any command should be allowed regardless of allowlist
         assert!(is_command_allowed(
             "uvx",
-            &vec!["unauthorized_command".to_string()]
+            &["unauthorized_command".to_string()]
         ));
 
         // Test case insensitivity
         env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE");
         assert!(is_command_allowed(
             "uvx",
-            &vec!["unauthorized_command".to_string()]
+            &["unauthorized_command".to_string()]
         ));
 
         // Clean up

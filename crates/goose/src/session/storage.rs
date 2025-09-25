@@ -1702,7 +1702,7 @@ mod tests {
         let mut lines: Vec<String> = contents.lines().map(String::from).collect();
         lines[0] = lines[0].replace(
             &get_home_dir().to_string_lossy().into_owned(),
-            &invalid_dir.to_string_lossy().into_owned(),
+            &invalid_dir.to_string_lossy(),
         );
         fs::write(&file_path, lines.join("\n"))?;
 

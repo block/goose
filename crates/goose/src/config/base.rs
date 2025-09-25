@@ -1075,7 +1075,7 @@ mod tests {
 
         // Should have recovered the data
         assert!(
-            recovered_values.len() >= 1,
+            !recovered_values.is_empty(),
             "Should have recovered at least one key"
         );
 
@@ -1169,7 +1169,7 @@ mod tests {
 
         // Should have recovered the data from backup
         assert!(
-            recovered_values.len() >= 1,
+            !recovered_values.is_empty(),
             "Should have recovered data from backup"
         );
 
@@ -1421,7 +1421,7 @@ mod tests {
         // Test boolean environment variable
         std::env::set_var("ENABLED", "true");
         let value: bool = config.get_param("enabled")?;
-        assert_eq!(value, true);
+        assert!(value);
 
         // Test JSON object environment variable
         std::env::set_var("CONFIG", "{\"debug\": true, \"level\": 5}");
@@ -1431,7 +1431,7 @@ mod tests {
             level: i32,
         }
         let value: TestConfig = config.get_param("config")?;
-        assert_eq!(value.debug, true);
+        assert!(value.debug);
         assert_eq!(value.level, 5);
 
         // Clean up

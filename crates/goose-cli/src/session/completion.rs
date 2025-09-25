@@ -519,7 +519,7 @@ mod tests {
         let (pos, candidates) = completer.complete_slash_commands("/e").unwrap();
         assert_eq!(pos, 0);
         // There might be multiple commands starting with "e" like "/exit" and "/extension"
-        assert!(candidates.len() >= 1);
+        assert!(!candidates.is_empty());
 
         // Test multiple matches
         let (pos, candidates) = completer.complete_slash_commands("/").unwrap();

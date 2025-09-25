@@ -11,7 +11,6 @@ use goose::session::storage::SessionMetadata;
 use rmcp::model::Tool;
 use std::sync::Arc;
 use tempfile::TempDir;
-use tokio;
 use uuid::Uuid;
 
 // Mock provider implementation for testing
