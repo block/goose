@@ -44,31 +44,38 @@ export const checkSpelling = async (text: string): Promise<MisspelledWord[]> => 
   console.log('🔍 SIMPLE SPELL CHECK: Checking text:', text);
   const misspelledWords: MisspelledWord[] = [];
   
-  // Simple test words that should definitely be caught
-  const testMisspellings = ['gasdd2', 'recieve', 'seperate', 'definately', 'teh', 'wierd', 'freind', 'sdd', 'asdf'];
+  // Expanded list of test words that should definitely be caught
+  const testMisspellings = [
+    'hellwo', 'gasdd2', 'recieve', 'seperate', 'definately', 'teh', 'wierd', 'freind', 
+    'sdd', 'asdf', 'qwerty', 'alot', 'occured', 'neccessary', 'begining', 'tommorrow',
+    'accomodate', 'existance', 'maintainance', 'calender', 'enviroment', 'goverment'
+  ];
   
-  // Split text into words
-  const words = text.split(/\s+/);
-  let currentPos = 0;
+  console.log('🔍 SIMPLE SPELL CHECK: Test misspellings list:', testMisspellings);
   
-  for (const word of words) {
-    const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
-    console.log('🔍 SIMPLE SPELL CHECK: Checking word:', cleanWord);
+  // Use regex to find words with their positions
+  const wordRegex = /\b[a-zA-Z]+\b/g;
+  let match;
+  
+  while ((match = wordRegex.exec(text)) !== null) {
+    const word = match[0];
+    const start = match.index;
+    const end = start + word.length;
+    const cleanWord = word.toLowerCase();
+    
+    console.log('🔍 SIMPLE SPELL CHECK: Checking word:', word, 'cleaned:', cleanWord, 'at position:', start);
     
     if (testMisspellings.includes(cleanWord)) {
-      const start = text.indexOf(word, currentPos);
-      if (start !== -1) {
-        misspelledWords.push({
-          word: word,
-          start: start,
-          end: start + word.length,
-          suggestions: ['test', 'suggestion']
-        });
-        console.log('🔍 SIMPLE SPELL CHECK: Found misspelling!', word, 'at position', start);
-      }
+      misspelledWords.push({
+        word: word,
+        start: start,
+        end: end,
+        suggestions: ['suggestion1', 'suggestion2']
+      });
+      console.log('🔍 SIMPLE SPELL CHECK: ✅ Found misspelling!', word, 'at position', start, 'to', end);
+    } else {
+      console.log('🔍 SIMPLE SPELL CHECK: ❌ Word is correct:', word);
     }
-    
-    currentPos += word.length + 1; // +1 for space
   }
   
   console.log('🔍 SIMPLE SPELL CHECK: Final result:', misspelledWords);
