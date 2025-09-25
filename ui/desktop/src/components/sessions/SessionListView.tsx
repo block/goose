@@ -20,7 +20,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { deleteSession, listSessions, Session, updateSessionMetadata } from '../../api';
+import { deleteSession, listSessions, Session, updateSessionDescription } from '../../api';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -56,7 +56,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
       setIsUpdating(true);
       try {
-        await updateSessionMetadata({
+        await updateSessionDescription({
           path: { session_id: session.id },
           body: { description: trimmedDescription },
           throwOnError: true,

@@ -72,17 +72,16 @@ export function useAgent(): UseAgentReturn {
           throwOnError: true,
         });
 
-        const agentSessionInfo = agentResponse.data;
-        const sessionMetadata = agentSessionInfo?.session;
-        const messages = agentSessionInfo?.session.conversation || [];
+        const agentSession = agentResponse.data;
+        const messages = agentSession.conversation || [];
         return {
-          sessionId: agentSessionInfo.session_id,
-          title: sessionMetadata.recipe?.title || sessionMetadata.description,
+          sessionId: agentSession.id,
+          title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
           messages: messages?.map((message: ApiMessage) =>
             convertApiMessageToFrontendMessage(message)
           ),
-          recipeConfig: sessionMetadata.recipe,
+          recipeConfig: agentSession.recipe,
         };
       }
 
@@ -120,11 +119,11 @@ export function useAgent(): UseAgentReturn {
                 throwOnError: true,
               });
 
-          const agentSessionInfo = agentResponse.data.session;
-          if (!agentSessionInfo) {
+          const agentSession = agentResponse.data;
+          if (!agentSession) {
             throw Error('Failed to get session info');
           }
-          setSessionId(agentSessionInfo.id);
+          setSessionId(agentSession.id);
 
           agentWaitingMessage('Agent is loading config');
 
@@ -138,7 +137,7 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
-          await initializeSystem(agentSessionInfo.id, provider as string, model as string, {
+          await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
@@ -152,15 +151,15 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const messages = agentSessionInfo.conversation || [];
+          const messages = agentSession.conversation || [];
           let initChat: ChatType = {
-            sessionId: agentSessionInfo.id,
-            title: agentSessionInfo.recipe?.title || agentSessionInfo.description,
+            sessionId: agentSession.id,
+            title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
             messages: messages.map((message: ApiMessage) =>
               convertApiMessageToFrontendMessage(message)
             ),
-            recipeConfig: agentSessionInfo.recipe,
+            recipeConfig: agentSession.recipe,
           };
 
           setAgentState(AgentState.INITIALIZED);

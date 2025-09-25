@@ -85,13 +85,6 @@ pub struct ResumeAgentRequest {
     session_id: String,
 }
 
-// This is the same as SessionHistoryResponse
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct StartAgentResponse {
-    session_id: String,
-    session: Session,
-}
-
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
     error: String,
@@ -102,7 +95,7 @@ pub struct ErrorResponse {
     path = "/agent/start",
     request_body = StartAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -111,7 +104,7 @@ pub struct ErrorResponse {
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
+) -> Result<Json<Session>, StatusCode> {
     state.reset().await;
 
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
@@ -134,10 +127,7 @@ async fn start_agent(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
-    Ok(Json(StartAgentResponse {
-        session_id: session.id.clone(),
-        session,
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(
@@ -145,7 +135,7 @@ async fn start_agent(
     path = "/agent/resume",
     request_body = ResumeAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -153,15 +143,12 @@ async fn start_agent(
 )]
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
+) -> Result<Json<Session>, StatusCode> {
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    Ok(Json(StartAgentResponse {
-        session_id: payload.session_id.clone(),
-        session,
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(

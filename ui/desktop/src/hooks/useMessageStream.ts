@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
-import { getSessionHistory, Session } from '../api';
+import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -338,20 +338,16 @@ export function useMessageStream({
                       onFinish(lastMessage, parsedEvent.reason);
                     }
 
-                    // Fetch updated session metadata with token counts
                     const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
                     if (sessionId) {
-                      try {
-                        const sessionResponse = await getSessionHistory({
-                          path: { session_id: sessionId },
-                        });
+                      const sessionResponse = await getSession({
+                        path: { session_id: sessionId },
+                        throwOnError: true,
+                      });
 
-                        if (sessionResponse.data?.session) {
-                          setSession(sessionResponse.data?.session);
-                        }
-                      } catch (error) {
-                        console.error('Failed to fetch session metadata:', error);
+                      if (sessionResponse.data) {
+                        setSession(sessionResponse.data);
                       }
                     }
                     break;

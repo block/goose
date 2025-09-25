@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
-import { toastError } from '../../toasts';
 import { useLocation } from 'react-router-dom';
-import { getSessionHistory, Session } from '../../api';
+import { getSession, Session } from '../../api';
 
 interface SessionsViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -23,24 +22,17 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     setError(null);
     setShowSessionHistory(true);
     try {
-      const response = await getSessionHistory<true>({
+      const response = await getSession<true>({
         path: { session_id: sessionId },
         throwOnError: true,
       });
-      setSelectedSession(response.data.session);
+      setSelectedSession(response.data);
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
       setError('Failed to load session details. Please try again later.');
       // Keep the selected session null if there's an error
       setSelectedSession(null);
       setShowSessionHistory(false);
-
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      toastError({
-        title: 'Failed to load session. The file may be corrupted.',
-        msg: 'Please try again later.',
-        traceback: errorMessage,
-      });
     } finally {
       setIsLoadingSession(false);
       setInitialSessionId(null);

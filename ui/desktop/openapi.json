@@ -107,7 +107,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StartAgentResponse"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
@@ -185,7 +185,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StartAgentResponse"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
@@ -1536,7 +1536,7 @@
         "tags": [
           "Session Management"
         ],
-        "operationId": "get_session_history",
+        "operationId": "get_session",
         "parameters": [
           {
             "name": "session_id",
@@ -1554,7 +1554,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionHistoryResponse"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
@@ -1574,9 +1574,7 @@
             "api_key": []
           }
         ]
-      }
-    },
-    "/sessions/{session_id}/delete": {
+      },
       "delete": {
         "tags": [
           "Session Management"
@@ -1614,12 +1612,12 @@
         ]
       }
     },
-    "/sessions/{session_id}/metadata": {
+    "/sessions/{session_id}/description": {
       "put": {
         "tags": [
           "Session Management"
         ],
-        "operationId": "update_session_metadata",
+        "operationId": "update_session_description",
         "parameters": [
           {
             "name": "session_id",
@@ -1635,7 +1633,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateSessionMetadataRequest"
+                "$ref": "#/components/schemas/UpdateSessionDescriptionRequest"
               }
             }
           },
@@ -1643,7 +1641,7 @@
         },
         "responses": {
           "200": {
-            "description": "Session metadata updated successfully"
+            "description": "Session description updated successfully"
           },
           "400": {
             "description": "Bad request - Description too long (max 200 characters)"
@@ -1688,28 +1686,6 @@
   },
   "components": {
     "schemas": {
-      "ActivityHeatmapCell": {
-        "type": "object",
-        "required": [
-          "week",
-          "day",
-          "count"
-        ],
-        "properties": {
-          "count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "day": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "week": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
       "AddSubRecipesRequest": {
         "type": "object",
         "required": [
@@ -3732,29 +3708,6 @@
           }
         }
       },
-      "SessionHistoryResponse": {
-        "type": "object",
-        "required": [
-          "sessionId",
-          "session",
-          "messages"
-        ],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            }
-          },
-          "session": {
-            "$ref": "#/components/schemas/Session"
-          },
-          "sessionId": {
-            "type": "string",
-            "description": "Unique identifier for the session"
-          }
-        }
-      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -3885,21 +3838,6 @@
             "nullable": true
           },
           "working_dir": {
-            "type": "string"
-          }
-        }
-      },
-      "StartAgentResponse": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "session"
-        ],
-        "properties": {
-          "session": {
-            "$ref": "#/components/schemas/Session"
-          },
-          "session_id": {
             "type": "string"
           }
         }
@@ -4203,7 +4141,7 @@
           }
         }
       },
-      "UpdateSessionMetadataRequest": {
+      "UpdateSessionDescriptionRequest": {
         "type": "object",
         "required": [
           "description"

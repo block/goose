@@ -75,14 +75,12 @@ const SessionHeader: React.FC<{
   );
 };
 
-// Session messages component that uses the same rendering as BaseChat
 const SessionMessages: React.FC<{
   messages: Message[];
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
 }> = ({ messages, isLoading, error, onRetry }) => {
-  // Filter messages for display (same as BaseChat)
   const filteredMessages = filterMessagesForDisplay(messages);
 
   return (
@@ -278,7 +276,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             actionButtons={!isLoading ? actionButtons : null}
           >
             <div className="flex flex-col">
-              {!isLoading && messages.length > 0 ? (
+              {!isLoading ? (
                 <>
                   <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
                     <span className="flex items-center">

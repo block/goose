@@ -22,19 +22,9 @@ pub struct SessionListResponse {
     sessions: Vec<Session>,
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionHistoryResponse {
-    /// Unique identifier for the session
-    session_id: String,
-    /// Session
-    session: Session,
-    messages: Vec<Message>,
-}
-
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateSessionMetadataRequest {
+pub struct UpdateSessionDescriptionRequest {
     /// Updated description (name) for the session (max 200 characters)
     description: String,
 }
@@ -52,14 +42,6 @@ pub struct SessionInsights {
     total_tokens: i64,
     /// Activity trend for the last 7 days
     recent_activity: Vec<(String, usize)>,
-}
-
-#[derive(Serialize, ToSchema, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ActivityHeatmapCell {
-    pub week: usize,
-    pub day: usize,
-    pub count: usize,
 }
 
 #[utoipa::path(
@@ -90,7 +72,7 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session history retrieved successfully", body = SessionHistoryResponse),
+        (status = 200, description = "Session history retrieved successfully", body = Session),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
@@ -100,28 +82,12 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn get_session_history(
-    Path(session_id): Path<String>,
-) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    let mut session = SessionManager::get_session(&session_id, true)
+async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
+    let session = SessionManager::get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let user_visible_messages = session
-        .conversation
-        .take()
-        .unwrap_or_default()
-        .messages()
-        .iter()
-        .filter(|m| m.is_user_visible())
-        .cloned()
-        .collect();
-
-    Ok(Json(SessionHistoryResponse {
-        session_id,
-        session: session.without_messages(),
-        messages: user_visible_messages,
-    }))
+    Ok(Json(session))
 }
 #[utoipa::path(
     get,
@@ -223,13 +189,13 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 
 #[utoipa::path(
     put,
-    path = "/sessions/{session_id}/metadata",
-    request_body = UpdateSessionMetadataRequest,
+    path = "/sessions/{session_id}/description",
+    request_body = UpdateSessionDescriptionRequest,
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session metadata updated successfully"),
+        (status = 200, description = "Session description updated successfully"),
         (status = 400, description = "Bad request - Description too long (max 200 characters)"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
@@ -240,9 +206,9 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn update_session_metadata(
+async fn update_session_description(
     Path(session_id): Path<String>,
-    Json(request): Json<UpdateSessionMetadataRequest>,
+    Json(request): Json<UpdateSessionDescriptionRequest>,
 ) -> Result<StatusCode, StatusCode> {
     if request.description.len() > MAX_DESCRIPTION_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
@@ -259,7 +225,7 @@ async fn update_session_metadata(
 
 #[utoipa::path(
     delete,
-    path = "/sessions/{session_id}/delete",
+    path = "/sessions/{session_id}",
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
@@ -291,70 +257,12 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
-        .route("/sessions/{session_id}", get(get_session_history))
-        .route("/sessions/{session_id}/delete", delete(delete_session))
+        .route("/sessions/{session_id}", get(get_session))
+        .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/insights", get(get_session_insights))
         .route(
-            "/sessions/{session_id}/metadata",
-            put(update_session_metadata),
+            "/sessions/{session_id}/description",
+            put(update_session_description),
         )
         .with_state(state)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_update_session_metadata_request_deserialization() {
-        // Test that our request struct can be deserialized properly
-        let json = r#"{"description": "test description"}"#;
-        let request: UpdateSessionMetadataRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.description, "test description");
-    }
-
-    #[tokio::test]
-    async fn test_update_session_metadata_request_validation() {
-        // Test empty description
-        let empty_request = UpdateSessionMetadataRequest {
-            description: "".to_string(),
-        };
-        assert_eq!(empty_request.description, "");
-
-        // Test normal description
-        let normal_request = UpdateSessionMetadataRequest {
-            description: "My Session Name".to_string(),
-        };
-        assert_eq!(normal_request.description, "My Session Name");
-
-        // Test description at max length (should be valid)
-        let max_length_description = "A".repeat(MAX_DESCRIPTION_LENGTH);
-        let max_request = UpdateSessionMetadataRequest {
-            description: max_length_description.clone(),
-        };
-        assert_eq!(max_request.description, max_length_description);
-        assert_eq!(max_request.description.len(), MAX_DESCRIPTION_LENGTH);
-
-        // Test description over max length
-        let over_max_description = "A".repeat(MAX_DESCRIPTION_LENGTH + 1);
-        let over_max_request = UpdateSessionMetadataRequest {
-            description: over_max_description.clone(),
-        };
-        assert_eq!(over_max_request.description, over_max_description);
-        assert!(over_max_request.description.len() > MAX_DESCRIPTION_LENGTH);
-    }
-
-    #[tokio::test]
-    async fn test_description_length_validation() {
-        // Test the validation logic used in the endpoint
-        let valid_description = "A".repeat(MAX_DESCRIPTION_LENGTH);
-        assert!(valid_description.len() <= MAX_DESCRIPTION_LENGTH);
-
-        let invalid_description = "A".repeat(MAX_DESCRIPTION_LENGTH + 1);
-        assert!(invalid_description.len() > MAX_DESCRIPTION_LENGTH);
-
-        // Test edge cases
-        assert!(String::new().len() <= MAX_DESCRIPTION_LENGTH); // Empty string
-        assert!("Short".len() <= MAX_DESCRIPTION_LENGTH); // Short string
-    }
 }

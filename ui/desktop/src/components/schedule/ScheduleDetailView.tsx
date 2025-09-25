@@ -20,7 +20,7 @@ import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
-import { getSessionHistory, Session } from '../../api';
+import { getSession, Session } from '../../api';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -430,11 +430,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setSessionDetailsError(null);
     setSelectedSessionDetails(null);
     try {
-      const response = await getSessionHistory<true>({
+      const response = await getSession<true>({
         path: { session_id: sessionId },
         throwOnError: true,
       });
-      setSelectedSessionDetails(response.data.session);
+      setSelectedSessionDetails(response.data);
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to load session details.';

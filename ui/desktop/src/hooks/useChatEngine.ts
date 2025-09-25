@@ -15,7 +15,7 @@ import {
 } from '../types/message';
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
-import { getSessionHistory } from '../api';
+import { getSession } from '../api';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -202,11 +202,11 @@ export const useChatEngine = ({
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
-        const response = await getSessionHistory<true>({
+        const response = await getSession<true>({
           path: { session_id: chat.sessionId },
           throwOnError: true,
         });
-        const sessionDetails = response.data.session;
+        const sessionDetails = response.data;
         setSessionTokenCount(sessionDetails.total_tokens || 0);
         setSessionInputTokens(sessionDetails.accumulated_input_tokens || 0);
         setSessionOutputTokens(sessionDetails.accumulated_output_tokens || 0);
