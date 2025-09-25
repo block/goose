@@ -50,7 +50,7 @@ enum TestMode {
     vec![]
 )]
 #[test_case(
-    vec!["cargo", "run", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
     vec![
         ToolCall::new("text_editor", json!({
             "command": "view",
