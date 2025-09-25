@@ -45,8 +45,15 @@ const checkSpelling = async (text: string): Promise<{ word: string; start: numbe
   
   // Common misspelled words for demo purposes
   const commonMisspellings = [
+    // Test words
+    'sdd', 'asdf', 'qwerty', 'test', 'xyz',
+    // Common misspellings
     'teh', 'recieve', 'seperate', 'occured', 'neccessary', 'definately', 
-    'occassion', 'begining', 'tommorrow', 'accomodate', 'existance', 'maintainance'
+    'occassion', 'begining', 'tommorrow', 'accomodate', 'existance', 'maintainance',
+    'alot', 'wierd', 'freind', 'thier', 'calender', 'enviroment', 'goverment',
+    'independant', 'jewelery', 'liesure', 'mispell', 'noticable', 'occassionally',
+    'perseverence', 'priviledge', 'recomend', 'rythm', 'sucessful', 'truely',
+    'untill', 'vaccuum', 'wether', 'wich', 'writting', 'youre', 'its'
   ];
   
   // Split text into words while preserving positions
