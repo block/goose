@@ -195,12 +195,14 @@ async fn test_replayed_session(
     .await;
 
     if let Err(err) = result {
-        let errors =
-            fs::read_to_string(format!("{}.errors.txt", replay_file_path.to_string_lossy()))
-                .expect("could not read errors");
-        eprintln!("errors from {}", replay_file_path.to_string_lossy());
-        eprintln!("{}", errors);
-        eprintln!();
+        if matches!(mode, TestMode::Playback) {
+            let errors =
+                fs::read_to_string(format!("{}.errors.txt", replay_file_path.to_string_lossy()))
+                    .expect("could not read errors");
+            eprintln!("errors from {}", replay_file_path.to_string_lossy());
+            eprintln!("{}", errors);
+            eprintln!();
+        }
         panic!("Test failed: {:?}", err);
     }
 }
