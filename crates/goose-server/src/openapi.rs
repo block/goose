@@ -337,7 +337,6 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
     }
 }
 
-#[allow(dead_code)]
 #[derive(OpenApi)]
 #[openapi(
     paths(

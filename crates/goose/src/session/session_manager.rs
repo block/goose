@@ -14,6 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
+use tracing::{info, warn};
 use utoipa::ToSchema;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
@@ -147,15 +148,10 @@ pub struct SessionManager;
 
 impl SessionManager {
     async fn instance() -> Result<Arc<SessionStorage>> {
-        match SESSION_STORAGE.get() {
-            Some(storage) => Ok(storage.clone()),
-            None => {
-                let storage = Arc::new(SessionStorage::new().await?);
-                match SESSION_STORAGE.set(storage.clone()) {
-                    Ok(_) => Ok(storage),
-                    Err(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
-                }
-            }
+        let storage = Arc::new(SessionStorage::new().await?);
+        match SESSION_STORAGE.set(storage) {
+            Ok(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
+            Err(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
         }
     }
 
@@ -278,23 +274,6 @@ fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
-type SessionRow = (
-    String,
-    String,
-    String,
-    String,
-    String,
-    String,
-    Option<i32>,
-    Option<i32>,
-    Option<i32>,
-    Option<i32>,
-    Option<i32>,
-    Option<i32>,
-    Option<String>,
-    Option<String>,
-);
-
 impl Default for Session {
     fn default() -> Self {
         Self {
@@ -325,6 +304,35 @@ impl Session {
     }
 }
 
+impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let recipe_json: Option<String> = row.try_get("recipe_json")?;
+        let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
+
+        Ok(Session {
+            id: row.try_get("id")?,
+            working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
+            description: row.try_get("description")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+            extension_data: serde_json::from_str(&row.try_get::<String, _>("extension_data")?)
+                .unwrap_or_default(),
+            total_tokens: row.try_get("total_tokens")?,
+            input_tokens: row.try_get("input_tokens")?,
+            output_tokens: row.try_get("output_tokens")?,
+            accumulated_total_tokens: row.try_get("accumulated_total_tokens")?,
+            accumulated_input_tokens: row.try_get("accumulated_input_tokens")?,
+            accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
+            schedule_id: row.try_get("schedule_id")?,
+            recipe,
+            conversation: None,
+            message_count: 0,
+        })
+    }
+}
+
 impl SessionStorage {
     async fn new() -> Result<Self> {
         let session_dir = ensure_session_dir()?;
@@ -333,11 +341,10 @@ impl SessionStorage {
         let storage = if db_path.exists() {
             Self::open(&db_path).await?
         } else {
-            println!("Creating new session database...");
             let storage = Self::create(&db_path).await?;
 
             if let Err(e) = storage.import_legacy(&session_dir).await {
-                println!("Warning: Failed to import some legacy sessions: {}", e);
+                warn!("Failed to import some legacy sessions: {}", e);
             }
 
             storage
@@ -445,7 +452,7 @@ impl SessionStorage {
         let sessions = match legacy::list_sessions(session_dir) {
             Ok(sessions) => sessions,
             Err(_) => {
-                println!("No legacy sessions found to import");
+                warn!("No legacy sessions found to import");
                 return Ok(());
             }
         };
@@ -453,8 +460,6 @@ impl SessionStorage {
         if sessions.is_empty() {
             return Ok(());
         }
-
-        println!("Importing {} legacy sessions...", sessions.len());
 
         let mut imported_count = 0;
         let mut failed_count = 0;
@@ -464,21 +469,21 @@ impl SessionStorage {
                 Ok(session) => match self.import_legacy_session(&session).await {
                     Ok(_) => {
                         imported_count += 1;
-                        println!("  ✓ Imported: {}", session_name);
+                        info!("  ✓ Imported: {}", session_name);
                     }
                     Err(e) => {
                         failed_count += 1;
-                        println!("  ✗ Failed to import {}: {}", session_name, e);
+                        info!("  ✗ Failed to import {}: {}", session_name, e);
                     }
                 },
                 Err(e) => {
                     failed_count += 1;
-                    println!("  ✗ Failed to load {}: {}", session_name, e);
+                    info!("  ✗ Failed to load {}: {}", session_name, e);
                 }
             }
         }
 
-        println!(
+        info!(
             "Import complete: {} successful, {} failed",
             imported_count, failed_count
         );
@@ -528,19 +533,19 @@ impl SessionStorage {
         let current_version = self.get_schema_version().await?;
 
         if current_version < CURRENT_SCHEMA_VERSION {
-            println!(
+            info!(
                 "Running database migrations from v{} to v{}...",
                 current_version, CURRENT_SCHEMA_VERSION
             );
 
             for version in (current_version + 1)..=CURRENT_SCHEMA_VERSION {
-                println!("  Applying migration v{}...", version);
+                info!("  Applying migration v{}...", version);
                 self.apply_migration(version).await?;
                 self.update_schema_version(version).await?;
-                println!("  ✓ Migration v{} complete", version);
+                info!("  ✓ Migration v{} complete", version);
             }
 
-            println!("All migrations complete");
+            info!("All migrations complete");
         }
 
         Ok(())
@@ -599,80 +604,36 @@ impl SessionStorage {
         Ok(())
     }
 
-    fn row_to_session(
-        row: SessionRow,
-        conversation: Option<Conversation>,
-        message_count: usize,
-    ) -> Session {
-        let (
-            id,
-            working_dir,
-            description,
-            created_at,
-            updated_at,
-            extension_data,
-            total_tokens,
-            input_tokens,
-            output_tokens,
-            accumulated_total_tokens,
-            accumulated_input_tokens,
-            accumulated_output_tokens,
-            schedule_id,
-            recipe_json,
-        ) = row;
-
-        let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
-
-        Session {
-            id,
-            working_dir: PathBuf::from(working_dir),
-            description,
-            created_at,
-            updated_at,
-            extension_data: serde_json::from_str(&extension_data).unwrap_or_default(),
-            total_tokens,
-            input_tokens,
-            output_tokens,
-            accumulated_total_tokens,
-            accumulated_input_tokens,
-            accumulated_output_tokens,
-            schedule_id,
-            recipe,
-            conversation,
-            message_count,
-        }
-    }
-
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
-        let row = sqlx::query_as::<_, SessionRow>(
+        let mut session = sqlx::query_as::<_, Session>(
             r#"
-            SELECT id, working_dir, description, created_at, updated_at, extension_data,
-                   total_tokens, input_tokens, output_tokens,
-                   accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                   schedule_id, recipe_json
-            FROM sessions
-            WHERE id = ?
-        "#,
+        SELECT id, working_dir, description, created_at, updated_at, extension_data,
+               total_tokens, input_tokens, output_tokens,
+               accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+               schedule_id, recipe_json
+        FROM sessions
+        WHERE id = ?
+    "#,
         )
         .bind(id)
         .fetch_optional(&self.pool)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
-        let (conversation, message_count) = if include_messages {
-            let conv = self.get_conversation(&row.0).await?;
-            let count = conv.messages().len();
-            (Some(conv), count)
+        if include_messages {
+            let conv = self.get_conversation(&session.id).await?;
+            session.message_count = conv.messages().len();
+            session.conversation = Some(conv);
         } else {
             let count =
                 sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&row.0)
+                    .bind(&session.id)
                     .fetch_one(&self.pool)
                     .await? as usize;
-            (None, count)
-        };
+            session.message_count = count;
+        }
 
-        Ok(Self::row_to_session(row, conversation, message_count))
+        Ok(session)
     }
 
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
@@ -837,52 +798,31 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        let rows = sqlx::query_as::<
-            _,
-            (
-                String,
-                String,
-                String,
-                String,
-                String,
-                String,
-                Option<i32>,
-                Option<i32>,
-                Option<i32>,
-                Option<i32>,
-                Option<i32>,
-                Option<i32>,
-                Option<String>,
-                Option<String>,
-                i64,
-            ),
-        >(
+        let sessions = sqlx::query_as::<_, Session>(
             r#"
-                SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
-                       s.total_tokens, s.input_tokens, s.output_tokens,
-                       s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-                       s.schedule_id, s.recipe_json,
-                       COUNT(m.id) as message_count
-                FROM sessions s
-                INNER JOIN messages m ON s.id = m.session_id
-                GROUP BY s.id
-                ORDER BY s.updated_at DESC
-        "#,
+            SELECT DISTINCT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json
+            FROM sessions s
+            ORDER BY s.updated_at DESC
+    "#,
         )
-        .fetch_all(&self.pool)
-        .await?;
+            .fetch_all(&self.pool)
+            .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| {
-                let count = row.14 as usize;
-                let session_row = (
-                    row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9, row.10,
-                    row.11, row.12, row.13,
-                );
-                Self::row_to_session(session_row, None, count)
-            })
-            .collect())
+        let mut result = Vec::new();
+        for mut session in sessions {
+            let count =
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
+                    .bind(&session.id)
+                    .fetch_one(&self.pool)
+                    .await? as usize;
+            session.message_count = count;
+            result.push(session);
+        }
+
+        Ok(result)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
