@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import SpellCheckTooltip from './SpellCheckTooltip';
-import { checkSpelling, MisspelledWord } from '../utils/realSpellCheck';
+// Remove unused import - using Electron spell checking instead
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
@@ -124,7 +124,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const displayRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [misspelledWords, setMisspelledWords] = useState<MisspelledWord[]>([]);
+  const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
   
   // Spell check tooltip state
   const [tooltip, setTooltip] = useState<{
