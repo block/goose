@@ -1,6 +1,4 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import SpellCheckTooltip from './SpellCheckTooltip';
-// Remove unused import - using Electron spell checking instead
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
@@ -40,69 +38,6 @@ export interface RichChatInputRef {
   getBoundingClientRect: () => DOMRect;
 }
 
-// Use Electron's system spell checking
-const checkSpelling = async (text: string): Promise<{ word: string; start: number; end: number; suggestions: string[] }[]> => {
-  console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text);
-  const misspelledWords: { word: string; start: number; end: number; suggestions: string[] }[] = [];
-  
-  // Check if Electron API is available
-  if (!window.electron?.spellCheck || !window.electron?.spellSuggestions) {
-    console.warn('🔍 ELECTRON SPELL CHECK: Electron spell check API not available, falling back to no spell checking');
-    return misspelledWords;
-  }
-  
-  // Split text into words while preserving positions
-  const wordRegex = /\b[a-zA-Z]+\b/g;
-  let match;
-  
-  const wordChecks: Array<{word: string; start: number; end: number}> = [];
-  
-  // First, collect all words and their positions
-  while ((match = wordRegex.exec(text)) !== null) {
-    const word = match[0];
-    const start = match.index;
-    const end = start + word.length;
-    
-    // Skip very short words (less than 3 characters)
-    if (word.length < 3) {
-      continue;
-    }
-    
-    wordChecks.push({ word, start, end });
-  }
-  
-  console.log('🔍 ELECTRON SPELL CHECK: Found words to check:', wordChecks.map(w => w.word));
-  
-  // Check each word and collect results
-  for (const { word, start, end } of wordChecks) {
-    try {
-      const isCorrect = await window.electron.spellCheck(word);
-      console.log('🔍 ELECTRON SPELL CHECK: Word:', word, 'isCorrect:', isCorrect);
-      
-      if (!isCorrect) {
-        // Get suggestions from Electron
-        const suggestions = await window.electron.spellSuggestions(word);
-        console.log('🔍 ELECTRON SPELL CHECK: Suggestions for', word, ':', suggestions);
-        
-        misspelledWords.push({
-          word: word,
-          start: start,
-          end: end,
-          suggestions: suggestions || []
-        });
-      }
-    } catch (error) {
-      console.error('🔍 ELECTRON SPELL CHECK: Error checking word', word, ':', error);
-    }
-  }
-  
-  // Sort misspelled words by position
-  misspelledWords.sort((a, b) => a.start - b.start);
-  
-  console.log('🔍 ELECTRON SPELL CHECK: Final result:', misspelledWords);
-  return misspelledWords;
-};
-
 export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   value,
   onChange,
@@ -124,7 +59,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const displayRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
   
   // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
@@ -237,27 +171,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         resizeObserver.disconnect();
       };
     }
-  }, [syncDisplayHeight]);
+  }, [monitorTextareaChanges]);
   
-  // Spell check tooltip state
-  const [tooltip, setTooltip] = useState<{
-    isVisible: boolean;
-    position: { x: number; y: number };
-    misspelledWord: string;
-    suggestions: string[];
-    wordStart: number;
-    wordEnd: number;
-    isHoveringTooltip: boolean;
-  }>({
-    isVisible: false,
-    position: { x: 0, y: 0 },
-    misspelledWord: '',
-    suggestions: [],
-    wordStart: 0,
-    wordEnd: 0,
-    isHoveringTooltip: false,
-  });
-
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     focus: () => hiddenTextareaRef.current?.focus(),
@@ -276,89 +191,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     if (hiddenTextareaRef.current) {
       setCursorPosition(hiddenTextareaRef.current.selectionStart);
     }
-  }, []);
+  }, [updateCursorPosition]);
 
-  // Track the last spell checked text to avoid unnecessary re-checks
-  const lastSpellCheckedTextRef = useRef<string>('');
-  const spellCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Spell check the content using Electron's system spell checker
-  const performSpellCheck = useCallback(async (text: string, isIncremental = false) => {
-    console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text, 'incremental:', isIncremental);
-    
-    // Skip if we've already checked this exact text
-    if (text === lastSpellCheckedTextRef.current) {
-      console.log('🔍 ELECTRON SPELL CHECK: Skipping - text unchanged');
-      return;
-    }
-
-    // Use the Electron spell checking function
-    try {
-      const misspelledWords = await checkSpelling(text);
-      console.log('🔍 ELECTRON SPELL CHECK: System spell check result:', misspelledWords);
-      
-      // Critical: Check current value at time of update, not captured value
-      const currentValue = hiddenTextareaRef.current?.value || '';
-      
-      // Only update if the text hasn't changed since we started checking
-      if (text === currentValue) {
-        // Use functional update to avoid dependency on value in useCallback
-        setMisspelledWords(misspelledWords);
-        lastSpellCheckedTextRef.current = text;
-      } else {
-        console.log('🔍 ELECTRON SPELL CHECK: Discarding stale result - text changed during check');
-      }
-    } catch (error) {
-      console.error('🔍 ELECTRON SPELL CHECK: Error performing spell check:', error);
-      // Fallback to no spell checking on error
-      const currentValue = hiddenTextareaRef.current?.value || '';
-      if (text === currentValue) {
-        setMisspelledWords([]);
-      }
-    }
-  }, []); // Remove value dependency to prevent recreation
-
-  // Smart spell check timing - check after word completion and with shorter delays
-  useEffect(() => {
-    // Clear any existing timeout
-    if (spellCheckTimeoutRef.current) {
-      clearTimeout(spellCheckTimeoutRef.current);
-    }
-
-    if (!value.trim()) {
-      setMisspelledWords([]);
-      lastSpellCheckedTextRef.current = '';
-      return;
-    }
-
-    // Detect if user just completed a word (typed space, punctuation, or newline)
-    const lastChar = value[value.length - 1];
-    const isWordBoundary = /[\s\n\.,!?;:]/.test(lastChar);
-    
-    // Use different delays based on context
-    let delay: number;
-    if (isWordBoundary) {
-      // Just completed a word - check quickly
-      delay = 150;
-    } else {
-      // Still typing within a word - wait longer to avoid interrupting
-      delay = 300;
-    }
-
-    console.log('🔍 SPELL CHECK TIMING: Setting timeout with delay:', delay, 'isWordBoundary:', isWordBoundary, 'lastChar:', lastChar);
-
-    spellCheckTimeoutRef.current = setTimeout(() => {
-      performSpellCheck(value, !isWordBoundary);
-    }, delay);
-
-    return () => {
-      if (spellCheckTimeoutRef.current) {
-        clearTimeout(spellCheckTimeoutRef.current);
-      }
-    };
-  }, [value, performSpellCheck]);
-
-  // Parse and render content with action pills, mention pills, spell checking, and cursor
+  // Parse and render content with action pills, mention pills, and cursor
   const renderContent = useCallback(() => {
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
@@ -395,9 +230,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
     console.log('🎨 RichChatInput renderContent called with value:', value);
     console.log('🔍 Looking for action and mention patterns with regex:', { actionRegex, mentionRegex });
-    console.log('📝 Misspelled words:', misspelledWords);
     
-    // Find all actions, mentions, and misspelled words, then sort by position
+    // Find all actions and mentions, then sort by position
     const allMatches = [];
     
     // Find all action matches
@@ -428,17 +262,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       });
     }
 
-    // Add misspelled words
-    misspelledWords.forEach(misspelled => {
-      allMatches.push({
-        type: 'misspelled',
-        match: null,
-        index: misspelled.start,
-        length: misspelled.end - misspelled.start,
-        content: misspelled.word
-      });
-    });
-    
     // Sort matches by position
     allMatches.sort((a, b) => a.index - b.index);
     
@@ -449,7 +272,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     let lastProcessedEnd = 0;
     
     for (const matchData of allMatches) {
-      // Skip overlapping matches (pills take priority over spell check)
+      // Skip overlapping matches
       if (matchData.index < lastProcessedEnd) {
         continue;
       }
@@ -541,102 +364,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             onRemove={() => handleRemoveMention(fileName)}
           />
         );
-      } else if (type === 'misspelled') {
-        // Handle misspelled words with red highlighting and hover tooltip
-        const misspelledData = misspelledWords.find(m => m.word === content);
-        console.log('🎨 RENDERING MISSPELLED: word:', content, 'data:', misspelledData);
-        console.log('🎨 RENDERING MISSPELLED: all misspelled words:', misspelledWords);
-        
-        parts.push(
-          <span 
-            key={`misspelled-${keyCounter++}`} 
-            data-misspelled="true"
-            className="inline whitespace-pre-wrap cursor-pointer bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium px-1 py-0.5 rounded-sm border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 hover:scale-105 transition-all duration-150 relative z-50"
-            style={{
-              pointerEvents: 'auto', // Override parent's pointer-events: none
-              userSelect: 'text', // Allow text selection for normal text editing
-            }}
-            title={`Click or hover for suggestions: ${content}`}
-            onClick={(e) => {
-              console.log('🖱️ CLICK: Clicked on misspelled word:', content);
-              e.preventDefault();
-              e.stopPropagation();
-              
-              // Ensure textarea maintains focus after click
-              setTimeout(() => {
-                if (hiddenTextareaRef.current) {
-                  hiddenTextareaRef.current.focus();
-                }
-              }, 0);
-              
-              if (misspelledData) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                console.log('🖱️ CLICK: Element rect:', rect);
-                
-                // Show tooltip on click - positioned at center of word
-                const tooltipData = {
-                  isVisible: true,
-                  position: { 
-                    x: rect.left + rect.width / 2, 
-                    y: rect.top 
-                  },
-                  misspelledWord: misspelledData.word,
-                  suggestions: misspelledData.suggestions || [],
-                  wordStart: misspelledData.start,
-                  wordEnd: misspelledData.end,
-                  isHoveringTooltip: false,
-                };
-                console.log('🖱️ CLICK: Setting tooltip data:', tooltipData);
-                setTooltip(tooltipData);
-              }
-            }}
-            onMouseEnter={(e) => {
-              console.log('🖱️ MOUSEENTER: Mouse entered misspelled word:', content);
-              
-              // Only show tooltip on hover if we're not actively typing
-              // Check if the textarea has been recently focused/active
-              const now = Date.now();
-              const lastActivity = hiddenTextareaRef.current?.dataset.lastActivity;
-              const timeSinceActivity = lastActivity ? now - parseInt(lastActivity) : Infinity;
-              
-              // Only show hover tooltip if it's been more than 500ms since last typing activity
-              if (timeSinceActivity > 500 && misspelledData) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                console.log('🖱️ MOUSEENTER: Element rect:', rect);
-                const tooltipData = {
-                  isVisible: true,
-                  position: { 
-                    x: rect.left + rect.width / 2, 
-                    y: rect.top 
-                  },
-                  misspelledWord: misspelledData.word,
-                  suggestions: misspelledData.suggestions || [],
-                  wordStart: misspelledData.start,
-                  wordEnd: misspelledData.end,
-                  isHoveringTooltip: false,
-                };
-                console.log('🖱️ MOUSEENTER: Setting tooltip data:', tooltipData);
-                setTooltip(tooltipData);
-              }
-            }}
-            onMouseLeave={(e) => {
-              console.log('🖱️ MOUSELEAVE: Mouse left misspelled word:', content);
-              
-              // Add a small delay before hiding to allow moving to tooltip
-              setTimeout(() => {
-                setTooltip(prev => {
-                  // Only hide if not hovering over the tooltip
-                  if (!prev.isHoveringTooltip) {
-                    return { ...prev, isVisible: false };
-                  }
-                  return prev;
-                });
-              }, 150);
-            }}
-          >
-            {content}
-          </span>
-        );
       }
       
       currentPos += length;
@@ -694,7 +421,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         )}
       </div>
     );
-  }, [value, isFocused, placeholder, cursorPosition, misspelledWords]);
+  }, [value, isFocused, placeholder, cursorPosition]);
 
   const handleRemoveAction = useCallback((actionLabel: string) => {
     const actionText = `[${actionLabel}]`;
@@ -712,11 +439,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const newValue = e.target.value;
     const newCursorPos = e.target.selectionStart;
     
-    // Track typing activity to prevent hover tooltips while actively typing
-    if (hiddenTextareaRef.current) {
-      hiddenTextareaRef.current.dataset.lastActivity = Date.now().toString();
-    }
-    
     console.log('🔄 RichChatInput: onChange', { newValue, newCursorPos });
     onChange(newValue, newCursorPos);
     setCursorPosition(newCursorPos);
@@ -728,9 +450,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   }, [onChange, syncDisplayHeight]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Hide tooltip on any key press
-    setTooltip(prev => ({ ...prev, isVisible: false }));
-    
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
     
@@ -815,8 +534,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   const handleTextareaBlur = useCallback(() => {
     setIsFocused(false);
-    // Hide tooltip when input loses focus
-    setTooltip(prev => ({ ...prev, isVisible: false }));
     onBlur?.();
   }, [onBlur]);
 
@@ -848,87 +565,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     return cleanup;
   }, [monitorTextareaChanges]);
 
-  // Tooltip handlers
-  const handleSuggestionSelect = useCallback((suggestion: string) => {
-    const newValue = value.slice(0, tooltip.wordStart) + 
-                     suggestion + 
-                     value.slice(tooltip.wordEnd);
-    onChange(newValue);
-    setTooltip(prev => ({ ...prev, isVisible: false }));
-  }, [value, onChange, tooltip.wordStart, tooltip.wordEnd]);
-
-  const handleAddToDictionary = useCallback(() => {
-    // TODO: Implement add to dictionary functionality
-    console.log('Add to dictionary:', tooltip.misspelledWord);
-    setTooltip(prev => ({ ...prev, isVisible: false }));
-  }, [tooltip.misspelledWord]);
-
-  const handleIgnore = useCallback(() => {
-    // TODO: Implement ignore functionality
-    console.log('Ignore word:', tooltip.misspelledWord);
-    setTooltip(prev => ({ ...prev, isVisible: false }));
-  }, [tooltip.misspelledWord]);
-
-  // Container mouse leave handler
-  const handleContainerMouseLeave = useCallback(() => {
-    console.log('🖱️ CONTAINER MOUSE LEAVE: Hiding tooltip');
-    setTooltip(prev => ({ ...prev, isVisible: false }));
-  }, []);
-
-  // Hide tooltip when clicking outside or when component loses focus
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      
-      // Don't hide if clicking on the tooltip itself or its children
-      const tooltipElement = document.querySelector('[data-spell-tooltip="true"]');
-      if (tooltipElement && tooltipElement.contains(target)) {
-        return;
-      }
-      
-      // Don't hide if clicking on a misspelled word
-      const misspelledElement = target as Element;
-      if (misspelledElement?.closest?.('[data-misspelled="true"]')) {
-        return;
-      }
-      
-      // Hide tooltip if clicking outside the input area
-      if (displayRef.current && !displayRef.current.contains(target)) {
-        setTooltip(prev => ({ ...prev, isVisible: false }));
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Tooltip hover handlers
-  const handleTooltipEnter = useCallback(() => {
-    console.log('🖱️ TOOLTIP ENTER: Setting isHoveringTooltip to true');
-    setTooltip(prev => ({
-      ...prev,
-      isHoveringTooltip: true,
-    }));
-  }, []);
-
-  const handleTooltipLeave = useCallback(() => {
-    console.log('🖱️ TOOLTIP LEAVE: Setting isHoveringTooltip to false and hiding tooltip');
-    setTooltip(prev => ({
-      ...prev,
-      isHoveringTooltip: false,
-      isVisible: false,
-    }));
-  }, []);
-
   return (
-    <div 
-      className="relative rich-text-input"
-      onMouseLeave={handleContainerMouseLeave}
-    >
-      {/* Hidden textarea for actual input handling with spell check enabled */}
+    <div className="relative rich-text-input">
+      {/* Hidden textarea for actual input handling with native spell check enabled */}
       <textarea
         ref={hiddenTextareaRef}
         value={value}
@@ -941,7 +580,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         onCompositionEnd={onCompositionEnd}
         disabled={disabled}
         data-testid={testId}
-        spellCheck={false} // Disable browser spell check - we handle it ourselves
+        spellCheck={true} // Enable native OS spell checking
         className="absolute inset-0 w-full resize-none overflow-y-auto"
         onScroll={handleTextareaScroll}
         style={{
@@ -972,7 +611,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         rows={rows}
       />
       
-      {/* Visual display with action pills, mention pills, spell check, and cursor */}
+      {/* Visual display with action pills, mention pills, and cursor */}
       <div
         ref={displayRef}
         className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
@@ -1029,20 +668,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           }
         `
       }} />
-      
-      {/* Spell Check Hover Tooltip */}
-      {console.log('🖱️ TOOLTIP RENDER: tooltip state:', tooltip)}
-      <SpellCheckTooltip
-        isVisible={tooltip.isVisible}
-        position={tooltip.position}
-        suggestions={tooltip.suggestions}
-        misspelledWord={tooltip.misspelledWord}
-        onSuggestionSelect={handleSuggestionSelect}
-        onAddToDictionary={handleAddToDictionary}
-        onIgnore={handleIgnore}
-        onMouseEnter={handleTooltipEnter}
-        onMouseLeave={handleTooltipLeave}
-      />
     </div>
   );
 });
