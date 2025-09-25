@@ -387,18 +387,18 @@ jobs:
           echo "📦 Creating Windows zip package..."
           
           # Create a zip file from the dist-windows directory
-          zip -r "Goose-win32-x64.zip" dist-windows/
+          zip -r "goose-win32-x64.zip" dist-windows/
           
           echo "✅ Windows zip package created:"
-          ls -la Goose-win32-x64.zip
+          ls -la goose-win32-x64.zip
           
           # Also create the zip in the expected output structure for consistency
-          mkdir -p out/Goose-win32-x64/
-          cp Goose-win32-x64.zip out/Goose-win32-x64/
+          mkdir -p out/goose-win32-x64/
+          cp goose-win32-x64.zip out/goose-win32-x64/
 
       # 11) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
-          name: Goose-win32-x64
-          path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip
+          name: goose-win32-x64
+          path: ui/desktop/out/goose-win32-x64/goose-win32-x64.zip

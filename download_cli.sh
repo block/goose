@@ -2,7 +2,7 @@
 set -eu
 
 ##############################################################################
-# Goose CLI Install Script
+# goose CLI Install Script
 #
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
@@ -14,7 +14,7 @@ set -eu
 #   curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
 #
 # Environment variables:
-#   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)
+#   GOOSE_BIN_DIR  - Directory to which goose will be installed (default: $HOME/.local/bin)
 #   GOOSE_VERSION  - Optional: specific version to install (e.g., "v1.0.25"). Overrides CANARY. Can be in the format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z
 #   GOOSE_PROVIDER - Optional: provider for goose
 #   GOOSE_MODEL    - Optional: model for goose
@@ -26,13 +26,13 @@ set -eu
 # --- 1) Check for dependencies ---
 # Check for curl
 if ! command -v curl >/dev/null 2>&1; then
-  echo "Error: 'curl' is required to download Goose. Please install curl and try again."
+  echo "Error: 'curl' is required to download goose. Please install curl and try again."
   exit 1
 fi
 
 # Check for tar or unzip (depending on OS)
 if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
-  echo "Error: Either 'tar' or 'unzip' is required to extract Goose. Please install one and try again."
+  echo "Error: Either 'tar' or 'unzip' is required to extract goose. Please install one and try again."
   exit 1
 fi
 
@@ -68,7 +68,7 @@ case "$OS" in
     OS="windows"
     ;;
   *)
-    echo "Error: Unsupported OS '$OS'. Goose currently supports Linux, macOS, and Windows."
+    echo "Error: Unsupported OS '$OS'. goose currently supports Linux, macOS, and Windows."
     exit 1
     ;;
 esac
@@ -228,9 +228,9 @@ fi
 
 # skip configuration for non-interactive installs e.g. automation, docker
 if [ "$CONFIGURE" = true ]; then
-  # --- 6) Configure Goose (Optional) ---
+  # --- 6) Configure goose (Optional) ---
   echo ""
-  echo "Configuring Goose"
+  echo "Configuring goose"
   echo ""
   "$GOOSE_BIN_DIR/$OUT_FILE" configure
 else
@@ -240,7 +240,7 @@ fi
 # --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
-  echo "Warning: Goose installed, but $GOOSE_BIN_DIR is not in your PATH."
+  echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
   echo "Add it to your PATH by editing ~/.bashrc, ~/.zshrc, or similar:"
   echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
   echo "Then reload your shell (e.g. 'source ~/.bashrc', 'source ~/.zshrc') to apply changes."

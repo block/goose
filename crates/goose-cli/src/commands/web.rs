@@ -146,7 +146,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
 
-    println!("\n🪿 Starting Goose web server");
+    println!("\n🪿 Starting goose web server");
     println!("   Provider: {} | Model: {}", provider_name, model);
     println!(
         "   Working directory: {}",

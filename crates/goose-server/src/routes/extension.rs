@@ -454,7 +454,7 @@ fn is_command_allowed_with_allowlist(
                     return true;
                 }
                 // If the path doesn't match, don't allow it
-                println!("Goosed not in expected directory: {}", cmd);
+                println!("goosed not in expected directory: {}", cmd);
                 println!("Expected path: {}", expected_path);
                 return false;
             } else {
@@ -474,20 +474,20 @@ fn is_command_allowed_with_allowlist(
 
         // Check against the allowlist
         Some(extensions) => {
-            // Strip out the Goose app resources/bin prefix if present (handle both macOS and Windows paths)
+            // Strip out the goose app resources/bin prefix if present (handle both macOS and Windows paths)
             let mut cmd_to_check = cmd.to_string();
             let mut is_goose_path = false;
 
-            // Check for macOS-style Goose.app path
+            // Check for macOS-style goose.app path
             if cmd_to_check.contains("Goose.app/Contents/Resources/bin/") {
                 if let Some(idx) = cmd_to_check.find("Goose.app/Contents/Resources/bin/") {
                     cmd_to_check = cmd_to_check
-                        [(idx + "Goose.app/Contents/Resources/bin/".len())..]
+                        [(idx + "goose.app/Contents/Resources/bin/".len())..]
                         .to_string();
                     is_goose_path = true;
                 }
             }
-            // Check for Windows-style Goose path with resources\bin
+            // Check for Windows-style goose path with resources\bin
             else if cmd_to_check.to_lowercase().contains("\\resources\\bin\\")
                 || cmd_to_check.contains("/resources/bin/")
             {
@@ -507,7 +507,7 @@ fn is_command_allowed_with_allowlist(
                 }
             }
 
-            // Only check current directory for non-Goose paths
+            // Only check current directory for non-goose paths
             if !is_goose_path {
                 // Check that the command exists as a peer command to current executable directory
                 // Only apply this check if the command includes a path separator

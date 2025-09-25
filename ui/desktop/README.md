@@ -78,7 +78,7 @@ npm run make -- --targets=@electron-forge/maker-deb
 ```
 
 The built application will be available in:
-- ZIP: `out/make/zip/linux/x64/Goose-linux-x64-{version}.zip`
+- ZIP: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
 - DEB: `out/make/deb/x64/goose_{version}_amd64.deb`
 - Executable: `out/Goose-linux-x64/Goose`
 

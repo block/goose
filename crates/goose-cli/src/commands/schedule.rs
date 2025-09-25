@@ -332,7 +332,7 @@ pub async fn handle_schedule_services_stop() -> Result<()> {
 }
 
 pub async fn handle_schedule_cron_help() -> Result<()> {
-    println!("📅 Cron Expression Guide for Goose Scheduler");
+    println!("📅 Cron Expression Guide for goose Scheduler");
     println!("===========================================\\n");
 
     println!("🕐 HOURLY SCHEDULES (Most Common Request):");

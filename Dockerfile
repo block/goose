@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-# Goose CLI and Server Docker Image
+# goose CLI and Server Docker Image
 # Multi-stage build for minimal final image size
 
 # Build stage
@@ -67,7 +67,7 @@ ENTRYPOINT ["/usr/local/bin/goose"]
 CMD ["--help"]
 
 # Labels for metadata
-LABEL org.opencontainers.image.title="Goose"
-LABEL org.opencontainers.image.description="Goose CLI"
+LABEL org.opencontainers.image.title="goose"
+LABEL org.opencontainers.image.description="goose CLI"
 LABEL org.opencontainers.image.vendor="Block"
 LABEL org.opencontainers.image.source="https://github.com/block/goose"

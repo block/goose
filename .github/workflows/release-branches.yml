@@ -1,4 +1,4 @@
-name: Build Goose Release Candidate
+name: Build goose release candidate
 
 on:
   pull_request:

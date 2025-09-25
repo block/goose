@@ -1,6 +1,6 @@
-# Building Goose Desktop on Linux
+# Building goose Desktop on Linux
 
-This guide covers building the Goose Desktop application from source on various Linux distributions.
+This guide covers building the goose Desktop application from source on various Linux distributions.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ Works on all Linux distributions:
 npm run make -- --targets=@electron-forge/maker-zip
 ```
 
-Output: `out/make/zip/linux/x64/Goose-linux-x64-{version}.zip`
+Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
 
 #### Option B: DEB Package
 For Debian/Ubuntu systems:

@@ -32,13 +32,13 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 
 
-# A Little Goose Humor 🦢
+# a little goose humor 🦢
 
 > Why did the developer choose goose as their AI agent?
 > 
 > Because it always helps them "migrate" their code to production! 🚀
 
-# Goose Around with Us
+# goose around with us
 - [Discord](https://discord.gg/block-opensource)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)

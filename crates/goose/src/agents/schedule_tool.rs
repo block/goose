@@ -1,4 +1,4 @@
-//! Schedule tool handlers for the Goose agent
+//! Schedule tool handlers for the goose agent
 //!
 //! This module contains all the handlers for the schedule management platform tool,
 //! including job creation, execution, monitoring, and session management.

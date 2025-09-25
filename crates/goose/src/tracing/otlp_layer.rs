@@ -31,7 +31,7 @@ impl Default for OtlpConfig {
 
 impl OtlpConfig {
     pub fn from_config() -> Option<Self> {
-        // Try to get from Goose config system (which checks env vars first, then config file)
+        // Try to get from goose config system (which checks env vars first, then config file)
         let config = crate::config::Config::global();
 
         // Try to get the endpoint from config (checks OTEL_EXPORTER_OTLP_ENDPOINT env var first)

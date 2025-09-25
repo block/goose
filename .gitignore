@@ -24,7 +24,7 @@ target/
 ./ui/desktop/node_modules
 ./ui/desktop/out
 
-# Generated Goose DLLs (built at build time, not checked in)
+# Generated goose DLLs (built at build time, not checked in)
 ui/desktop/src/bin/goose_ffi.dll
 ui/desktop/src/bin/goose_llm.dll
 

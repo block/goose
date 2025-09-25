@@ -1,6 +1,6 @@
 # Contribution Guide
 
-Goose is open source!
+goose is open source!
 
 We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
 
@@ -9,7 +9,7 @@ We welcome pull requests for general contributions! If you have a larger new fea
 
 ## Prerequisites
 
-Goose includes rust binaries alongside an electron app for the GUI. To work
+goose includes rust binaries alongside an electron app for the GUI. To work
 on the rust backend, you will need to [install rust and cargo][rustup]. To work
 on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
 
@@ -220,10 +220,10 @@ reuse it. For things like automations or to test without doing official setup, y
 set the relevant env vars for that provider. For example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 or `DATABRICKS_HOST`. Refer to the provider details for more info on required keys.
 
-## Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
+## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
 - Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
-- Set the environment variables so that Goose can connect to the langfuse server:
+- Set the environment variables so that goose can connect to the langfuse server:
 
 ```
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=publickey-local
@@ -251,14 +251,14 @@ git commit --signoff ...
 
 ## Other Ways to Contribute
 
-There are numerous ways to be an open source contributor and contribute to Goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
+There are numerous ways to be an open source contributor and contribute to goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
 
-- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our Goose on GitHub! 🌟
+- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our goose on GitHub! 🌟
 - **Ask Questions:** Your questions not only help us improve but also benefit the community. If you have a question, don't hesitate to ask it on [Discord](https://discord.gg/block-opensource).
-- **Give Feedback:** Have a feature you want to see or encounter an issue with Goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
+- **Give Feedback:** Have a feature you want to see or encounter an issue with goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
 - **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/goose_oss) to stay in touch.
 - **Improve Documentation:** Good documentation is key to the success of any project. You can help improve the quality of our existing docs or add new pages.
 - **Help Other Members:** See another community member stuck? Or a contributor blocked by a question you know the answer to? Reply to community threads or do a code review for others to help.
 - **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.
 - **Give Shoutouts:** Is there a project you love or a community/staff who's been especially helpful? Feel free to give them a shoutout in our [#general](https://discord.com/channels/1287729918100246654/1287729920797179957) channel.
-- **Spread the Word:** Help us reach more people by sharing Goose's project, website, YouTube, and/or Twitter/X.
+- **Spread the Word:** Help us reach more people by sharing goose's project, website, YouTube, and/or Twitter/X.

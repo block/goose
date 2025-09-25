@@ -302,12 +302,12 @@ enum RecipeCommand {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Configure Goose settings
-    #[command(about = "Configure Goose settings")]
+    /// Configure goose settings
+    #[command(about = "Configure goose settings")]
     Configure {},
 
-    /// Display Goose configuration information
-    #[command(about = "Display Goose information")]
+    /// Display goose configuration information
+    #[command(about = "Display goose information")]
     Info {
         /// Show verbose information including current configuration
         #[arg(short, long, help = "Show verbose information including config.yaml")]
@@ -318,8 +318,8 @@ enum Command {
     #[command(about = "Run one of the mcp servers bundled with goose")]
     Mcp { name: String },
 
-    /// Run Goose as an ACP (Agent Client Protocol) agent
-    #[command(about = "Run Goose as an ACP agent server on stdio")]
+    /// Run goose as an ACP (Agent Client Protocol) agent
+    #[command(about = "Run goose as an ACP agent server on stdio")]
     Acp {},
 
     /// Start or resume interactive chat sessions
@@ -445,8 +445,8 @@ enum Command {
             short = 't',
             long = "text",
             value_name = "TEXT",
-            help = "Input text to provide to Goose directly",
-            long_help = "Input text containing commands for Goose. Use this in lieu of the instructions argument.",
+            help = "Input text to provide to goose directly",
+            long_help = "Input text containing commands for goose. Use this in lieu of the instructions argument.",
             conflicts_with = "instructions",
             conflicts_with = "recipe"
         )]
@@ -656,7 +656,7 @@ enum Command {
         command: SchedulerCommand,
     },
 
-    /// Update the Goose CLI version
+    /// Update the goose CLI version
     #[command(about = "Update the goose CLI version")]
     Update {
         /// Update to canary version
@@ -668,7 +668,7 @@ enum Command {
         )]
         canary: bool,
 
-        /// Enforce to re-configure Goose during update
+        /// Enforce to re-configure goose during update
         #[arg(short, long, help = "Enforce to re-configure goose during update")]
         reconfigure: bool,
     },
