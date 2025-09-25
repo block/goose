@@ -380,6 +380,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         );
       }
       
+      console.log('🎨 PROCESSING MATCH: type:', type, 'content:', content, 'index:', index);
       if (type === 'action') {
         // Handle action pills
         const actionLabel = content;
@@ -430,6 +431,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       } else if (type === 'misspelled') {
         // Handle misspelled words with red highlighting and hover tooltip
         const misspelledData = misspelledWords.find(m => m.word === content);
+        console.log('🎨 RENDERING MISSPELLED: word:', content, 'data:', misspelledData);
+        console.log('🎨 RENDERING MISSPELLED: all misspelled words:', misspelledWords);
         
         parts.push(
           <span 
@@ -444,13 +447,30 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               borderRadius: '4px',
               border: '2px solid #dc2626',
               boxShadow: '0 2px 4px rgba(220, 38, 38, 0.5)',
-              textDecoration: 'underline wavy #dc2626'
+              textDecoration: 'underline wavy #dc2626',
+              pointerEvents: 'auto', // Override parent's pointer-events: none
+              userSelect: 'none', // Prevent text selection interference
+              position: 'relative', // Ensure it's above other elements
+              zIndex: 10 // Higher z-index than parent
             }}
             title={`Hover for suggestions: ${content}`}
+            onClick={(e) => {
+              console.log('🖱️ CLICK: Clicked on misspelled word:', content);
+              console.log('🖱️ CLICK: Event target:', e.target);
+              console.log('🖱️ CLICK: Current target:', e.currentTarget);
+            }}
+            onMouseOver={(e) => {
+              console.log('🖱️ MOUSEOVER: Mouse over misspelled word:', content);
+            }}
             onMouseEnter={(e) => {
+              console.log('🖱️ MOUSEENTER: Mouse entered misspelled word:', content);
+              console.log('🖱️ MOUSEENTER: Event target:', e.target);
+              console.log('🖱️ MOUSEENTER: Current target:', e.currentTarget);
+              console.log('🖱️ MOUSEENTER: Misspelled data:', misspelledData);
               if (misspelledData) {
                 const rect = e.currentTarget.getBoundingClientRect();
-                setTooltip({
+                console.log('🖱️ MOUSEENTER: Element rect:', rect);
+                const tooltipData = {
                   isVisible: true,
                   position: { 
                     x: rect.left + rect.width / 2, 
@@ -460,10 +480,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
                   suggestions: misspelledData.suggestions || [],
                   wordStart: misspelledData.start,
                   wordEnd: misspelledData.end,
-                });
+                };
+                console.log('🖱️ MOUSEENTER: Setting tooltip data:', tooltipData);
+                setTooltip(tooltipData);
+              } else {
+                console.log('🖱️ MOUSEENTER: No misspelled data found for word:', content);
               }
             }}
-            onMouseLeave={() => {
+            onMouseLeave={(e) => {
+              console.log('🖱️ MOUSELEAVE: Mouse left misspelled word:', content);
               // Add a small delay before hiding to allow clicking on tooltip
               setTimeout(() => {
                 setTooltip(prev => ({ ...prev, isVisible: false }));
@@ -687,6 +712,42 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         data-testid={testId}
         spellCheck={false} // Disable browser spell check - we handle it ourselves
         className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
+        onMouseMove={(e) => {
+          // Detect if mouse is over a misspelled word
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          // Get character position from mouse coordinates
+          const textarea = e.currentTarget;
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          
+          if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
+            const textContent = textarea.value;
+            const charIndex = range.startOffset;
+            
+            console.log('🖱️ TEXTAREA HOVER: Mouse at char index:', charIndex, 'char:', textContent[charIndex]);
+            
+            // Check if this character position is within a misspelled word
+            const misspelledWord = misspelledWords.find(word => 
+              charIndex >= word.start && charIndex < word.end
+            );
+            
+            if (misspelledWord) {
+              console.log('🖱️ TEXTAREA HOVER: Found misspelled word at mouse position:', misspelledWord);
+              setTooltip({
+                isVisible: true,
+                position: { x: e.clientX, y: e.clientY - 50 },
+                misspelledWord: misspelledWord.word,
+                suggestions: misspelledWord.suggestions || [],
+                wordStart: misspelledWord.start,
+                wordEnd: misspelledWord.end,
+              });
+            } else {
+              setTooltip(prev => ({ ...prev, isVisible: false }));
+            }
+          }
+        }}
         style={{
           position: 'absolute',
           left: 0,
@@ -741,6 +802,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       </div>
       
       {/* Spell Check Hover Tooltip */}
+      {console.log('🖱️ TOOLTIP RENDER: tooltip state:', tooltip)}
       <SpellCheckTooltip
         isVisible={tooltip.isVisible}
         position={tooltip.position}
