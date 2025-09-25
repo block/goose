@@ -17,5 +17,5 @@ STDOUT: {"method":"notifications/progress","params":{"progress":5,"total":5,"pro
 STDOUT: {"result":{"content":[{"type":"text","text":"Long running operation completed. Duration: 1 seconds, Steps: 5."}]},"jsonrpc":"2.0","id":3}
 STDIN: {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"progressToken":3},"name":"structuredContent","arguments":{"location":"11238"}}}
 STDOUT: {"result":{"content":[{"type":"text","text":"{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"}],"structuredContent":{"temperature":22.5,"conditions":"Partly cloudy","humidity":65}},"jsonrpc":"2.0","id":4}
-STDOUT: {"method":"notifications/message","params":{"level":"error","data":"Error-level message"},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/message","params":{"level":"alert","data":"Alert level-message"},"jsonrpc":"2.0"}
 STDERR: node:events:496

@@ -74,9 +74,6 @@ enum TestMode {
             "new_str": "# codename goose"
         })),
         ToolCall::new("list_windows", json!({})),
-        ToolCall::new("screen_capture", json!({
-            "display": 0
-        })),
     ],
     vec![]
 )]
