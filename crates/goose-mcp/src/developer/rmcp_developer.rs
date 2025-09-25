@@ -214,7 +214,10 @@ impl ServerHandler for DeveloperServer {
                 cwd=cwd.to_string_lossy(),
                 container_info=if in_container { "container: true" } else { "" },
             },
-            _ => formatdoc! {r#"
+            _ => {
+                let shell_info = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+                formatdoc! {r#"
                 The developer extension gives you the capabilities to edit code files and run shell commands,
                 and can be used to solve a wide range of problems.
 
@@ -231,12 +234,15 @@ impl ServerHandler for DeveloperServer {
 
             operating system: {os}
             current directory: {cwd}
+            shell: {shell}
             {container_info}
                 "#,
                 os=os,
                 cwd=cwd.to_string_lossy(),
+                shell=shell_info,
                 container_info=if in_container { "container: true" } else { "" },
-            },
+                }
+            }
         };
 
         let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
