@@ -24,7 +24,8 @@ _a local, extensible, open source AI agent that automates engineering tasks_
 ### To get started:
 1. Read the [contributing guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md).
 2. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
-3. Choose a task from this project's Hacktoberfest issues in our [Project Hub](https://github.com/block/goose/issues/4705) and follow the instructions. Each issue has the 🏷️ `hacktoberfest` label.
+3. Read the [full Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md).
+4. Choose a task from this project's Hacktoberfest issues in our [Project Hub](https://github.com/block/goose/issues/4705) and follow the instructions. Each issue has the 🏷️ `hacktoberfest` label.
 
 Have questions? Connecting with us in our [Discord community](https://discord.gg/block-opensource) in the `#hacktoberfest` project channel.
 
