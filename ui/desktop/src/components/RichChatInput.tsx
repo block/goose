@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import SpellCheckContextMenu from './SpellCheckContextMenu';
+import SpellCheckTooltip from './SpellCheckTooltip';
 import { checkSpelling, MisspelledWord } from '../utils/realSpellCheck';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
@@ -105,16 +105,16 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<MisspelledWord[]>([]);
   
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{
-    isOpen: boolean;
+  // Spell check tooltip state
+  const [tooltip, setTooltip] = useState<{
+    isVisible: boolean;
     position: { x: number; y: number };
     misspelledWord: string;
     suggestions: string[];
     wordStart: number;
     wordEnd: number;
   }>({
-    isOpen: false,
+    isVisible: false,
     position: { x: 0, y: 0 },
     misspelledWord: '',
     suggestions: [],
@@ -428,7 +428,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           />
         );
       } else if (type === 'misspelled') {
-        // Handle misspelled words with red highlighting and right-click menu
+        // Handle misspelled words with red highlighting and hover tooltip
         const misspelledData = misspelledWords.find(m => m.word === content);
         
         parts.push(
@@ -446,19 +446,28 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               boxShadow: '0 2px 4px rgba(220, 38, 38, 0.5)',
               textDecoration: 'underline wavy #dc2626'
             }}
-            title={`Right-click for suggestions: ${content}`}
-            onContextMenu={(e) => {
-              e.preventDefault();
+            title={`Hover for suggestions: ${content}`}
+            onMouseEnter={(e) => {
               if (misspelledData) {
-                setContextMenu({
-                  isOpen: true,
-                  position: { x: e.clientX, y: e.clientY },
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltip({
+                  isVisible: true,
+                  position: { 
+                    x: rect.left + rect.width / 2, 
+                    y: rect.top 
+                  },
                   misspelledWord: misspelledData.word,
                   suggestions: misspelledData.suggestions || [],
                   wordStart: misspelledData.start,
                   wordEnd: misspelledData.end,
                 });
               }
+            }}
+            onMouseLeave={() => {
+              // Add a small delay before hiding to allow clicking on tooltip
+              setTimeout(() => {
+                setTooltip(prev => ({ ...prev, isVisible: false }));
+              }, 150);
             }}
           >
             {content}
@@ -640,30 +649,26 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     };
   }, [handleSelectionChange]);
 
-  // Context menu handlers
+  // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
-    const newValue = value.slice(0, contextMenu.wordStart) + 
+    const newValue = value.slice(0, tooltip.wordStart) + 
                      suggestion + 
-                     value.slice(contextMenu.wordEnd);
+                     value.slice(tooltip.wordEnd);
     onChange(newValue);
-    setContextMenu(prev => ({ ...prev, isOpen: false }));
-  }, [value, onChange, contextMenu.wordStart, contextMenu.wordEnd]);
+    setTooltip(prev => ({ ...prev, isVisible: false }));
+  }, [value, onChange, tooltip.wordStart, tooltip.wordEnd]);
 
   const handleAddToDictionary = useCallback(() => {
     // TODO: Implement add to dictionary functionality
-    console.log('Add to dictionary:', contextMenu.misspelledWord);
-    setContextMenu(prev => ({ ...prev, isOpen: false }));
-  }, [contextMenu.misspelledWord]);
+    console.log('Add to dictionary:', tooltip.misspelledWord);
+    setTooltip(prev => ({ ...prev, isVisible: false }));
+  }, [tooltip.misspelledWord]);
 
   const handleIgnore = useCallback(() => {
     // TODO: Implement ignore functionality
-    console.log('Ignore word:', contextMenu.misspelledWord);
-    setContextMenu(prev => ({ ...prev, isOpen: false }));
-  }, [contextMenu.misspelledWord]);
-
-  const handleCloseContextMenu = useCallback(() => {
-    setContextMenu(prev => ({ ...prev, isOpen: false }));
-  }, []);
+    console.log('Ignore word:', tooltip.misspelledWord);
+    setTooltip(prev => ({ ...prev, isVisible: false }));
+  }, [tooltip.misspelledWord]);
 
   return (
     <div className="relative rich-text-input">
@@ -735,16 +740,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         {renderContent()}
       </div>
       
-      {/* Spell Check Context Menu */}
-      <SpellCheckContextMenu
-        isOpen={contextMenu.isOpen}
-        position={contextMenu.position}
-        suggestions={contextMenu.suggestions}
-        misspelledWord={contextMenu.misspelledWord}
+      {/* Spell Check Hover Tooltip */}
+      <SpellCheckTooltip
+        isVisible={tooltip.isVisible}
+        position={tooltip.position}
+        suggestions={tooltip.suggestions}
+        misspelledWord={tooltip.misspelledWord}
         onSuggestionSelect={handleSuggestionSelect}
         onAddToDictionary={handleAddToDictionary}
         onIgnore={handleIgnore}
-        onClose={handleCloseContextMenu}
       />
     </div>
   );
