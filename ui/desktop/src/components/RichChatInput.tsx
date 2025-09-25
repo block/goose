@@ -1028,12 +1028,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           
           .rich-text-input textarea::selection {
             background-color: #3b82f6 !important; /* Blue selection */
-            color: rgba(255, 255, 255, 1) !important; /* Fully opaque white */
+            color: transparent !important; /* Keep text transparent even when selected */
           }
           
           .rich-text-input textarea::-moz-selection {
             background-color: #3b82f6 !important; /* Blue selection */
-            color: rgba(255, 255, 255, 1) !important; /* Fully opaque white */
+            color: transparent !important; /* Keep text transparent even when selected */
           }
         `
       }} />
