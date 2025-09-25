@@ -133,6 +133,46 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       displayRef.current.scrollLeft = hiddenTextareaRef.current.scrollLeft;
     }
   }, []);
+
+  // Auto-scroll to cursor position when typing
+  const scrollToCursor = useCallback(() => {
+    if (hiddenTextareaRef.current) {
+      const textarea = hiddenTextareaRef.current;
+      const cursorPos = textarea.selectionStart;
+      
+      // Create a temporary element to measure cursor position
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.visibility = 'hidden';
+      tempDiv.style.whiteSpace = 'pre-wrap';
+      tempDiv.style.wordWrap = 'break-word';
+      tempDiv.style.fontFamily = textarea.style.fontFamily;
+      tempDiv.style.fontSize = textarea.style.fontSize;
+      tempDiv.style.lineHeight = textarea.style.lineHeight;
+      tempDiv.style.padding = textarea.style.padding;
+      tempDiv.style.width = textarea.style.width;
+      
+      // Add text up to cursor position
+      tempDiv.textContent = textarea.value.substring(0, cursorPos);
+      document.body.appendChild(tempDiv);
+      
+      const cursorHeight = tempDiv.offsetHeight;
+      document.body.removeChild(tempDiv);
+      
+      // Scroll to ensure cursor is visible
+      const containerHeight = textarea.clientHeight;
+      const scrollTop = textarea.scrollTop;
+      const padding = 20; // Extra padding to ensure visibility
+      
+      if (cursorHeight > scrollTop + containerHeight - padding) {
+        // Cursor is below visible area, scroll down
+        textarea.scrollTop = cursorHeight - containerHeight + padding;
+      } else if (cursorHeight < scrollTop + padding) {
+        // Cursor is above visible area, scroll up
+        textarea.scrollTop = Math.max(0, cursorHeight - padding);
+      }
+    }
+  }, []);
   
   // Spell check tooltip state
   const [tooltip, setTooltip] = useState<{
@@ -528,7 +568,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     console.log('🔄 RichChatInput: onChange', { newValue, newCursorPos });
     onChange(newValue, newCursorPos);
     setCursorPosition(newCursorPos);
-  }, [onChange]);
+    
+    // Auto-scroll to cursor after a short delay to ensure DOM is updated
+    setTimeout(scrollToCursor, 0);
+  }, [onChange, scrollToCursor]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Hide tooltip on any key press
@@ -857,6 +900,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
+          maxHeight: style?.maxHeight || 'none', // Respect parent max height constraints
           zIndex: 3, // Higher z-index, above textarea for misspelled word interactions
           pointerEvents: 'none', // Don't interfere with text selection by default
           userSelect: 'none', // Prevent selection on visual layer
@@ -868,6 +912,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           margin: '0',
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
+          scrollBehavior: 'smooth', // Smooth scrolling
         }}
         role="textbox"
         aria-multiline="true"
