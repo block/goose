@@ -18,6 +18,36 @@ async fn build_moim_content(session: &Option<SessionConfig>) -> Option<String> {
     Some(content)
 }
 
+/// Find a safe insertion point for MOIM.
+///
+/// We want to insert as close to the end as possible, but we must avoid
+/// breaking tool call/response pairs. We check if inserting at a position
+/// would separate a tool call from its response.
+#[doc(hidden)]
+pub fn find_safe_insertion_point(messages: &[Message]) -> usize {
+    if messages.is_empty() {
+        return 0;
+    }
+
+    // Default to inserting before the last message
+    let last_pos = messages.len() - 1;
+
+    // Check if inserting at last_pos would break a tool pair
+    if last_pos > 0 {
+        let prev_msg = &messages[last_pos - 1];
+        let curr_msg = &messages[last_pos];
+
+        // If previous message has tool calls and current has matching responses,
+        // we can't insert between them
+        if prev_msg.is_tool_call() && curr_msg.is_tool_response() {
+            // Find the next best position (before the tool call)
+            return last_pos.saturating_sub(1);
+        }
+    }
+
+    last_pos
+}
+
 pub async fn inject_moim_if_enabled(
     messages_for_provider: Conversation,
     session: &Option<SessionConfig>,
@@ -39,9 +69,8 @@ pub async fn inject_moim_if_enabled(
             // If conversation is empty, just add the MOIM
             msgs.push(moim_msg);
         } else {
-            // Insert at position -1 (before last message)
-            // This ensures MOIM appears just before the latest user query
-            let insert_pos = msgs.len().saturating_sub(1);
+            // Find a safe position that won't break tool call/response pairs
+            let insert_pos = find_safe_insertion_point(&msgs);
             msgs.insert(insert_pos, moim_msg);
         }
 
