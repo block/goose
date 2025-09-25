@@ -3,6 +3,7 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
@@ -445,6 +446,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         PrincipalType,
         ModelInfo,
         Session,
+        Conversation,
         goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,

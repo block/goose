@@ -22,6 +22,7 @@ static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
     pub id: String,
+    #[schema(value_type = String)] // for openapi use
     pub working_dir: PathBuf,
     pub description: String,
     pub created_at: String,

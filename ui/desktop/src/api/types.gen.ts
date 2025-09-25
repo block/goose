@@ -105,6 +105,8 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type Conversation = Array<Message>;
+
 export type CreateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -699,6 +701,25 @@ export type ScheduledJob = {
     source: string;
 };
 
+export type Session = {
+    accumulated_input_tokens?: number | null;
+    accumulated_output_tokens?: number | null;
+    accumulated_total_tokens?: number | null;
+    conversation?: Conversation | null;
+    created_at: string;
+    description: string;
+    extension_data: ExtensionData;
+    id: string;
+    input_tokens?: number | null;
+    message_count: number;
+    output_tokens?: number | null;
+    recipe_json?: string | null;
+    schedule_id?: string | null;
+    total_tokens?: number | null;
+    updated_at: string;
+    working_dir: string;
+};
+
 export type SessionConfigRequest = {
     response?: Response | null;
     session_id: string;
@@ -720,22 +741,12 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionHistoryResponse = {
-    /**
-     * List of messages in the session conversation
-     */
     messages: Array<Message>;
-    metadata: SessionMetadata;
+    session: Session;
     /**
      * Unique identifier for the session
      */
     sessionId: string;
-};
-
-export type SessionInfo = {
-    id: string;
-    metadata: SessionMetadata;
-    modified: string;
-    path: string;
 };
 
 export type SessionInsights = {
@@ -761,55 +772,7 @@ export type SessionListResponse = {
     /**
      * List of available session information objects
      */
-    sessions: Array<SessionInfo>;
-};
-
-/**
- * Metadata for a session, stored as the first line in the session file
- */
-export type SessionMetadata = {
-    /**
-     * The number of input tokens used in the session. Accumulated across all messages.
-     */
-    accumulated_input_tokens?: number | null;
-    /**
-     * The number of output tokens used in the session. Accumulated across all messages.
-     */
-    accumulated_output_tokens?: number | null;
-    /**
-     * The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).
-     */
-    accumulated_total_tokens?: number | null;
-    /**
-     * A short description of the session, typically 3 words or less
-     */
-    description: string;
-    extension_data?: ExtensionData;
-    /**
-     * The number of input tokens used in the session. Retrieved from the provider's last usage.
-     */
-    input_tokens?: number | null;
-    /**
-     * Number of messages in the session
-     */
-    message_count: number;
-    /**
-     * The number of output tokens used in the session. Retrieved from the provider's last usage.
-     */
-    output_tokens?: number | null;
-    recipe?: Recipe | null;
-    /**
-     * ID of the schedule that triggered this session, if any
-     */
-    schedule_id?: string | null;
-    /**
-     * The total number of tokens used in the session. Retrieved from the provider's last usage.
-     */
-    total_tokens?: number | null;
-    /**
-     * Working directory for the session
-     */
-    working_dir: string;
+    sessions: Array<Session>;
 };
 
 export type SessionsQuery = {
@@ -833,8 +796,7 @@ export type StartAgentRequest = {
 };
 
 export type StartAgentResponse = {
-    messages: Array<Message>;
-    metadata: SessionMetadata;
+    session: Session;
     session_id: string;
 };
 

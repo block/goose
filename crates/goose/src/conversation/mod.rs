@@ -3,11 +3,12 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
+use utoipa::ToSchema;
 
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]

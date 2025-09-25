@@ -1952,6 +1952,12 @@
           }
         }
       },
+      "Conversation": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Message"
+        }
+      },
       "CreateCustomProviderRequest": {
         "type": "object",
         "required": [
@@ -3637,7 +3643,7 @@
             "type": "string"
           },
           "working_dir": {
-            "$ref": "#/components/schemas/PathBuf"
+            "type": "string"
           }
         }
       },

@@ -73,7 +73,7 @@ export function useAgent(): UseAgentReturn {
         });
 
         const agentSessionInfo = agentResponse.data;
-        const sessionMetadata = agentSessionInfo.metadata;
+        const sessionMetadata = agentSessionInfo?.session;
         let chat: ChatType = {
           sessionId: agentSessionInfo.session_id,
           title: sessionMetadata.recipe?.title || sessionMetadata.description,
