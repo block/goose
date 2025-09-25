@@ -146,7 +146,8 @@ impl Agent {
         };
 
         // Inject MOIM (timestamp + TODO content) if enabled
-        let messages_for_provider = super::moim::inject_moim_if_enabled(messages_for_provider, session).await;
+        let messages_for_provider =
+            super::moim::inject_moim_if_enabled(messages_for_provider, session).await;
 
         // Clone owned data to move into the async stream
         let system_prompt = system_prompt.to_owned();
