@@ -146,54 +146,51 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const textarea = hiddenTextareaRef.current;
       const display = displayRef.current;
       
-      // Force immediate synchronization
-      requestAnimationFrame(() => {
-        // Reset height to auto to get accurate scrollHeight measurement
-        textarea.style.height = 'auto';
-        const textareaScrollHeight = textarea.scrollHeight;
-        
-        // Allow expansion up to 300px, then use scrolling
-        const maxHeight = 300;
-        const minHeight = rows * 24; // Approximate line height
-        
-        // Calculate desired height based on content, but cap at maxHeight
-        const desiredHeight = Math.min(textareaScrollHeight, maxHeight);
-        const finalHeight = Math.max(desiredHeight, minHeight);
-        
-        // Update both textarea and display layer heights to match exactly
-        textarea.style.height = `${finalHeight}px`;
-        textarea.style.minHeight = `${finalHeight}px`;
-        textarea.style.maxHeight = `${finalHeight}px`;
-        
-        display.style.height = `${finalHeight}px`;
-        display.style.minHeight = `${finalHeight}px`;
-        display.style.maxHeight = `${finalHeight}px`;
-        
-        // Critical: Ensure both have the same dimensions and overflow behavior
-        display.style.width = textarea.style.width;
-        
-        // Force the display layer to have the same scrollable content area
-        // This ensures that when the textarea scrolls, the display can show the same content
-        const displayContent = display.firstElementChild as HTMLElement;
-        if (displayContent) {
-          // Make sure the content area matches the textarea's scroll height
-          displayContent.style.minHeight = `${textareaScrollHeight}px`;
-        }
-        
-        // Sync scroll positions
-        display.scrollTop = textarea.scrollTop;
-        display.scrollLeft = textarea.scrollLeft;
-        
-        console.log('🔄 SYNC HEIGHT:', {
-          textareaScrollHeight,
-          desiredHeight,
-          finalHeight,
-          maxHeight,
-          scrollTop: textarea.scrollTop,
-          textareaHeight: textarea.style.height,
-          displayHeight: display.style.height,
-          displayContentHeight: displayContent?.style.minHeight
-        });
+      // Reset height to auto to get accurate scrollHeight measurement
+      textarea.style.height = 'auto';
+      const textareaScrollHeight = textarea.scrollHeight;
+      
+      // Allow expansion up to 300px, then use scrolling
+      const maxHeight = 300;
+      const minHeight = rows * 24; // Approximate line height
+      
+      // Calculate desired height based on content, but cap at maxHeight
+      const desiredHeight = Math.min(textareaScrollHeight, maxHeight);
+      const finalHeight = Math.max(desiredHeight, minHeight);
+      
+      // Update both textarea and display layer heights to match exactly
+      textarea.style.height = `${finalHeight}px`;
+      textarea.style.minHeight = `${finalHeight}px`;
+      textarea.style.maxHeight = `${finalHeight}px`;
+      
+      display.style.height = `${finalHeight}px`;
+      display.style.minHeight = `${finalHeight}px`;
+      display.style.maxHeight = `${finalHeight}px`;
+      
+      // Critical: Ensure both have the same dimensions and overflow behavior
+      display.style.width = textarea.style.width;
+      
+      // Force the display layer to have the same scrollable content area
+      // This ensures that when the textarea scrolls, the display can show the same content
+      const displayContent = display.firstElementChild as HTMLElement;
+      if (displayContent) {
+        // Make sure the content area matches the textarea's scroll height
+        displayContent.style.minHeight = `${textareaScrollHeight}px`;
+      }
+      
+      // Sync scroll positions
+      display.scrollTop = textarea.scrollTop;
+      display.scrollLeft = textarea.scrollLeft;
+      
+      console.log('🔄 SYNC HEIGHT:', {
+        textareaScrollHeight,
+        desiredHeight,
+        finalHeight,
+        maxHeight,
+        scrollTop: textarea.scrollTop,
+        textareaHeight: textarea.style.height,
+        displayHeight: display.style.height,
+        displayContentHeight: displayContent?.style.minHeight
       });
     }
   }, [rows]);
@@ -637,8 +634,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     onChange(newValue, newCursorPos);
     setCursorPosition(newCursorPos);
     
-    // Sync display height after content changes
-    setTimeout(syncDisplayHeight, 0);
+    // Sync display height immediately for better responsiveness
+    // Use both immediate sync and deferred sync for reliability
+    syncDisplayHeight();
+    requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
