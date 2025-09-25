@@ -1,5 +1,5 @@
 ---
-title: "How to Choose Between Subagents and Subrecipes in Goose"
+title: "How to Choose Between Subagents and Subrecipes in goose"
 description: When you need to break complex work into multiple AI tasks, should you use subagents or subrecipes? Learn the key differences and when to use each approach.
 authors: 
     - ian
@@ -7,7 +7,7 @@ authors:
 
 ![Subagents vs Subrecipes](subrecipes-vs-subagents.png)
 
-When you're working on complex projects with Goose, you'll often need to break work into multiple tasks and run them with AI agents. Goose gives you two powerful ways to do this: [subagents](/docs/experimental/subagents/) and [subrecipes](/docs/tutorials/sub-recipes-in-parallel/). Both can run multiple AI instances in parallel, but they work  differently. Picking which one to use can be confusing, so we're going to guide you to a decision.
+When you're working on complex projects with goose, you'll often need to break work into multiple tasks and run them with AI agents. Goose gives you two powerful ways to do this: [subagents](/docs/experimental/subagents/) and [subrecipes](/docs/tutorials/sub-recipes-in-parallel/). Both can run multiple AI instances in parallel, but they work  differently. Picking which one to use can be confusing, so we're going to guide you to a decision.
 
 I've been using both approaches, and the choice between them depends on what you're trying to accomplish. Let me break down when to use each method and show you real examples.
 
@@ -117,14 +117,14 @@ Share your subagent prompts or subrecipe ideas with us on our [Discord community
 
 
 <head>
-  <meta property="og:title" content="How to Choose Between Subagents and Subrecipes in Goose" />
+  <meta property="og:title" content="How to Choose Between Subagents and Subrecipes in goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025-09-26-subagents-vs-subrecipes" />
   <meta property="og:description" content="When you need to break complex work into multiple AI tasks, should you use subagents or subrecipes? Learn the key differences and when to use each approach." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/subagents-vs-subrecipes-19bca16b86a951e4618be8ab6ce90fb2.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="How to Choose Between Subagents and Subrecipes in Goose" />
+  <meta name="twitter:title" content="How to Choose Between Subagents and Subrecipes in goose" />
   <meta name="twitter:description" content="When you need to break complex work into multiple AI tasks, should you use subagents or subrecipes? Learn the key differences and when to use each approach." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/subagents-vs-subrecipe-19bca16b86a951e4618be8ab6ce90fb2s.png" />
 </head>
