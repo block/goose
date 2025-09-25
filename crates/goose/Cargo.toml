@@ -83,6 +83,7 @@ urlencoding = "2.1"
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
 aws-sdk-bedrockruntime = "1.74.0"
+aws-sdk-bedrock = "1.114.0"
 
 # For SageMaker TGI provider
 aws-sdk-sagemakerruntime = "1.62.0"

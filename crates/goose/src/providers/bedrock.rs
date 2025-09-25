@@ -11,7 +11,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{types as bedrock, Client as RuntimeClient};
+use aws_sdk_bedrock::Client;
+use aws_sdk_bedrock::operation::list_inference_profiles::ListInferenceProfilesError;
+use aws_sdk_bedrock::operation::list_foundation_models::ListFoundationModelsError;
+use aws_config::SdkConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -39,8 +43,10 @@ pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
     #[serde(skip)]
-    client: Client,
+    client: RuntimeClient,
     model: ModelConfig,
+    #[serde(skip)]
+    sdk_config: SdkConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
 }
@@ -72,7 +78,7 @@ impl BedrockProvider {
                 .unwrap()
                 .provide_credentials(),
         )?;
-        let client = Client::new(&sdk_config);
+        let client = RuntimeClient::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
 
@@ -80,6 +86,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
+            sdk_config
         })
     }
 
@@ -169,6 +176,100 @@ impl BedrockProvider {
             )),
         }
     }
+
+    async fn fetch_on_demand_models(&self) -> Result<Vec<String>, ProviderError> {
+        let bedrock_control_client = Client::new(&self.sdk_config);
+        let response = bedrock_control_client
+            .list_foundation_models()
+            .by_inference_type(aws_sdk_bedrock::types::InferenceType::OnDemand)
+            .send()
+            .await
+            .map_err(|err| { match err.into_service_error() {
+                    ListFoundationModelsError::AccessDeniedException(bedrock_err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
+                    }
+                    ListFoundationModelsError::ThrottlingException(bedrock_err) => {
+                        ProviderError::RateLimitExceeded(format!(
+                            "Bedrock throttling error: {:?}",
+                            bedrock_err
+                        ))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+                }
+            });
+
+        match response {
+            Ok(models_result) => {
+                let mut models: Vec<String> = match models_result.model_summaries {
+                    Some(summaries) => {
+                        summaries
+                            .into_iter()
+                            .map(|s| {
+                                s.model_arn().to_string()
+                            })
+                            .collect()
+                    }
+                    None => {
+                        Vec::new()
+                    }
+                };
+
+                models.sort();
+
+                Ok(models)
+            }
+            Err(err) => {
+                return Err(err)
+            }
+        }
+    }
+
+    async fn fetch_inference_profiles(&self) -> Result<Vec<String>, ProviderError> {
+        let bedrock_control_client = Client::new(&self.sdk_config);
+        let response = bedrock_control_client
+            .list_inference_profiles()
+            .type_equals(aws_sdk_bedrock::types::InferenceProfileType::Application)
+            .send()
+            .await
+            .map_err(|err| { match err.into_service_error() {
+                    ListInferenceProfilesError::AccessDeniedException(bedrock_err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
+                    }
+                    ListInferenceProfilesError::ThrottlingException(bedrock_err) => {
+                        ProviderError::RateLimitExceeded(format!(
+                            "Bedrock throttling error: {:?}",
+                            bedrock_err
+                        ))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+                }
+            });
+
+        match response {
+            Ok(profiles_result) => {
+                let mut models: Vec<String> = match profiles_result.inference_profile_summaries {
+                    Some(profiles) => {
+                        profiles
+                            .into_iter()
+                            .map(|s| {
+                                s.inference_profile_arn().to_string()
+                            })
+                            .collect()
+                    }
+                    None => {
+                        Vec::new()
+                    }
+                };
+
+                models.sort();
+
+                Ok(models)
+            }
+            Err(err) => {
+                return Err(err)
+            }
+        }
+    }
 }
 
 impl_provider_default!(BedrockProvider);
@@ -234,5 +335,25 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let mut profile_results = match self.fetch_inference_profiles().await {
+            Ok(profiles) => profiles,
+            Err(profile_error) => return Err(profile_error)
+        };
+
+        let mut model_results = match self.fetch_on_demand_models().await {
+            Ok(models) => models,
+            Err(model_error) => return Err(model_error)
+        };
+
+        // We want application inference profiles before
+        // the list of available on demand models since
+        // they are user created and more likely to be what
+        // they want.
+        profile_results.append(&mut model_results);
+
+        Ok(Some(profile_results))
     }
 }
