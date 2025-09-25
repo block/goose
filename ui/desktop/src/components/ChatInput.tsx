@@ -572,6 +572,7 @@ export default function ChatInput({
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
+        key: `context-${numTokens}-${tokenLimit}`, // Add a key to force re-render
       });
     }
 
@@ -1610,6 +1611,7 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
+                  key={`cost-tracker-${inputTokens}-${outputTokens}`}
                   inputTokens={inputTokens}
                   outputTokens={outputTokens}
                   sessionCosts={sessionCosts}

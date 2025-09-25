@@ -291,10 +291,14 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         <TooltipTrigger asChild>
           <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
             <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+            <span className="text-xs font-mono" key={`cost-${totalCost}`}>
+              {formatCost(totalCost)}
+            </span>
           </div>
         </TooltipTrigger>
-        <TooltipContent>{getTooltipContent()}</TooltipContent>
+        <TooltipContent key={`tooltip-${inputTokens}-${outputTokens}-${totalCost}`}>
+          {getTooltipContent()}
+        </TooltipContent>
       </Tooltip>
       <div className="w-px h-4 bg-border-default mx-2" />
     </>

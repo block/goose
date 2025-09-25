@@ -104,10 +104,15 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       return;
     }
 
-    // Find new or changed alerts
+    // Find new or changed alerts - also check for key changes
     const changedAlerts = alerts.filter((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
-      return !prevAlert || prevAlert.type !== alert.type || prevAlert.message !== alert.message;
+      return (
+        !prevAlert ||
+        prevAlert.type !== alert.type ||
+        prevAlert.message !== alert.message ||
+        prevAlert.key !== alert.key
+      );
     });
 
     previousAlertsRef.current = alerts;
