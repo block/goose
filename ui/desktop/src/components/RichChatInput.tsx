@@ -374,23 +374,25 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
+        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed relative">
+          {/* Placeholder text positioned absolutely to prevent movement */}
+          <span className="text-text-muted pointer-events-none select-none absolute inset-0">
+            {placeholder}
+          </span>
+          {/* Cursor positioned absolutely at the start */}
           {isFocused && cursorPosition === 0 && (
             <span 
-              className="border-l-2 border-text-default inline-block align-baseline" 
+              className="border-l-2 border-text-default inline-block align-baseline absolute" 
               style={{ 
                 animation: "blink 1s step-end infinite", 
                 height: "1em", 
                 width: "1px",
-                marginLeft: "0px",
-                marginRight: placeholder ? "4px" : "0px",
+                left: "0px",
+                top: "0px",
                 verticalAlign: "baseline"
               }} 
             />
           )}
-          <span className="text-text-muted pointer-events-none select-none">
-            {placeholder}
-          </span>
         </div>
       );
     }
