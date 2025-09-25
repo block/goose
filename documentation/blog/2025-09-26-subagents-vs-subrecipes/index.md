@@ -126,5 +126,5 @@ Share your subagent prompts or subrecipe ideas with us on our [Discord community
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="How to Choose Between Subagents and Subrecipes in goose" />
   <meta name="twitter:description" content="When you need to break complex work into multiple AI tasks, should you use subagents or subrecipes? Learn the key differences and when to use each approach." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/subagents-vs-subrecipe-19bca16b86a951e4618be8ab6ce90fb2s.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/subagents-vs-subrecipes-19bca16b86a951e4618be8ab6ce90fb2s.png" />
 </head>
