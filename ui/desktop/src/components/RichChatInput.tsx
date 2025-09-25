@@ -151,42 +151,35 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const minHeight = rows * lineHeight;
       const maxHeight = 300;
       
-      // Store current styles to avoid unnecessary resets if they're already correct
-      const currentTextareaHeight = parseInt(textarea.style.height) || 0;
-      const currentDisplayHeight = parseInt(display.style.height) || 0;
-      
-      // Only reset height temporarily to measure if needed
-      const originalHeight = textarea.style.height;
+      // Force a complete reset to ensure accurate measurement
+      textarea.style.height = '0px';
+      // Force a reflow
+      textarea.offsetHeight;
       textarea.style.height = 'auto';
+      
       const textareaScrollHeight = textarea.scrollHeight;
       
       // Calculate desired height based on content, but cap at maxHeight
       const desiredHeight = Math.min(textareaScrollHeight, maxHeight);
       const finalHeight = Math.max(desiredHeight, minHeight);
       
-      // Only update if the height actually needs to change (prevents unnecessary layout shifts)
-      if (Math.abs(currentTextareaHeight - finalHeight) > 1 || Math.abs(currentDisplayHeight - finalHeight) > 1) {
-        // Update both textarea and display layer heights to match exactly
-        textarea.style.height = `${finalHeight}px`;
-        textarea.style.minHeight = `${finalHeight}px`;
-        textarea.style.maxHeight = `${finalHeight}px`;
-        
-        display.style.height = `${finalHeight}px`;
-        display.style.minHeight = `${finalHeight}px`;
-        display.style.maxHeight = `${finalHeight}px`;
-        
-        // Handle display content height for scrolling
-        const displayContent = display.firstElementChild as HTMLElement;
-        if (displayContent) {
-          if (textareaScrollHeight > finalHeight) {
-            displayContent.style.minHeight = `${textareaScrollHeight}px`;
-          } else {
-            displayContent.style.minHeight = 'auto';
-          }
+      // Always update heights to ensure consistency
+      textarea.style.height = `${finalHeight}px`;
+      textarea.style.minHeight = `${minHeight}px`;
+      textarea.style.maxHeight = `${maxHeight}px`;
+      
+      display.style.height = `${finalHeight}px`;
+      display.style.minHeight = `${minHeight}px`;
+      display.style.maxHeight = `${maxHeight}px`;
+      
+      // Handle display content height for scrolling
+      const displayContent = display.firstElementChild as HTMLElement;
+      if (displayContent) {
+        if (textareaScrollHeight > finalHeight) {
+          displayContent.style.minHeight = `${textareaScrollHeight}px`;
+        } else {
+          displayContent.style.minHeight = 'auto';
         }
-      } else {
-        // Restore original height if no change needed
-        textarea.style.height = originalHeight;
       }
       
       // Sync scroll positions
@@ -201,7 +194,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         finalHeight,
         maxHeight,
         minHeight,
-        heightChanged: Math.abs(currentTextareaHeight - finalHeight) > 1,
         scrollTop: textarea.scrollTop,
         textareaHeight: textarea.style.height,
         displayHeight: display.style.height
@@ -846,7 +838,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   // Start monitoring textarea changes for height synchronization
   useEffect(() => {
     const cleanup = monitorTextareaChanges();
-    return cleanup;
     return cleanup;
   }, [monitorTextareaChanges]);
   // Tooltip handlers
