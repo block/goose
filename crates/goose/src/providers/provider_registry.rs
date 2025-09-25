@@ -41,6 +41,7 @@ impl ProviderRegistry {
     }
 
     /// create provider with custom name
+    #[allow(clippy::too_many_arguments)]
     pub fn register_with_name<P, F>(
         &mut self,
         custom_name: String,
