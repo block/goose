@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText } from 'lucide-react';
+import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -8,6 +8,7 @@ import { Attach, Send, Close, Microphone, Action } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
+import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
@@ -21,16 +22,15 @@ import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import ActionPopover from './ActionPopover';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
 import { useDictationSettings } from '../hooks/useDictationSettings';
+import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
-import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
-import { RichChatInput, RichChatInputRef } from './RichChatInput';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { DiagnosticsModal } from './ui/DownloadDiagnostics';
-import { Message } from '../api';
+import { getApiUrl } from '../config';
 
 interface QueuedMessage {
   id: string;
@@ -54,9 +54,6 @@ const MAX_IMAGE_SIZE_MB = 5;
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
-// Manual compact trigger message - must match backend constant
-const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
-
 interface ModelLimit {
   pattern: string;
   context_limit: number;
@@ -76,6 +73,7 @@ interface ChatInputProps {
   inputTokens?: number;
   outputTokens?: number;
   messages?: Message[];
+  setMessages: (messages: Message[]) => void;
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
@@ -85,8 +83,7 @@ interface ChatInputProps {
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
-  recipe?: Recipe | null;
-  recipeId?: string | null;
+  recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -109,16 +106,16 @@ export default function ChatInput({
   inputTokens,
   outputTokens,
   messages = [],
+  setMessages,
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
-  recipe,
-  recipeId,
+  recipeConfig,
   recipeAccepted,
   initialPrompt,
   toolCount,
   autoSubmit = false,
-  append: _append,
+  append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -140,6 +137,7 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
+  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -151,8 +149,6 @@ export default function ChatInput({
   const chatContext = useChatContext(); // This should always be available now
   const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
-
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   // Debug logging for draft context
   useEffect(() => {
@@ -242,12 +238,10 @@ export default function ChatInput({
     isOpen: boolean;
     position: { x: number; y: number };
     selectedIndex: number;
-    cursorPosition?: number;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
     selectedIndex: 0,
-    cursorPosition: 0,
   });
   const actionPopoverRef = useRef<{
     getDisplayActions: () => any[];
@@ -341,7 +335,7 @@ export default function ChatInput({
 
   useEffect(() => {
     // Only load draft once and if conditions are met
-    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
+    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -352,7 +346,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipe]);
+  }, [chatContext, initialValue, recipeConfig]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(
@@ -371,7 +365,7 @@ export default function ChatInput({
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<RichChatInputRef>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
@@ -523,18 +517,51 @@ export default function ChatInput({
   // Load auto-compact threshold
   const loadAutoCompactThreshold = useCallback(async () => {
     try {
-      const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-      if (threshold !== undefined && threshold !== null) {
-        setAutoCompactThreshold(threshold as number);
+      const secretKey = await window.electron.getSecretKey();
+      const response = await fetch(getApiUrl('/config/read'), {
+        method: 'POST',
+        headers: {
+          'X-Secret-Key': secretKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
+          is_secret: false,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded auto-compact threshold from config:', data);
+        if (data !== undefined && data !== null) {
+          setAutoCompactThreshold(data);
+          console.log('Set auto-compact threshold to:', data);
+        }
+      } else {
+        console.error('Failed to fetch auto-compact threshold, status:', response.status);
       }
     } catch (err) {
       console.error('Error fetching auto-compact threshold:', err);
     }
-  }, [read]);
+  }, []);
 
   useEffect(() => {
     loadAutoCompactThreshold();
   }, [loadAutoCompactThreshold]);
+
+  // Listen for threshold change events from AlertBox
+  useEffect(() => {
+    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
+      setAutoCompactThreshold(event.detail.threshold);
+    };
+
+    // Type assertion to handle the mismatch between CustomEvent and EventListener
+    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
+    window.addEventListener('autoCompactThresholdChanged', eventListener);
+
+    return () => {
+      window.removeEventListener('autoCompactThresholdChanged', eventListener);
+    };
+  }, []);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -542,6 +569,9 @@ export default function ChatInput({
 
     // Show alert when either there is registered token usage, or we know the limit
     if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+      // in these conditions we want it to be present but disabled
+      const compactButtonDisabled = !numTokens || isCompacting;
+
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
@@ -550,21 +580,15 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !numTokens,
+        compactButtonDisabled,
         onCompact: () => {
+          // Hide the alert popup by dispatching a custom event that the popover can listen to
+          // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-
-          const customEvent = new CustomEvent('submit', {
-            detail: { value: MANUAL_COMPACT_TRIGGER },
-          }) as unknown as React.FormEvent;
-
-          handleSubmit(customEvent);
+          handleManualCompaction(messages, setMessages, append);
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
-        onThresholdChange: (newThreshold: number) => {
-          setAutoCompactThreshold(newThreshold);
-        },
       });
     }
 
@@ -588,6 +612,7 @@ export default function ChatInput({
     tokenLimit,
     isTokenLimitLoaded,
     addAlert,
+    isCompacting,
     clearAlerts,
     autoCompactThreshold,
   ]);
@@ -631,7 +656,7 @@ export default function ChatInput({
 
   const debouncedAutosize = useMemo(
     () =>
-      debounce((element: HTMLElement) => {
+      debounce((element: HTMLTextAreaElement) => {
         element.style.height = '0px'; // Reset height
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
@@ -641,32 +666,32 @@ export default function ChatInput({
 
   useEffect(() => {
     if (textAreaRef.current) {
-      const element = (textAreaRef.current as any).contentRef?.current; if (element) { debouncedAutosize(element); }
+      debouncedAutosize(textAreaRef.current);
     }
   }, [debouncedAutosize, displayValue]);
 
   // Reset textarea height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
-      const element = (textAreaRef.current as any)?.contentRef?.current; if (element && element.style) { element.style.height = 'auto'; }
+      textAreaRef.current.style.height = 'auto';
     }
   }, [displayValue]);
 
-  //   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
-  //     const val = evt.target.value;
-  //     const cursorPosition = evt.target.selectionStart;
-  // 
-  //     setDisplayValue(val); // Update display immediately
-  //     updateValue(val); // Update actual value immediately for better responsiveness
-  //     debouncedSaveDraft(val); // Save draft with debounce
-  //     // Mark that the user has typed something
-  //     setHasUserTyped(true);
-  // 
-  //     // Check for @ mention
-  //     checkForMention(val, cursorPosition, evt.target);
-  //   };
+  const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = evt.target.value;
+    const cursorPosition = evt.target.selectionStart;
 
-  const checkForMention = (text: string, cursorPosition: number, textArea: any) => {
+    setDisplayValue(val); // Update display immediately
+    updateValue(val); // Update actual value immediately for better responsiveness
+    debouncedSaveDraft(val); // Save draft with debounce
+    // Mark that the user has typed something
+    setHasUserTyped(true);
+
+    // Check for @ mention
+    checkForMention(val, cursorPosition, evt.target);
+  };
+
+  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
     // Find the last @ and / before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
@@ -704,7 +729,6 @@ export default function ChatInput({
           y: textAreaRect.top,
         },
         selectedIndex: 0,
-        cursorPosition: cursorPosition,
       });
     } else {
       // Open mention popover for @ trigger (existing functionality)
@@ -723,7 +747,7 @@ export default function ChatInput({
     }
   };
 
-  const handlePaste = async (evt: React.ClipboardEvent<HTMLDivElement>) => {
+  const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
 
@@ -852,7 +876,7 @@ export default function ChatInput({
     setIsComposing(false);
   };
 
-  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
@@ -980,6 +1004,7 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
+    !isCompacting &&
     agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1072,7 +1097,7 @@ export default function ChatInput({
     }
   }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -1139,6 +1164,7 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
+      !isCompacting &&
       agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1159,36 +1185,23 @@ export default function ChatInput({
   };
 
   const handleMentionFileSelect = (filePath: string) => {
-    console.log('📁 handleMentionFileSelect called with:', filePath);
-    
-    // Extract just the filename from the full path for the pill
-    const fileName = filePath.split('/').pop() || filePath;
-    console.log('📁 Extracted filename:', fileName);
-    
-    // Create @filename format for pill detection
-    const mentionText = `@${fileName}`;
-    console.log('📁 Creating mention text:', mentionText);
-    
-    // Replace the @ mention with @filename format
+    // Replace the @ mention with the file path
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${mentionText} ${afterMention}`;
-    
-    console.log('📁 New value will be:', newValue);
+    const newValue = `${beforeMention}${filePath}${afterMention}`;
 
     setDisplayValue(newValue);
     setValue(newValue);
     setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
 
-    // Set cursor position after the inserted mention and space
-    const newCursorPosition = beforeMention.length + mentionText.length + 1;
+    // Set cursor position after the inserted file path
     setTimeout(() => {
       if (textAreaRef.current) {
+        const newCursorPosition = beforeMention.length + filePath.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
-        textAreaRef.current.focus();
       }
     }, 0);
   };
@@ -1203,7 +1216,6 @@ export default function ChatInput({
         y: buttonRect.top,
       },
       selectedIndex: 0,
-      cursorPosition: textAreaRef.current?.getBoundingClientRect ? 0 : 0, // Will be set by RichChatInput
     });
   };
 
@@ -1223,37 +1235,38 @@ export default function ChatInput({
   const handleActionSelect = (actionId: string) => {
     const actionInfo = getActionInfo(actionId);
     
-    // Get current cursor position from the RichChatInput
+    // Replace / with [Action] text inline
     const currentValue = displayValue;
-    const cursorPosition = actionPopover.cursorPosition || 0;
+    const cursorPosition = textAreaRef.current?.selectionStart || 0;
     const beforeCursor = currentValue.slice(0, cursorPosition);
-    const afterCursor = currentValue.slice(cursorPosition);
     const lastSlashIndex = beforeCursor.lastIndexOf('/');
     
     if (lastSlashIndex !== -1) {
       const afterSlash = beforeCursor.slice(lastSlashIndex + 1);
-      // Check if we're still in the same "word" after the slash
       if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
-        // Replace the /query with [Action] text
+        // Replace / with [Action] text
         const beforeSlash = currentValue.slice(0, lastSlashIndex);
+        const afterCursor = currentValue.slice(cursorPosition);
         const actionText = `[${actionInfo.label}]`;
-        const newValue = beforeSlash + actionText + " " + afterCursor;
+        const newValue = beforeSlash + actionText + afterCursor;
         
         setDisplayValue(newValue);
         setValue(newValue);
         
-        // Set cursor position after the action text and space
-        const newCursorPosition = lastSlashIndex + actionText.length + 1;
+        // Track selected action for pill display
+        
+        
+        // Set cursor position after the action text
         setTimeout(() => {
           if (textAreaRef.current) {
+            const newCursorPosition = lastSlashIndex + actionText.length;
             textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
-            textAreaRef.current.focus();
           }
         }, 0);
       }
     }
     
-    console.log('Action selected:', actionId, 'at position:', cursorPosition);
+    console.log('Action selected:', actionId);
     setActionPopover(prev => ({ ...prev, isOpen: false }));
   };
 
@@ -1271,6 +1284,16 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
+
+  const isUserInputDisabled =
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
     !agentIsReady ||
     isExtensionsLoading;
 
@@ -1375,28 +1398,13 @@ export default function ChatInput({
         <div className="relative flex-1">
                   
 
-        <RichChatInput
+        <textarea
             data-testid="chat-input"
             autoFocus
+            id="dynamic-textarea"
             placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
             value={displayValue}
-            onChange={(newValue, cursorPos) => {
-              setDisplayValue(newValue);
-              updateValue(newValue);
-              debouncedSaveDraft(newValue);
-              setHasUserTyped(true);
-              
-              // Check for @ mention and / action triggers
-              if (cursorPos !== undefined) {
-                const syntheticTarget = {
-                  getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
-                  selectionStart: cursorPos,
-                  selectionEnd: cursorPos,
-                  value: newValue,
-                };
-                checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
-              }
-            }}
+            onChange={handleChange}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
@@ -1405,6 +1413,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1424,7 +1433,7 @@ export default function ChatInput({
         </div>
 
         {/* Inline action buttons on the right */}
-        <div className="flex items-center gap-1 px-2 relative self-center">
+        <div className="flex items-center gap-1 px-2 relative">
           {/* Microphone button - show only if dictation is enabled */}
           {dictationSettings?.enabled && (
             <>
@@ -1451,8 +1460,7 @@ export default function ChatInput({
                         OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Models.</b>
                       </p>
-                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                      dictationSettings.provider === 'elevenlabs' ? (
+                    ) : dictationSettings.provider === 'elevenlabs' ? (
                       <p>
                         ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Chat</b> {'>'} <b>Voice Dictation.</b>
@@ -1532,15 +1540,17 @@ export default function ChatInput({
                 <p>
                   {isExtensionsLoading
                     ? 'Loading extensions...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                    : isCompacting
+                      ? 'Compacting conversation...'
+                      : isAnyImageLoading
+                        ? 'Waiting for images to save...'
+                        : isAnyDroppedFileLoading
+                          ? 'Processing dropped files...'
+                          : isRecording
+                            ? 'Recording...'
+                            : isTranscribing
+                              ? 'Transcribing...'
+                              : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1570,7 +1580,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">
@@ -1692,9 +1702,10 @@ export default function ChatInput({
               onClick={handleActionButtonClick}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
-              <Action className="w-4 h-4" />
+              <Action className="w-4 h-4 min-[1050px]:mr-1" />
+              <span className="text-xs hidden min-[1050px]:inline">Actions</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Quick Actions</TooltipContent>
@@ -1717,7 +1728,6 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
-
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1739,8 +1749,7 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipe={recipe}
-                recipeId={recipeId}
+                recipeConfig={recipeConfig}
                 hasMessages={messages.length > 0}
               />
             </div>
@@ -1748,46 +1757,21 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
-          {sessionId && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  onClick={() => setDiagnosticsOpen(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
-                >
-                  <Bug className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Generate diagnostics bundle</TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setIsGoosehintsModalOpen?.(true)}
+                variant="ghost"
+                size="sm"
+                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
+              >
+                <FolderKey size={16} className="min-[1050px]:mr-1" />
+                <span className="text-xs hidden min-[1050px]:inline">Hints</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Configure goosehints</TooltipContent>
+          </Tooltip>
         </div>
-
-        {sessionId && diagnosticsOpen && (
-          <DiagnosticsModal
-            isOpen={diagnosticsOpen}
-            onClose={() => setDiagnosticsOpen(false)}
-            sessionId={sessionId}
-          />
-        )}
 
         <MentionPopover
           ref={mentionPopoverRef}

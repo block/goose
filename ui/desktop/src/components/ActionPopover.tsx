@@ -101,10 +101,14 @@ const ActionPopover = forwardRef<
     () => ({
       getDisplayActions: () => actions,
       selectAction: (index: number) => {
+        console.log('⌨️ ActionPopover: selectAction called via keyboard', { index, actionId: actions[index]?.id });
         if (actions[index]) {
+          console.log('🔄 ActionPopover: Calling onSelect from selectAction:', actions[index].id);
           onSelect(actions[index].id);
           actions[index].action();
-          onClose();
+          setTimeout(() => {
+            onClose();
+          }, 10);
         }
       },
     }),
@@ -139,10 +143,25 @@ const ActionPopover = forwardRef<
   }, [selectedIndex]);
 
   const handleItemClick = (index: number) => {
+    console.log('🎯 ActionPopover: handleItemClick called', { index, actionId: actions[index].id });
+    console.log('📋 ActionPopover: onSelect function:', onSelect);
+    console.log('🔄 ActionPopover: About to call onSelect with:', actions[index].id);
+    
     onSelectedIndexChange(index);
+    
+    // Call onSelect first - this should trigger handleActionSelect in ChatInput
     onSelect(actions[index].id);
+    
+    console.log('✅ ActionPopover: onSelect called successfully');
+    
+    // Call the local action (just for logging)
     actions[index].action();
-    onClose();
+    
+    // Close popover after a small delay to allow text replacement to complete
+    console.log('🚪 ActionPopover: Closing popover after delay');
+    setTimeout(() => {
+      onClose();
+    }, 10);
   };
 
   if (!isOpen) return null;

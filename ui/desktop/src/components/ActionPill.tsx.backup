@@ -1,0 +1,30 @@
+import React from 'react';
+import { X } from 'lucide-react';
+
+interface ActionPillProps {
+  actionId: string;
+  label: string;
+  icon: React.ReactNode;
+  onRemove: () => void;
+}
+
+export const ActionPill: React.FC<ActionPillProps> = ({ label, icon, onRemove }) => {
+  return (
+    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-bgProminent text-textProminentInverse rounded-full text-xs font-medium border border-borderProminent">
+      <span className="flex items-center gap-1">
+        {icon}
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-white/20 transition-colors"
+        aria-label={`Remove ${label} action`}
+      >
+        <X size={10} />
+      </button>
+    </div>
+  );
+};
+
+export default ActionPill;
