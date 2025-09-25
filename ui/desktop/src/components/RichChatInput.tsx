@@ -958,13 +958,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           top: 0,
           width: '100%',
           // Remove height: '100%' to let it be controlled by syncDisplayHeight
-          opacity: 0.01, // Nearly invisible but allows selection to show
+          opacity: 1, // Fully visible for selection highlighting
           zIndex: 2, // Higher z-index to capture mouse events
           background: 'transparent',
           border: 'none',
           outline: 'none',
           resize: 'none',
-          color: 'transparent', // Completely transparent text
+          color: 'rgba(0, 0, 0, 0)', // Fully transparent text but allows selection
           caretColor: 'transparent', // Hide caret (we show our own)
           pointerEvents: 'auto', // Ensure it can receive mouse events
           fontFamily: 'Cash Sans, sans-serif', // Match exact font
@@ -1017,14 +1017,22 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           }
           
           /* Make text selection visible on the hidden textarea */
+          .rich-text-input textarea {
+            /* Ensure selection is visible */
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+          }
+          
           .rich-text-input textarea::selection {
             background-color: #3b82f6 !important; /* Blue selection */
-            color: white !important;
+            color: rgba(255, 255, 255, 1) !important; /* Fully opaque white */
           }
           
           .rich-text-input textarea::-moz-selection {
             background-color: #3b82f6 !important; /* Blue selection */
-            color: white !important;
+            color: rgba(255, 255, 255, 1) !important; /* Fully opaque white */
           }
         `
       }} />
