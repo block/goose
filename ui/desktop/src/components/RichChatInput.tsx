@@ -283,8 +283,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const misspelledWords = await checkSpelling(text);
       console.log('🔍 ELECTRON SPELL CHECK: System spell check result:', misspelledWords);
       
+      // Critical: Check current value at time of update, not captured value
+      const currentValue = hiddenTextareaRef.current?.value || '';
+      
       // Only update if the text hasn't changed since we started checking
-      if (text === value) {
+      if (text === currentValue) {
+        // Use functional update to avoid dependency on value in useCallback
         setMisspelledWords(misspelledWords);
         lastSpellCheckedTextRef.current = text;
       } else {
@@ -293,11 +297,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     } catch (error) {
       console.error('🔍 ELECTRON SPELL CHECK: Error performing spell check:', error);
       // Fallback to no spell checking on error
-      if (text === value) {
+      const currentValue = hiddenTextareaRef.current?.value || '';
+      if (text === currentValue) {
         setMisspelledWords([]);
       }
     }
-  }, [value]);
+  }, []); // Remove value dependency to prevent recreation
 
   // Smart spell check timing - check after word completion and with shorter delays
   useEffect(() => {
