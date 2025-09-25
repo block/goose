@@ -146,58 +146,47 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const textarea = hiddenTextareaRef.current;
       const display = displayRef.current;
       
-      // Critical: Completely reset height and clear any constraints to get accurate measurement
-      textarea.style.height = 'auto';
-      textarea.style.minHeight = 'auto';
-      textarea.style.maxHeight = 'none';
-      
-      // Also reset display constraints
-      display.style.height = 'auto';
-      display.style.minHeight = 'auto';
-      display.style.maxHeight = 'none';
-      
-      // Reset display content constraints too
-      const displayContent = display.firstElementChild as HTMLElement;
-      if (displayContent) {
-        displayContent.style.minHeight = 'auto';
-        displayContent.style.height = 'auto';
-      }
-      
-      // Force a reflow to ensure the browser recalculates dimensions
-      textarea.offsetHeight;
-      display.offsetHeight;
-      
-      const textareaScrollHeight = textarea.scrollHeight;
-      
-      // Allow expansion up to 300px, then use scrolling
+      // Calculate line height more accurately based on actual font metrics
+      const lineHeight = 21; // 14px * 1.5 line-height = 21px
+      const minHeight = rows * lineHeight;
       const maxHeight = 300;
-      const minHeight = rows * 24; // Approximate line height
+      
+      // Store current styles to avoid unnecessary resets if they're already correct
+      const currentTextareaHeight = parseInt(textarea.style.height) || 0;
+      const currentDisplayHeight = parseInt(display.style.height) || 0;
+      
+      // Only reset height temporarily to measure if needed
+      const originalHeight = textarea.style.height;
+      textarea.style.height = 'auto';
+      const textareaScrollHeight = textarea.scrollHeight;
       
       // Calculate desired height based on content, but cap at maxHeight
       const desiredHeight = Math.min(textareaScrollHeight, maxHeight);
       const finalHeight = Math.max(desiredHeight, minHeight);
       
-      // Update both textarea and display layer heights to match exactly
-      textarea.style.height = `${finalHeight}px`;
-      textarea.style.minHeight = `${finalHeight}px`;
-      textarea.style.maxHeight = `${finalHeight}px`;
-      
-      display.style.height = `${finalHeight}px`;
-      display.style.minHeight = `${finalHeight}px`;
-      display.style.maxHeight = `${finalHeight}px`;
-      
-      // Critical: Ensure both have the same dimensions and overflow behavior
-      display.style.width = textarea.style.width;
-      
-      // Force the display layer to have the same scrollable content area
-      // This ensures that when the textarea scrolls, the display can show the same content
-      if (displayContent) {
-        // Only set minHeight if content is taller than the container, otherwise let it be natural
-        if (textareaScrollHeight > finalHeight) {
-          displayContent.style.minHeight = `${textareaScrollHeight}px`;
-        } else {
-          displayContent.style.minHeight = 'auto';
+      // Only update if the height actually needs to change (prevents unnecessary layout shifts)
+      if (Math.abs(currentTextareaHeight - finalHeight) > 1 || Math.abs(currentDisplayHeight - finalHeight) > 1) {
+        // Update both textarea and display layer heights to match exactly
+        textarea.style.height = `${finalHeight}px`;
+        textarea.style.minHeight = `${finalHeight}px`;
+        textarea.style.maxHeight = `${finalHeight}px`;
+        
+        display.style.height = `${finalHeight}px`;
+        display.style.minHeight = `${finalHeight}px`;
+        display.style.maxHeight = `${finalHeight}px`;
+        
+        // Handle display content height for scrolling
+        const displayContent = display.firstElementChild as HTMLElement;
+        if (displayContent) {
+          if (textareaScrollHeight > finalHeight) {
+            displayContent.style.minHeight = `${textareaScrollHeight}px`;
+          } else {
+            displayContent.style.minHeight = 'auto';
+          }
         }
+      } else {
+        // Restore original height if no change needed
+        textarea.style.height = originalHeight;
       }
       
       // Sync scroll positions
@@ -212,10 +201,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         finalHeight,
         maxHeight,
         minHeight,
+        heightChanged: Math.abs(currentTextareaHeight - finalHeight) > 1,
         scrollTop: textarea.scrollTop,
         textareaHeight: textarea.style.height,
-        displayHeight: display.style.height,
-        displayContentHeight: displayContent?.style.minHeight
+        displayHeight: display.style.height
       });
     }
   }, [rows]);
@@ -382,14 +371,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           {/* Cursor positioned absolutely at the start */}
           {isFocused && cursorPosition === 0 && (
             <span 
-              className="border-l-2 border-text-default inline-block align-baseline absolute" 
+              className="border-l border-text-default inline-block absolute" 
               style={{ 
                 animation: "blink 1s step-end infinite", 
-                height: "1em", 
+                height: "1.3em", // Taller than text to extend below baseline
                 width: "1px",
                 left: "0px",
-                top: "0.25em", // Align with text baseline
-                verticalAlign: "baseline"
+                top: "0.1em", // Start slightly below text top
+                position: "absolute"
               }} 
             />
           )}
@@ -483,7 +472,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         for (let i = 0; i < beforeMatch.length; i++) {
           if (isFocused && cursorPosition === currentPos) {
             textWithCursor.push(
-              <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+              <span key={`cursor-${keyCounter++}`} className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
             );
           }
           textWithCursor.push(beforeMatch[i]);
@@ -500,7 +489,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Add cursor before match if needed
       if (isFocused && cursorPosition === currentPos) {
         parts.push(
-          <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+          <span key={`cursor-${keyCounter++}`} className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
         );
       }
       
@@ -661,7 +650,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       for (let i = 0; i < remainingText.length; i++) {
         if (isFocused && cursorPosition === currentPos) {
           textWithCursor.push(
-            <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+            <span key={`cursor-${keyCounter++}`} className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
           );
         }
         textWithCursor.push(remainingText[i]);
@@ -678,7 +667,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Always check for cursor at the end, including after trailing newlines
     if (isFocused && cursorPosition === currentPos) {
       parts.push(
-        <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+        <span key={`cursor-${keyCounter++}`} className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
       );
     }
     
@@ -690,7 +679,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         <span key={`whitespace-${keyCounter++}`} className="inline whitespace-pre-wrap">
           {value}
           {isFocused && cursorPosition === value.length && (
-            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+            <span className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
           )}
         </span>
       );
@@ -700,7 +689,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
         {parts.length > 0 ? parts : (
           isFocused && (
-            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
+            <span className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
           )
         )}
       </div>
