@@ -564,42 +564,24 @@ impl ComputerControllerServer {
     }
 
     /// Create and run small scripts for automation tasks
-    #[cfg(target_os = "windows")]
-    #[tool(
-        name = "automation_script",
-        description = "
-            Create and run small PowerShell or Batch scripts for automation tasks.
-            PowerShell is recommended for most tasks.
-
-            The script is saved to a temporary file and executed.
-            Some examples:
-            - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
-            - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
-            - Find text: Select-String -Pattern "pattern" -Path file.txt
-        "
-    )]
-    pub async fn automation_script(
-        &self,
-        params: Parameters<AutomationScriptParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.automation_script_impl(params).await
-    }
-
-    /// Create and run small scripts for automation tasks
-    #[cfg(not(target_os = "windows"))]
     #[tool(
         name = "automation_script",
         description = "
             Create and run small scripts for automation tasks.
-            Supports Shell and Ruby (on macOS).
+            On Windows: PowerShell or Batch scripts (PowerShell recommended).
+            On Unix: Shell and Ruby scripts (Shell recommended).
 
             The script is saved to a temporary file and executed.
-            Consider using shell script (bash) for most simple tasks first.
-            Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
-            Some examples of shell:
-                - create a sorted list of unique lines: sort file.txt | uniq
-                - extract 2nd column in csv: awk -F ',' '{ print $2}'
-                - pattern matching: grep pattern file.txt
+            
+            Windows examples:
+            - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
+            - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
+            - Find text: Select-String -Pattern 'pattern' -Path file.txt
+            
+            Unix examples:
+            - create a sorted list of unique lines: sort file.txt | uniq
+            - extract 2nd column in csv: awk -F ',' '{print $2}'
+            - pattern matching: grep pattern file.txt
         "
     )]
     pub async fn automation_script(
