@@ -322,10 +322,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             className="inline whitespace-pre-wrap"
             style={{
               textDecoration: 'underline',
-              textDecorationColor: '#dc2626', // red-600
-              textDecorationStyle: 'dotted',
+              textDecorationColor: '#dc2626', // Bright red
+              textDecorationStyle: 'wavy', // Wavy line like in Word
               textDecorationThickness: '2px',
-              textUnderlineOffset: '2px'
+              textUnderlineOffset: '3px',
+              // Fallback for browsers that don't support wavy
+              borderBottom: '2px dotted #dc2626',
+              paddingBottom: '1px'
             }}
             title={`Possible misspelling: ${content}`}
           >
