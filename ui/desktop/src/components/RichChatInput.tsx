@@ -38,6 +38,41 @@ export interface RichChatInputRef {
   getBoundingClientRect: () => DOMRect;
 }
 
+// Simple spell checking function using browser's built-in capabilities
+const checkSpelling = async (text: string): Promise<{ word: string; start: number; end: number }[]> => {
+  // This is a basic implementation - in a real app you might want to use a more sophisticated spell checker
+  const misspelledWords: { word: string; start: number; end: number }[] = [];
+  
+  // Common misspelled words for demo purposes
+  const commonMisspellings = [
+    'teh', 'recieve', 'seperate', 'occured', 'neccessary', 'definately', 
+    'occassion', 'begining', 'tommorrow', 'accomodate', 'existance', 'maintainance'
+  ];
+  
+  // Split text into words while preserving positions
+  const words = text.split(/(\s+|[^\w\s])/);
+  let currentPos = 0;
+  
+  for (const word of words) {
+    const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
+    
+    if (cleanWord && commonMisspellings.includes(cleanWord)) {
+      const start = text.indexOf(word, currentPos);
+      if (start !== -1) {
+        misspelledWords.push({
+          word: word,
+          start: start,
+          end: start + word.length
+        });
+      }
+    }
+    
+    currentPos += word.length;
+  }
+  
+  return misspelledWords;
+};
+
 export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   value,
   onChange,
@@ -59,6 +94,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const displayRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number }[]>([]);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -80,7 +116,26 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, []);
 
-  // Parse and render content with action pills and cursor
+  // Spell check the content
+  const performSpellCheck = useCallback(async (text: string) => {
+    const misspelled = await checkSpelling(text);
+    setMisspelledWords(misspelled);
+  }, []);
+
+  // Debounced spell check
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (value.trim()) {
+        performSpellCheck(value);
+      } else {
+        setMisspelledWords([]);
+      }
+    }, 500); // Debounce spell check by 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [value, performSpellCheck]);
+
+  // Parse and render content with action pills, mention pills, spell checking, and cursor
   const renderContent = useCallback(() => {
     // Show placeholder when there's no text content (regardless of focus state)
     if (!value.trim()) {
@@ -107,30 +162,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
     const parts: React.ReactNode[] = [];
     const actionRegex = /\[([^\]]+)\]/g;
-    const mentionRegex = /@([^\s]+)/g; // Match @filename patterns
+    const mentionRegex = /@([^\s]+)/g;
     let lastIndex = 0;
-    let match;
     let keyCounter = 0;
-    let currentPos = 0; // Track position for cursor placement
-
-    // Helper function to add cursor if needed
-    const addCursorIfNeeded = (position: number) => {
-      if (isFocused && cursorPosition === position) {
-        parts.push(
-          <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
-        );
-      }
-    };
+    let currentPos = 0;
 
     console.log('🎨 RichChatInput renderContent called with value:', value);
     console.log('🔍 Looking for action and mention patterns with regex:', { actionRegex, mentionRegex });
+    console.log('📝 Misspelled words:', misspelledWords);
     
-    // Find all actions and mentions, then sort by position
+    // Find all actions, mentions, and misspelled words, then sort by position
     const allMatches = [];
     
     // Find all action matches
     let actionMatch;
-    actionRegex.lastIndex = 0; // Reset regex
+    actionRegex.lastIndex = 0;
     while ((actionMatch = actionRegex.exec(value)) !== null) {
       allMatches.push({
         type: 'action',
@@ -143,9 +189,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     
     // Find all mention matches
     let mentionMatch;
-    mentionRegex.lastIndex = 0; // Reset regex
+    mentionRegex.lastIndex = 0;
     console.log('🔍 Searching for mentions in value:', value);
-    console.log('🔍 Using mention regex:', mentionRegex);
     while ((mentionMatch = mentionRegex.exec(value)) !== null) {
       console.log('📁 Found mention match:', mentionMatch);
       allMatches.push({
@@ -153,24 +198,46 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         match: mentionMatch,
         index: mentionMatch.index,
         length: mentionMatch[0].length,
-        content: mentionMatch[1] // filename without @
+        content: mentionMatch[1]
       });
     }
+
+    // Add misspelled words
+    misspelledWords.forEach(misspelled => {
+      allMatches.push({
+        type: 'misspelled',
+        match: null,
+        index: misspelled.start,
+        length: misspelled.end - misspelled.start,
+        content: misspelled.word
+      });
+    });
     
     // Sort matches by position
     allMatches.sort((a, b) => a.index - b.index);
     
     console.log('🔍 All matches found:', allMatches);
-    console.log('📊 Match breakdown:', {
-      actions: allMatches.filter(m => m.type === 'action').length,
-      mentions: allMatches.filter(m => m.type === 'mention').length,
-      total: allMatches.length
-    });
     
-    // Process all matches in order
+    // Process all matches in order, handling overlaps
+    const processedMatches = [];
+    let lastProcessedEnd = 0;
+    
     for (const matchData of allMatches) {
-      const { type, match, index, length, content } = matchData;
-      console.log('✅ Found match:', { type, content, index });
+      // Skip overlapping matches (pills take priority over spell check)
+      if (matchData.index < lastProcessedEnd) {
+        continue;
+      }
+      
+      processedMatches.push(matchData);
+      lastProcessedEnd = matchData.index + matchData.length;
+    }
+    
+    // Render content with processed matches
+    currentPos = 0;
+    lastIndex = 0;
+    
+    for (const matchData of processedMatches) {
+      const { type, index, length, content } = matchData;
       
       // Add text before this match with potential cursor
       const beforeMatch = value.slice(lastIndex, index);
@@ -226,14 +293,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           // If no matching action, render as text
           parts.push(
             <span key={`text-${keyCounter++}`} className="inline whitespace-pre-wrap">
-              {match[0]}
+              {value.slice(index, index + length)}
             </span>
           );
         }
       } else if (type === 'mention') {
         // Handle mention pills
-        const fileName = content; // filename without @
-        const filePath = `@${fileName}`; // full mention text
+        const fileName = content;
+        const filePath = `@${fileName}`;
         
         console.log('📁 Creating mention pill:', { fileName, filePath });
         
@@ -246,6 +313,24 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             size="sm"
             onRemove={() => handleRemoveMention(fileName)}
           />
+        );
+      } else if (type === 'misspelled') {
+        // Handle misspelled words with red dotted underline
+        parts.push(
+          <span 
+            key={`misspelled-${keyCounter++}`} 
+            className="inline whitespace-pre-wrap"
+            style={{
+              textDecoration: 'underline',
+              textDecorationColor: '#dc2626', // red-600
+              textDecorationStyle: 'dotted',
+              textDecorationThickness: '2px',
+              textUnderlineOffset: '2px'
+            }}
+            title={`Possible misspelling: ${content}`}
+          >
+            {content}
+          </span>
         );
       }
       
@@ -290,7 +375,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         )}
       </div>
     );
-  }, [value, isFocused, placeholder, cursorPosition]);
+  }, [value, isFocused, placeholder, cursorPosition, misspelledWords]);
 
   const handleRemoveAction = useCallback((actionLabel: string) => {
     const actionText = `[${actionLabel}]`;
@@ -309,7 +394,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const newCursorPos = e.target.selectionStart;
     
     console.log('🔄 RichChatInput: onChange', { newValue, newCursorPos });
-    console.log('🎨 Will trigger re-render with new value:', newValue);
     onChange(newValue, newCursorPos);
     setCursorPosition(newCursorPos);
   }, [onChange]);
@@ -402,8 +486,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     onBlur?.();
   }, [onBlur]);
 
-  // Removed handleDisplayClick - let the hidden textarea handle all mouse events naturally
-
   // Handle selection changes (cursor movement)
   const handleSelectionChange = useCallback(() => {
     if (document.activeElement === hiddenTextareaRef.current) {
@@ -428,7 +510,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   return (
     <div className="relative rich-text-input">
-      {/* Hidden textarea for actual input handling */}
+      {/* Hidden textarea for actual input handling with spell check enabled */}
       <textarea
         ref={hiddenTextareaRef}
         value={value}
@@ -441,7 +523,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         onCompositionEnd={onCompositionEnd}
         disabled={disabled}
         data-testid={testId}
-        className="absolute inset-0 w-full h-full resize-none"
+        spellCheck={true} // Enable browser spell check on hidden textarea
+        className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
         style={{
           position: 'absolute',
           left: 0,
@@ -466,11 +549,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
         }}
-        className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
         rows={rows}
       />
       
-      {/* Visual display with action pills and cursor */}
+      {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
         className={`${className} cursor-text relative`}
