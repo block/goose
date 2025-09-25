@@ -97,11 +97,9 @@ fn get_agent_messages(
     task_config: TaskConfig,
 ) -> BoxFuture<'static, Result<Conversation>> {
     Box::pin(async move {
-        let agent_manager = Arc::new(
-            AgentManager::new(None)
-                .await
-                .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?,
-        );
+        let agent_manager = AgentManager::instance(None)
+            .await
+            .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
         let session_id_for_return = session::generate_session_id();
         let parent_session_id = task_config
             .parent_session_id
