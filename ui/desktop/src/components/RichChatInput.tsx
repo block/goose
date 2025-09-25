@@ -321,14 +321,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             key={`misspelled-${keyCounter++}`} 
             className="inline whitespace-pre-wrap"
             style={{
-              textDecoration: 'underline',
-              textDecorationColor: '#dc2626', // Bright red
-              textDecorationStyle: 'wavy', // Wavy line like in Word
-              textDecorationThickness: '2px',
-              textUnderlineOffset: '3px',
-              // Fallback for browsers that don't support wavy
-              borderBottom: '2px dotted #dc2626',
-              paddingBottom: '1px'
+              // Use a solid red bottom border instead of text-decoration
+              borderBottom: '2px solid #ef4444',
+              // Add a subtle red background tint
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              // Small padding for better appearance
+              paddingBottom: '1px',
+              borderRadius: '2px'
             }}
             title={`Possible misspelling: ${content}`}
           >
