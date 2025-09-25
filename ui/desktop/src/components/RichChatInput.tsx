@@ -126,11 +126,19 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
   
-  // Scroll synchronization
+  // Scroll synchronization - only sync from textarea to display, not the reverse
   const handleTextareaScroll = useCallback(() => {
     if (hiddenTextareaRef.current && displayRef.current) {
-      displayRef.current.scrollTop = hiddenTextareaRef.current.scrollTop;
-      displayRef.current.scrollLeft = hiddenTextareaRef.current.scrollLeft;
+      // Prevent infinite scroll loops by checking if sync is needed
+      const textarea = hiddenTextareaRef.current;
+      const display = displayRef.current;
+      
+      if (Math.abs(display.scrollTop - textarea.scrollTop) > 1) {
+        display.scrollTop = textarea.scrollTop;
+      }
+      if (Math.abs(display.scrollLeft - textarea.scrollLeft) > 1) {
+        display.scrollLeft = textarea.scrollLeft;
+      }
     }
   }, []);
 
@@ -896,7 +904,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-y-auto`}
+        className={`${className} cursor-text relative overflow-hidden`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
@@ -912,7 +920,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           margin: '0',
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
-          scrollBehavior: 'smooth', // Smooth scrolling
         }}
         role="textbox"
         aria-multiline="true"
