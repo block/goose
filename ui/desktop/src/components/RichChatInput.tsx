@@ -126,83 +126,107 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
   
-  // Scroll synchronization - only sync from textarea to display, not the reverse
+  // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
     if (hiddenTextareaRef.current && displayRef.current) {
-      // Prevent infinite scroll loops by checking if sync is needed
       const textarea = hiddenTextareaRef.current;
       const display = displayRef.current;
       
-      if (Math.abs(display.scrollTop - textarea.scrollTop) > 1) {
+      // Force immediate synchronization
+      requestAnimationFrame(() => {
         display.scrollTop = textarea.scrollTop;
-      }
-      if (Math.abs(display.scrollLeft - textarea.scrollLeft) > 1) {
         display.scrollLeft = textarea.scrollLeft;
-      }
+      });
     }
   }, []);
 
-  // Auto-scroll to cursor position when typing or moving cursor
-  const scrollToCursor = useCallback(() => {
+  // Comprehensive height and scroll synchronization
+  const syncDisplayHeight = useCallback(() => {
+    if (hiddenTextareaRef.current && displayRef.current) {
+      const textarea = hiddenTextareaRef.current;
+      const display = displayRef.current;
+      
+      // Force immediate synchronization
+      requestAnimationFrame(() => {
+        // Reset height to auto to get accurate scrollHeight measurement
+        textarea.style.height = 'auto';
+        const textareaScrollHeight = textarea.scrollHeight;
+        
+        // Allow expansion up to 300px, then use scrolling
+        const maxHeight = 300;
+        const minHeight = rows * 24; // Approximate line height
+        
+        // Calculate desired height based on content, but cap at maxHeight
+        const desiredHeight = Math.min(textareaScrollHeight, maxHeight);
+        const finalHeight = Math.max(desiredHeight, minHeight);
+        
+        // Update both textarea and display layer heights to match exactly
+        textarea.style.height = `${finalHeight}px`;
+        textarea.style.minHeight = `${finalHeight}px`;
+        textarea.style.maxHeight = `${finalHeight}px`;
+        
+        display.style.height = `${finalHeight}px`;
+        display.style.minHeight = `${finalHeight}px`;
+        display.style.maxHeight = `${finalHeight}px`;
+        
+        // Critical: Ensure both have the same dimensions and overflow behavior
+        display.style.width = textarea.style.width;
+        
+        // Force the display layer to have the same scrollable content area
+        // This ensures that when the textarea scrolls, the display can show the same content
+        const displayContent = display.firstElementChild as HTMLElement;
+        if (displayContent) {
+          // Make sure the content area matches the textarea's scroll height
+          displayContent.style.minHeight = `${textareaScrollHeight}px`;
+        }
+        
+        // Sync scroll positions
+        display.scrollTop = textarea.scrollTop;
+        display.scrollLeft = textarea.scrollLeft;
+        
+        console.log('🔄 SYNC HEIGHT:', {
+          textareaScrollHeight,
+          desiredHeight,
+          finalHeight,
+          maxHeight,
+          scrollTop: textarea.scrollTop,
+          textareaHeight: textarea.style.height,
+          displayHeight: display.style.height,
+          displayContentHeight: displayContent?.style.minHeight
+        });
+      });
+    }
+  }, [rows]);
+
+  // Monitor textarea for any changes that might affect height
+  const monitorTextareaChanges = useCallback(() => {
     if (hiddenTextareaRef.current) {
       const textarea = hiddenTextareaRef.current;
-      const cursorPos = textarea.selectionStart;
       
-      // Create a temporary element to measure cursor position
-      const tempDiv = document.createElement('div');
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.visibility = 'hidden';
-      tempDiv.style.whiteSpace = 'pre-wrap';
-      tempDiv.style.wordWrap = 'break-word';
-      tempDiv.style.fontFamily = getComputedStyle(textarea).fontFamily;
-      tempDiv.style.fontSize = getComputedStyle(textarea).fontSize;
-      tempDiv.style.lineHeight = getComputedStyle(textarea).lineHeight;
-      tempDiv.style.padding = getComputedStyle(textarea).padding;
-      tempDiv.style.width = textarea.clientWidth + 'px';
-      tempDiv.style.boxSizing = 'border-box';
-      
-      // Add text up to cursor position
-      tempDiv.textContent = textarea.value.substring(0, cursorPos);
-      document.body.appendChild(tempDiv);
-      
-      const cursorHeight = tempDiv.offsetHeight;
-      document.body.removeChild(tempDiv);
-      
-      // Calculate line height for better positioning
-      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 24;
-      
-      // Scroll to ensure cursor is visible with more aggressive padding
-      const containerHeight = textarea.clientHeight;
-      const scrollTop = textarea.scrollTop;
-      const padding = Math.max(40, lineHeight * 2); // More generous padding
-      
-      console.log('📍 CURSOR SCROLL:', {
-        cursorPos,
-        cursorHeight,
-        containerHeight,
-        scrollTop,
-        padding,
-        lineHeight
+      // Use ResizeObserver to detect when textarea dimensions change
+      const resizeObserver = new ResizeObserver(() => {
+        syncDisplayHeight();
       });
       
-      if (cursorHeight > scrollTop + containerHeight - padding) {
-        // Cursor is below visible area, scroll down aggressively
-        const newScrollTop = cursorHeight - containerHeight + padding;
-        console.log('⬇️ SCROLLING DOWN to:', newScrollTop);
-        textarea.scrollTop = newScrollTop;
-      } else if (cursorHeight < scrollTop + padding) {
-        // Cursor is above visible area, scroll up
-        const newScrollTop = Math.max(0, cursorHeight - padding);
-        console.log('⬆️ SCROLLING UP to:', newScrollTop);
-        textarea.scrollTop = newScrollTop;
-      }
+      resizeObserver.observe(textarea);
       
-      // Force sync the display layer
-      if (displayRef.current) {
-        displayRef.current.scrollTop = textarea.scrollTop;
-      }
+      // Also monitor scroll height changes
+      let lastScrollHeight = textarea.scrollHeight;
+      const checkScrollHeight = () => {
+        if (textarea.scrollHeight !== lastScrollHeight) {
+          lastScrollHeight = textarea.scrollHeight;
+          syncDisplayHeight();
+        }
+        requestAnimationFrame(checkScrollHeight);
+      };
+      
+      checkScrollHeight();
+      
+      return () => {
+        resizeObserver.disconnect();
+      };
     }
-  }, []);
+  }, [syncDisplayHeight]);
   
   // Spell check tooltip state
   const [tooltip, setTooltip] = useState<{
@@ -274,25 +298,23 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   // Parse and render content with action pills, mention pills, spell checking, and cursor
   const renderContent = useCallback(() => {
-    // Show placeholder when there's no text content (regardless of focus state)
-    if (!value.trim()) {
+    // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
+    if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="relative min-h-[1.5em] flex items-center">
-          <span className="text-text-muted pointer-events-none select-none">
-            {placeholder}
-          </span>
-          {isFocused && (
+        <div className="relative min-h-[1.5em] flex items-center justify-start h-full">
+          {isFocused && cursorPosition === 0 && (
             <span 
-              className="border-l-2 border-text-default inline-block align-baseline absolute left-0" 
+              className="border-l-2 border-text-default inline-block" 
               style={{ 
                 animation: "blink 1s step-end infinite", 
-                height: "1em", 
-                verticalAlign: "baseline",
-                top: "50%",
-                transform: "translateY(-50%)"
+                height: "1.2em", 
+                marginRight: placeholder ? "4px" : "0px"
               }} 
             />
           )}
+          <span className="text-text-muted pointer-events-none select-none">
+            {placeholder}
+          </span>
         </div>
       );
     }
@@ -542,7 +564,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     
     // Add remaining text with potential cursor
     const remainingText = value.slice(lastIndex);
-    if (remainingText) {
+    if (remainingText || lastIndex < value.length) {
       let textWithCursor = [];
       for (let i = 0; i < remainingText.length; i++) {
         if (isFocused && cursorPosition === currentPos) {
@@ -561,10 +583,24 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       );
     }
     
-    // Add cursor at the end if needed
+    // Always check for cursor at the end, including after trailing newlines
     if (isFocused && cursorPosition === currentPos) {
       parts.push(
         <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+      );
+    }
+    
+    // Ensure we have content even if it's just newlines
+    // This handles cases like "text\n\n\n" where trailing newlines need to be visible
+    if (parts.length === 0 && value.length > 0) {
+      // We have content but no rendered parts, likely just whitespace/newlines
+      parts.push(
+        <span key={`whitespace-${keyCounter++}`} className="inline whitespace-pre-wrap">
+          {value}
+          {isFocused && cursorPosition === value.length && (
+            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+          )}
+        </span>
       );
     }
     
@@ -599,9 +635,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     onChange(newValue, newCursorPos);
     setCursorPosition(newCursorPos);
     
-    // Auto-scroll to cursor after a short delay to ensure DOM is updated
-    setTimeout(scrollToCursor, 0);
-  }, [onChange, scrollToCursor]);
+    // Sync display height after content changes
+    setTimeout(syncDisplayHeight, 0);
+  }, [onChange, syncDisplayHeight]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Hide tooltip on any key press
@@ -700,10 +736,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const handleSelectionChange = useCallback(() => {
     if (document.activeElement === hiddenTextareaRef.current) {
       updateCursorPosition();
-      // Also ensure cursor is visible when moving cursor position
-      setTimeout(scrollToCursor, 0);
     }
-  }, [updateCursorPosition, scrollToCursor]);
+  }, [updateCursorPosition]);
 
   // Auto-focus effect
   useEffect(() => {
@@ -719,6 +753,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       document.removeEventListener('selectionchange', handleSelectionChange);
     };
   }, [handleSelectionChange]);
+
+  // Start monitoring textarea changes for height synchronization
+  useEffect(() => {
+    const cleanup = monitorTextareaChanges();
+    return cleanup;
+  }, [monitorTextareaChanges]);
 
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
@@ -814,7 +854,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         disabled={disabled}
         data-testid={testId}
         spellCheck={false} // Disable browser spell check - we handle it ourselves
-        className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white overflow-y-auto"
+        className="absolute inset-0 w-full resize-none selection:bg-blue-500 selection:text-white overflow-y-auto"
         onScroll={handleTextareaScroll}
         onMouseMove={(e) => {
           // Improved hover detection with better coordinate mapping
@@ -844,22 +884,40 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             console.log('🖱️ TEXTAREA HOVER: caretRangeFromPoint failed:', error);
           }
           
-          // Method 2: Estimate based on mouse position (fallback)
+          // Method 2: Better estimation based on mouse position (fallback)
           if (charIndex === -1) {
-            const charWidth = 8; // Approximate character width
-            const lineHeight = 24; // Approximate line height
-            const paddingLeft = 12; // Match textarea padding
-            const paddingTop = 12;
+            // Use more accurate measurements
+            const computedStyle = getComputedStyle(textarea);
+            const lineHeight = parseFloat(computedStyle.lineHeight) || 21; // More accurate line height
+            const paddingLeft = parseFloat(computedStyle.paddingLeft) || 12;
+            const paddingTop = parseFloat(computedStyle.paddingTop) || 12;
             
             const adjustedX = Math.max(0, relativeX - paddingLeft);
             const adjustedY = Math.max(0, relativeY - paddingTop);
             
-            const estimatedCharInLine = Math.floor(adjustedX / charWidth);
+            // Estimate which line we're on
             const estimatedLine = Math.floor(adjustedY / lineHeight);
             
-            // Simple estimation for single line
-            charIndex = Math.min(estimatedCharInLine, textContent.length - 1);
-            console.log('🖱️ TEXTAREA HOVER: Estimated char index:', charIndex);
+            // Split text into lines to get accurate character positioning
+            const lines = textContent.split('\n');
+            let charIndex = 0;
+            
+            // Add up characters from previous lines
+            for (let i = 0; i < Math.min(estimatedLine, lines.length - 1); i++) {
+              charIndex += lines[i].length + 1; // +1 for the newline character
+            }
+            
+            // Add characters within the current line
+            if (estimatedLine < lines.length) {
+              const currentLine = lines[estimatedLine] || '';
+              const charWidth = 8; // Approximate character width
+              const estimatedCharInLine = Math.floor(adjustedX / charWidth);
+              charIndex += Math.min(estimatedCharInLine, currentLine.length);
+            }
+            
+            // Ensure we don't exceed text length
+            charIndex = Math.min(charIndex, textContent.length - 1);
+            console.log('🖱️ TEXTAREA HOVER: Estimated char index:', charIndex, 'line:', estimatedLine);
           }
           
           if (charIndex >= 0 && charIndex < textContent.length) {
@@ -903,7 +961,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           left: 0,
           top: 0,
           width: '100%',
-          height: '100%',
+          // Remove height: '100%' to let it be controlled by syncDisplayHeight
           opacity: 0, // Completely invisible - no ghosting effect
           zIndex: 2, // Higher z-index to capture mouse events
           background: 'transparent',
@@ -916,7 +974,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           fontFamily: 'Cash Sans, sans-serif', // Match exact font
           fontSize: '0.875rem', // Match text-sm (14px)
           lineHeight: '1.5', // Match leading-relaxed
-          padding: '12px 80px 6px 12px', // Match original: px-3 pt-3 pb-1.5 pr-20
+          padding: '12px 80px 12px 12px', // Match top and bottom padding: 12px each
           margin: '0',
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
@@ -928,7 +986,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-y-auto`}
+        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
@@ -940,10 +998,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           fontFamily: 'Cash Sans, sans-serif', // Match textarea font
           fontSize: '0.875rem', // Match textarea size
           lineHeight: '1.5', // Match textarea line height
-          padding: '12px 80px 6px 12px', // Match original: px-3 pt-3 pb-1.5 pr-20
+          padding: '12px 80px 12px 12px', // Match textarea padding: 12px top and bottom
           margin: '0',
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
+          // Hide scrollbars but keep scrolling functionality
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none', // IE/Edge
         }}
         role="textbox"
         aria-multiline="true"
@@ -951,6 +1012,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       >
         {renderContent()}
       </div>
+      
+      {/* CSS to hide webkit scrollbars */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .rich-text-display::-webkit-scrollbar {
+            display: none;
+          }
+        `
+      }} />
       
       {/* Spell Check Hover Tooltip */}
       {console.log('🖱️ TOOLTIP RENDER: tooltip state:', tooltip)}
