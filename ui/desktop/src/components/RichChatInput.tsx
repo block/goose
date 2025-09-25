@@ -384,23 +384,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           <span 
             key={`misspelled-${keyCounter++}`} 
             data-misspelled="true"
-            className="inline whitespace-pre-wrap cursor-pointer select-none"
+            className="inline whitespace-pre-wrap cursor-pointer bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium px-1 py-0.5 rounded-sm border border-red-200 dark:border-red-800 underline decoration-wavy decoration-red-500 decoration-2 underline-offset-2 hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 hover:scale-105 transition-all duration-150 relative z-10"
             style={{
-              // Enhanced styling for better visibility and interaction
-              backgroundColor: '#fef2f2', // Very light red background
-              color: '#dc2626', // Red text
-              fontWeight: '500',
-              padding: '2px 4px',
-              borderRadius: '3px',
-              border: '1px solid #fca5a5',
-              textDecoration: 'underline wavy #dc2626',
-              textDecorationThickness: '2px',
-              textUnderlineOffset: '2px',
               pointerEvents: 'auto', // Override parent's pointer-events: none
-              userSelect: 'none', // Prevent text selection interference
-              position: 'relative', // Ensure it's above other elements
-              zIndex: 10, // Higher z-index than parent
-              transition: 'all 0.15s ease',
+              userSelect: 'text', // Allow text selection for normal text editing
             }}
             title={`Click or hover for suggestions: ${content}`}
             onClick={(e) => {
@@ -432,11 +419,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             onMouseEnter={(e) => {
               console.log('🖱️ MOUSEENTER: Mouse entered misspelled word:', content);
               
-              // Add hover effect
-              e.currentTarget.style.backgroundColor = '#fee2e2';
-              e.currentTarget.style.borderColor = '#f87171';
-              e.currentTarget.style.transform = 'scale(1.02)';
-              
               if (misspelledData) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 console.log('🖱️ MOUSEENTER: Element rect:', rect);
@@ -458,11 +440,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             }}
             onMouseLeave={(e) => {
               console.log('🖱️ MOUSELEAVE: Mouse left misspelled word:', content);
-              
-              // Remove hover effect
-              e.currentTarget.style.backgroundColor = '#fef2f2';
-              e.currentTarget.style.borderColor = '#fca5a5';
-              e.currentTarget.style.transform = 'scale(1)';
               
               // Add a small delay before hiding to allow moving to tooltip
               setTimeout(() => {

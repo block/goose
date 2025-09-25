@@ -101,7 +101,7 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
       ref={tooltipRef}
       tabIndex={-1} // Make it focusable for keyboard events
       data-spell-tooltip="true" // For click detection
-      className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl py-2 min-w-48 max-w-64 outline-none"
+      className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-xl py-2 min-w-48 max-w-64 outline-none"
       style={{
         left: position.x,
         top: position.y - 8, // Position slightly above the word
@@ -112,8 +112,8 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
       onMouseLeave={onMouseLeave}
     >
       {/* Header */}
-      <div className="px-3 py-1 text-xs text-gray-600 border-b border-gray-200 mb-1 font-medium">
-        Suggestions for "<span className="text-red-600 font-semibold">{misspelledWord}</span>"
+      <div className="px-3 py-1 text-xs text-text-muted border-b border-border-subtle mb-1 font-medium">
+        Suggestions for "<span className="text-red-600 dark:text-red-400 font-semibold">{misspelledWord}</span>"
       </div>
 
       {/* Suggestions */}
@@ -131,15 +131,15 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
               onMouseEnter={() => setSelectedIndex(index)}
               className={`w-full text-left px-3 py-2 text-sm transition-all duration-150 flex items-center gap-2 ${
                 selectedIndex === index
-                  ? 'bg-blue-50 text-blue-900 border-l-2 border-blue-500'
-                  : 'text-gray-800 hover:bg-gray-50'
+                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 border-l-2 border-blue-500'
+                  : 'text-text-default hover:bg-background-subtle'
               }`}
             >
               <span 
                 className={`w-5 h-5 flex items-center justify-center text-xs rounded text-[10px] font-bold ${
                   selectedIndex === index
                     ? 'bg-blue-500 text-white'
-                    : 'bg-gray-400 text-white'
+                    : 'bg-text-muted text-white'
                 }`}
               >
                 {index + 1}
@@ -149,13 +149,13 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
           ))}
         </div>
       ) : (
-        <div className="px-3 py-2 text-sm text-gray-500 italic">
+        <div className="px-3 py-2 text-sm text-text-muted italic">
           No suggestions available
         </div>
       )}
 
       {/* Separator */}
-      <div className="border-t border-gray-200 my-1" />
+      <div className="border-t border-border-subtle my-1" />
 
       {/* Additional actions */}
       <button
@@ -165,9 +165,9 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
           console.log('🖱️ ADD TO DICTIONARY CLICKED');
           onAddToDictionary();
         }}
-        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-muted hover:bg-background-subtle transition-colors flex items-center gap-2"
       >
-        <span className="text-green-600">+</span>
+        <span className="text-green-600 dark:text-green-400">+</span>
         Add to dictionary
       </button>
       
@@ -178,14 +178,14 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
           console.log('🖱️ IGNORE CLICKED');
           onIgnore();
         }}
-        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-muted hover:bg-background-subtle transition-colors flex items-center gap-2"
       >
-        <span className="text-gray-400">×</span>
+        <span className="text-text-muted">×</span>
         Ignore word
       </button>
 
       {/* Keyboard hints */}
-      <div className="px-3 py-1 text-[10px] text-gray-400 border-t border-gray-200 mt-1">
+      <div className="px-3 py-1 text-[10px] text-text-muted border-t border-border-subtle mt-1">
         Press 1-5 to select • ↑↓ to navigate • Enter to apply • Esc to close
       </div>
     </div>
