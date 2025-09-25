@@ -142,7 +142,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, []);
 
-  // Auto-scroll to cursor position when typing
+  // Auto-scroll to cursor position when typing or moving cursor
   const scrollToCursor = useCallback(() => {
     if (hiddenTextareaRef.current) {
       const textarea = hiddenTextareaRef.current;
@@ -154,11 +154,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       tempDiv.style.visibility = 'hidden';
       tempDiv.style.whiteSpace = 'pre-wrap';
       tempDiv.style.wordWrap = 'break-word';
-      tempDiv.style.fontFamily = textarea.style.fontFamily;
-      tempDiv.style.fontSize = textarea.style.fontSize;
-      tempDiv.style.lineHeight = textarea.style.lineHeight;
-      tempDiv.style.padding = textarea.style.padding;
-      tempDiv.style.width = textarea.style.width;
+      tempDiv.style.fontFamily = getComputedStyle(textarea).fontFamily;
+      tempDiv.style.fontSize = getComputedStyle(textarea).fontSize;
+      tempDiv.style.lineHeight = getComputedStyle(textarea).lineHeight;
+      tempDiv.style.padding = getComputedStyle(textarea).padding;
+      tempDiv.style.width = textarea.clientWidth + 'px';
+      tempDiv.style.boxSizing = 'border-box';
       
       // Add text up to cursor position
       tempDiv.textContent = textarea.value.substring(0, cursorPos);
@@ -167,17 +168,38 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const cursorHeight = tempDiv.offsetHeight;
       document.body.removeChild(tempDiv);
       
-      // Scroll to ensure cursor is visible
+      // Calculate line height for better positioning
+      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 24;
+      
+      // Scroll to ensure cursor is visible with more aggressive padding
       const containerHeight = textarea.clientHeight;
       const scrollTop = textarea.scrollTop;
-      const padding = 20; // Extra padding to ensure visibility
+      const padding = Math.max(40, lineHeight * 2); // More generous padding
+      
+      console.log('📍 CURSOR SCROLL:', {
+        cursorPos,
+        cursorHeight,
+        containerHeight,
+        scrollTop,
+        padding,
+        lineHeight
+      });
       
       if (cursorHeight > scrollTop + containerHeight - padding) {
-        // Cursor is below visible area, scroll down
-        textarea.scrollTop = cursorHeight - containerHeight + padding;
+        // Cursor is below visible area, scroll down aggressively
+        const newScrollTop = cursorHeight - containerHeight + padding;
+        console.log('⬇️ SCROLLING DOWN to:', newScrollTop);
+        textarea.scrollTop = newScrollTop;
       } else if (cursorHeight < scrollTop + padding) {
         // Cursor is above visible area, scroll up
-        textarea.scrollTop = Math.max(0, cursorHeight - padding);
+        const newScrollTop = Math.max(0, cursorHeight - padding);
+        console.log('⬆️ SCROLLING UP to:', newScrollTop);
+        textarea.scrollTop = newScrollTop;
+      }
+      
+      // Force sync the display layer
+      if (displayRef.current) {
+        displayRef.current.scrollTop = textarea.scrollTop;
       }
     }
   }, []);
@@ -678,8 +700,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const handleSelectionChange = useCallback(() => {
     if (document.activeElement === hiddenTextareaRef.current) {
       updateCursorPosition();
+      // Also ensure cursor is visible when moving cursor position
+      setTimeout(scrollToCursor, 0);
     }
-  }, [updateCursorPosition]);
+  }, [updateCursorPosition, scrollToCursor]);
 
   // Auto-focus effect
   useEffect(() => {
@@ -904,7 +928,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-hidden`}
+        className={`${className} cursor-text relative overflow-y-auto`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
