@@ -113,6 +113,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     suggestions: string[];
     wordStart: number;
     wordEnd: number;
+    isHoveringTooltip: boolean;
   }>({
     isVisible: false,
     position: { x: 0, y: 0 },
@@ -120,6 +121,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     suggestions: [],
     wordStart: 0,
     wordEnd: 0,
+    isHoveringTooltip: false,
   });
 
   // Expose methods to parent component
@@ -245,7 +247,28 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       }
     }, 500); // Debounce spell check by 500ms
 
-    return () => clearTimeout(timeoutId);
+    
+  const handleTooltipEnter = () => {
+    console.log('🖱️ TOOLTIP ENTER: Setting isHoveringTooltip to true');
+    setTooltipState(prev => ({
+      ...prev,
+      isHoveringTooltip: true,
+    }));
+  };
+
+  const handleTooltipLeave = () => {
+    console.log('🖱️ TOOLTIP LEAVE: Setting isHoveringTooltip to false and hiding tooltip');
+    setTooltipState(prev => ({
+      ...prev,
+      isHoveringTooltip: false,
+      isVisible: false,
+      suggestions: [],
+      misspelledWord: '',
+      wordIndex: -1,
+    }));
+  };
+
+  return () => clearTimeout(timeoutId);
   }, [value, performSpellCheck]);
 
   // Parse and render content with action pills, mention pills, spell checking, and cursor
@@ -489,10 +512,16 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             }}
             onMouseLeave={(e) => {
               console.log('🖱️ MOUSELEAVE: Mouse left misspelled word:', content);
-              // Add a small delay before hiding to allow clicking on tooltip
+              // Add a small delay before hiding to allow moving to tooltip
               setTimeout(() => {
-                setTooltip(prev => ({ ...prev, isVisible: false }));
-              }, 150);
+                setTooltip(prev => {
+                  // Only hide if not hovering over the tooltip
+                  if (!prev.isHoveringTooltip) {
+                    return { ...prev, isVisible: false };
+                  }
+                  return prev;
+                });
+              }, 100);
             }}
           >
             {content}
@@ -565,6 +594,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   }, [onChange]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Hide tooltip on any key press
+    setTooltip(prev => ({ ...prev, isVisible: false }));
+    
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
     
@@ -649,6 +681,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   const handleTextareaBlur = useCallback(() => {
     setIsFocused(false);
+    // Hide tooltip when input loses focus
+    setTooltip(prev => ({ ...prev, isVisible: false }));
     onBlur?.();
   }, [onBlur]);
 
@@ -695,8 +729,50 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     setTooltip(prev => ({ ...prev, isVisible: false }));
   }, [tooltip.misspelledWord]);
 
+  // Container mouse leave handler
+  const handleContainerMouseLeave = useCallback(() => {
+    console.log('🖱️ CONTAINER MOUSE LEAVE: Hiding tooltip');
+    setTooltip(prev => ({ ...prev, isVisible: false }));
+  }, []);
+
+  // Hide tooltip when clicking outside or when component loses focus
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (displayRef.current && !displayRef.current.contains(event.target as Node)) {
+        setTooltip(prev => ({ ...prev, isVisible: false }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Tooltip hover handlers
+  const handleTooltipEnter = useCallback(() => {
+    console.log('🖱️ TOOLTIP ENTER: Setting isHoveringTooltip to true');
+    setTooltip(prev => ({
+      ...prev,
+      isHoveringTooltip: true,
+    }));
+  }, []);
+
+  const handleTooltipLeave = useCallback(() => {
+    console.log('🖱️ TOOLTIP LEAVE: Setting isHoveringTooltip to false and hiding tooltip');
+    setTooltip(prev => ({
+      ...prev,
+      isHoveringTooltip: false,
+      isVisible: false,
+    }));
+  }, []);
+
   return (
-    <div className="relative rich-text-input">
+    <div 
+      className="relative rich-text-input"
+      onMouseLeave={handleContainerMouseLeave}
+    >
       {/* Hidden textarea for actual input handling with spell check enabled */}
       <textarea
         ref={hiddenTextareaRef}
@@ -857,6 +933,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         onSuggestionSelect={handleSuggestionSelect}
         onAddToDictionary={handleAddToDictionary}
         onIgnore={handleIgnore}
+        onMouseEnter={handleTooltipEnter}
+        onMouseLeave={handleTooltipLeave}
       />
     </div>
   );

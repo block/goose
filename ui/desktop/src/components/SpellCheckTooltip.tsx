@@ -8,6 +8,8 @@ interface SpellCheckTooltipProps {
   onSuggestionSelect: (suggestion: string) => void;
   onAddToDictionary: () => void;
   onIgnore: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
@@ -18,10 +20,24 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
   onSuggestionSelect,
   onAddToDictionary,
   onIgnore,
+  onMouseEnter,
+  onMouseLeave,
 }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  if (!isVisible) return null;
+  console.log('🖱️ TOOLTIP COMPONENT: Rendering with props:', {
+    isVisible,
+    position,
+    suggestions,
+    misspelledWord
+  });
+
+  if (!isVisible) {
+    console.log('🖱️ TOOLTIP COMPONENT: Not visible, returning null');
+    return null;
+  }
+
+  console.log('🖱️ TOOLTIP COMPONENT: Rendering visible tooltip');
 
   return (
     <div
@@ -29,9 +45,11 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
       className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg py-2 min-w-48 max-w-64"
       style={{
         left: position.x,
-        top: position.y - 10,
+        top: position.y - 1, // Only 1px from the top of the misspelled word
         transform: 'translateY(-100%)', // Position above the word
       }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {/* Header */}
       <div className="px-3 py-1 text-xs text-text-muted border-b border-borderSubtle mb-1">
