@@ -713,37 +713,83 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         spellCheck={false} // Disable browser spell check - we handle it ourselves
         className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
         onMouseMove={(e) => {
-          // Detect if mouse is over a misspelled word
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const y = e.clientY - rect.top;
-          
-          // Get character position from mouse coordinates
+          // Improved hover detection with better coordinate mapping
           const textarea = e.currentTarget;
-          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          const rect = textarea.getBoundingClientRect();
+          const textContent = textarea.value;
           
-          if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
-            const textContent = textarea.value;
-            const charIndex = range.startOffset;
+          // Calculate relative mouse position
+          const relativeX = e.clientX - rect.left;
+          const relativeY = e.clientY - rect.top;
+          
+          console.log('🖱️ TEXTAREA HOVER: Mouse at relative position:', { x: relativeX, y: relativeY });
+          
+          // Try multiple methods to get character position
+          let charIndex = -1;
+          
+          // Method 1: Use caretRangeFromPoint
+          try {
+            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            if (range && range.startContainer) {
+              // If we're in a text node, get the offset
+              if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                charIndex = range.startOffset;
+              }
+            }
+          } catch (error) {
+            console.log('🖱️ TEXTAREA HOVER: caretRangeFromPoint failed:', error);
+          }
+          
+          // Method 2: Estimate based on mouse position (fallback)
+          if (charIndex === -1) {
+            const charWidth = 8; // Approximate character width
+            const lineHeight = 24; // Approximate line height
+            const paddingLeft = 12; // Match textarea padding
+            const paddingTop = 12;
             
-            console.log('🖱️ TEXTAREA HOVER: Mouse at char index:', charIndex, 'char:', textContent[charIndex]);
+            const adjustedX = Math.max(0, relativeX - paddingLeft);
+            const adjustedY = Math.max(0, relativeY - paddingTop);
             
-            // Check if this character position is within a misspelled word
+            const estimatedCharInLine = Math.floor(adjustedX / charWidth);
+            const estimatedLine = Math.floor(adjustedY / lineHeight);
+            
+            // Simple estimation for single line
+            charIndex = Math.min(estimatedCharInLine, textContent.length - 1);
+            console.log('🖱️ TEXTAREA HOVER: Estimated char index:', charIndex);
+          }
+          
+          if (charIndex >= 0 && charIndex < textContent.length) {
+            console.log('🖱️ TEXTAREA HOVER: Checking char at index:', charIndex, 'char:', textContent[charIndex]);
+            
+            // Check if this character position is within any misspelled word
             const misspelledWord = misspelledWords.find(word => 
               charIndex >= word.start && charIndex < word.end
             );
             
             if (misspelledWord) {
-              console.log('🖱️ TEXTAREA HOVER: Found misspelled word at mouse position:', misspelledWord);
+              console.log('🖱️ TEXTAREA HOVER: ✅ Found misspelled word:', misspelledWord);
+              
+              // Calculate static position above the misspelled word
+              const charWidth = 8; // Approximate character width
+              const paddingLeft = 12; // Match textarea padding
+              
+              // Calculate the X position of the word start
+              const wordStartX = rect.left + paddingLeft + (misspelledWord.start * charWidth);
+              
+              // Position tooltip above the word with minimal gap
               setTooltip({
                 isVisible: true,
-                position: { x: e.clientX, y: e.clientY - 50 },
+                position: { 
+                  x: wordStartX, 
+                  y: rect.top - 2 // Just 2px above the input
+                },
                 misspelledWord: misspelledWord.word,
                 suggestions: misspelledWord.suggestions || [],
                 wordStart: misspelledWord.start,
                 wordEnd: misspelledWord.end,
               });
             } else {
+              console.log('🖱️ TEXTAREA HOVER: ❌ No misspelled word at position');
               setTooltip(prev => ({ ...prev, isVisible: false }));
             }
           }
