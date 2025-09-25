@@ -837,25 +837,40 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        let rows = sqlx::query_as::<_, (
-            String, String, String, String, String, String,
-            Option<i32>, Option<i32>, Option<i32>,
-            Option<i32>, Option<i32>, Option<i32>,
-            Option<String>, Option<String>,
-            i64,
-        )>(
+        let rows = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                Option<i32>,
+                Option<i32>,
+                Option<i32>,
+                Option<i32>,
+                Option<i32>,
+                Option<i32>,
+                Option<String>,
+                Option<String>,
+                i64,
+            ),
+        >(
             r#"
-            SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
-                   s.total_tokens, s.input_tokens, s.output_tokens,
-                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-                   s.schedule_id, s.recipe_json,
-                   COALESCE((SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id), 0) as message_count
-            FROM sessions s
-            ORDER BY s.updated_at DESC
+                SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
+                       s.total_tokens, s.input_tokens, s.output_tokens,
+                       s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                       s.schedule_id, s.recipe_json,
+                       COUNT(m.id) as message_count
+                FROM sessions s
+                INNER JOIN messages m ON s.id = m.session_id
+                GROUP BY s.id
+                ORDER BY s.updated_at DESC
         "#,
         )
-            .fetch_all(&self.pool)
-            .await?;
+        .fetch_all(&self.pool)
+        .await?;
 
         Ok(rows
             .into_iter()

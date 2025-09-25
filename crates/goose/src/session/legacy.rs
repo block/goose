@@ -1,6 +1,7 @@
 use crate::conversation::Conversation;
 use crate::session::Session;
 use anyhow::Result;
+use chrono::NaiveDateTime;
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -45,7 +46,9 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
     }
 
     let modified_time = file_metadata.modified().unwrap_or(SystemTime::now());
-    let created_time = file_metadata.created().unwrap_or(modified_time);
+    let created_time = file_metadata
+        .created()
+        .unwrap_or_else(|_| parse_session_timestamp(session_name).unwrap_or(modified_time));
 
     let reader = io::BufReader::new(file);
     let mut lines = reader.lines();
@@ -101,4 +104,10 @@ fn format_timestamp(time: SystemTime) -> Result<String> {
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();
     Ok(timestamp)
+}
+
+fn parse_session_timestamp(session_name: &str) -> Option<SystemTime> {
+    NaiveDateTime::parse_from_str(session_name, "%Y%m%d_%H%M%S")
+        .ok()
+        .map(|dt| SystemTime::from(dt.and_utc()))
 }

@@ -308,6 +308,11 @@ mod tests {
         use crate::conversation::Conversation;
         use std::path::PathBuf;
 
+        let mut conversation = Conversation::default();
+        for i in 0..message_count {
+            conversation.push(create_test_message(format!("message {}", i).as_str()));
+        }
+
         crate::session::Session {
             id: "test_session".to_string(),
             working_dir: PathBuf::from(working_dir),
@@ -323,8 +328,8 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             extension_data: extension_data::ExtensionData::new(),
-            conversation: Some(Conversation::default()),
-            message_count: message_count,
+            conversation: Some(conversation),
+            message_count,
         }
     }
 
