@@ -1611,7 +1611,6 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
-                  key={`cost-tracker-${inputTokens}-${outputTokens}`}
                   inputTokens={inputTokens}
                   outputTokens={outputTokens}
                   sessionCosts={sessionCosts}
