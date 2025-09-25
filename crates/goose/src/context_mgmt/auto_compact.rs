@@ -315,7 +315,7 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             schedule_id: Some("test_job".to_string()),
-            recipe_json: None,
+            recipe: None,
             total_tokens: Some(100),
             input_tokens: Some(50),
             output_tokens: Some(50),

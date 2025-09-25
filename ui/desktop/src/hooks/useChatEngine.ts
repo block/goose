@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../config';
 import { useMessageStream } from './useMessageStream';
-import { fetchSessionDetails } from '../sessions';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
@@ -16,6 +15,7 @@ import {
 } from '../types/message';
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
+import { getSessionHistory } from '../api';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -85,7 +85,7 @@ export const useChatEngine = ({
     handleInputChange: _handleInputChange,
     updateMessageStreamBody,
     notifications,
-    sessionMetadata,
+    session,
     setError,
   } = useMessageStream({
     api: getApiUrl('/reply'),
@@ -199,14 +199,17 @@ export const useChatEngine = ({
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
 
-  // Fetch session metadata to get token count
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
-        const sessionDetails = await fetchSessionDetails(chat.sessionId);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
-        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
-        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
+        const response = await getSessionHistory<true>({
+          path: { session_id: chat.sessionId },
+          throwOnError: true,
+        });
+        const sessionDetails = response.data.session;
+        setSessionTokenCount(sessionDetails.total_tokens || 0);
+        setSessionInputTokens(sessionDetails.accumulated_input_tokens || 0);
+        setSessionOutputTokens(sessionDetails.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -219,13 +222,13 @@ export const useChatEngine = ({
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
-    console.log('Session metadata received:', sessionMetadata);
-    if (sessionMetadata) {
-      setSessionTokenCount(sessionMetadata.total_tokens || 0);
-      setSessionInputTokens(sessionMetadata.accumulated_input_tokens || 0);
-      setSessionOutputTokens(sessionMetadata.accumulated_output_tokens || 0);
+    console.log('Session metadata received:', session);
+    if (session) {
+      setSessionTokenCount(session.total_tokens || 0);
+      setSessionInputTokens(session.accumulated_input_tokens || 0);
+      setSessionOutputTokens(session.accumulated_output_tokens || 0);
     }
-  }, [sessionMetadata]);
+  }, [session]);
 
   useEffect(() => {
     return () => {
@@ -473,7 +476,7 @@ export const useChatEngine = ({
 
     // Stream utilities
     updateMessageStreamBody,
-    sessionMetadata,
+    sessionMetadata: session,
 
     // Utilities
     isUserMessage,

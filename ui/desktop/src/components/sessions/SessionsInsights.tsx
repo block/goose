@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { Greeting } from '../common/Greeting';
-import { fetchSessions, type Session, resumeSession } from '../../sessions';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
 import { Goose } from '../icons/Goose';
 import { Skeleton } from '../ui/skeleton';
-import { getSessionInsights, SessionInsights as ApiSessionInsights } from '../../api';
+import {
+  getSessionInsights,
+  listSessions,
+  Session,
+  SessionInsights as ApiSessionInsights,
+} from '../../api';
+import { resumeSession } from '../../sessions';
 
 export function SessionInsights() {
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
@@ -42,10 +47,8 @@ export function SessionInsights() {
 
     const loadRecentSessions = async () => {
       try {
-        const sessions = await fetchSessions();
-        setRecentSessions(sessions.slice(0, 3));
-      } catch (error) {
-        console.error('Failed to load recent sessions:', error);
+        const response = await listSessions<true>({ throwOnError: true });
+        setRecentSessions(response.data.sessions.slice(0, 3));
       } finally {
         setIsLoadingSessions(false);
       }
@@ -333,11 +336,11 @@ export function SessionInsights() {
                       <div className="flex items-center space-x-2">
                         <ChatSmart className="h-4 w-4 text-text-muted" />
                         <span className="truncate max-w-[300px]">
-                          {session.metadata.description || session.id}
+                          {session.description || session.id}
                         </span>
                       </div>
                       <span className="text-text-muted font-mono font-light">
-                        {formatDateOnly(session.modified)}
+                        {formatDateOnly(session.updated_at)}
                       </span>
                     </div>
                   ))

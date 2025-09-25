@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ViewOptions } from '../../utils/navigationUtils';
-import { fetchSessionDetails, type SessionDetails } from '../../sessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { toastError } from '../../toasts';
 import { useLocation } from 'react-router-dom';
+import { getSessionHistory, Session } from '../../api';
 
 interface SessionsViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }
 
 const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
-  const [selectedSession, setSelectedSession] = useState<SessionDetails | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +23,11 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     setError(null);
     setShowSessionHistory(true);
     try {
-      const sessionDetails = await fetchSessionDetails(sessionId);
-      setSelectedSession(sessionDetails);
+      const response = await getSessionHistory<true>({
+        path: { session_id: sessionId },
+        throwOnError: true,
+      });
+      setSelectedSession(response.data.session);
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
       setError('Failed to load session details. Please try again later.');
@@ -68,7 +71,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleRetryLoadSession = () => {
     if (selectedSession) {
-      loadSessionDetails(selectedSession.sessionId);
+      loadSessionDetails(selectedSession.id);
     }
   };
 
@@ -78,14 +81,15 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     <SessionHistoryView
       session={
         selectedSession || {
-          sessionId: initialSessionId || '',
-          messages: [],
-          metadata: {
-            description: 'Loading...',
-            working_dir: '',
-            message_count: 0,
-            total_tokens: 0,
-          },
+          id: initialSessionId || '',
+          conversation: [],
+          description: 'Loading...',
+          working_dir: '',
+          message_count: 0,
+          total_tokens: 0,
+          created_at: '',
+          updated_at: '',
+          extension_data: {},
         }
       }
       isLoading={isLoadingSession}
@@ -97,7 +101,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     <SessionListView
       setView={setView}
       onSelectSession={handleSelectSession}
-      selectedSessionId={selectedSession?.sessionId ?? null}
+      selectedSessionId={selectedSession?.id ?? null}
     />
   );
 };

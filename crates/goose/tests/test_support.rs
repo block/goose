@@ -398,7 +398,7 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         description: "Test session".to_string(),
         created_at: "".to_string(),
         schedule_id: Some("test_job".to_string()),
-        recipe_json: None,
+        recipe: None,
         total_tokens: Some(100),
         input_tokens: Some(50),
         output_tokens: Some(50),

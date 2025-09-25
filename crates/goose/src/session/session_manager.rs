@@ -2,6 +2,7 @@ use crate::config::APP_STRATEGY;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
+use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -22,7 +23,7 @@ static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
     pub id: String,
-    #[schema(value_type = String)] // for openapi use
+    #[schema(value_type = String)]
     pub working_dir: PathBuf,
     pub description: String,
     pub created_at: String,
@@ -35,7 +36,7 @@ pub struct Session {
     pub accumulated_input_tokens: Option<i32>,
     pub accumulated_output_tokens: Option<i32>,
     pub schedule_id: Option<String>,
-    pub recipe_json: Option<String>,
+    pub recipe: Option<Recipe>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
 }
@@ -52,7 +53,7 @@ pub struct SessionUpdateBuilder {
     accumulated_input_tokens: Option<Option<i32>>,
     accumulated_output_tokens: Option<Option<i32>>,
     schedule_id: Option<Option<String>>,
-    recipe_json: Option<Option<String>>,
+    recipe: Option<Option<Recipe>>,
 }
 
 impl SessionUpdateBuilder {
@@ -69,7 +70,7 @@ impl SessionUpdateBuilder {
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
             schedule_id: None,
-            recipe_json: None,
+            recipe: None,
         }
     }
 
@@ -123,8 +124,8 @@ impl SessionUpdateBuilder {
         self
     }
 
-    pub fn recipe_json(mut self, recipe_json: Option<String>) -> Self {
-        self.recipe_json = Some(recipe_json);
+    pub fn recipe(mut self, recipe: Option<Recipe>) -> Self {
+        self.recipe = Some(recipe);
         self
     }
 
@@ -181,6 +182,7 @@ impl SessionManager {
 
         Self::get_session(&session_id, false).await
     }
+
     pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
         Self::instance()
             .await?
@@ -296,7 +298,7 @@ impl Default for Session {
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
             schedule_id: None,
-            recipe_json: None,
+            recipe: None,
             conversation: None,
             message_count: 0,
         }
@@ -471,6 +473,11 @@ impl SessionStorage {
     }
 
     async fn import_legacy_session(&self, session: &Session) -> Result<()> {
+        let recipe_json = match &session.recipe {
+            Some(recipe) => Some(serde_json::to_string(recipe)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
@@ -494,7 +501,7 @@ impl SessionStorage {
         .bind(session.accumulated_input_tokens)
         .bind(session.accumulated_output_tokens)
         .bind(&session.schedule_id)
-        .bind(&session.recipe_json)
+        .bind(recipe_json)
         .execute(&self.pool)
         .await?;
 
@@ -601,6 +608,8 @@ impl SessionStorage {
             recipe_json,
         ) = row;
 
+        let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
+
         Session {
             id,
             working_dir: PathBuf::from(working_dir),
@@ -615,7 +624,7 @@ impl SessionStorage {
             accumulated_input_tokens,
             accumulated_output_tokens,
             schedule_id,
-            recipe_json,
+            recipe,
             conversation,
             message_count,
         }
@@ -683,7 +692,7 @@ impl SessionStorage {
             "accumulated_output_tokens"
         );
         add_update!(builder.schedule_id, "schedule_id");
-        add_update!(builder.recipe_json, "recipe_json");
+        add_update!(builder.recipe, "recipe_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -726,8 +735,9 @@ impl SessionStorage {
         if let Some(sid) = builder.schedule_id {
             q = q.bind(sid);
         }
-        if let Some(rj) = builder.recipe_json {
-            q = q.bind(rj);
+        if let Some(recipe) = builder.recipe {
+            let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
+            q = q.bind(recipe_json);
         }
 
         q = q.bind(&builder.session_id);

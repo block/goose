@@ -22,7 +22,6 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
@@ -125,7 +124,7 @@ async fn start_agent(
 
     if let Some(recipe) = payload.recipe {
         SessionManager::update_session(&session.id)
-            .recipe_json(serde_json::to_string(&recipe).ok())
+            .recipe(Some(recipe))
             .apply()
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

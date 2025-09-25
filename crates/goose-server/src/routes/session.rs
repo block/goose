@@ -7,7 +7,6 @@ use axum::{
 };
 use chrono::DateTime;
 use goose::conversation::message::Message;
-use goose::session;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

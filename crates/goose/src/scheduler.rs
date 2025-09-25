@@ -1266,7 +1266,7 @@ async fn run_scheduled_job_internal(
 
     if let Err(e) = SessionManager::update_session(&session.id)
         .schedule_id(Some(job.id.clone()))
-        .recipe_json(serde_json::to_string(&recipe).ok())
+        .recipe(Some(recipe))
         .apply()
         .await
     {

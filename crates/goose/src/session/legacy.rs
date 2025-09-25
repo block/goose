@@ -50,8 +50,10 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
     let reader = io::BufReader::new(file);
     let mut lines = reader.lines();
     let mut messages = Vec::new();
-    let mut session = Session::default();
-    session.id = session_name.to_string();
+    let mut session = Session {
+        id: session_name.to_string(),
+        ..Default::default()
+    };
 
     if let Some(Ok(line)) = lines.next() {
         let mut metadata_json: serde_json::Value = serde_json::from_str(&line)
@@ -79,11 +81,9 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
         session.id = session_name.to_string();
     }
 
-    for line_result in lines {
-        if let Ok(line) = line_result {
-            if let Ok(message) = serde_json::from_str(&line) {
-                messages.push(message);
-            }
+    for line in lines.map_while(Result::ok) {
+        if let Ok(message) = serde_json::from_str(&line) {
+            messages.push(message);
         }
     }
 

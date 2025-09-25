@@ -3626,8 +3626,12 @@
             "format": "int32",
             "nullable": true
           },
-          "recipe_json": {
-            "type": "string",
+          "recipe": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
             "nullable": true
           },
           "schedule_id": {

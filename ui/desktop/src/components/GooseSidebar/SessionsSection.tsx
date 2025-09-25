@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Search, ChevronDown, Folder, Loader2 } from 'lucide-react';
-import { fetchSessions, type Session } from '../../sessions';
 import { Input } from '../ui/input';
 import {
   SidebarMenu,
@@ -12,6 +11,7 @@ import {
 } from '../ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { useTextAnimator } from '../../hooks/use-text-animator';
+import { listSessions, Session } from '../../api';
 
 interface SessionsSectionProps {
   onSelectSession: (sessionId: string) => void;
@@ -52,7 +52,7 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
     };
 
     sessionsToGroup.forEach((session) => {
-      const sessionDate = new Date(session.modified);
+      const sessionDate = new Date(session.updated_at);
       const sessionDateOnly = new Date(
         sessionDate.getFullYear(),
         sessionDate.getMonth(),
@@ -87,7 +87,8 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
 
   const loadSessions = useCallback(async () => {
     try {
-      const sessions = await fetchSessions();
+      const response = await listSessions<true>({ throwOnError: true });
+      const sessions = response.data.sessions;
       setSessions(sessions);
       groupSessions(sessions);
     } catch (err) {
@@ -163,9 +164,7 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
   useEffect(() => {
     if (searchTerm) {
       const filtered = sessions.filter((session) =>
-        (session.metadata.description || session.id)
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+        (session.description || session.id).toLowerCase().includes(searchTerm.toLowerCase())
       );
       groupSessions(filtered);
     } else {
@@ -175,13 +174,12 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
 
   // Component for individual session items with loading and animation states
   const SessionItem = ({ session }: { session: Session }) => {
-    const hasDescription =
-      session.metadata.description && session.metadata.description.trim() !== '';
+    const hasDescription = session.description && session.description.trim() !== '';
     const isNewSession = session.id.match(/^\d{8}_\d{6}$/);
-    const messageCount = session.metadata.message_count || 0;
+    const messageCount = session.message_count || 0;
     // Show loading for new sessions with few messages and no description
     // Only show loading for sessions created in the last 5 minutes
-    const sessionDate = new Date(session.modified);
+    const sessionDate = new Date(session.updated_at);
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const isRecentSession = sessionDate > fiveMinutesAgo;
     const shouldShowLoading =
@@ -190,7 +188,7 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
 
     // Use text animator only for sessions that need animation
     const descriptionRef = useTextAnimator({
-      text: isAnimating ? session.metadata.description : '',
+      text: isAnimating ? session.description : '',
     });
 
     // Track when description becomes available and trigger animation
@@ -228,13 +226,13 @@ export const SessionsSection: React.FC<SessionsSectionProps> = ({
                   ref={isAnimating ? descriptionRef : undefined}
                   className={`transition-all duration-300 ${isAnimating ? 'animate-in fade-in duration-300' : ''}`}
                 >
-                  {hasDescription ? session.metadata.description : `Session ${session.id}`}
+                  {hasDescription ? session.description : `Session ${session.id}`}
                 </span>
               )}
             </div>
             <div className="text-xs w-48 truncate px-1 flex items-center gap-2 text-ellipsis transition-colors duration-300">
               <Folder className="size-4 transition-transform duration-300 group-hover:scale-110" />
-              <span className="transition-all duration-300">{session.metadata.working_dir}</span>
+              <span className="transition-all duration-300">{session.working_dir}</span>
             </div>
           </div>
         </SidebarMenuButton>

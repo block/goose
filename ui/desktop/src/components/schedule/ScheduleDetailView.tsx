@@ -3,7 +3,6 @@ import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
-import { fetchSessionDetails, SessionDetails } from '../../sessions';
 import {
   getScheduleSessions,
   runScheduleNow,
@@ -21,6 +20,7 @@ import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
+import { getSessionHistory, Session } from '../../api';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -146,7 +146,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   // Track if we explicitly killed a job to distinguish from natural completion
   const [jobWasKilled, setJobWasKilled] = useState(false);
 
-  const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
+  const [selectedSessionDetails, setSelectedSessionDetails] = useState<Session | null>(null);
   const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
   const [sessionDetailsError, setSessionDetailsError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -430,8 +430,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setSessionDetailsError(null);
     setSelectedSessionDetails(null);
     try {
-      const details = await fetchSessionDetails(sessionId);
-      setSelectedSessionDetails(details);
+      const response = await getSessionHistory<true>({
+        path: { session_id: sessionId },
+        throwOnError: true,
+      });
+      setSelectedSessionDetails(response.data.session);
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to load session details.';
@@ -459,7 +462,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           setSelectedSessionDetails(null);
           setSessionDetailsError(null);
         }}
-        onRetry={() => loadAndShowSessionDetails(selectedSessionDetails?.sessionId)}
+        onRetry={() => loadAndShowSessionDetails(selectedSessionDetails?.id)}
         showActionButtons={true}
       />
     );

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
-import { getSessionHistory, SessionMetadata } from '../api';
+import { getSessionHistory, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -152,8 +152,8 @@ export interface UseMessageStreamHelpers {
   /** Current model info from the backend */
   currentModelInfo: { model: string; mode: string } | null;
 
-  /** Session metadata including token counts */
-  sessionMetadata: SessionMetadata | null;
+  /** Session including token counts */
+  session: Session | null;
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
@@ -188,7 +188,7 @@ export function useMessageStream({
   const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(
     null
   );
-  const [sessionMetadata, setSessionMetadata] = useState<SessionMetadata | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -333,7 +333,6 @@ export function useMessageStream({
                   }
 
                   case 'Finish': {
-                    // Call onFinish with the last message if available
                     if (onFinish && currentMessages.length > 0) {
                       const lastMessage = currentMessages[currentMessages.length - 1];
                       onFinish(lastMessage, parsedEvent.reason);
@@ -348,8 +347,8 @@ export function useMessageStream({
                           path: { session_id: sessionId },
                         });
 
-                        if (sessionResponse.data?.metadata) {
-                          setSessionMetadata(sessionResponse.data?.metadata);
+                        if (sessionResponse.data?.session) {
+                          setSession(sessionResponse.data?.session);
                         }
                       } catch (error) {
                         console.error('Failed to fetch session metadata:', error);
@@ -631,7 +630,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    sessionMetadata,
+    session: session,
     setError,
   };
 }
