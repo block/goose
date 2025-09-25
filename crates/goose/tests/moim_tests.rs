@@ -1,6 +1,7 @@
 use goose::agents::moim;
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
+use serial_test::serial;
 
 #[tokio::test]
 async fn test_inject_moim_preserves_messages() {
@@ -32,13 +33,10 @@ async fn test_inject_moim_preserves_messages() {
 
 #[tokio::test]
 async fn test_inject_moim_empty_conversation() {
-    // Empty conversation
     let conversation = Conversation::empty();
 
-    // Inject MOIM
     let result = moim::inject_moim_if_enabled(conversation, &None).await;
 
-    // Should have one message now (the MOIM with timestamp)
     assert_eq!(result.len(), 1);
 
     // Should contain timestamp
@@ -68,6 +66,7 @@ async fn test_inject_moim_single_message() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_moim_disabled_no_injection() {
     // Temporarily set MOIM to disabled
     // Note: Config uses uppercase for env vars
@@ -89,21 +88,4 @@ async fn test_moim_disabled_no_injection() {
 
     // Clean up
     std::env::remove_var("GOOSE_MOIM_ENABLED");
-}
-
-#[tokio::test]
-async fn test_moim_always_includes_timestamp() {
-    // Even without session or TODO content, MOIM should include timestamp
-    let messages = vec![Message::user().with_text("Test")];
-    let conversation = Conversation::new_unvalidated(messages);
-
-    let result = moim::inject_moim_if_enabled(conversation, &None).await;
-
-    // Should have MOIM with timestamp
-    assert_eq!(result.len(), 2);
-    let moim_content = result.messages()[0].as_concat_text();
-    assert!(moim_content.contains("Current date and time:"));
-    // Should have format like "2025-09-25 18:19:30"
-    assert!(moim_content.contains("202")); // Year
-    assert!(moim_content.contains(":")); // Time separator
 }

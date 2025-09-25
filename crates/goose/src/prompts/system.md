@@ -39,7 +39,7 @@ No extensions are defined. You should let the user know that they should add ext
 # Task Management
 
 - Use `todo__write` for tasks with 2+ steps, multiple files/components, or uncertain scope
-- Your written TODO content is automatically available in your context
+- TODO content you've written is automatically available in your context
 - Workflow — Start: write checklist | During: update progress | End: verify all complete
 - Warning — `todo__write` overwrites entirely; include all content you want to keep
 - Keep items short, specific, action-oriented
