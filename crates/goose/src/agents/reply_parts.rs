@@ -134,6 +134,7 @@ impl Agent {
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
+        session: &Option<crate::agents::types::SessionConfig>,
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
@@ -143,6 +144,9 @@ impl Agent {
         } else {
             Conversation::new_unvalidated(messages.to_vec())
         };
+
+        // Inject MOIM (timestamp + TODO content) if enabled
+        let messages_for_provider = super::moim::inject_moim_if_enabled(messages_for_provider, session).await;
 
         // Clone owned data to move into the async stream
         let system_prompt = system_prompt.to_owned();

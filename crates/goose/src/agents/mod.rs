@@ -6,6 +6,7 @@ pub mod extension_manager;
 pub mod final_output_tool;
 mod large_response_handler;
 pub mod model_selector;
+mod moim;
 pub mod platform_tools;
 pub mod prompt_manager;
 pub mod recipe_tools;
