@@ -40,45 +40,66 @@ export interface RichChatInputRef {
   getBoundingClientRect: () => DOMRect;
 }
 
-// Simple spell checking function using browser's built-in capabilities
-const checkSpelling = async (text: string): Promise<{ word: string; start: number; end: number }[]> => {
-  // This is a basic implementation - in a real app you might want to use a more sophisticated spell checker
-  const misspelledWords: { word: string; start: number; end: number }[] = [];
+// Use Electron's system spell checking
+const checkSpelling = async (text: string): Promise<{ word: string; start: number; end: number; suggestions: string[] }[]> => {
+  console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text);
+  const misspelledWords: { word: string; start: number; end: number; suggestions: string[] }[] = [];
   
-  // Common misspelled words for demo purposes
-  const commonMisspellings = [
-    // Test words
-    'sdd', 'asdf', 'qwerty', 'test', 'xyz',
-    // Common misspellings
-    'teh', 'recieve', 'seperate', 'occured', 'neccessary', 'definately', 
-    'occassion', 'begining', 'tommorrow', 'accomodate', 'existance', 'maintainance',
-    'alot', 'wierd', 'freind', 'thier', 'calender', 'enviroment', 'goverment',
-    'independant', 'jewelery', 'liesure', 'mispell', 'noticable', 'occassionally',
-    'perseverence', 'priviledge', 'recomend', 'rythm', 'sucessful', 'truely',
-    'untill', 'vaccuum', 'wether', 'wich', 'writting', 'youre', 'its'
-  ];
+  // Check if Electron API is available
+  if (!window.electron?.spellCheck || !window.electron?.spellSuggestions) {
+    console.warn('🔍 ELECTRON SPELL CHECK: Electron spell check API not available, falling back to no spell checking');
+    return misspelledWords;
+  }
   
   // Split text into words while preserving positions
-  const words = text.split(/(\s+|[^\w\s])/);
-  let currentPos = 0;
+  const wordRegex = /\b[a-zA-Z]+\b/g;
+  let match;
   
-  for (const word of words) {
-    const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
+  const wordChecks: Array<{word: string; start: number; end: number}> = [];
+  
+  // First, collect all words and their positions
+  while ((match = wordRegex.exec(text)) !== null) {
+    const word = match[0];
+    const start = match.index;
+    const end = start + word.length;
     
-    if (cleanWord && commonMisspellings.includes(cleanWord)) {
-      const start = text.indexOf(word, currentPos);
-      if (start !== -1) {
+    // Skip very short words (less than 3 characters)
+    if (word.length < 3) {
+      continue;
+    }
+    
+    wordChecks.push({ word, start, end });
+  }
+  
+  console.log('🔍 ELECTRON SPELL CHECK: Found words to check:', wordChecks.map(w => w.word));
+  
+  // Check each word and collect results
+  for (const { word, start, end } of wordChecks) {
+    try {
+      const isCorrect = await window.electron.spellCheck(word);
+      console.log('🔍 ELECTRON SPELL CHECK: Word:', word, 'isCorrect:', isCorrect);
+      
+      if (!isCorrect) {
+        // Get suggestions from Electron
+        const suggestions = await window.electron.spellSuggestions(word);
+        console.log('🔍 ELECTRON SPELL CHECK: Suggestions for', word, ':', suggestions);
+        
         misspelledWords.push({
           word: word,
           start: start,
-          end: start + word.length
+          end: end,
+          suggestions: suggestions || []
         });
       }
+    } catch (error) {
+      console.error('🔍 ELECTRON SPELL CHECK: Error checking word', word, ':', error);
     }
-    
-    currentPos += word.length;
   }
   
+  // Sort misspelled words by position
+  misspelledWords.sort((a, b) => a.start - b.start);
+  
+  console.log('🔍 ELECTRON SPELL CHECK: Final result:', misspelledWords);
   return misspelledWords;
 };
 
@@ -144,97 +165,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, []);
 
-  // Spell check the content - INLINE VERSION
+  // Spell check the content using Electron's system spell checker
   const performSpellCheck = useCallback(async (text: string) => {
-    console.log('🔍 INLINE SPELL CHECK: Starting check for text:', text);
+    console.log('🔍 ELECTRON SPELL CHECK: Starting system spell check for text:', text);
     
-    // Smart inline spell checker that catches obvious misspellings
-    const misspelledWords: MisspelledWord[] = [];
-    
-    // Known misspellings
-    const knownMisspellings = ['hellwo', 'gasdd2', 'recieve', 'seperate', 'definately', 'teh', 'wierd'];
-    
-    // Common correct words to skip
-    const commonWords = [
-      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use',
-      'hello', 'world', 'test', 'chat', 'message', 'text', 'word', 'good', 'great', 'nice', 'cool', 'awesome', 'amazing', 'perfect', 'excellent', 'wonderful', 'fantastic', 'brilliant', 'super', 'best', 'love', 'like', 'want', 'need', 'help', 'please', 'thank', 'thanks', 'welcome'
-    ];
-    
-    console.log('🔍 SMART SPELL CHECK: Known misspellings:', knownMisspellings);
-    
-    // Simple word detection
-    const words = text.split(/\s+/);
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
-      console.log('🔍 SMART SPELL CHECK: Checking word:', word, 'cleaned:', cleanWord);
-      
-      // Skip very short words
-      if (cleanWord.length < 3) {
-        console.log('🔍 SMART SPELL CHECK: Skipping short word:', cleanWord);
-        continue;
-      }
-      
-      // Skip common correct words
-      if (commonWords.includes(cleanWord)) {
-        console.log('🔍 SMART SPELL CHECK: Skipping common word:', cleanWord);
-        continue;
-      }
-      
-      let isMisspelled = false;
-      let suggestions: string[] = [];
-      
-      // Check known misspellings first
-      if (knownMisspellings.includes(cleanWord)) {
-        isMisspelled = true;
-        // Generate specific suggestions
-        if (cleanWord === 'hellwo') suggestions = ['hello', 'hollow', 'ellow'];
-        else if (cleanWord === 'recieve') suggestions = ['receive', 'receiver', 'received'];
-        else if (cleanWord === 'seperate') suggestions = ['separate', 'desperate', 'temperate'];
-        else if (cleanWord === 'definately') suggestions = ['definitely', 'defiantly', 'definite'];
-        else if (cleanWord === 'teh') suggestions = ['the', 'tea', 'ten'];
-        else if (cleanWord === 'wierd') suggestions = ['weird', 'wired', 'wide'];
-        else suggestions = ['suggestion1', 'suggestion2', 'suggestion3'];
-      }
-      // Check for obviously misspelled patterns
-      else if (
-        // Very long words with random letters (likely gibberish)
-        (cleanWord.length > 8 && /[aeiou]{3,}/.test(cleanWord)) ||
-        (cleanWord.length > 10 && /[bcdfghjklmnpqrstvwxyz]{4,}/.test(cleanWord)) ||
-        // Words with repeated random patterns
-        /(..)\1{2,}/.test(cleanWord) ||
-        // Words ending in random consonant clusters
-        /[bcdfghjklmnpqrstvwxyz]{3,}$/.test(cleanWord) ||
-        // Words starting with random consonant clusters
-        /^[bcdfghjklmnpqrstvwxyz]{4,}/.test(cleanWord) ||
-        // Random letter combinations that look like keyboard mashing
-        /[qwerty]{3,}/.test(cleanWord) ||
-        /[asdf]{3,}/.test(cleanWord) ||
-        /[zxcv]{3,}/.test(cleanWord) ||
-        // Very long words (likely gibberish)
-        cleanWord.length > 15
-      ) {
-        isMisspelled = true;
-        suggestions = ['Did you mean to type something else?'];
-        console.log('🔍 SMART SPELL CHECK: Detected gibberish pattern:', cleanWord);
-      }
-      
-      if (isMisspelled) {
-        const start = text.indexOf(word);
-        misspelledWords.push({
-          word: word,
-          start: start,
-          end: start + word.length,
-          suggestions: suggestions
-        });
-        console.log('🔍 SMART SPELL CHECK: ✅ Found misspelling!', word);
-      } else {
-        console.log('🔍 SMART SPELL CHECK: ❌ Word looks correct:', cleanWord);
-      }
+    // Use the Electron spell checking function
+    try {
+      const misspelledWords = await checkSpelling(text);
+      console.log('🔍 ELECTRON SPELL CHECK: System spell check result:', misspelledWords);
+      setMisspelledWords(misspelledWords);
+    } catch (error) {
+      console.error('🔍 ELECTRON SPELL CHECK: Error performing spell check:', error);
+      // Fallback to no spell checking on error
+      setMisspelledWords([]);
     }
-    
-    console.log('🔍 INLINE SPELL CHECK: Final result:', misspelledWords);
-    setMisspelledWords(misspelledWords);
   }, []);
 
   // Debounced spell check
@@ -247,28 +191,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       }
     }, 500); // Debounce spell check by 500ms
 
-    
-  const handleTooltipEnter = () => {
-    console.log('🖱️ TOOLTIP ENTER: Setting isHoveringTooltip to true');
-    setTooltipState(prev => ({
-      ...prev,
-      isHoveringTooltip: true,
-    }));
-  };
-
-  const handleTooltipLeave = () => {
-    console.log('🖱️ TOOLTIP LEAVE: Setting isHoveringTooltip to false and hiding tooltip');
-    setTooltipState(prev => ({
-      ...prev,
-      isHoveringTooltip: false,
-      isVisible: false,
-      suggestions: [],
-      misspelledWord: '',
-      wordIndex: -1,
-    }));
-  };
-
-  return () => clearTimeout(timeoutId);
+    return () => clearTimeout(timeoutId);
   }, [value, performSpellCheck]);
 
   // Parse and render content with action pills, mention pills, spell checking, and cursor
