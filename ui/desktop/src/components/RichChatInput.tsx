@@ -950,7 +950,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         disabled={disabled}
         data-testid={testId}
         spellCheck={false} // Disable browser spell check - we handle it ourselves
-        className="absolute inset-0 w-full resize-none selection:bg-blue-500 selection:text-white overflow-y-auto"
+        className="absolute inset-0 w-full resize-none overflow-y-auto"
         onScroll={handleTextareaScroll}
         style={{
           position: 'absolute',
@@ -958,7 +958,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           top: 0,
           width: '100%',
           // Remove height: '100%' to let it be controlled by syncDisplayHeight
-          opacity: 0, // Completely invisible - no ghosting effect
+          opacity: 0.01, // Nearly invisible but allows selection to show
           zIndex: 2, // Higher z-index to capture mouse events
           background: 'transparent',
           border: 'none',
@@ -1009,11 +1009,22 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         {renderContent()}
       </div>
       
-      {/* CSS to hide webkit scrollbars */}
+      {/* CSS to hide webkit scrollbars and enable text selection visibility */}
       <style dangerouslySetInnerHTML={{
         __html: `
           .rich-text-display::-webkit-scrollbar {
             display: none;
+          }
+          
+          /* Make text selection visible on the hidden textarea */
+          .rich-text-input textarea::selection {
+            background-color: #3b82f6 !important; /* Blue selection */
+            color: white !important;
+          }
+          
+          .rich-text-input textarea::-moz-selection {
+            background-color: #3b82f6 !important; /* Blue selection */
+            color: white !important;
           }
         `
       }} />
