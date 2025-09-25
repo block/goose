@@ -146,8 +146,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const textarea = hiddenTextareaRef.current;
       const display = displayRef.current;
       
-      // Reset height to auto to get accurate scrollHeight measurement
+      // Critical: Completely reset height and clear any constraints to get accurate measurement
       textarea.style.height = 'auto';
+      textarea.style.minHeight = 'auto';
+      textarea.style.maxHeight = 'none';
+      
+      // Force a reflow to ensure the browser recalculates dimensions
+      textarea.offsetHeight;
+      
       const textareaScrollHeight = textarea.scrollHeight;
       
       // Allow expansion up to 300px, then use scrolling
