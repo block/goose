@@ -455,33 +455,39 @@ You can turn your current Goose session into a reusable recipe that includes the
 </Tabs>
 
 ## Share Recipe
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-    Share your recipe with Desktop users by copying the recipe link:
-
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Recipes` in the sidebar
-    3. Find your recipe in the Recipe Library
-    4. Click `Preview` next to the recipe you want to share
-    5. Under `Deeplink`, click `Copy` and then share the link with others
-
-    When someone clicks the link, it will open Goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library for future use.
-
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-    Share your recipe with CLI users by directly sending them the recipe file or converting it to a shareable [deep link](/docs/guides/goose-cli-commands#recipe) for Desktop users:
-
-    ```sh
-    goose recipe deeplink recipe.yaml
-    ```
-
-  </TabItem>
-</Tabs>
+Share your recipe with Goose users using a recipe link or recipe file.
 
 :::info Privacy & Isolation
 Each recipient gets their own private session when using your shared recipe. No data is shared between users, and your original session and recipe remain unaffected.
 :::
+
+### Share via Recipe Link
+You can share a recipe with Desktop users via a recipe link.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+    Copy the deeplink from your Recipe Library to share with others:
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Recipes` in the sidebar
+    3. Click `Preview` next to the recipe you want to share
+    4. Under `Deeplink`, click `Copy`
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+    Generate a deeplink from your recipe file to share with others:
+    ```sh
+    goose recipe deeplink <FILE>
+    ```
+  </TabItem>
+</Tabs>
+
+When someone clicks the link, it will open Goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#importing-recipes) for future use.
+
+### Share via Recipe File
+You can share a recipe with Desktop or CLI users by sending the recipe file directly.
+
+- Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
+- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>`
 
 ## Schedule Recipe
 <Tabs groupId="interface">
@@ -660,15 +666,6 @@ To protect your privacy and system integrity, Goose excludes:
 
 
 This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
-
-## CLI and Desktop Formats
-
-The Goose CLI supports both CLI and Desktop recipe formats:
-
-- **CLI Format**: Recipe fields are at the root level. This format is used when recipes are created via the CLI `/recipe` command and Recipe Generator YAML option.
-- **Desktop Format**: Recipe fields are nested under a `recipe` key. This format is used when recipes are saved in Goose Desktop.
-
-Both formats work seamlessly with `goose run --recipe <file>` and `goose recipe` CLI commands - you don't need to convert between them. For more details, see [CLI and Desktop Formats](/docs/guides/recipes/recipe-reference#cli-and-desktop-formats).
 
 ## Learn More
 Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
