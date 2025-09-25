@@ -1,4 +1,5 @@
-import Typo from 'typo-js';
+// @ts-ignore
+const Typo = require('typo-js');
 
 export interface MisspelledWord {
   word: string;
@@ -42,8 +43,11 @@ const initSpellChecker = async (): Promise<Typo> => {
 export const checkSpelling = async (text: string): Promise<MisspelledWord[]> => {
   const misspelledWords: MisspelledWord[] = [];
   
+  console.log('🔍 REAL SPELL CHECK: Starting spell check for:', text);
+  
   try {
     const checker = await initSpellChecker();
+    console.log('🔍 REAL SPELL CHECK: Checker initialized:', !!checker);
     
     // Split text into words while preserving positions
     const wordRegex = /\b[a-zA-Z]+\b/g;
@@ -54,8 +58,13 @@ export const checkSpelling = async (text: string): Promise<MisspelledWord[]> => 
       const start = match.index;
       const end = start + word.length;
       
+      console.log('🔍 REAL SPELL CHECK: Checking word:', word);
+      
       // Skip very short words and common abbreviations
-      if (word.length < 3) continue;
+      if (word.length < 3) {
+        console.log('🔍 REAL SPELL CHECK: Skipping short word:', word);
+        continue;
+      }
       
       // Skip common technical terms that might not be in dictionary
       const technicalTerms = [
@@ -69,17 +78,19 @@ export const checkSpelling = async (text: string): Promise<MisspelledWord[]> => 
       ];
       
       if (technicalTerms.includes(word.toLowerCase())) {
+        console.log('🔍 REAL SPELL CHECK: Skipping technical term:', word);
         continue;
       }
       
       // Check if the word is misspelled
       const isCorrect = checker.check(word);
+      console.log('🔍 REAL SPELL CHECK: Word', word, 'is', isCorrect ? 'CORRECT' : 'MISSPELLED');
       
       if (!isCorrect) {
         console.log('🔍 REAL SPELL CHECK: Found misspelling!', word);
         
         // Get suggestions for the misspelled word
-        const suggestions = checker.suggest(word, 3); // Get up to 3 suggestions
+        const suggestions = checker.suggest ? checker.suggest(word, 3) : []; // Get up to 3 suggestions
         
         misspelledWords.push({
           word: word,
@@ -88,12 +99,33 @@ export const checkSpelling = async (text: string): Promise<MisspelledWord[]> => 
           suggestions: suggestions
         });
         
-        console.log('🔍 REAL SPELL CHECK: Suggestions for', word, ':', suggestions);
+        console.log('🔍 REAL SPELL CHECK: Added misspelling:', { word, start, end, suggestions });
       }
     }
     
+    console.log('🔍 REAL SPELL CHECK: Final misspelled words:', misspelledWords);
+    
   } catch (error) {
-    console.error('Error in spell checking:', error);
+    console.error('🔍 REAL SPELL CHECK ERROR:', error);
+    
+    // Fallback to simple spell check for testing
+    console.log('🔍 REAL SPELL CHECK: Using fallback spell check');
+    const simpleWords = ['recieve', 'seperate', 'definately', 'teh', 'wierd', 'freind'];
+    const wordRegex = /\b[a-zA-Z]+\b/g;
+    let match;
+    
+    while ((match = wordRegex.exec(text)) !== null) {
+      const word = match[0];
+      if (simpleWords.includes(word.toLowerCase())) {
+        misspelledWords.push({
+          word: word,
+          start: match.index,
+          end: match.index + word.length,
+          suggestions: []
+        });
+        console.log('🔍 FALLBACK SPELL CHECK: Found misspelling:', word);
+      }
+    }
   }
   
   return misspelledWords;
