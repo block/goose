@@ -84,11 +84,7 @@ impl ToolInspector for SecurityInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        use crate::config::Config;
-        let config = Config::global();
-        config
-            .get_param::<bool>("security_enabled")
-            .unwrap_or(false)
+        self.security_manager.is_enabled()
     }
 }
 

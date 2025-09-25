@@ -20,20 +20,12 @@ export const SecurityToggle = () => {
   }, [configThreshold]);
 
   const handleToggle = async (enabled: boolean) => {
-    try {
-      await upsert('security_enabled', enabled, false);
-    } catch (error) {
-      console.error('Failed to update security config:', error);
-    }
+    await upsert('security_enabled', enabled, false);
   };
 
   const handleThresholdChange = async (threshold: number) => {
     const validThreshold = Math.max(0, Math.min(1, threshold));
-    try {
-      await upsert('security_threshold', validThreshold, false);
-    } catch (error) {
-      console.error('Failed to update threshold:', error);
-    }
+    await upsert('security_threshold', validThreshold, false);
   };
 
   return (
@@ -72,20 +64,16 @@ export const SecurityToggle = () => {
               step={0.01}
               value={thresholdInput}
               onChange={(e) => {
-                // Update local input state immediately for responsive typing
                 setThresholdInput(e.target.value);
               }}
               onBlur={(e) => {
-                // Validate and save to config on blur
-                let value = parseFloat(e.target.value);
-                if (isNaN(value) || value < 0.01) {
-                  value = 0.01;
-                } else if (value > 1.0) {
-                  value = 1.0;
+                const value = parseFloat(e.target.value);
+                if (isNaN(value) || value < 0.01 || value > 1.0) {
+                  // Revert to previous valid value
+                  setThresholdInput(configThreshold.toString());
+                } else {
+                  handleThresholdChange(value);
                 }
-                // Update both local state and config
-                setThresholdInput(value.toString());
-                handleThresholdChange(value);
               }}
               disabled={!enabled}
               className={`w-24 px-2 py-1 text-sm border rounded ${

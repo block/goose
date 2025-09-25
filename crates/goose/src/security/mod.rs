@@ -46,13 +46,11 @@ impl SecurityManager {
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
-        // Check if security is enabled and get scanner if needed
         if !self.is_enabled() {
             tracing::debug!("🔓 Security scanning disabled - returning empty results");
             return Ok(vec![]);
         }
 
-        // Initialize scanner if needed
         let scanner = self.scanner.get_or_init(|| {
             tracing::info!("Security scanner initialized and enabled");
             PromptInjectionScanner::new()

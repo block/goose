@@ -267,7 +267,6 @@ pub fn apply_inspection_results_to_permissions(
     permission_result
 }
 
-/// Helper function to extract security finding ID from inspection results
 pub fn get_security_finding_id_from_results(
     tool_request_id: &str,
     inspection_results: &[InspectionResult],
