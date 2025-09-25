@@ -60,7 +60,7 @@ Goose automatically spawns three independent AI instances, and each works on a d
 
 Subrecipes solve the reusability problem. While main "parent" recipes can be in YAML or JSON, subrecipes can only be written in YAML format. These files define structured workflows with parameters, validation, extensions to use, and even allow you to pick a different provider/model to use for the work.
 
-For detailed subrecipe examples and implementation guides, check out our [subrecipes blog post](/blog/2025-09-15-subrecipes-in-goose) and [advanced recipe tips](https://www.youtube.com/watch?v=1szmJSKInnU) video on YouTube.
+For detailed subrecipe examples and implementation guides, check out our [subrecipes blog post](/blog/2025/09/15/subrecipes-in-goose) and [advanced recipe tips](https://www.youtube.com/watch?v=1szmJSKInnU) video on YouTube.
 
 ### What Makes Subrecipes Powerful
 
@@ -112,7 +112,7 @@ The choice depends on your specific needs and workflow requirements. Quick tasks
 
 Your workflow requirements should drive the decision.
 
-Share your subagent prompts or subrecipe ideas with us on our [Discord community](https://discord.gg/gooseai) or [GitHub discussions](https://github.com/block/goose/discussions).
+Share your subagent prompts or subrecipe ideas with us on our [Discord community](https://discord.gg/block-opensource) or [GitHub discussions](https://github.com/block/goose/discussions).
 
 
 
