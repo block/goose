@@ -73,7 +73,7 @@ impl XlsxTool {
         // Iterate through all rows
         for row_num in 1..=worksheet.get_highest_row() {
             for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((row_num, col_num)) {
+                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
                     let coord = cell.get_coordinate();
                     max_col = max_col.max(*coord.get_col_num() as usize);
                     max_row = max_row.max(*coord.get_row_num() as usize);
@@ -87,7 +87,7 @@ impl XlsxTool {
     pub fn get_column_names(&self, worksheet: &Worksheet) -> Result<Vec<String>> {
         let mut names = Vec::new();
         for col_num in 1..=worksheet.get_highest_column() {
-            if let Some(cell) = worksheet.get_cell((1, col_num)) {
+            if let Some(cell) = worksheet.get_cell((col_num, 1)) {
                 names.push(cell.get_value().into_owned());
             } else {
                 names.push(String::new());
@@ -104,7 +104,7 @@ impl XlsxTool {
         for row_idx in start_row..=end_row {
             let mut row_values = Vec::new();
             for col_idx in start_col..=end_col {
-                let cell_value = if let Some(cell) = worksheet.get_cell((row_idx, col_idx)) {
+                let cell_value = if let Some(cell) = worksheet.get_cell((col_idx, row_idx)) {
                     CellValue {
                         value: cell.get_value().into_owned(),
                         formula: if cell.get_formula().is_empty() {
@@ -146,7 +146,7 @@ impl XlsxTool {
             .context("Worksheet not found")?;
 
         worksheet
-            .get_cell_mut((row, col))
+            .get_cell_mut((col, row))
             .set_value(value.to_string());
         Ok(())
     }
@@ -173,7 +173,7 @@ impl XlsxTool {
 
         for row_num in 1..=worksheet.get_highest_row() {
             for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((row_num, col_num)) {
+                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
                     let cell_value = if !case_sensitive {
                         cell.get_value().to_lowercase()
                     } else {
@@ -192,7 +192,7 @@ impl XlsxTool {
     }
 
     pub fn get_cell_value(&self, worksheet: &Worksheet, row: u32, col: u32) -> Result<CellValue> {
-        let cell = worksheet.get_cell((row, col)).context("Cell not found")?;
+        let cell = worksheet.get_cell((col, row)).context("Cell not found")?;
 
         Ok(CellValue {
             value: cell.get_value().into_owned(),
@@ -323,10 +323,21 @@ mod tests {
         assert_eq!(data_cell.value, "Canada");
         assert!(data_cell.formula.is_none());
 
+        // Test B1 cell (known value from FinancialSample.xlsx)
+        let b1_cell = xlsx.get_cell_value(worksheet, 1, 2)?;
+        assert_eq!(b1_cell.value, "Country");
+        assert!(b1_cell.formula.is_none());
+
+        // Test A2 cell (known value from FinancialSample.xlsx)
+        let a2_cell = xlsx.get_cell_value(worksheet, 2, 1)?;
+        assert_eq!(a2_cell.value, "Government");
+        assert!(a2_cell.formula.is_none());
+
         println!(
             "Header cell: {:#?}\nData cell: {:#?}",
             header_cell, data_cell
         );
+        println!("B1: {:#?}\nA2: {:#?}", b1_cell, a2_cell);
         Ok(())
     }
 
@@ -344,12 +355,12 @@ mod tests {
         // A2 should be row=2, col=1
         let a2 = xlsx.get_cell_value(worksheet, 2, 1)?;
         println!("A2 (2,1): {}", a2.value);
-        assert_eq!(a2.value, "Country");
+        assert_eq!(a2.value, "Government");
 
         // B1 should be row=1, col=2
         let b1 = xlsx.get_cell_value(worksheet, 1, 2)?;
         println!("B1 (1,2): {}", b1.value);
-        assert_eq!(b1.value, "Government");
+        assert_eq!(b1.value, "Country");
 
         // B2 should be row=2, col=2
         let b2 = xlsx.get_cell_value(worksheet, 2, 2)?;
@@ -375,14 +386,14 @@ mod tests {
 
         // Test that A2 (row 2, column 1) returns the correct value
         let a2_value = xlsx.get_cell_value(worksheet, 2, 1)?;
-        assert_eq!(a2_value.value, "Country", "A2 should contain 'Country'");
+        assert_eq!(
+            a2_value.value, "Government",
+            "A2 should contain 'Government'"
+        );
 
         // Test that B1 (row 1, column 2) returns its own value, not A2's
         let b1_value = xlsx.get_cell_value(worksheet, 1, 2)?;
-        assert_eq!(
-            b1_value.value, "Government",
-            "B1 should contain 'Government'"
-        );
+        assert_eq!(b1_value.value, "Country", "B1 should contain 'Country'");
 
         // Additional verification with ranges
         let range = xlsx.get_range(worksheet, "A1:B2")?;
@@ -391,12 +402,12 @@ mod tests {
             "A1 should be 'Segment'"
         );
         assert_eq!(
-            range.values[0][1].value, "Government",
-            "B1 should be 'Government'"
+            range.values[0][1].value, "Country",
+            "B1 should be 'Country'"
         );
         assert_eq!(
-            range.values[1][0].value, "Country",
-            "A2 should be 'Country'"
+            range.values[1][0].value, "Government",
+            "A2 should be 'Government'"
         );
         assert_eq!(range.values[1][1].value, "Canada", "B2 should be 'Canada'");
 

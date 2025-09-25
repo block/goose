@@ -663,15 +663,16 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-bedrockruntime"
-version = "1.76.0"
+version = "1.106.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b538f72f5ab8d23de44aacd109788c37e268fe9f4d060168714a12514d73b434"
+checksum = "65d69fe4cf7e0f812c12ad76b5a50ad7c5e030a424a02896c60af229ea8a2c38"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
+ "aws-sigv4",
  "aws-smithy-async",
  "aws-smithy-eventstream",
- "aws-smithy-http 0.61.1",
+ "aws-smithy-http 0.62.3",
  "aws-smithy-json",
  "aws-smithy-runtime",
  "aws-smithy-runtime-api",
@@ -680,7 +681,7 @@ dependencies = [
  "bytes",
  "fastrand",
  "http 0.2.12",
- "once_cell",
+ "hyper 0.14.32",
  "regex-lite",
  "tracing",
 ]
@@ -847,6 +848,7 @@ version = "0.62.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c4dacf2d38996cf729f55e7a762b30918229917eca115de45dfa8dfb97796c9"
 dependencies = [
+ "aws-smithy-eventstream",
  "aws-smithy-runtime-api",
  "aws-smithy-types",
  "bytes",
@@ -2796,7 +2798,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2826,6 +2828,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "lazy_static",
+ "lru",
  "mcp-client",
  "mcp-core",
  "minijinja",
@@ -2871,7 +2874,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2894,7 +2897,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2919,7 +2922,6 @@ dependencies = [
  "jsonschema",
  "mcp-client",
  "mcp-core",
- "mcp-server",
  "nix 0.30.1",
  "once_cell",
  "rand 0.8.5",
@@ -2948,7 +2950,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2960,6 +2962,7 @@ dependencies = [
  "docx-rs",
  "etcetera",
  "glob",
+ "goose",
  "http-body-util",
  "hyper 1.6.0",
  "ignore",
@@ -2972,7 +2975,6 @@ dependencies = [
  "lopdf",
  "lru",
  "mcp-core",
- "mcp-server",
  "mpatch",
  "oauth2",
  "once_cell",
@@ -3014,7 +3016,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3030,7 +3032,6 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "mcp-core",
- "mcp-server",
  "reqwest 0.12.12",
  "rmcp",
  "schemars",
@@ -3053,7 +3054,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4272,26 +4273,6 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "utoipa",
-]
-
-[[package]]
-name = "mcp-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures",
- "mcp-core",
- "pin-project",
- "rmcp",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tower 0.4.13",
- "tower-service",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]

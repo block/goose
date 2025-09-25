@@ -23,9 +23,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { startGoosed } from './goosed';
+import { checkServerStatus, startGoosed } from './goosed';
 import { expandTilde, getBinaryPath } from './utils/pathUtils';
-import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
@@ -52,6 +51,7 @@ import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { decodeRecipe } from './api/sdk.gen';
+import { client } from './api/client.gen';
 
 async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
   try {
@@ -448,46 +448,37 @@ const parseArgs = () => {
   return { dirPath };
 };
 
-const getGooseProvider = () => {
-  loadShellEnv(app.isPackaged);
+interface BundledConfig {
+  defaultProvider?: string;
+  defaultModel?: string;
+  predefinedModels?: string;
+  baseUrlShare?: string;
+  version?: string;
+}
+
+const getBundledConfig = (): BundledConfig => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [
-    process.env.GOOSE_DEFAULT_PROVIDER,
-    process.env.GOOSE_DEFAULT_MODEL,
-    process.env.GOOSE_PREDEFINED_MODELS,
-  ];
+  return {
+    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
+    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
+    predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
+    baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
+    version: process.env.GOOSE_VERSION,
+  };
 };
 
-const getSharingUrl = () => {
-  // checks app env for sharing url
-  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
-  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
-  // to in the env at bundle time
-  return process.env.GOOSE_BASE_URL_SHARE;
-};
-
-const getVersion = () => {
-  // checks app env for sharing url
-  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
-  // to in the env at bundle time
-  return process.env.GOOSE_VERSION;
-};
-
-const [provider, model, predefinedModels] = getGooseProvider();
-
-const sharingUrl = getSharingUrl();
-
-const gooseVersion = getVersion();
+const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
+  getBundledConfig();
 
 const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
   ? 'test'
   : crypto.randomBytes(32).toString('hex');
 
 let appConfig = {
-  GOOSE_DEFAULT_PROVIDER: provider,
-  GOOSE_DEFAULT_MODEL: model,
+  GOOSE_DEFAULT_PROVIDER: defaultProvider,
+  GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
@@ -603,8 +594,8 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
-          GOOSE_BASE_URL_SHARE: sharingUrl,
-          GOOSE_VERSION: gooseVersion,
+          GOOSE_BASE_URL_SHARE: baseUrlShare,
+          GOOSE_VERSION: version,
           recipe: recipe,
         }),
       ],
@@ -707,7 +698,7 @@ const createChat = async (
   // Goose's react app uses HashRouter, so the path + search params follow a #/
   url.hash = `${appPath}?${searchParams.toString()}`;
   let formattedUrl = formatUrl(url);
-  console.log('Opening URL: ', formattedUrl);
+  log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
   // Set up local keyboard shortcuts that only work when the window is focused
@@ -1026,18 +1017,18 @@ process.on('unhandledRejection', (error) => {
 });
 
 ipcMain.on('react-ready', () => {
-  console.log('React ready event received');
+  log.info('React ready event received');
 
   if (pendingDeepLink) {
-    console.log('Processing pending deep link:', pendingDeepLink);
+    log.info('Processing pending deep link:', pendingDeepLink);
     handleProtocolUrl(pendingDeepLink);
   } else {
-    console.log('No pending deep link to process');
+    log.info('No pending deep link to process');
   }
 
   // We don't need to handle pending deep links here anymore
   // since we're handling them in the window creation flow
-  console.log('[main] React ready - window is prepared for deep links');
+  log.info('React ready - window is prepared for deep links');
 });
 
 // Handle external URL opening
@@ -1068,6 +1059,11 @@ ipcMain.handle('get-settings', () => {
 
 ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
+});
+
+ipcMain.handle('get-goosed-host-port', async () => {
+  await checkServerStatus();
+  return client.getConfig().baseUrl || null;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1927,7 +1923,7 @@ async function appMain() {
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
-            label: `Version ${gooseVersion || app.getVersion()}`,
+            label: `Version ${version || app.getVersion()}`,
             enabled: false,
           })
         );
