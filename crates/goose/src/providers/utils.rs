@@ -106,12 +106,10 @@ pub fn map_http_error_to_provider_error(
                 ))
             }
         }
-        StatusCode::TOO_MANY_REQUESTS => {
-            ProviderError::RateLimitExceeded {
-                details: format!("{:?}", payload),
-                retry_delay: None,
-            }
-        }
+        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
+            details: format!("{:?}", payload),
+            retry_delay: None,
+        },
         _ if status.is_server_error() => ProviderError::ServerError(format!("{:?}", payload)),
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
@@ -1026,9 +1024,10 @@ mod tests {
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 Some(json!({"retry_after": 60})),
-                ProviderError::RateLimitExceeded(
-                    "Some(Object {\"retry_after\": Number(60)})".to_string(),
-                ),
+                ProviderError::RateLimitExceeded{
+                    details: "Some(Object {\"retry_after\": Number(60)})".to_string(),
+                    retry_delay: None,
+                },
             ),
             // is_server_error() without payload
             (
