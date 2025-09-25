@@ -321,13 +321,17 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             key={`misspelled-${keyCounter++}`} 
             className="inline whitespace-pre-wrap"
             style={{
-              // Use a solid red bottom border instead of text-decoration
-              borderBottom: '2px solid #ef4444',
-              // Add a subtle red background tint
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              // Small padding for better appearance
-              paddingBottom: '1px',
-              borderRadius: '2px'
+              // Much more visible red styling
+              borderBottom: '3px solid #dc2626',
+              backgroundColor: 'rgba(220, 38, 38, 0.2)',
+              color: '#991b1b',
+              fontWeight: '500',
+              paddingBottom: '2px',
+              paddingTop: '1px',
+              paddingLeft: '2px',
+              paddingRight: '2px',
+              borderRadius: '3px',
+              boxShadow: '0 1px 2px rgba(220, 38, 38, 0.3)'
             }}
             title={`Possible misspelling: ${content}`}
           >
@@ -525,7 +529,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         onCompositionEnd={onCompositionEnd}
         disabled={disabled}
         data-testid={testId}
-        spellCheck={true} // Enable browser spell check on hidden textarea
+        spellCheck={false} // Disable browser spell check - we handle it ourselves
         className="absolute inset-0 w-full h-full resize-none selection:bg-blue-500 selection:text-white"
         style={{
           position: 'absolute',
