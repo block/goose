@@ -381,7 +381,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               style={{ 
                 animation: "blink 1s step-end infinite", 
                 height: "1em", 
-                marginLeft: "1px",
+                width: "1px",
+                marginLeft: "0px",
                 marginRight: placeholder ? "4px" : "0px",
                 verticalAlign: "baseline"
               }} 
@@ -480,7 +481,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         for (let i = 0; i < beforeMatch.length; i++) {
           if (isFocused && cursorPosition === currentPos) {
             textWithCursor.push(
-              <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+              <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
             );
           }
           textWithCursor.push(beforeMatch[i]);
@@ -497,7 +498,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Add cursor before match if needed
       if (isFocused && cursorPosition === currentPos) {
         parts.push(
-          <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+          <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
         );
       }
       
@@ -658,7 +659,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       for (let i = 0; i < remainingText.length; i++) {
         if (isFocused && cursorPosition === currentPos) {
           textWithCursor.push(
-            <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+            <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
           );
         }
         textWithCursor.push(remainingText[i]);
@@ -675,7 +676,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Always check for cursor at the end, including after trailing newlines
     if (isFocused && cursorPosition === currentPos) {
       parts.push(
-        <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+        <span key={`cursor-${keyCounter++}`} className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
       );
     }
     
@@ -687,7 +688,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         <span key={`whitespace-${keyCounter++}`} className="inline whitespace-pre-wrap">
           {value}
           {isFocused && cursorPosition === value.length && (
-            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
           )}
         </span>
       );
@@ -697,7 +698,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
         {parts.length > 0 ? parts : (
           isFocused && (
-            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", marginLeft: "1px", verticalAlign: "baseline" }} />
+            <span className="border-l-2 border-text-default inline-block align-baseline" style={{ animation: "blink 1s step-end infinite", height: "1em", width: "1px", marginLeft: "0px", verticalAlign: "baseline" }} />
           )
         )}
       </div>
