@@ -146,23 +146,46 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const performSpellCheck = useCallback(async (text: string) => {
     console.log('🔍 INLINE SPELL CHECK: Starting check for text:', text);
     
-    // Inline spell checker to bypass import issues
+    // Smart inline spell checker that catches obvious misspellings
     const misspelledWords: MisspelledWord[] = [];
-    const testWords = ['hellwo', 'gasdd2', 'recieve', 'seperate', 'definately', 'teh', 'wierd'];
     
-    console.log('🔍 INLINE SPELL CHECK: Test words:', testWords);
+    // Known misspellings
+    const knownMisspellings = ['hellwo', 'gasdd2', 'recieve', 'seperate', 'definately', 'teh', 'wierd'];
+    
+    // Common correct words to skip
+    const commonWords = [
+      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use',
+      'hello', 'world', 'test', 'chat', 'message', 'text', 'word', 'good', 'great', 'nice', 'cool', 'awesome', 'amazing', 'perfect', 'excellent', 'wonderful', 'fantastic', 'brilliant', 'super', 'best', 'love', 'like', 'want', 'need', 'help', 'please', 'thank', 'thanks', 'welcome'
+    ];
+    
+    console.log('🔍 SMART SPELL CHECK: Known misspellings:', knownMisspellings);
     
     // Simple word detection
     const words = text.split(/\s+/);
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
       const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
-      console.log('🔍 INLINE SPELL CHECK: Checking word:', word, 'cleaned:', cleanWord);
+      console.log('🔍 SMART SPELL CHECK: Checking word:', word, 'cleaned:', cleanWord);
       
-      if (testWords.includes(cleanWord)) {
-        const start = text.indexOf(word);
-        // Generate better suggestions
-        let suggestions: string[] = [];
+      // Skip very short words
+      if (cleanWord.length < 3) {
+        console.log('🔍 SMART SPELL CHECK: Skipping short word:', cleanWord);
+        continue;
+      }
+      
+      // Skip common correct words
+      if (commonWords.includes(cleanWord)) {
+        console.log('🔍 SMART SPELL CHECK: Skipping common word:', cleanWord);
+        continue;
+      }
+      
+      let isMisspelled = false;
+      let suggestions: string[] = [];
+      
+      // Check known misspellings first
+      if (knownMisspellings.includes(cleanWord)) {
+        isMisspelled = true;
+        // Generate specific suggestions
         if (cleanWord === 'hellwo') suggestions = ['hello', 'hollow', 'ellow'];
         else if (cleanWord === 'recieve') suggestions = ['receive', 'receiver', 'received'];
         else if (cleanWord === 'seperate') suggestions = ['separate', 'desperate', 'temperate'];
@@ -170,14 +193,41 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         else if (cleanWord === 'teh') suggestions = ['the', 'tea', 'ten'];
         else if (cleanWord === 'wierd') suggestions = ['weird', 'wired', 'wide'];
         else suggestions = ['suggestion1', 'suggestion2', 'suggestion3'];
-
+      }
+      // Check for obviously misspelled patterns
+      else if (
+        // Very long words with random letters (likely gibberish)
+        (cleanWord.length > 8 && /[aeiou]{3,}/.test(cleanWord)) ||
+        (cleanWord.length > 10 && /[bcdfghjklmnpqrstvwxyz]{4,}/.test(cleanWord)) ||
+        // Words with repeated random patterns
+        /(..)\1{2,}/.test(cleanWord) ||
+        // Words ending in random consonant clusters
+        /[bcdfghjklmnpqrstvwxyz]{3,}$/.test(cleanWord) ||
+        // Words starting with random consonant clusters
+        /^[bcdfghjklmnpqrstvwxyz]{4,}/.test(cleanWord) ||
+        // Random letter combinations that look like keyboard mashing
+        /[qwerty]{3,}/.test(cleanWord) ||
+        /[asdf]{3,}/.test(cleanWord) ||
+        /[zxcv]{3,}/.test(cleanWord) ||
+        // Very long words (likely gibberish)
+        cleanWord.length > 15
+      ) {
+        isMisspelled = true;
+        suggestions = ['Did you mean to type something else?'];
+        console.log('🔍 SMART SPELL CHECK: Detected gibberish pattern:', cleanWord);
+      }
+      
+      if (isMisspelled) {
+        const start = text.indexOf(word);
         misspelledWords.push({
           word: word,
           start: start,
           end: start + word.length,
           suggestions: suggestions
         });
-        console.log('🔍 INLINE SPELL CHECK: ✅ Found misspelling!', word);
+        console.log('🔍 SMART SPELL CHECK: ✅ Found misspelling!', word);
+      } else {
+        console.log('🔍 SMART SPELL CHECK: ❌ Word looks correct:', cleanWord);
       }
     }
     
