@@ -25,6 +25,7 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
 }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
 
   console.log('🖱️ TOOLTIP COMPONENT: Rendering with props:', {
     isVisible,
@@ -32,6 +33,73 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
     suggestions,
     misspelledWord
   });
+
+  // Calculate smart positioning to avoid window edges
+  useEffect(() => {
+    if (!isVisible) {
+      setAdjustedPosition(position);
+      return;
+    }
+
+    // Use a timeout to allow the tooltip to render first
+    const timer = setTimeout(() => {
+      if (!tooltipRef.current) return;
+
+      const tooltip = tooltipRef.current;
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      let newX = position.x;
+      let newY = position.y;
+      let transform = 'translateX(-50%) translateY(-100%)'; // Default: center horizontally, above word
+
+      // Check horizontal boundaries
+      const tooltipWidth = tooltipRect.width || 200; // Fallback width
+      const halfWidth = tooltipWidth / 2;
+      const margin = 10; // Margin from window edges
+      
+      if (newX - halfWidth < margin) {
+        // Too close to left edge - align to left
+        newX = margin;
+        transform = 'translateY(-100%)'; // Remove horizontal centering
+      } else if (newX + halfWidth > windowWidth - margin) {
+        // Too close to right edge - align to right
+        newX = windowWidth - margin;
+        transform = 'translateX(-100%) translateY(-100%)'; // Align to right edge
+      }
+
+      // Check vertical boundaries
+      const tooltipHeight = tooltipRect.height || 150; // Fallback height
+      
+      if (newY - tooltipHeight < margin) {
+        // Not enough space above - show below the word
+        newY = position.y + 30; // Position below word
+        if (transform.includes('translateX(-50%)')) {
+          transform = 'translateX(-50%) translateY(0%)'; // Center horizontally, below word
+        } else if (transform.includes('translateX(-100%)')) {
+          transform = 'translateX(-100%) translateY(0%)'; // Right align, below word
+        } else {
+          transform = 'translateY(0%)'; // Left align, below word
+        }
+      }
+
+      setAdjustedPosition({ x: newX, y: newY });
+      
+      // Apply the transform
+      tooltip.style.transform = transform;
+      
+      console.log('🖱️ TOOLTIP POSITIONING:', {
+        original: position,
+        adjusted: { x: newX, y: newY },
+        transform,
+        windowSize: { width: windowWidth, height: windowHeight },
+        tooltipSize: { width: tooltipWidth, height: tooltipHeight }
+      });
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [isVisible, position]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -103,9 +171,9 @@ export const SpellCheckTooltip: React.FC<SpellCheckTooltipProps> = ({
       data-spell-tooltip="true" // For click detection
       className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-xl py-2 min-w-48 max-w-64 outline-none"
       style={{
-        left: position.x,
-        top: position.y - 8, // Position slightly above the word
-        transform: 'translateX(-50%) translateY(-100%)', // Center horizontally and position above
+        left: adjustedPosition.x,
+        top: adjustedPosition.y - 8, // Position slightly above the word
+        transform: 'translateX(-50%) translateY(-100%)', // Will be overridden by smart positioning
         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.1)',
       }}
       onMouseEnter={onMouseEnter}
