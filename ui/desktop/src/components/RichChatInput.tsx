@@ -301,14 +301,16 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="relative min-h-[1.5em] flex items-center justify-start h-full">
+        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
           {isFocused && cursorPosition === 0 && (
             <span 
-              className="border-l-2 border-text-default inline-block" 
+              className="border-l-2 border-text-default inline-block align-baseline" 
               style={{ 
                 animation: "blink 1s step-end infinite", 
-                height: "1.2em", 
-                marginRight: placeholder ? "4px" : "0px"
+                height: "1em", 
+                marginLeft: "1px",
+                marginRight: placeholder ? "4px" : "0px",
+                verticalAlign: "baseline"
               }} 
             />
           )}
