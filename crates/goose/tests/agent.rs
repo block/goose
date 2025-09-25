@@ -20,6 +20,7 @@ use goose::providers::{
 enum ProviderType {
     Azure,
     OpenAi,
+    #[allow(dead_code)]
     Anthropic,
     Bedrock,
     Databricks,

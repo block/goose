@@ -30,11 +30,6 @@ use crate::model::ModelConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 
-#[cfg(test)]
-use super::errors::ProviderError;
-#[cfg(test)]
-use rmcp::model::Tool;
-
 const DEFAULT_LEAD_TURNS: usize = 3;
 const DEFAULT_FAILURE_THRESHOLD: usize = 2;
 const DEFAULT_FALLBACK_TURNS: usize = 2;
@@ -174,62 +169,7 @@ fn create_worker_model_config(default_model: &ModelConfig) -> Result<ModelConfig
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
-    use chrono::Utc;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
-
-    #[derive(Clone)]
-    struct MockTestProvider {
-        name: String,
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl Provider for MockTestProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new(
-                "mock_test",
-                "Mock Test Provider",
-                "A mock provider for testing",
-                "mock-model",
-                vec!["mock-model"],
-                "",
-                vec![],
-            )
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
-        async fn complete_with_model(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::new(
-                    Role::Assistant,
-                    Utc::now().timestamp(),
-                    vec![MessageContent::Text(
-                        RawTextContent {
-                            text: format!(
-                                "Response from {} with model {}",
-                                self.name, self.model_config.model_name
-                            ),
-                            meta: None,
-                        }
-                        .no_annotation(),
-                    )],
-                ),
-                ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
-            ))
-        }
-    }
 
     struct EnvVarGuard {
         vars: Vec<(String, Option<String>)>,
@@ -355,14 +295,12 @@ mod tests {
         let default_model =
             ModelConfig::new_or_fail("gpt-3.5-turbo").with_context_limit(Some(16_000));
 
-        let result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
 
         _guard.set("GOOSE_WORKER_CONTEXT_LIMIT", "32000");
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
 
         _guard.set("GOOSE_CONTEXT_LIMIT", "64000");
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
-
-        if let Ok(_) = result {}
     }
 }

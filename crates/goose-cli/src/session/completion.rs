@@ -443,18 +443,14 @@ mod tests {
         let mut cache = CompletionCache::new();
 
         // Add some test prompts
-        let mut extension1_prompts = Vec::new();
-        extension1_prompts.push("test_prompt1".to_string());
-        extension1_prompts.push("test_prompt2".to_string());
-        cache
-            .prompts
-            .insert("extension1".to_string(), extension1_prompts);
+        cache.prompts.insert(
+            "extension1".to_string(),
+            vec!["test_prompt1".to_string(), "test_prompt2".to_string()],
+        );
 
-        let mut extension2_prompts = Vec::new();
-        extension2_prompts.push("other_prompt".to_string());
         cache
             .prompts
-            .insert("extension2".to_string(), extension2_prompts);
+            .insert("extension2".to_string(), vec!["other_prompt".to_string()]);
 
         // Add prompt info with arguments
         let test_prompt1_args = vec![

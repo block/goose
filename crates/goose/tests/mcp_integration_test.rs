@@ -165,6 +165,7 @@ async fn test_replayed_session(
     let result = extension_manager.add_extension(extension_config).await;
     assert!(result.is_ok(), "Failed to add extension: {:?}", result);
 
+    #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         let mut results = Vec::new();
         for tool_call in tool_calls {

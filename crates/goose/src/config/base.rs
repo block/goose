@@ -1024,7 +1024,7 @@ mod tests {
             let key = format!("key{}", i);
             let value = format!("value{}", i);
             assert!(
-                final_values.get(&key).is_some(),
+                final_values.contains_key(&key),
                 "Missing key {} in final values",
                 key
             );
@@ -1260,10 +1260,10 @@ mod tests {
         assert_eq!(value, Value::Number((-123).into()));
 
         // Test floats
-        let value = Config::parse_env_value("3.14")?;
+        let value = Config::parse_env_value("3.41")?;
         assert!(matches!(value, Value::Number(_)));
         if let Value::Number(n) = value {
-            assert_eq!(n.as_f64().unwrap(), 3.14);
+            assert_eq!(n.as_f64().unwrap(), 3.41);
         }
 
         let value = Config::parse_env_value("0.01")?;
