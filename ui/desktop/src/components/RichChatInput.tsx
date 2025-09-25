@@ -829,13 +829,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           top: 0,
           width: '100%',
           height: '100%',
-          opacity: 0.15, // Slightly more visible for selection
+          opacity: 0, // Completely invisible - no ghosting effect
           zIndex: 2, // Higher z-index to capture mouse events
           background: 'transparent',
           border: 'none',
           outline: 'none',
           resize: 'none',
-          color: 'rgba(59, 130, 246, 0.2)', // Slightly more visible blue text
+          color: 'transparent', // Completely transparent text
           caretColor: 'transparent', // Hide caret (we show our own)
           pointerEvents: 'auto', // Ensure it can receive mouse events
           fontFamily: 'Cash Sans, sans-serif', // Match exact font
