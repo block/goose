@@ -384,7 +384,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           <span 
             key={`misspelled-${keyCounter++}`} 
             data-misspelled="true"
-            className="inline whitespace-pre-wrap cursor-pointer bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium px-1 py-0.5 rounded-sm border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 hover:scale-105 transition-all duration-150 relative z-10"
+            className="inline whitespace-pre-wrap cursor-pointer bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium px-1 py-0.5 rounded-sm border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 hover:scale-105 transition-all duration-150 relative z-50"
             style={{
               pointerEvents: 'auto', // Override parent's pointer-events: none
               userSelect: 'text', // Allow text selection for normal text editing
@@ -848,8 +848,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
-          zIndex: 1, // Lower z-index, behind textarea
-          pointerEvents: 'none', // Don't interfere with text selection
+          zIndex: 3, // Higher z-index, above textarea for misspelled word interactions
+          pointerEvents: 'none', // Don't interfere with text selection by default
           userSelect: 'none', // Prevent selection on visual layer
           WebkitUserSelect: 'none',
           fontFamily: 'Cash Sans, sans-serif', // Match textarea font
