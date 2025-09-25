@@ -235,6 +235,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_agent_with_anthropic() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Anthropic,
+            model: "claude-sonnet-4",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_agent_with_azure() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Azure,
@@ -540,9 +550,7 @@ mod schedule_tool_tests {
 mod final_output_tool_tests {
     use super::*;
     use futures::stream;
-    use goose::agents::final_output_tool::{
-        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    };
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
