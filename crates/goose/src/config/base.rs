@@ -116,14 +116,18 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
+pub fn get_config_dir() -> PathBuf {
+    choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir()
+}
+
 impl Default for Config {
     fn default() -> Self {
         // choose_app_strategy().config_dir()
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
+        let config_dir = get_config_dir();
 
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
@@ -1020,7 +1024,7 @@ mod tests {
             let key = format!("key{}", i);
             let value = format!("value{}", i);
             assert!(
-                final_values.get(&key).is_some(),
+                final_values.contains_key(&key),
                 "Missing key {} in final values",
                 key
             );
@@ -1071,7 +1075,7 @@ mod tests {
 
         // Should have recovered the data
         assert!(
-            recovered_values.len() >= 1,
+            !recovered_values.is_empty(),
             "Should have recovered at least one key"
         );
 
@@ -1165,7 +1169,7 @@ mod tests {
 
         // Should have recovered the data from backup
         assert!(
-            recovered_values.len() >= 1,
+            !recovered_values.is_empty(),
             "Should have recovered data from backup"
         );
 
@@ -1256,10 +1260,10 @@ mod tests {
         assert_eq!(value, Value::Number((-123).into()));
 
         // Test floats
-        let value = Config::parse_env_value("3.14")?;
+        let value = Config::parse_env_value("3.41")?;
         assert!(matches!(value, Value::Number(_)));
         if let Value::Number(n) = value {
-            assert_eq!(n.as_f64().unwrap(), 3.14);
+            assert_eq!(n.as_f64().unwrap(), 3.41);
         }
 
         let value = Config::parse_env_value("0.01")?;
@@ -1417,7 +1421,7 @@ mod tests {
         // Test boolean environment variable
         std::env::set_var("ENABLED", "true");
         let value: bool = config.get_param("enabled")?;
-        assert_eq!(value, true);
+        assert!(value);
 
         // Test JSON object environment variable
         std::env::set_var("CONFIG", "{\"debug\": true, \"level\": 5}");
@@ -1427,7 +1431,7 @@ mod tests {
             level: i32,
         }
         let value: TestConfig = config.get_param("config")?;
-        assert_eq!(value.debug, true);
+        assert!(value.debug);
         assert_eq!(value.level, 5);
 
         // Clean up

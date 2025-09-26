@@ -3,37 +3,32 @@ import { useConfig } from '../../ConfigContext';
 import { getApiUrl } from '../../../config';
 
 interface ToolSelectionStrategy {
-  key: string;
+  key: boolean;
   label: string;
   description: string;
 }
 
 export const all_tool_selection_strategies: ToolSelectionStrategy[] = [
   {
-    key: 'default',
-    label: 'Default',
-    description: 'Loads all tools from enabled extensions',
+    key: false,
+    label: 'Disabled',
+    description: 'Use the default tool selection strategy',
   },
   {
-    key: 'vector',
-    label: 'Vector',
-    description: 'Filter tools based on vector similarity.',
-  },
-  {
-    key: 'llm',
-    label: 'LLM-based',
+    key: true,
+    label: 'Enabled',
     description:
-      'Uses LLM to intelligently select the most relevant tools based on the user query context.',
+      'Use LLM-based intelligence to select the most relevant tools based on the user query context.',
   },
 ];
 
 export const ToolSelectionStrategySection = () => {
-  const [currentStrategy, setCurrentStrategy] = useState('default');
+  const [routerEnabled, setRouterEnabled] = useState(false);
   const [_error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { read, upsert } = useConfig();
 
-  const handleStrategyChange = async (newStrategy: string) => {
+  const handleStrategyChange = async (enableRouter: boolean) => {
     if (isLoading) return; // Prevent multiple simultaneous requests
 
     setError(null); // Clear any previous errors
@@ -42,7 +37,7 @@ export const ToolSelectionStrategySection = () => {
     try {
       // First update the configuration
       try {
-        await upsert('GOOSE_ROUTER_TOOL_SELECTION_STRATEGY', newStrategy, false);
+        await upsert('GOOSE_ENABLE_ROUTER', enableRouter.toString(), false);
       } catch (error) {
         console.error('Error updating configuration:', error);
         setError(`Failed to update configuration: ${error}`);
@@ -58,6 +53,9 @@ export const ToolSelectionStrategySection = () => {
             'Content-Type': 'application/json',
             'X-Secret-Key': await window.electron.getSecretKey(),
           },
+          body: JSON.stringify({
+            session_id: '', // TODO(jack) add the session id, or remove from this request payload
+          }),
         });
 
         if (!response.ok) {
@@ -82,7 +80,7 @@ export const ToolSelectionStrategySection = () => {
       }
 
       // If both succeeded, update the UI
-      setCurrentStrategy(newStrategy);
+      setRouterEnabled(enableRouter);
     } catch (error) {
       console.error('Error updating tool selection strategy:', error);
       setError(`Failed to update tool selection strategy: ${error}`);
@@ -93,13 +91,13 @@ export const ToolSelectionStrategySection = () => {
 
   const fetchCurrentStrategy = useCallback(async () => {
     try {
-      const strategy = (await read('GOOSE_ROUTER_TOOL_SELECTION_STRATEGY', false)) as string;
+      const strategy = (await read('GOOSE_ENABLE_ROUTER', false)) as string;
       if (strategy) {
-        setCurrentStrategy(strategy);
+        setRouterEnabled(strategy === 'true');
       }
     } catch (error) {
-      console.error('Error fetching current tool selection strategy:', error);
-      setError(`Failed to fetch current strategy: ${error}`);
+      console.error('Error fetching current router setting:', error);
+      setError(`Failed to fetch current router setting: ${error}`);
     }
   }, [read]);
 
@@ -110,14 +108,14 @@ export const ToolSelectionStrategySection = () => {
   return (
     <div className="space-y-1">
       {all_tool_selection_strategies.map((strategy) => (
-        <div className="group hover:cursor-pointer" key={strategy.key}>
+        <div className="group hover:cursor-pointer text-sm" key={strategy.key.toString()}>
           <div
-            className={`flex items-center justify-between text-text-default py-2 px-2 ${currentStrategy === strategy.key ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
+            className={`flex items-center justify-between text-text-default py-2 px-2 ${routerEnabled === strategy.key ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
             onClick={() => handleStrategyChange(strategy.key)}
           >
             <div className="flex">
               <div>
-                <h3 className="text-text-default text-xs">{strategy.label}</h3>
+                <h3 className="text-text-default">{strategy.label}</h3>
                 <p className="text-xs text-text-muted mt-[2px]">{strategy.description}</p>
               </div>
             </div>
@@ -126,8 +124,8 @@ export const ToolSelectionStrategySection = () => {
               <input
                 type="radio"
                 name="tool-selection-strategy"
-                value={strategy.key}
-                checked={currentStrategy === strategy.key}
+                value={strategy.key.toString()}
+                checked={routerEnabled === strategy.key}
                 onChange={() => handleStrategyChange(strategy.key)}
                 disabled={isLoading}
                 className="peer sr-only"

@@ -1,4 +1,3 @@
-// Export route modules
 pub mod agent;
 pub mod audio;
 pub mod config_management;
@@ -7,6 +6,7 @@ pub mod extension;
 pub mod goose_apps;
 pub mod health;
 pub mod recipe;
+pub mod recipe_utils;
 pub mod reply;
 pub mod schedule;
 pub mod session;

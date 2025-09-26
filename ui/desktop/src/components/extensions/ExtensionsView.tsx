@@ -1,4 +1,5 @@
-import { View, ViewOptions } from '../../App';
+import { View, ViewOptions } from '../../utils/navigationUtils';
+import { useChatContext } from '../../contexts/ChatContext';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -30,6 +31,12 @@ export default function ExtensionsView({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
+  const chatContext = useChatContext();
+  const sessionId = chatContext?.chat.sessionId || '';
+
+  if (!sessionId) {
+    console.error('ExtensionsView: No session ID available');
+  }
 
   // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
   useEffect(() => {
@@ -46,9 +53,20 @@ export default function ExtensionsView({
     // Close the modal immediately
     handleModalClose();
 
+    if (!sessionId) {
+      console.warn('Cannot activate extension without session');
+      setRefreshKey((prevKey) => prevKey + 1);
+      return;
+    }
+
     const extensionConfig = createExtensionConfig(formData);
+
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+      await activateExtension({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
+        sessionId: sessionId,
+      });
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
@@ -97,6 +115,7 @@ export default function ExtensionsView({
         <div className="px-8 pb-16">
           <ExtensionsSection
             key={refreshKey}
+            sessionId={sessionId}
             deepLinkConfig={viewOptions.deepLinkConfig}
             showEnvVars={viewOptions.showEnvVars}
             hideButtons={true}

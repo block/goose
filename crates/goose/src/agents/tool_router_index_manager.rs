@@ -4,13 +4,13 @@ use tracing;
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_tools;
-use crate::agents::router_tool_selector::{RouterToolSelectionStrategy, RouterToolSelector};
+use crate::agents::router_tool_selector::RouterToolSelector;
 
-/// Manages tool indexing operations for the router when vector routing is enabled
+/// Manages tool indexing operations for the router when LLM routing is enabled
 pub struct ToolRouterIndexManager;
 
 impl ToolRouterIndexManager {
-    /// Updates the vector index for tools when extensions are added or removed
+    /// Updates the LLM index for tools when extensions are added or removed
     pub async fn update_extension_tools(
         selector: &Arc<Box<dyn RouterToolSelector>>,
         extension_manager: &ExtensionManager,
@@ -87,7 +87,7 @@ impl ToolRouterIndexManager {
         tools.push(platform_tools::manage_extensions_tool());
 
         // Add resource tools if supported
-        if extension_manager.supports_resources() {
+        if extension_manager.supports_resources().await {
             tools.push(platform_tools::read_resource_tool());
             tools.push(platform_tools::list_resources_tool());
         }
@@ -98,14 +98,7 @@ impl ToolRouterIndexManager {
             .await
             .map_err(|e| anyhow!("Failed to index platform tools: {}", e))?;
 
-        tracing::info!("Indexed platform tools for vector search");
+        tracing::info!("Indexed platform tools for LLM search");
         Ok(())
-    }
-
-    /// Helper to check if vector or llm tool router is enabled
-    pub fn is_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
-        selector.is_some()
-            && (selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Vector
-                || selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Llm)
     }
 }

@@ -1,9 +1,9 @@
 import { Sliders, ChefHat, Bot, Eye, Save } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import { AddModelModal } from '../subcomponents/AddModelModal';
+import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
-import { View } from '../../../../App';
+import { View } from '../../../../utils/navigationUtils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,16 +19,19 @@ import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover'
 import { Recipe } from '../../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../../toasts';
-import ViewRecipeModal from '../../../ViewRecipeModal';
+import ViewRecipeModal from '../../../recipes/ViewRecipeModal';
 
 interface ModelsBottomBarProps {
+  sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
 }
+
 export default function ModelsBottomBar({
+  sessionId,
   dropdownRef,
   setView,
   alerts,
@@ -283,7 +286,11 @@ export default function ModelsBottomBar({
       </DropdownMenu>
 
       {isAddModelModalOpen ? (
-        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+        <SwitchModelModal
+          sessionId={sessionId}
+          setView={setView}
+          onClose={() => setIsAddModelModalOpen(false)}
+        />
       ) : null}
 
       {isLeadWorkerModalOpen ? (

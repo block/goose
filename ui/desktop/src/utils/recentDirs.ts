@@ -30,7 +30,7 @@ export function loadRecentDirs(): string[] {
           }
 
           return stats.isDirectory();
-        } catch (error) {
+        } catch {
           // Directory doesn't exist or can't be accessed - don't log full path for security
           console.warn(`Removing inaccessible recent directory`);
           return false;
@@ -66,7 +66,7 @@ export function addRecentDir(dir: string): void {
         console.warn(`Cannot add recent directory: not a directory`);
         return;
       }
-    } catch (error) {
+    } catch {
       console.warn(`Cannot add recent directory: path does not exist or cannot be accessed`);
       return;
     }

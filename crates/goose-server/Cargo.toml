@@ -14,7 +14,6 @@ workspace = true
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
-mcp-server = { path = "../mcp-server" }
 rmcp = { workspace = true }
 schemars = "1.0"
 axum = { version = "0.8.1", features = ["ws", "macros"] }
@@ -40,6 +39,7 @@ serde_yaml = "0.9.34"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 tokio-util = "0.7.15"
+uuid = { version = "1.11", features = ["v4"] }
 
 [[bin]]
 name = "goosed"
@@ -52,3 +52,4 @@ path = "src/bin/generate_schema.rs"
 [dev-dependencies]
 tower = "0.5"
 async-trait = "0.1"
+tempfile = "3.15.0"

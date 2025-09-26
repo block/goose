@@ -64,6 +64,7 @@ module.exports = [
         setTimeout: 'readonly',
         clearInterval: 'readonly',
         setInterval: 'readonly',
+        clearTimeout: 'readonly',
         CustomEvent: 'readonly',
         HTMLElement: 'readonly',
         HTMLInputElement: 'readonly',
@@ -130,14 +131,6 @@ module.exports = [
       }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      '@typescript-eslint/ban-types': ['error', {
-        types: {
-          Object: {
-            message: 'Use object instead',
-            fixWith: 'object',
-          },
-        },
-      }],
       '@typescript-eslint/no-var-requires': 'warn', // Downgrade to warning for Electron main process
       'no-undef': 'error',
       'no-useless-catch': 'warn',

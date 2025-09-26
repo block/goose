@@ -1,7 +1,7 @@
 import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } from 'react';
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import '../../styles/search.css';
 
 /**
@@ -44,7 +44,9 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     count: number;
   } | null>(null);
 
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const searchInputRef: React.RefObject<HTMLInputElement> = React.useRef<HTMLInputElement>(
+    null
+  ) as React.RefObject<HTMLInputElement>;
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
   const containerRef = React.useRef<SearchContainerElement | null>(null);
   const lastSearchRef = React.useRef<{ term: string; caseSensitive: boolean }>({

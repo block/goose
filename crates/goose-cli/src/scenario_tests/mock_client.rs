@@ -14,9 +14,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio_util::sync::CancellationToken;
 
+type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
+
 pub struct MockClient {
     tools: HashMap<String, Tool>,
-    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>>,
+    handlers: HashMap<String, Handler>,
 }
 
 impl MockClient {
@@ -95,9 +97,10 @@ impl McpClientTrait for MockClient {
         if let Some(handler) = self.handlers.get(name) {
             match handler(&arguments) {
                 Ok(content) => Ok(CallToolResult {
-                    content: Some(content),
+                    content,
                     is_error: None,
                     structured_content: None,
+                    meta: None,
                 }),
                 Err(_e) => Err(Error::UnexpectedResponse),
             }

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 title: Managing Projects
 sidebar_label: Managing Projects
 ---

@@ -27,17 +27,17 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   :::tip TLDR
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-    Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
+    [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.neon.tech%2Fmcp&id=neon&name=Neon&description=Manage%20Neon%20Postgres%20databases%2C%20projects%2C%20and%20branches)
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
     Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
+
+    **Endpoint URL**
+    ```
+    https://mcp.neon.tech/mcp
+    ```
     </TabItem>
   </Tabs>
-
-  **Endpoint URL**
-  ```
-  https://mcp.neon.tech/mcp
-  ```
   :::
 
   :::info OAUTH FLOW
@@ -46,15 +46,13 @@ The Neon MCP Server grants powerful database management capabilities and is inte
 
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Extensions`
-    3. Click `Add custom extension`
-    4. On the `Add custom extension` modal, enter the following:
-       - **Extension Name**: Neon
-       - **Type**: Streamable HTTP
-       - **Endpoint**: `https://mcp.neon.tech/mcp`
-    5. Click `Add Extension` to save the extension
-    6. Navigate to the chat
+      <GooseDesktopInstaller
+        extensionId="neon"
+        extensionName="Neon"
+        description="Manage Neon Postgres databases, projects, and branches"
+        type="http"
+        url="https://mcp.neon.tech/mcp"
+      />
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
       <CLIExtensionInstructions

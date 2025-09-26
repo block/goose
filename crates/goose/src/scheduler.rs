@@ -21,8 +21,7 @@ use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflic
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session;
-use crate::session::storage::SessionMetadata;
+use crate::session::{Session, SessionManager};
 
 // Track running tasks with their abort handles
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
@@ -649,38 +648,24 @@ impl Scheduler {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
-        // Changed return type
-        let all_session_files = session::storage::list_sessions()
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
+        let all_sessions = SessionManager::list_sessions()
+            .await
             .map_err(|e| SchedulerError::StorageError(io::Error::other(e)))?;
 
-        let mut schedule_sessions: Vec<(String, SessionMetadata)> = Vec::new();
+        let mut schedule_sessions: Vec<(String, Session)> = Vec::new();
 
-        for (session_name, session_path) in all_session_files {
-            match session::storage::read_metadata(&session_path) {
-                Ok(metadata) => {
-                    // metadata is not mutable here, and SessionMetadata is original
-                    if metadata.schedule_id.as_deref() == Some(sched_id) {
-                        schedule_sessions.push((session_name, metadata)); // Keep the tuple
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to read metadata for session file {}: {}. Skipping.",
-                        session_path.display(),
-                        e
-                    );
-                }
+        for session in all_sessions {
+            if session.schedule_id.as_deref() == Some(sched_id) {
+                schedule_sessions.push((session.id.clone(), session));
             }
         }
+        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
 
-        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0)); // Sort by session_name (timestamp string)
-
-        // Keep the tuple, just take the limit
-        let result_sessions: Vec<(String, SessionMetadata)> =
+        let result_sessions: Vec<(String, Session)> =
             schedule_sessions.into_iter().take(limit).collect();
 
-        Ok(result_sessions) // Return the Vec of tuples
+        Ok(result_sessions)
     }
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
@@ -1066,7 +1051,7 @@ struct JobExecutionError {
 
 async fn run_scheduled_job_internal(
     job: ScheduledJob,
-    provider_override: Option<Arc<dyn GooseProvider>>, // New optional parameter
+    provider_override: Option<Arc<dyn GooseProvider>>,
     jobs_arc: Option<Arc<Mutex<JobsMap>>>,
     job_id: Option<String>,
 ) -> std::result::Result<String, JobExecutionError> {
@@ -1116,7 +1101,7 @@ async fn run_scheduled_job_internal(
 
     let agent: Agent = Agent::new();
 
-    let agent_provider: Arc<dyn GooseProvider>; // Use the aliased GooseProvider
+    let agent_provider: Arc<dyn GooseProvider>;
 
     if let Some(provider) = provider_override {
         agent_provider = provider;
@@ -1155,7 +1140,8 @@ async fn run_scheduled_job_internal(
             ),
         })?;
     }
-    if let Some(recipe_extensions) = recipe.extensions {
+
+    if let Some(ref recipe_extensions) = recipe.extensions {
         for extension in recipe_extensions {
             agent
                 .add_extension(extension.clone())
@@ -1174,49 +1160,53 @@ async fn run_scheduled_job_internal(
         });
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
-
-    // Log the execution mode
     let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
     tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
 
-    let session_id_for_return = session::generate_session_id();
+    let current_dir = match std::env::current_dir() {
+        Ok(cd) => cd,
+        Err(e) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Failed to get current directory for job execution: {}", e),
+            });
+        }
+    };
+
+    // Create session upfront for both cases
+    let session = match SessionManager::create_session(
+        current_dir.clone(),
+        if recipe.prompt.is_some() {
+            format!("Scheduled job: {}", job.id)
+        } else {
+            "Empty job - no prompt".to_string()
+        },
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Failed to create session: {}", e),
+            });
+        }
+    };
 
     // Update the job with the session ID if we have access to the jobs arc
     if let (Some(jobs_arc), Some(job_id_str)) = (jobs_arc.as_ref(), job_id.as_ref()) {
         let mut jobs_guard = jobs_arc.lock().await;
         if let Some((_, job_def)) = jobs_guard.get_mut(job_id_str) {
-            job_def.current_session_id = Some(session_id_for_return.clone());
+            job_def.current_session_id = Some(session.id.clone());
         }
     }
 
-    let session_file_path = match crate::session::storage::get_path(
-        crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-    ) {
-        Ok(path) => path,
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to get session file path: {}", e),
-            });
-        }
-    };
-
-    if let Some(prompt_text) = recipe.prompt {
+    if let Some(ref prompt_text) = recipe.prompt {
         let mut all_session_messages =
             Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
-        let current_dir = match std::env::current_dir() {
-            Ok(cd) => cd,
-            Err(e) => {
-                return Err(JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to get current directory for job execution: {}", e),
-                });
-            }
-        };
-
         let session_config = SessionConfig {
-            id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
+            id: session.id.clone(),
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
@@ -1236,7 +1226,6 @@ async fn run_scheduled_job_internal(
                 use futures::StreamExt;
 
                 while let Some(message_result) = stream.next().await {
-                    // Check if the task has been cancelled
                     tokio::task::yield_now().await;
 
                     match message_result {
@@ -1246,15 +1235,9 @@ async fn run_scheduled_job_internal(
                             }
                             all_session_messages.push(msg);
                         }
-                        Ok(AgentEvent::McpNotification(_)) => {
-                            // Handle notifications if needed
-                        }
-                        Ok(AgentEvent::ModelChange { .. }) => {
-                            // Model change events are informational, just continue
-                        }
-                        Ok(AgentEvent::HistoryReplaced(_)) => {
-                            // Handle history replacement events if needed
-                        }
+                        Ok(AgentEvent::McpNotification(_)) => {}
+                        Ok(AgentEvent::ModelChange { .. }) => {}
+                        Ok(AgentEvent::HistoryReplaced(_)) => {}
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
@@ -1262,49 +1245,6 @@ async fn run_scheduled_job_internal(
                                 e
                             );
                             break;
-                        }
-                    }
-                }
-
-                match crate::session::storage::read_metadata(&session_file_path) {
-                    Ok(mut updated_metadata) => {
-                        updated_metadata.message_count = all_session_messages.len();
-                        if let Err(e) = crate::session::storage::save_messages_with_metadata(
-                            &session_file_path,
-                            &updated_metadata,
-                            &all_session_messages,
-                        ) {
-                            tracing::error!(
-                                "[Job {}] Failed to persist final messages: {}",
-                                job.id,
-                                e
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "[Job {}] Failed to read updated metadata before final save: {}",
-                            job.id,
-                            e
-                        );
-                        let fallback_metadata = crate::session::storage::SessionMetadata {
-                            working_dir: current_dir.clone(),
-                            description: String::new(),
-                            schedule_id: Some(job.id.clone()),
-                            message_count: all_session_messages.len(),
-                            total_tokens: None,
-                            input_tokens: None,
-                            output_tokens: None,
-                            accumulated_total_tokens: None,
-                            accumulated_input_tokens: None,
-                            accumulated_output_tokens: None,
-                        };
-                        if let Err(e_fb) = crate::session::storage::save_messages_with_metadata(
-                            &session_file_path,
-                            &fallback_metadata,
-                            &all_session_messages,
-                        ) {
-                            tracing::error!("[Job {}] Failed to persist final messages with fallback metadata: {}", job.id, e_fb);
                         }
                     }
                 }
@@ -1322,28 +1262,73 @@ async fn run_scheduled_job_internal(
             job.id,
             job.source
         );
-        let metadata = crate::session::storage::SessionMetadata {
-            working_dir: std::env::current_dir().unwrap_or_default(),
-            description: "Empty job - no prompt".to_string(),
-            schedule_id: Some(job.id.clone()),
-            message_count: 0,
-            ..Default::default()
-        };
-        if let Err(e) = crate::session::storage::save_messages_with_metadata(
-            &session_file_path,
-            &metadata,
-            &Conversation::new_unvalidated(vec![]),
-        ) {
-            tracing::error!(
-                "[Job {}] Failed to persist metadata for empty job: {}",
-                job.id,
-                e
-            );
-        }
+    }
+
+    if let Err(e) = SessionManager::update_session(&session.id)
+        .schedule_id(Some(job.id.clone()))
+        .recipe(Some(recipe))
+        .apply()
+        .await
+    {
+        tracing::error!("[Job {}] Failed to update session metadata: {}", job.id, e);
     }
 
     tracing::info!("Finished job: {}", job.id);
-    Ok(session_id_for_return)
+    Ok(session.id)
+}
+
+#[async_trait]
+impl SchedulerTrait for Scheduler {
+    async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
+        self.add_scheduled_job(job).await
+    }
+
+    async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
+        Ok(self.list_scheduled_jobs().await)
+    }
+
+    async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+        self.remove_scheduled_job(id).await
+    }
+
+    async fn pause_schedule(&self, id: &str) -> Result<(), SchedulerError> {
+        self.pause_schedule(id).await
+    }
+
+    async fn unpause_schedule(&self, id: &str) -> Result<(), SchedulerError> {
+        self.unpause_schedule(id).await
+    }
+
+    async fn run_now(&self, id: &str) -> Result<String, SchedulerError> {
+        self.run_now(id).await
+    }
+
+    async fn sessions(
+        &self,
+        sched_id: &str,
+        limit: usize,
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
+        self.sessions(sched_id, limit).await
+    }
+
+    async fn update_schedule(
+        &self,
+        sched_id: &str,
+        new_cron: String,
+    ) -> Result<(), SchedulerError> {
+        self.update_schedule(sched_id, new_cron).await
+    }
+
+    async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        self.kill_running_job(sched_id).await
+    }
+
+    async fn get_running_job_info(
+        &self,
+        sched_id: &str,
+    ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+        self.get_running_job_info(sched_id).await
+    }
 }
 
 #[cfg(test)]
@@ -1351,15 +1336,12 @@ mod tests {
     use super::*;
     use crate::recipe::Recipe;
     use crate::{
-        model::ModelConfig, // Use the actual ModelConfig for the mock's field
+        model::ModelConfig,
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
     use rmcp::model::Tool;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
-    // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
-    // `read_metadata` is still used by the test itself, so keep it or its module.
-    use crate::session::storage::read_metadata;
 
     use crate::conversation::message::{Message, MessageContent};
     use std::env;
@@ -1390,8 +1372,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -1403,6 +1386,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Mocked scheduled response".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -1430,7 +1414,8 @@ mod tests {
         let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
         fs::create_dir_all(&recipe_dir)?;
 
-        let _ = session::storage::ensure_session_dir().expect("Failed to ensure app session dir");
+        let _ = crate::session::session_manager::ensure_session_dir()
+            .expect("Failed to ensure app session dir");
 
         let schedule_id_str = "test_schedule_001_scheduler_check".to_string();
         let recipe_filename = recipe_dir.join(format!("{}.json", schedule_id_str));
@@ -1481,39 +1466,31 @@ mod tests {
                 .await
                 .expect("run_scheduled_job_internal failed");
 
-        let session_dir = session::storage::ensure_session_dir()?;
-        let expected_session_path = session_dir.join(format!("{}.jsonl", created_session_id));
-
-        assert!(
-            expected_session_path.exists(),
-            "Expected session file {} was not created",
-            expected_session_path.display()
-        );
-
-        let metadata = read_metadata(&expected_session_path)?;
+        let session = SessionManager::get_session(&created_session_id, true).await?;
+        let schedule_id = session.schedule_id.clone();
 
         assert_eq!(
-            metadata.schedule_id,
+            schedule_id,
             Some(schedule_id_str.clone()),
-            "Session metadata schedule_id ({:?}) does not match the job ID ({}). File: {}",
-            metadata.schedule_id,
+            "Session metadata schedule_id ({:?}) does not match the job ID ({}). Session: {}",
+            schedule_id,
             schedule_id_str,
-            expected_session_path.display()
+            created_session_id
         );
 
-        // Check if messages were written
-        let messages_in_file = crate::session::storage::read_messages(&expected_session_path)?;
+        // Check if messages were written using SessionManager
+        let messages_in_session = session.conversation.unwrap_or_default();
         assert!(
-            !messages_in_file.is_empty(),
-            "No messages were written to the session file: {}",
-            expected_session_path.display()
+            !messages_in_session.is_empty(),
+            "No messages were written to the session: {}",
+            created_session_id
         );
         // We expect at least a user prompt and an assistant response
         assert!(
-            messages_in_file.len() >= 2,
-            "Expected at least 2 messages (prompt + response), found {} in file: {}",
-            messages_in_file.len(),
-            expected_session_path.display()
+            messages_in_session.len() >= 2,
+            "Expected at least 2 messages (prompt + response), found {} in session: {}",
+            messages_in_session.len(),
+            created_session_id
         );
 
         // Clean up environment variables
@@ -1521,59 +1498,5 @@ mod tests {
         env::remove_var("GOOSE_MODEL");
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl SchedulerTrait for Scheduler {
-    async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
-        self.add_scheduled_job(job).await
-    }
-
-    async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
-        Ok(self.list_scheduled_jobs().await)
-    }
-
-    async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
-        self.remove_scheduled_job(id).await
-    }
-
-    async fn pause_schedule(&self, id: &str) -> Result<(), SchedulerError> {
-        self.pause_schedule(id).await
-    }
-
-    async fn unpause_schedule(&self, id: &str) -> Result<(), SchedulerError> {
-        self.unpause_schedule(id).await
-    }
-
-    async fn run_now(&self, id: &str) -> Result<String, SchedulerError> {
-        self.run_now(id).await
-    }
-
-    async fn sessions(
-        &self,
-        sched_id: &str,
-        limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
-        self.sessions(sched_id, limit).await
-    }
-
-    async fn update_schedule(
-        &self,
-        sched_id: &str,
-        new_cron: String,
-    ) -> Result<(), SchedulerError> {
-        self.update_schedule(sched_id, new_cron).await
-    }
-
-    async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        self.kill_running_job(sched_id).await
-    }
-
-    async fn get_running_job_info(
-        &self,
-        sched_id: &str,
-    ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
-        self.get_running_job_info(sched_id).await
     }
 }

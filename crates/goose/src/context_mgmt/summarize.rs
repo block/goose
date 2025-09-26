@@ -44,7 +44,7 @@ pub async fn summarize_messages(
 
     // Send the request to the provider and fetch the response
     let (mut response, mut provider_usage) = provider
-        .complete(&system_prompt, &summarization_request, &[])
+        .complete_fast(&system_prompt, &summarization_request, &[])
         .await?;
 
     // Set role to user as it will be used in following conversation as user content
@@ -87,8 +87,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -100,6 +101,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Summarized content".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

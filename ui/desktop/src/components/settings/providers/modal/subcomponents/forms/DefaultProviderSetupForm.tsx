@@ -3,9 +3,7 @@ import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
 
-interface ValidationErrors {
-  [key: string]: string;
-}
+type ValidationErrors = Record<string, string>;
 
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, string>;
@@ -36,33 +34,30 @@ export default function DefaultProviderSetupForm({
 
     // Try to load actual values from config for each parameter that is not secret
     for (const parameter of parameters) {
-      if (parameter.required) {
-        try {
-          // Check if there's a stored value in the config system
-          const configKey = `${parameter.name}`;
-          const configResponse = await read(configKey, parameter.secret || false);
+      try {
+        // Check if there's a stored value in the config system
+        const configKey = `${parameter.name}`;
+        const configResponse = await read(configKey, parameter.secret || false);
 
-          if (configResponse) {
-            // Use the value from the config provider
-            newValues[parameter.name] = String(configResponse);
-          } else if (
-            parameter.default !== undefined &&
-            parameter.default !== null &&
-            !configValues[parameter.name]
-          ) {
-            // Fall back to default value if no config value exists
-            newValues[parameter.name] = String(parameter.default);
-          }
-        } catch (error) {
-          console.error(`Failed to load config for ${parameter.name}:`, error);
-          // Fall back to default if read operation fails
-          if (
-            parameter.default !== undefined &&
-            parameter.default !== null &&
-            !configValues[parameter.name]
-          ) {
-            newValues[parameter.name] = String(parameter.default);
-          }
+        if (configResponse) {
+          newValues[parameter.name] = parameter.secret ? 'true' : String(configResponse);
+        } else if (
+          parameter.default !== undefined &&
+          parameter.default !== null &&
+          !configValues[parameter.name]
+        ) {
+          // Fall back to default value if no config value exists
+          newValues[parameter.name] = String(parameter.default);
+        }
+      } catch (error) {
+        console.error(`Failed to load config for ${parameter.name}:`, error);
+        // Fall back to default if read operation fails
+        if (
+          parameter.default !== undefined &&
+          parameter.default !== null &&
+          !configValues[parameter.name]
+        ) {
+          newValues[parameter.name] = String(parameter.default);
         }
       }
     }
@@ -85,6 +80,11 @@ export default function DefaultProviderSetupForm({
     return parameters.filter((param) => param.required === true);
   }, [parameters]);
 
+  // TODO: show all params, not just required ones
+  // const allParameters = useMemo(() => {
+  //   return parameters;
+  // }, [parameters]);
+
   // Helper function to generate appropriate placeholder text
   const getPlaceholder = (parameter: ConfigKey): string => {
     // If default is defined and not null, show it
@@ -92,8 +92,30 @@ export default function DefaultProviderSetupForm({
       return `Default: ${parameter.default}`;
     }
 
-    // Otherwise, use the parameter name as a hint
-    return parameter.name.toUpperCase();
+    const name = parameter.name.toLowerCase();
+    if (name.includes('api_key')) return 'Your API key';
+    if (name.includes('api_url') || name.includes('host')) return 'https://api.example.com';
+    if (name.includes('models')) return 'model-a, model-b';
+
+    return parameter.name
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
+  };
+
+  // helper for custom labels
+  const getFieldLabel = (parameter: ConfigKey): string => {
+    const name = parameter.name.toLowerCase();
+    if (name.includes('api_key')) return 'API Key';
+    if (name.includes('api_url') || name.includes('host')) return 'API Host';
+    if (name.includes('models')) return 'Models';
+
+    return parameter.name
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
   };
 
   if (isLoading) {
@@ -111,25 +133,30 @@ export default function DefaultProviderSetupForm({
         requiredParameters.map((parameter) => (
           <div key={parameter.name}>
             <label className="block text-sm font-medium text-textStandard mb-1">
-              {parameter.name}
+              {getFieldLabel(parameter)}
+              {parameter.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             <Input
               type={parameter.secret ? 'password' : 'text'}
               value={configValues[parameter.name] || ''}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                console.log(`Setting ${parameter.name} to:`, e.target.value);
                 setConfigValues((prev) => ({
                   ...prev,
                   [parameter.name]: e.target.value,
-                }))
-              }
+                }));
+              }}
               placeholder={getPlaceholder(parameter)}
               className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
                 validationErrors[parameter.name]
                   ? 'border-2 border-red-500'
                   : 'border border-borderSubtle hover:border-borderStandard'
               } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
-              required={true}
+              required={parameter.required}
             />
+            {validationErrors[parameter.name] && (
+              <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
+            )}
           </div>
         ))
       )}

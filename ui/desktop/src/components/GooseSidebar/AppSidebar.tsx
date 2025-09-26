@@ -12,10 +12,10 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
-import { ViewOptions, View } from '../../App';
 import { listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import { ViewOptions, View } from '../../utils/navigationUtils';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -110,6 +110,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const filteredMenuItems = hasApps
     ? menuItems
     : menuItems.filter((item) => !(item.type === 'item' && item.path === '/apps'));
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // setIsVisible(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const currentItem = menuItems.find(

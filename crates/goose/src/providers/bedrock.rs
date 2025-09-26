@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use super::retry::ProviderRetry;
+use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
@@ -23,17 +23,26 @@ use super::formats::bedrock::{
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
-pub const BEDROCK_DEFAULT_MODEL: &str = "anthropic.claude-3-5-sonnet-20240620-v1:0";
+pub const BEDROCK_DEFAULT_MODEL: &str = "anthropic.claude-sonnet-4-20250514-v1:0";
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "anthropic.claude-sonnet-4-20250514-v1:0",
+    "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "anthropic.claude-opus-4-20250514-v1:0",
+    "anthropic.claude-opus-4-1-20250805-v1:0",
 ];
+
+pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
+pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
+pub const BEDROCK_DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
+pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
     #[serde(skip)]
     client: Client,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl BedrockProvider {
@@ -65,7 +74,38 @@ impl BedrockProvider {
         )?;
         let client = Client::new(&sdk_config);
 
-        Ok(Self { client, model })
+        let retry_config = Self::load_retry_config(config);
+
+        Ok(Self {
+            client,
+            model,
+            retry_config,
+        })
+    }
+
+    fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
+        let max_retries = config
+            .get_param::<usize>("BEDROCK_MAX_RETRIES")
+            .unwrap_or(BEDROCK_DEFAULT_MAX_RETRIES);
+
+        let initial_interval_ms = config
+            .get_param::<u64>("BEDROCK_INITIAL_RETRY_INTERVAL_MS")
+            .unwrap_or(BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS);
+
+        let backoff_multiplier = config
+            .get_param::<f64>("BEDROCK_BACKOFF_MULTIPLIER")
+            .unwrap_or(BEDROCK_DEFAULT_BACKOFF_MULTIPLIER);
+
+        let max_interval_ms = config
+            .get_param::<u64>("BEDROCK_MAX_RETRY_INTERVAL_MS")
+            .unwrap_or(BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS);
+
+        RetryConfig {
+            max_retries,
+            initial_interval_ms,
+            backoff_multiplier,
+            max_interval_ms,
+        }
     }
 
     async fn converse(
@@ -97,10 +137,10 @@ impl BedrockProvider {
             .await
             .map_err(|err| match err.into_service_error() {
                 ConverseError::ThrottlingException(throttle_err) => {
-                    ProviderError::RateLimitExceeded(format!(
-                        "Bedrock throttling error: {:?}",
-                        throttle_err
-                    ))
+                    ProviderError::RateLimitExceeded {
+                        details: format!("Bedrock throttling error: {:?}", throttle_err),
+                        retry_delay: None,
+                    }
                 }
                 ConverseError::AccessDeniedException(err) => {
                     ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
@@ -147,21 +187,26 @@ impl Provider for BedrockProvider {
         )
     }
 
+    fn retry_config(&self) -> RetryConfig {
+        self.retry_config.clone()
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_name = &self.model.model_name;
+        let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
             .with_retry(|| self.converse(system, messages, tools))

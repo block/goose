@@ -1,6 +1,6 @@
 <div align="center">
 
-# codename goose
+# goose
 
 _a local, extensible, open source AI agent that automates engineering tasks_
 
@@ -23,6 +23,8 @@ Whether you're prototyping an idea, refining existing code, or managing intricat
 
 Designed for maximum flexibility, goose works with any LLM and supports multi-model configuration to optimize performance and cost, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation.
 
+[![Watch the video](https://github.com/user-attachments/assets/ddc71240-3928-41b5-8210-626dfb28af7a)](https://youtu.be/D-DpDunrbpo)
+
 # Quick Links
 - [Quickstart](https://block.github.io/goose/docs/quickstart)
 - [Installation](https://block.github.io/goose/docs/getting-started/installation)
@@ -30,10 +32,16 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 
 
+# A Little Goose Humor 🦢
+
+> Why did the developer choose goose as their AI agent?
+> 
+> Because it always helps them "migrate" their code to production! 🚀
+
 # Goose Around with Us
 - [Discord](https://discord.gg/block-opensource)
-- [YouTube](https://www.youtube.com/@blockopensource)
-- [LinkedIn](https://www.linkedin.com/company/block-opensource)
-- [Twitter/X](https://x.com/blockopensource)
+- [YouTube](https://www.youtube.com/@goose-oss)
+- [LinkedIn](https://www.linkedin.com/company/goose-oss)
+- [Twitter/X](https://x.com/goose_oss)
 - [Bluesky](https://bsky.app/profile/opensource.block.xyz)
 - [Nostr](https://njump.me/opensource@block.xyz)

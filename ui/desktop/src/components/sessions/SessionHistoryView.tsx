@@ -11,7 +11,7 @@ import {
   LoaderCircle,
   AlertCircle,
 } from 'lucide-react';
-import { type SessionDetails } from '../../sessions';
+import { resumeSession } from '../../sessions';
 import { Button } from '../ui/button';
 import { toast } from 'react-toastify';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -28,28 +28,27 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
+import { ContextManagerProvider } from '../context_management/ContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import { Session } from '../../api';
+import { convertApiMessageToFrontendMessage } from '../context_management';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
   }
-  if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-    return false;
-  }
-  return true;
+  return !message.content.every((c) => c.type === 'toolConfirmationRequest');
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages.filter((message) => message.display ?? true);
+  return messages;
 };
 
 interface SessionHistoryViewProps {
-  session: SessionDetails;
+  session: Session;
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
@@ -76,14 +75,12 @@ const SessionHeader: React.FC<{
   );
 };
 
-// Session messages component that uses the same rendering as BaseChat
 const SessionMessages: React.FC<{
   messages: Message[];
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
 }> = ({ messages, isLoading, error, onRetry }) => {
-  // Filter messages for display (same as BaseChat)
   const filteredMessages = filterMessagesForDisplay(messages);
 
   return (
@@ -106,13 +103,13 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ChatContextManagerProvider>
+            <ContextManagerProvider>
               <div className="max-w-4xl mx-auto w-full">
                 <SearchView>
                   <ProgressiveMessageList
                     messages={filteredMessages}
                     chat={{
-                      id: 'session-preview',
+                      sessionId: 'session-preview',
                       messageHistoryIndex: filteredMessages.length,
                     }}
                     toolCallNotifications={new Map()}
@@ -128,7 +125,7 @@ const SessionMessages: React.FC<{
                   />
                 </SearchView>
               </div>
-            </ChatContextManagerProvider>
+            </ContextManagerProvider>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />
@@ -155,6 +152,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
+
+  const messages = (session.conversation || []).map(convertApiMessageToFrontendMessage);
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -186,10 +185,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
       const shareToken = await createSharedSession(
         config.baseUrl,
-        session.metadata.working_dir,
-        session.messages,
-        session.metadata.description || 'Shared Session',
-        session.metadata.total_tokens
+        session.working_dir,
+        messages,
+        session.description || 'Shared Session',
+        session.total_tokens || 0
       );
 
       const shareableLink = `goose://sessions/${shareToken}`;
@@ -219,31 +218,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   };
 
   const handleLaunchInNewWindow = () => {
-    if (session) {
-      console.log('Launching session in new window:', session.session_id);
-      console.log('Session details:', session);
-
-      // Get the working directory from the session metadata
-      const workingDir = session.metadata?.working_dir;
-
-      if (workingDir) {
-        console.log(
-          `Opening new window with session ID: ${session.session_id}, in working dir: ${workingDir}`
-        );
-
-        // Create a new chat window with the working directory and session ID
-        window.electron.createChatWindow(
-          undefined, // query
-          workingDir, // dir
-          undefined, // version
-          session.session_id // resumeSessionId
-        );
-
-        console.log('createChatWindow called successfully');
-      } else {
-        console.error('No working directory found in session metadata');
-        toast.error('Could not launch session: Missing working directory');
-      }
+    try {
+      resumeSession(session);
+    } catch (error) {
+      toast.error(`Could not launch session: ${error instanceof Error ? error.message : error}`);
     }
   };
 
@@ -251,7 +229,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const actionButtons = showActionButtons ? (
     <>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger asChild>
           <Button
             onClick={handleShare}
             disabled={!canShare || isSharing}
@@ -294,32 +272,32 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="flex-1 flex flex-col min-h-0 px-8">
           <SessionHeader
             onBack={onBack}
-            title={session.metadata.description || 'Session Details'}
+            title={session.description || 'Session Details'}
             actionButtons={!isLoading ? actionButtons : null}
           >
             <div className="flex flex-col">
-              {!isLoading && session.messages.length > 0 ? (
+              {!isLoading ? (
                 <>
                   <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
                     <span className="flex items-center">
                       <Calendar className="w-4 h-4 mr-1" />
-                      {formatMessageTimestamp(session.messages[0]?.created)}
+                      {formatMessageTimestamp(messages[0]?.created)}
                     </span>
                     <span className="flex items-center">
                       <MessageSquareText className="w-4 h-4 mr-1" />
-                      {session.metadata.message_count}
+                      {session.message_count}
                     </span>
-                    {session.metadata.total_tokens !== null && (
+                    {session.total_tokens !== null && (
                       <span className="flex items-center">
                         <Target className="w-4 h-4 mr-1" />
-                        {session.metadata.total_tokens.toLocaleString()}
+                        {(session.total_tokens || 0).toLocaleString()}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center text-text-muted text-sm mt-1 font-mono">
                     <span className="flex items-center">
                       <Folder className="w-4 h-4 mr-1" />
-                      {session.metadata.working_dir}
+                      {session.working_dir}
                     </span>
                   </div>
                 </>
@@ -333,7 +311,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </SessionHeader>
 
           <SessionMessages
-            messages={session.messages}
+            messages={messages}
             isLoading={isLoading}
             error={error}
             onRetry={onRetry}

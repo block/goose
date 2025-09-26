@@ -28,7 +28,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
       if (!needsExpansion) {
         return (
-          <div className="text-xs mb-2">
+          <div className="font-sans text-sm mb-2">
             <div className="flex flex-row">
               <span className="text-textSubtle min-w-[140px]">{key}</span>
               <span className="text-textPlaceholder">{value}</span>
@@ -38,7 +38,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       }
 
       return (
-        <div className="text-sm mb-2">
+        <div className="font-sans text-sm mb-2">
           <div className="flex flex-row items-stretch">
             <button
               onClick={() => toggleKey(key)}
@@ -49,7 +49,10 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
             <div className="w-full flex items-stretch">
               {isExpanded ? (
                 <div>
-                  <MarkdownContent content={value} className="text-sm text-textPlaceholder" />
+                  <MarkdownContent
+                    content={value}
+                    className="font-sans text-sm text-textPlaceholder"
+                  />
                 </div>
               ) : (
                 <button onClick={() => toggleKey(key)} className="text-left text-textPlaceholder">
@@ -78,7 +81,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
     return (
       <div className="mb-2">
-        <div className="flex flex-row text-xs">
+        <div className="flex flex-row font-sans text-sm">
           <span className="text-textSubtle min-w-[140px]">{key}</span>
           <pre className="whitespace-pre-wrap text-textPlaceholder overflow-x-auto max-w-full">
             {content}

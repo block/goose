@@ -41,15 +41,13 @@ For this exercise, we'll add an MCP-UI-enabled extension that connects to [MCP-U
 
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-      1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-      2. Click `Extensions`
-      3. Click `Add custom extension`
-      4. On the `Add custom extension` modal, enter the following:
-         - **Extension Name**: Rich Demo
-         - **Type**: Streamable HTTP
-         - **Endpoint**: `https://mcp-aharvard.netlify.app/mcp`
-      5. Click `Add Extension` to save the extension
-      6. Navigate to the chat
+      <GooseDesktopInstaller
+        extensionId="richdemo"
+        extensionName="Rich Demo"
+        description="Demo MCP-UI-enabled extension"
+        type="http"
+        url="https://mcp-aharvard.netlify.app/mcp"
+      />
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         <CLIExtensionInstructions

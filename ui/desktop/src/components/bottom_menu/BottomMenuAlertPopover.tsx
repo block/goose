@@ -1,10 +1,9 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
+import { isEqual } from 'lodash';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
-
-const { clearTimeout } = window;
 
 interface AlertPopoverProps {
   alerts: Alert[];
@@ -17,7 +16,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const [shouldShowIndicator, setShouldShowIndicator] = useState(false); // Stable indicator state
   const previousAlertsRef = useRef<Alert[]>([]);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +94,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length > 0) {
       setShouldShowIndicator(true);
+    } else {
+      setShouldShowIndicator(false);
     }
   }, [alerts.length]);
 
@@ -104,10 +105,10 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       return;
     }
 
-    // Find new or changed alerts
+    // Find new or changed alerts using deep comparison
     const changedAlerts = alerts.filter((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
-      return !prevAlert || prevAlert.type !== alert.type || prevAlert.message !== alert.message;
+      return !prevAlert || !isEqual(prevAlert, alert);
     });
 
     previousAlertsRef.current = alerts;
@@ -132,21 +133,55 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     }
   }, [isHovered, isOpen, startHideTimer, wasAutoShown]);
 
-  // Handle click outside
+  // Handle click outside - but not when editing threshold
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      // Check if we're clicking on an input or button inside the popover
+      const target = event.target as HTMLElement;
+      const isInteractiveElement =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('button') !== null ||
+        target.closest('input') !== null;
+
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        !isInteractiveElement
+      ) {
         setIsOpen(false);
         setWasAutoShown(false);
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Use mouseup instead of mousedown to allow button clicks to complete
+      document.addEventListener('mouseup', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mouseup', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Listen for custom event to hide the popover
+  useEffect(() => {
+    const handleHidePopover = () => {
+      if (isOpen) {
+        setIsOpen(false);
+        setWasAutoShown(false);
+        setIsHovered(false);
+        // Clear any pending hide timer
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('hide-alert-popover', handleHidePopover);
+    return () => {
+      window.removeEventListener('hide-alert-popover', handleHidePopover);
     };
   }, [isOpen]);
 

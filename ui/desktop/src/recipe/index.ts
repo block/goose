@@ -2,6 +2,7 @@ import {
   createRecipe as apiCreateRecipe,
   encodeRecipe as apiEncodeRecipe,
   decodeRecipe as apiDecodeRecipe,
+  scanRecipe as apiScanRecipe,
 } from '../api';
 import type {
   CreateRecipeRequest as ApiCreateRecipeRequest,
@@ -38,6 +39,7 @@ export interface CreateRecipeRequest {
     contact?: string;
     metadata?: string;
   };
+  session_id: string;
 }
 
 export type CreateRecipeResponse = ApiCreateRecipeResponse;
@@ -68,6 +70,7 @@ export async function createRecipe(request: CreateRecipeRequest): Promise<Create
       messages: request.messages.map(convertFrontendMessageToApiMessage),
       title: request.title,
       description: request.description,
+      session_id: request.session_id,
       activities: request.activities || undefined,
       author: request.author
         ? {
@@ -129,6 +132,23 @@ export async function decodeRecipe(deeplink: string): Promise<Recipe> {
     return response.data.recipe as Recipe;
   } catch (error) {
     console.error('Failed to decode deeplink:', error);
+    throw error;
+  }
+}
+
+export async function scanRecipe(recipe: Recipe): Promise<{ has_security_warnings: boolean }> {
+  try {
+    const response = await apiScanRecipe({
+      body: { recipe },
+    });
+
+    if (!response.data) {
+      throw new Error('No data returned from API');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Failed to scan recipe:', error);
     throw error;
   }
 }

@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 
 /// MorphLLM editor that uses the standard chat completions format
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MorphLLMEditor {
     api_key: String,
     host: String,

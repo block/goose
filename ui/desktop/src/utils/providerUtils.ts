@@ -1,6 +1,3 @@
-import { getApiUrl } from '../config';
-import { FullExtensionConfig } from '../extensions';
-import { initializeAgent } from '../agent';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -8,25 +5,14 @@ import {
 } from '../components/settings/extensions';
 import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
-// TODO: remove when removing migration logic
-import { toastService } from '../toasts';
+import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 import {
-  ExtensionQuery,
+  extendPrompt,
   RecipeParameter,
   SubRecipe,
-  addExtension as apiAddExtension,
+  updateAgentProvider,
   updateSessionConfig,
-  extendPrompt,
 } from '../api';
-import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
-
-export interface Provider {
-  id: string; // Lowercase key (e.g., "openai")
-  name: string; // Provider name (e.g., "OpenAI")
-  description: string; // Description of the provider
-  models: string[]; // List of supported models
-  requiredKeys: string[]; // List of required keys
-}
 
 // Desktop-specific system prompt extension
 const desktopPrompt = `You are being accessed through the Goose Desktop application.
@@ -60,8 +46,85 @@ You can also validate your output after you have generated it to ensure it meets
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
 
+// Helper function to extract template variables from text (matches backend logic)
+export const extractTemplateVariables = (content: string): string[] => {
+  const templateVarRegex = /\{\{(.*?)\}\}/g;
+  const variables: string[] = [];
+  let match;
+
+  while ((match = templateVarRegex.exec(content)) !== null) {
+    const variable = match[1].trim();
+
+    if (variable && !variables.includes(variable)) {
+      // Filter out complex variables that aren't valid parameter names
+      // This matches the backend logic in filter_complex_variables()
+      const isValid = isValidParameterName(variable);
+
+      if (isValid) {
+        variables.push(variable);
+      }
+    }
+  }
+
+  return variables;
+};
+
+// Helper function to check if a variable name is valid for parameters
+// Matches backend regex: r"^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$"
+const isValidParameterName = (variable: string): boolean => {
+  const validVarRegex = /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$/;
+  return validVarRegex.test(variable);
+};
+
+// Helper function to filter recipe parameters to only show valid ones that are actually used
+export const filterValidUsedParameters = (
+  parameters: RecipeParameter[] | undefined,
+  recipeContent: { prompt?: string; instructions?: string }
+): RecipeParameter[] => {
+  if (!parameters || !Array.isArray(parameters)) {
+    return [];
+  }
+
+  // Extract all template variables used in the recipe content
+  const promptVariables = recipeContent.prompt
+    ? extractTemplateVariables(recipeContent.prompt)
+    : [];
+  const instructionVariables = recipeContent.instructions
+    ? extractTemplateVariables(recipeContent.instructions)
+    : [];
+  const allUsedVariables = [...new Set([...promptVariables, ...instructionVariables])];
+
+  // Filter parameters to only include:
+  // 1. Parameters with valid names (no spaces, dots, pipes, etc.)
+  // 2. Parameters that are actually used in the recipe content
+  // 3. Remove duplicates (keep first occurrence)
+  const seenKeys = new Set<string>();
+
+  return parameters.filter((param) => {
+    // Check if parameter key is valid (no spaces, special characters)
+    const isValid = isValidParameterName(param.key);
+    if (!isValid) {
+      return false;
+    }
+
+    // Check if parameter is actually used in the recipe content
+    const isUsed = allUsedVariables.includes(param.key);
+    if (!isUsed) {
+      return false;
+    }
+
+    // Remove duplicates (keep first occurrence)
+    if (seenKeys.has(param.key)) {
+      return false;
+    }
+
+    seenKeys.add(param.key);
+    return true;
+  });
+};
+
 // Helper function to substitute parameters in text
-const substituteParameters = (text: string, params: Record<string, string>): string => {
+export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
 
   for (const key in params) {
@@ -78,6 +141,7 @@ const substituteParameters = (text: string, params: Record<string, string>): str
  * This should be called after recipe parameters are collected
  */
 export const updateSystemPromptWithParameters = async (
+  sessionId: string,
   recipeParameters: Record<string, string>,
   recipeConfig?: {
     instructions?: string | null;
@@ -98,6 +162,7 @@ export const updateSystemPromptWithParameters = async (
     // Update the system prompt with substituted instructions
     const response = await extendPrompt({
       body: {
+        session_id: sessionId,
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
       },
     });
@@ -115,96 +180,41 @@ export const updateSystemPromptWithParameters = async (
         }
       }
     }
-    await addSubRecipesToAgent(subRecipes);
-  }
-};
-
-/**
- * Migrates extensions from localStorage to config.yaml (settings v2)
- * This function handles the migration from settings v1 to v2 by:
- * 1. Reading extensions from localStorage
- * 2. Adding non-builtin extensions to config.yaml
- * 3. Marking the migration as complete
- *
- * NOTE: This logic can be removed eventually when enough versions have passed
- * We leave the existing user settings in localStorage, in case users downgrade
- * or things need to be reverted.
- */
-export const migrateExtensionsToSettingsV3 = async () => {
-  console.log('need to perform extension migration v3');
-
-  const userSettingsStr = localStorage.getItem('user_settings');
-  let localStorageExtensions: FullExtensionConfig[] = [];
-
-  try {
-    if (userSettingsStr) {
-      const userSettings = JSON.parse(userSettingsStr);
-      localStorageExtensions = userSettings.extensions ?? [];
-    }
-  } catch (error) {
-    console.error('Failed to parse user settings:', error);
-  }
-
-  if (localStorageExtensions.length === 0) {
-    localStorage.setItem('configVersion', '3');
-    console.log('No extensions to migrate. Config version set to 3.');
-    return;
-  }
-
-  const migrationErrors: { name: string; error: unknown }[] = [];
-
-  // Process extensions in parallel for better performance
-  const migrationPromises = localStorageExtensions
-    .filter((extension) => extension.type !== 'builtin') // Skip builtins as before
-    .map(async (extension) => {
-      console.log(`Migrating extension ${extension.name} to config.yaml`);
-      try {
-        const query: ExtensionQuery = {
-          name: extension.name,
-          config: extension,
-          enabled: extension.enabled,
-        };
-        await apiAddExtension({
-          body: query,
-          throwOnError: true,
-        });
-      } catch (err) {
-        console.error(`Failed to migrate extension ${extension.name}:`, err);
-        migrationErrors.push({
-          name: extension.name,
-          error: `failed migration with ${JSON.stringify(err)}`,
-        });
-      }
-    });
-
-  await Promise.allSettled(migrationPromises);
-
-  if (migrationErrors.length === 0) {
-    localStorage.setItem('configVersion', '3');
-    console.log('Extension migration complete. Config version set to 3.');
-  } else {
-    const errorSummaryStr = migrationErrors
-      .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
-      .join('\n');
-    toastService.error({
-      title: 'Config Migration Error',
-      msg: 'There was a problem updating your config file',
-      traceback: errorSummaryStr,
-    });
+    await addSubRecipesToAgent(sessionId, subRecipes);
   }
 };
 
 export const initializeSystem = async (
+  sessionId: string,
   provider: string,
   model: string,
   options?: {
     getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
     addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+    setIsExtensionsLoading?: (loading: boolean) => void;
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
-    await initializeAgent({ provider, model });
+    console.log(
+      'initializing agent with provider',
+      provider,
+      'model',
+      model,
+      'sessionId',
+      sessionId
+    );
+    await updateAgentProvider({
+      body: {
+        session_id: sessionId,
+        provider,
+        model,
+      },
+      throwOnError: true,
+    });
+
+    if (!sessionId) {
+      console.log('This will not end well');
+    }
 
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipe');
@@ -219,28 +229,21 @@ export const initializeSystem = async (
       prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
     }
     // Extend the system prompt with desktop-specific information
-    const response = await fetch(getApiUrl('/agent/prompt'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
-      },
-      body: JSON.stringify({
+    await extendPrompt({
+      body: {
+        session_id: sessionId,
         extension: prompt,
-      }),
+      },
     });
-    if (!response.ok) {
-      console.warn(`Failed to extend system prompt: ${response.statusText}`);
-    } else {
-      console.log('Extended system prompt with desktop-specific information');
-    }
+
     if (!hasParameters && hasSubRecipes) {
-      await addSubRecipesToAgent(subRecipes);
+      await addSubRecipesToAgent(sessionId, subRecipes);
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
       const sessionConfigResponse = await updateSessionConfig({
         body: {
+          session_id: sessionId,
           response: responseConfig,
         },
       });
@@ -253,22 +256,6 @@ export const initializeSystem = async (
       console.warn('Extension helpers not provided in alpha mode');
       return;
     }
-
-    // NOTE: remove when we want to stop migration logic
-    // Check if we need to migrate extensions from localStorage to config.yaml
-    const configVersion = localStorage.getItem('configVersion');
-    const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
-
-    if (shouldMigrateExtensions) {
-      await migrateExtensionsToSettingsV3();
-    }
-
-    /* NOTE:
-     * If we've migrated and this is a version update, refreshedExtensions should be > 0
-     *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
-     * Otherwise if the user has never opened goose - refreshedExtensions will be 0
-     *  and we want to fall into the case to initializeBundledExtensions.
-     */
 
     // Initialize or sync built-in extensions into config.yaml
     let refreshedExtensions = await options.getExtensions(false);
@@ -283,20 +270,29 @@ export const initializeSystem = async (
     // Add enabled extensions to agent in parallel
     const enabledExtensions = refreshedExtensions.filter((ext) => ext.enabled);
 
+    options?.setIsExtensionsLoading?.(true);
+
     const extensionLoadingPromises = enabledExtensions.map(async (extensionEntry) => {
       const extensionConfig = extractExtensionConfig(extensionEntry);
       const extensionName = extensionConfig.name;
 
       try {
-        await addToAgentOnStartup({ addToConfig: options.addExtension!, extensionConfig });
+        await addToAgentOnStartup({
+          addToConfig: options.addExtension!,
+          extensionConfig,
+          toastOptions: { silent: false },
+          sessionId,
+        });
       } catch (error) {
         console.error(`Failed to load extension ${extensionName}:`, error);
       }
     });
 
     await Promise.allSettled(extensionLoadingPromises);
+    options?.setIsExtensionsLoading?.(false);
   } catch (error) {
     console.error('Failed to initialize agent:', error);
+    options?.setIsExtensionsLoading?.(false);
     throw error;
   }
 };

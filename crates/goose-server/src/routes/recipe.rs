@@ -1,12 +1,17 @@
+use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::routes::recipe_utils::get_all_recipes_manifests;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -20,6 +25,7 @@ pub struct CreateRecipeRequest {
     activities: Option<Vec<String>>,
     #[serde(default)]
     author: Option<AuthorRequest>,
+    session_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -56,6 +62,37 @@ pub struct DecodeRecipeResponse {
     recipe: Recipe,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ScanRecipeRequest {
+    recipe: Recipe,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ScanRecipeResponse {
+    has_security_warnings: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RecipeManifestResponse {
+    name: String,
+    #[serde(rename = "isGlobal")]
+    is_global: bool,
+    recipe: Recipe,
+    #[serde(rename = "lastModified")]
+    last_modified: String,
+    id: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DeleteRecipeRequest {
+    id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ListRecipeResponse {
+    recipe_manifest_responses: Vec<RecipeManifestResponse>,
+}
+
 #[utoipa::path(
     post,
     path = "/recipes/create",
@@ -72,15 +109,13 @@ pub struct DecodeRecipeResponse {
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
-    let error_response = CreateRecipeResponse {
-        recipe: None,
-        error: Some("Missing agent".to_string()),
-    };
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
+) -> Result<Json<CreateRecipeResponse>, StatusCode> {
+    tracing::info!(
+        "Recipe creation request received with {} messages",
+        request.messages.len()
+    );
+
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent
@@ -89,14 +124,12 @@ async fn create_recipe(
 
     match recipe_result {
         Ok(mut recipe) => {
-            // Update with user-provided metadata
             recipe.title = request.title;
             recipe.description = request.description;
             if request.activities.is_some() {
                 recipe.activities = request.activities
             };
 
-            // Add author if provided
             if let Some(author_req) = request.author {
                 recipe.author = Some(goose::recipe::Author {
                     contact: author_req.contact,
@@ -110,12 +143,8 @@ async fn create_recipe(
             }))
         }
         Err(e) => {
-            // Return 400 Bad Request with error message
-            let error_response = CreateRecipeResponse {
-                recipe: None,
-                error: Some(e.to_string()),
-            };
-            Err((StatusCode::BAD_REQUEST, Json(error_response)))
+            tracing::error!("Error details: {:?}", e);
+            Err(StatusCode::BAD_REQUEST)
         }
     }
 }
@@ -164,11 +193,99 @@ async fn decode_recipe(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/scan",
+    request_body = ScanRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe scanned successfully", body = ScanRecipeResponse),
+    ),
+    tag = "Recipe Management"
+)]
+async fn scan_recipe(
+    Json(request): Json<ScanRecipeRequest>,
+) -> Result<Json<ScanRecipeResponse>, StatusCode> {
+    let has_security_warnings = request.recipe.check_for_security_warnings();
+
+    Ok(Json(ScanRecipeResponse {
+        has_security_warnings,
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/recipes/list",
+    responses(
+        (status = 200, description = "Get recipe list successfully", body = ListRecipeResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn list_recipes(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ListRecipeResponse>, StatusCode> {
+    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap();
+    let mut recipe_file_hash_map = HashMap::new();
+    let recipe_manifest_responses = recipe_manifest_with_paths
+        .iter()
+        .map(|recipe_manifest_with_path| {
+            let id = &recipe_manifest_with_path.id;
+            let file_path = recipe_manifest_with_path.file_path.clone();
+            recipe_file_hash_map.insert(id.clone(), file_path);
+            RecipeManifestResponse {
+                name: recipe_manifest_with_path.name.clone(),
+                is_global: recipe_manifest_with_path.is_global,
+                recipe: recipe_manifest_with_path.recipe.clone(),
+                id: id.clone(),
+                last_modified: recipe_manifest_with_path.last_modified.clone(),
+            }
+        })
+        .collect::<Vec<RecipeManifestResponse>>();
+    state.set_recipe_file_hash_map(recipe_file_hash_map).await;
+
+    Ok(Json(ListRecipeResponse {
+        recipe_manifest_responses,
+    }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/recipes/delete",
+    request_body = DeleteRecipeRequest,
+    responses(
+        (status = 204, description = "Recipe deleted successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Recipe not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn delete_recipe(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<DeleteRecipeRequest>,
+) -> StatusCode {
+    let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
+    let file_path = match recipe_file_hash_map.get(&request.id) {
+        Some(path) => path,
+        None => return StatusCode::NOT_FOUND,
+    };
+
+    if fs::remove_file(file_path).is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
+    StatusCode::NO_CONTENT
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
         .route("/recipes/encode", post(encode_recipe))
         .route("/recipes/decode", post(decode_recipe))
+        .route("/recipes/scan", post(scan_recipe))
+        .route("/recipes/list", get(list_recipes))
+        .route("/recipes/delete", post(delete_recipe))
         .with_state(state)
 }
 

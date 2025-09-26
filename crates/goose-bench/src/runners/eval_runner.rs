@@ -5,6 +5,7 @@ use crate::eval_suites::{EvaluationSuite, ExtensionRequirements};
 use crate::reporting::EvaluationResult;
 use crate::utilities::await_process_exits;
 use anyhow::{bail, Context, Result};
+use goose::session::SessionManager;
 use std::env;
 use std::fs;
 use std::future::Future;
@@ -155,15 +156,14 @@ impl EvalRunner {
                 .canonicalize()
                 .context("Failed to canonicalize current directory path")?;
 
-            BenchmarkWorkDir::deep_copy(
-                agent
-                    .session_file()
-                    .expect("Failed to get session file")
-                    .as_path(),
-                here.as_path(),
-                false,
-            )
-            .context("Failed to copy session file to evaluation directory")?;
+            let session_id = agent.get_session_id()?.to_string();
+            let session = SessionManager::get_session(&session_id, true).await?;
+
+            let session_json = serde_json::to_string_pretty(&session)
+                .context("Failed to serialize session to JSON")?;
+
+            fs::write(here.join("session.json"), session_json)
+                .context("Failed to write session JSON to evaluation directory")?;
 
             tracing::info!("Evaluation completed successfully");
         } else {

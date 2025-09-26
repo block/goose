@@ -1,14 +1,17 @@
+import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
+import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
-import Dot, { LoadingStatus } from './ui/Dot';
+import { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
+import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
+import { isUIResource } from '@mcp-ui/client';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -16,6 +19,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  append?: (value: string) => void; // Function to append messages to the chat
 }
 
 export default function ToolCallWithResponse({
@@ -24,6 +28,7 @@ export default function ToolCallWithResponse({
   toolResponse,
   notifications,
   isStreamingMessage = false,
+  append,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -34,7 +39,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
         )}
       >
         <ToolCallView
@@ -50,13 +55,13 @@ export default function ToolCallWithResponse({
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult?.value &&
         toolResponse.toolResult.value.map((content, index) => {
-          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+          if (isUIResource(content)) {
             return (
               <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} />
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
-                  <div className="text-sm font-medium mono">
+                  <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
                   </div>
                 </div>
@@ -99,7 +104,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-mono">{label}</span>
+        <span className="flex items-center font-sans text-sm">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
@@ -170,16 +175,13 @@ function ToolCallView({
 }: ToolCallViewProps) {
   const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
 
-  // Listen for localStorage changes to update the response style
   useEffect(() => {
     const handleStorageChange = () => {
       setResponseStyle(localStorage.getItem('response_style'));
     };
 
-    // Listen for storage events (changes from other tabs/windows)
     window.addEventListener('storage', handleStorageChange);
 
-    // Listen for custom events (changes from same tab)
     window.addEventListener('responseStyleChanged', handleStorageChange);
 
     return () => {
@@ -280,12 +282,10 @@ function ToolCallView({
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
     const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
 
-    // Helper function to get string value safely
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
     };
 
-    // Helper function to truncate long values
     const truncate = (str: string, maxLength: number = 50): string => {
       return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
     };
@@ -439,34 +439,45 @@ function ToolCallView({
     // Fallback tool name formatting
     return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
   };
+  // Map LoadingStatus to ToolCallStatus
+  const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {
+    switch (loadingStatus) {
+      case 'success':
+        return 'success';
+      case 'error':
+        return 'error';
+      case 'loading':
+        return 'loading';
+      default:
+        return 'pending';
+    }
+  };
+
+  const toolCallStatus = getToolCallStatus(loadingStatus);
 
   const toolLabel = (
-    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
-      {getToolLabelContent()}
+    <span
+      className={cn(
+        'flex items-center gap-2',
+        extensionTooltip && 'cursor-pointer hover:opacity-80'
+      )}
+    >
+      <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
+      <span>{getToolLabelContent()}</span>
     </span>
   );
-
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <div className="w-2 flex items-center justify-center">
-            {loadingStatus === 'loading' ? (
-              <LoaderCircle className="animate-spin text-text-muted" size={3} />
-            ) : (
-              <Dot size={2} loadingStatus={loadingStatus} />
-            )}
-          </div>
-          {extensionTooltip ? (
-            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
-              {toolLabel}
-            </TooltipWrapper>
-          ) : (
-            toolLabel
-          )}
-        </>
+        extensionTooltip ? (
+          <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+            {toolLabel}
+          </TooltipWrapper>
+        ) : (
+          toolLabel
+        )
       }
     >
       {/* Tool Details */}
@@ -523,7 +534,7 @@ interface ToolDetailsViewProps {
 function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-4 font-medium">Tool Details</span>}
+      label={<span className="pl-4 font-sans text-sm">Tool Details</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pr-4 pl-8">
@@ -543,7 +554,7 @@ interface ToolResultViewProps {
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-4 py-1 font-medium">Output</span>}
+      label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
@@ -564,7 +575,9 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
-        {result.type === 'resource' && <pre>{JSON.stringify(result, null, 2)}</pre>}
+        {result.type === 'resource' && (
+          <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
+        )}
       </div>
     </ToolCallExpandable>
   );
@@ -586,12 +599,18 @@ function ToolLogsView({
     if (boxRef.current) {
       boxRef.current.scrollTop = boxRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs.length]);
+  // normally we do not want to put .length on an array in react deps:
+  //
+  // if the objects inside the array change but length doesn't change you want updates
+  //
+  // in this case, this is array of strings which once added do not change so this cuts
+  // down on the possibility of unwanted runs
 
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-4 py-1 font-medium flex items-center">
+        <span className="pl-4 py-1 font-sans text-sm flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -612,7 +631,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-mono text-sm text-textSubtle">
+          <span key={i} className="font-sans text-sm text-textSubtle">
             {log}
           </span>
         ))}
@@ -627,7 +646,7 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

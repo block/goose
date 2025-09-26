@@ -14,6 +14,7 @@ use serde_json::Value;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-flash";
+pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-1.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     // Gemini 2.5 models (latest generation)
     "gemini-2.5-pro",
@@ -55,6 +56,8 @@ impl_provider_default!(GoogleProvider);
 
 impl GoogleProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -72,8 +75,8 @@ impl GoogleProvider {
         Ok(Self { api_client, model })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
-        let path = format!("v1beta/models/{}:generateContent", self.model.model_name);
+    async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
+        let path = format!("v1beta/models/{}:generateContent", model_name);
         let response = self.api_client.response_post(&path, payload).await?;
         handle_response_google_compat(response).await
     }
@@ -101,34 +104,35 @@ impl Provider for GoogleProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        let payload = create_request(model_config, system, messages, tools)?;
 
         // Make request
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(&model_config.model_name, &payload_clone).await
             })
             .await?;
 
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
         let usage = get_usage(&response)?;
-        let model = match response.get("modelVersion") {
+        let response_model = match response.get("modelVersion") {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
-            None => self.model.model_name.clone(),
+            None => model_config.model_name.clone(),
         };
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        let provider_usage = ProviderUsage::new(model, usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }
 

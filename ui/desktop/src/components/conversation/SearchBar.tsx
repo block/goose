@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { Button } from '../ui/button';
 
 /**
@@ -41,7 +41,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || internalInputRef;
-  const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
+  const debouncedSearchRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   // Create debounced search function
   useEffect(() => {

@@ -1,12 +1,11 @@
 use anyhow::Result;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
+use tracing::debug;
 
 use super::super::agents::Agent;
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -16,7 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::session;
+use crate::session::SessionManager;
 use rmcp::model::Tool;
 
 async fn toolshim_postprocess(
@@ -35,24 +34,17 @@ async fn toolshim_postprocess(
 impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get tool selection strategy from config
-        let tool_selection_strategy = self
-            .tool_route_manager
-            .get_router_tool_selection_strategy()
-            .await;
+        // Get router enabled status
+        let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
         // Get tools from extension manager
-        let mut tools = match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
-                    .await
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
-                    .await
-            }
-            _ => self.list_tools(None).await,
-        };
+        let mut tools = self.list_tools_for_router().await;
+
+        // If router is disabled and no tools were returned, fall back to regular tools
+        if !router_enabled && tools.is_empty() {
+            tools = self.list_tools(None).await;
+        }
+
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
         for frontend_tool in frontend_tools.values() {
@@ -60,8 +52,7 @@ impl Agent {
         }
 
         // Prepare system prompt
-        let extension_manager = self.extension_manager.read().await;
-        let extensions_info = extension_manager.get_extensions_info().await;
+        let extensions_info = self.extension_manager.get_extensions_info().await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -72,9 +63,11 @@ impl Agent {
         let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
-            extension_manager.suggest_disable_extensions_prompt().await,
+            self.extension_manager
+                .suggest_disable_extensions_prompt()
+                .await,
             Some(model_name),
-            tool_selection_strategy,
+            router_enabled,
         );
 
         // Handle toolshim if enabled
@@ -89,28 +82,6 @@ impl Agent {
         }
 
         Ok((tools, toolshim_tools, system_prompt))
-    }
-
-    /// Categorize tools based on their annotations
-    /// Returns:
-    /// - read_only_tools: Tools with read-only annotations
-    /// - non_read_tools: Tools without read-only annotations
-    pub(crate) fn categorize_tools_by_annotation(
-        tools: &[Tool],
-    ) -> (HashSet<String>, HashSet<String>) {
-        tools
-            .iter()
-            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
-                match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
-                        acc.0.insert(tool.name.to_string());
-                    }
-                    _ => {
-                        acc.1.insert(tool.name.to_string());
-                    }
-                }
-                acc
-            })
     }
 
     /// Generate a response from the LLM provider
@@ -180,14 +151,18 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            provider
+            debug!("WAITING_LLM_STREAM_START");
+            let msg_stream = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?
+                .await?;
+            debug!("WAITING_LLM_STREAM_END");
+            msg_stream
         } else {
+            debug!("WAITING_LLM_START");
             let (message, mut usage) = provider
                 .complete(
                     system_prompt.as_str(),
@@ -195,6 +170,7 @@ impl Agent {
                     &tools,
                 )
                 .await?;
+            debug!("WAITING_LLM_END");
 
             // Ensure we have token counts for non-streaming case
             usage
@@ -269,12 +245,13 @@ impl Agent {
             }
         }
 
-        let filtered_message = Message {
-            id: response.id.clone(),
-            role: response.role.clone(),
-            created: response.created,
-            content: filtered_content,
-        };
+        let mut filtered_message =
+            Message::new(response.role.clone(), response.created, filtered_content);
+
+        // Preserve the ID if it exists
+        if let Some(id) = response.id.clone() {
+            filtered_message = filtered_message.with_id(id);
+        }
 
         // Categorize tool requests
         let mut frontend_requests = Vec::new();
@@ -299,23 +276,9 @@ impl Agent {
     pub(crate) async fn update_session_metrics(
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
-        messages_length: usize,
     ) -> Result<()> {
-        let session_file_path = match session::storage::get_path(session_config.id.clone()) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get session file path: {}", e));
-            }
-        };
-        let mut metadata = session::storage::read_metadata(&session_file_path)?;
-
-        metadata.schedule_id = session_config.schedule_id.clone();
-
-        metadata.total_tokens = usage.usage.total_tokens;
-        metadata.input_tokens = usage.usage.input_tokens;
-        metadata.output_tokens = usage.usage.output_tokens;
-
-        metadata.message_count = messages_length + 1;
+        let session_id = session_config.id.as_str();
+        let session = SessionManager::get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
@@ -323,16 +286,24 @@ impl Agent {
                 _ => a.or(b),
             }
         };
-        metadata.accumulated_total_tokens =
-            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens =
-            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(
-            metadata.accumulated_output_tokens,
-            usage.usage.output_tokens,
-        );
 
-        session::storage::update_metadata(&session_file_path, &metadata).await?;
+        let accumulated_total =
+            accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
+        let accumulated_input =
+            accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
+        let accumulated_output =
+            accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+
+        SessionManager::update_session(session_id)
+            .schedule_id(session_config.schedule_id.clone())
+            .total_tokens(usage.usage.total_tokens)
+            .input_tokens(usage.usage.input_tokens)
+            .output_tokens(usage.usage.output_tokens)
+            .accumulated_total_tokens(accumulated_total)
+            .accumulated_input_tokens(accumulated_input)
+            .accumulated_output_tokens(accumulated_output)
+            .apply()
+            .await?;
 
         Ok(())
     }

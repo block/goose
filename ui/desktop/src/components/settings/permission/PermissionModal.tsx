@@ -40,12 +40,15 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   useEffect(() => {
     const fetchTools = async () => {
       try {
-        const response = await getTools({ query: { extension_name: extensionName } });
+        const response = await getTools({
+          // TODO(Douwe): pass session ID or maybe? do we configure the tools for the agent or globally?
+          query: { extension_name: extensionName, session_id: '' },
+        });
         if (response.error) {
           console.error('Failed to get tools');
         } else {
           const filteredTools = (response.data || []).filter(
-            (tool) =>
+            (tool: ToolInfo) =>
               tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
           );
           setTools(filteredTools);

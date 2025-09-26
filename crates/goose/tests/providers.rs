@@ -137,8 +137,8 @@ impl ProviderTester {
             .provider
             .complete(
                 "You are a helpful weather assistant.",
-                &[message.clone()],
-                &[weather_tool.clone()],
+                std::slice::from_ref(&message),
+                std::slice::from_ref(&weather_tool),
             )
             .await?;
 
@@ -277,6 +277,7 @@ impl ProviderTester {
         let image_content = RawImageContent {
             data: base64_image,
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 

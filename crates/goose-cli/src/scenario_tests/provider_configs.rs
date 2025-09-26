@@ -44,7 +44,7 @@ impl ProviderConfig {
 static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
     vec![
         ProviderConfig::simple("openai", "gpt-4o"),
-        ProviderConfig::simple("anthropic", "claude-3-5-sonnet-20241022"),
+        ProviderConfig::simple("anthropic", "claude-sonnet-4-20250514"),
         ProviderConfig {
             name: "azure_openai",
             model_name: "gpt-4o",
@@ -58,7 +58,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         },
         ProviderConfig {
             name: "aws_bedrock",
-            model_name: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model_name: "anthropic.claude-sonnet-4-20250514:0",
             required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
             env_modifications: None,
             skip_reason: Some("No valid keys around"),
@@ -67,14 +67,15 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         ProviderConfig::simple("groq", "llama-3.3-70b-versatile"),
         ProviderConfig::simple_skip(
             "openrouter",
-            "anthropic/claude-3.5-sonnet",
+            "anthropic/claude-sonnet-4",
             Some("Key is no longer valid"),
         ),
         ProviderConfig::simple_skip(
             "claude-code",
-            "claude-3-5-sonnet",
+            "claude-sonnet-4-20250514",
             Some("No keys available"),
         ),
+        ProviderConfig::simple_skip("cursor-agent", "gpt-5", Some("No keys available")),
         ProviderConfig::simple_skip(
             "databricks",
             "databricks-dbrx-instruct",

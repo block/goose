@@ -9,8 +9,9 @@ import {
   getPreferredModel,
   type PullProgress,
 } from '../utils/ollamaDetection';
-import { initializeSystem } from '../utils/providerUtils';
+//import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
+import { Ollama } from './icons';
 
 interface OllamaSetupProps {
   onSuccess: () => void;
@@ -18,7 +19,8 @@ interface OllamaSetupProps {
 }
 
 export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
-  const { addExtension, getExtensions, upsert } = useConfig();
+  //const { addExtension, getExtensions, upsert } = useConfig();
+  const { upsert } = useConfig();
   const [isChecking, setIsChecking] = useState(true);
   const [ollamaDetected, setOllamaDetected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -108,12 +110,6 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       await upsert('GOOSE_MODEL', getPreferredModel(), false);
       await upsert('OLLAMA_HOST', 'localhost', false);
 
-      // Initialize the system with Ollama
-      await initializeSystem('ollama', getPreferredModel(), {
-        getExtensions,
-        addExtension,
-      });
-
       toastService.success({
         title: 'Success!',
         msg: `Connected to Ollama with ${getPreferredModel()} model.`,
@@ -144,7 +140,9 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
+      {/* Header with icon above heading - left aligned like onboarding cards */}
+      <div className="text-left">
+        <Ollama className="w-6 h-6 mb-3 text-text-standard" />
         <h3 className="text-lg font-semibold text-text-standard mb-2">Ollama Setup</h3>
         <p className="text-text-muted">
           Ollama lets you run AI models for free, private and locally on your computer.
@@ -153,8 +151,10 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
       {ollamaDetected ? (
         <div className="space-y-4">
-          <div className="bg-background-success/10 border border-border-success rounded-lg p-4">
-            <p className="text-text-success text-center">✓ Ollama is running on your system</p>
+          <div className="flex items-start mb-16">
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+              Ollama is detected and running
+            </span>
           </div>
 
           {modelStatus === 'checking' ? (
@@ -163,11 +163,11 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
             </div>
           ) : modelStatus === 'not-available' ? (
             <div className="space-y-4">
-              <div className="bg-background-warning/10 border border-border-warning rounded-lg p-4">
-                <p className="text-text-warning text-center text-sm">
+              <div className="flex items-start mb-16">
+                <p className="text-text-warning text-sm">
                   The {getPreferredModel()} model is not installed
                 </p>
-                <p className="text-text-muted text-center text-xs mt-1">
+                <p className="text-text-muted text-xs mt-1">
                   This model is recommended for the best experience with Goose
                 </p>
               </div>
@@ -182,14 +182,10 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
           ) : modelStatus === 'downloading' ? (
             <div className="space-y-4">
               <div className="bg-background-info/10 border border-border-info rounded-lg p-4">
-                <p className="text-text-info text-center text-sm">
-                  Downloading {getPreferredModel()}...
-                </p>
+                <p className="text-text-info text-sm">Downloading {getPreferredModel()}...</p>
                 {downloadProgress && (
                   <>
-                    <p className="text-text-muted text-center text-xs mt-2">
-                      {downloadProgress.status}
-                    </p>
+                    <p className="text-text-muted text-xs mt-2">{downloadProgress.status}</p>
                     {downloadProgress.total && downloadProgress.completed && (
                       <div className="mt-3">
                         <div className="bg-background-muted rounded-full h-2 overflow-hidden">
@@ -200,7 +196,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
                             }}
                           />
                         </div>
-                        <p className="text-text-muted text-center text-xs mt-1">
+                        <p className="text-text-muted text-xs mt-1">
                           {Math.round((downloadProgress.completed / downloadProgress.total) * 100)}%
                         </p>
                       </div>
@@ -221,8 +217,10 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="bg-background-warning/10 border border-border-warning rounded-lg p-4">
-            <p className="text-text-warning text-center">Ollama is not detected on your system</p>
+          <div className="flex items-start mb-16">
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">
+              Ollama is not detected on your system
+            </span>
           </div>
 
           {isPolling ? (
@@ -230,8 +228,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               <div className="flex items-center justify-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-textStandard"></div>
               </div>
-              <p className="text-center text-text-muted text-sm">Waiting for Ollama to start...</p>
-              <p className="text-center text-text-muted text-xs">
+              <p className="text-text-muted text-sm">Waiting for Ollama to start...</p>
+              <p className="text-text-muted text-xs">
                 Once Ollama is installed and running, we'll automatically detect it.
               </p>
             </div>
@@ -253,7 +251,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         onClick={onCancel}
         className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors"
       >
-        Use a different provider
+        Cancel
       </button>
     </div>
   );

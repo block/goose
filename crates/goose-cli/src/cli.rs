@@ -3,10 +3,11 @@ use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
 
+use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
-use crate::commands::mcp::run_server;
+use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
@@ -17,8 +18,8 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -48,25 +49,44 @@ struct Identifier {
     name: Option<String>,
 
     #[arg(
+        long = "session-id",
+        value_name = "SESSION_ID",
+        help = "Session ID (e.g., '20250921_143022')",
+        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+    )]
+    session_id: Option<String>,
+
+    #[arg(
         short,
         long,
         value_name = "PATH",
-        help = "Path for the chat session (e.g., './playground.jsonl')",
-        long_help = "Specify a path for your chat session. When used with --resume, will resume this specific session if it exists."
+        help = "Legacy: Path for the chat session",
+        long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
+jsonl' -> '20250325_200615')."
     )]
     path: Option<PathBuf>,
 }
 
-fn extract_identifier(identifier: Identifier) -> session::Identifier {
-    if let Some(name) = identifier.name {
-        session::Identifier::Name(name)
+async fn get_session_id(identifier: Identifier) -> Result<String> {
+    if let Some(session_id) = identifier.session_id {
+        Ok(session_id)
+    } else if let Some(name) = identifier.name {
+        let sessions = SessionManager::list_sessions().await?;
+
+        sessions
+            .into_iter()
+            .find(|s| s.description == name)
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else if let Some(path) = identifier.path {
-        session::Identifier::Path(path)
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
     } else {
         unreachable!()
     }
 }
-
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
@@ -120,6 +140,14 @@ enum SessionCommand {
             long_help = "Path to save the exported Markdown. If not provided, output will be sent to stdout"
         )]
         output: Option<PathBuf>,
+
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (markdown, json, yaml)",
+            default_value = "markdown"
+        )]
+        format: String,
     },
 }
 
@@ -290,6 +318,10 @@ enum Command {
     #[command(about = "Run one of the mcp servers bundled with goose")]
     Mcp { name: String },
 
+    /// Run Goose as an ACP (Agent Client Protocol) agent
+    #[command(about = "Run Goose as an ACP agent server on stdio")]
+    Acp {},
+
     /// Start or resume interactive chat sessions
     #[command(
         about = "Start or resume interactive chat sessions",
@@ -385,6 +417,14 @@ enum Command {
         )]
         builtins: Vec<String>,
     },
+
+    /// Open the last project directory
+    #[command(about = "Open the last project directory", visible_alias = "p")]
+    Project {},
+
+    /// List recent project directories
+    #[command(about = "List recent project directories", visible_alias = "ps")]
+    Projects,
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -596,7 +636,7 @@ enum Command {
         #[arg(
             long = "model",
             value_name = "MODEL",
-            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-3.5-sonnet')",
+            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
             long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
         )]
         model: Option<String>,
@@ -691,11 +731,19 @@ pub struct RecipeInfo {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Track the current directory in projects.json
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        eprintln!("Warning: Failed to update project tracker: {}", e);
+    }
+
     let command_name = match &cli.command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
+        Some(Command::Acp {}) => "acp",
         Some(Command::Session { .. }) => "session",
+        Some(Command::Project {}) => "project",
+        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
@@ -721,7 +769,12 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
-            let _ = run_server(&name).await;
+            crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
+            let _ = goose_mcp::mcp_server_runner::run_mcp_server(&name).await;
+        }
+        Some(Command::Acp {}) => {
+            let _ = run_acp_agent().await;
+            return Ok(());
         }
         Some(Command::Session {
             command,
@@ -742,19 +795,24 @@ pub async fn cli() -> Result<()> {
                     format,
                     ascending,
                 }) => {
-                    handle_session_list(verbose, format, ascending)?;
+                    handle_session_list(verbose, format, ascending).await?;
                     Ok(())
                 }
                 Some(SessionCommand::Remove { id, regex }) => {
-                    handle_session_remove(id, regex)?;
+                    handle_session_remove(id, regex).await?;
                     return Ok(());
                 }
-                Some(SessionCommand::Export { identifier, output }) => {
+                Some(SessionCommand::Export {
+                    identifier,
+                    output,
+                    format,
+                }) => {
                     let session_identifier = if let Some(id) = identifier {
-                        extract_identifier(id)
+                        get_session_id(id).await?
                     } else {
                         // If no identifier is provided, prompt for interactive selection
-                        match crate::commands::session::prompt_interactive_session_selection() {
+                        match crate::commands::session::prompt_interactive_session_selection().await
+                        {
                             Ok(id) => id,
                             Err(e) => {
                                 eprintln!("Error: {}", e);
@@ -763,7 +821,12 @@ pub async fn cli() -> Result<()> {
                         }
                     };
 
-                    crate::commands::session::handle_session_export(session_identifier, output)?;
+                    crate::commands::session::handle_session_export(
+                        session_identifier,
+                        output,
+                        format,
+                    )
+                    .await?;
                     Ok(())
                 }
                 None => {
@@ -777,9 +840,15 @@ pub async fn cli() -> Result<()> {
                         "Session started"
                     );
 
+                    let session_id = if let Some(id) = identifier {
+                        Some(get_session_id(id).await?)
+                    } else {
+                        None
+                    };
+
                     // Run session command by default
-                    let mut session: crate::Session = build_session(SessionBuilderConfig {
-                        identifier: identifier.map(extract_identifier),
+                    let mut session: crate::CliSession = build_session(SessionBuilderConfig {
+                        session_id,
                         resume,
                         no_session: false,
                         extensions,
@@ -815,6 +884,7 @@ pub async fn cli() -> Result<()> {
 
                     let (total_tokens, message_count) = session
                         .get_metadata()
+                        .await
                         .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
 
@@ -845,6 +915,16 @@ pub async fn cli() -> Result<()> {
                     Ok(())
                 }
             };
+        }
+        Some(Command::Project {}) => {
+            // Default behavior: offer to resume the last project
+            handle_project_default()?;
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // Interactive project selection
+            handle_projects_interactive()?;
+            return Ok(());
         }
 
         Some(Command::Run {
@@ -915,10 +995,18 @@ pub async fn cli() -> Result<()> {
                         .and_then(|name| name.to_str())
                         .unwrap_or(&recipe_name);
 
-                    tracing::info!(counter.goose.recipe_runs = 1,
-                        recipe_name = %recipe_display_name,
-                        "Recipe execution started"
-                    );
+                    let recipe_version =
+                        crate::recipes::search_recipe::retrieve_recipe_file(&recipe_name)
+                            .ok()
+                            .and_then(|rf| {
+                                goose::recipe::template_recipe::parse_recipe_content(
+                                    &rf.content,
+                                    rf.parent_dir.to_string_lossy().to_string(),
+                                )
+                                .ok()
+                                .map(|(r, _)| r.version)
+                            })
+                            .unwrap_or_else(|| "unknown".to_string());
 
                     if explain {
                         explain_recipe(&recipe_name, params)?;
@@ -931,6 +1019,16 @@ pub async fn cli() -> Result<()> {
                         }
                         return Ok(());
                     }
+
+                    tracing::info!(
+                        counter.goose.recipe_runs = 1,
+                        recipe_name = %recipe_display_name,
+                        recipe_version = %recipe_version,
+                        session_type = "recipe",
+                        interface = "cli",
+                        "Recipe execution started"
+                    );
+
                     let (input_config, recipe_info) =
                         extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
                     (input_config, Some(recipe_info))
@@ -940,9 +1038,14 @@ pub async fn cli() -> Result<()> {
                     std::process::exit(1);
                 }
             };
+            let session_id = if let Some(id) = identifier {
+                Some(get_session_id(id).await?)
+            } else {
+                None
+            };
 
             let mut session = build_session(SessionBuilderConfig {
-                identifier: identifier.map(extract_identifier),
+                session_id,
                 resume,
                 no_session,
                 extensions,
@@ -994,6 +1097,7 @@ pub async fn cli() -> Result<()> {
 
                 let (total_tokens, message_count) = session
                     .get_metadata()
+                    .await
                     .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));
 
@@ -1118,7 +1222,7 @@ pub async fn cli() -> Result<()> {
             } else {
                 // Run session command by default
                 let mut session = build_session(SessionBuilderConfig {
-                    identifier: None,
+                    session_id: None,
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),
@@ -1134,7 +1238,7 @@ pub async fn cli() -> Result<()> {
                     max_tool_repetitions: None,
                     max_turns: None,
                     scheduled_job_id: None,
-                    interactive: true, // Default case is always interactive
+                    interactive: true,
                     quiet: false,
                     sub_recipes: None,
                     final_output_response: None,

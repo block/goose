@@ -68,7 +68,7 @@ module.exports = {
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
-        mimeType: ['x-scheme-handler/goose'],
+        desktopTemplate: './forge.deb.desktop',
         options: {
           icon: 'src/images/icon.png',
         },
@@ -82,6 +82,7 @@ module.exports = {
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
+        desktopTemplate: './forge.rpm.desktop',
         options: {
           icon: 'src/images/icon.png',
         },

@@ -203,8 +203,20 @@ impl GooseAppsClient {
 
 #[async_trait]
 impl McpClientTrait for GooseAppsClient {
-    fn get_info(&self) -> Option<&InitializeResult> {
-        Some(&self.info)
+    async fn list_resources(
+        &self,
+        _next_cursor: Option<String>,
+        _cancellation_token: CancellationToken,
+    ) -> Result<ListResourcesResult, Error> {
+        Err(Error::TransportClosed)
+    }
+
+    async fn read_resource(
+        &self,
+        _uri: &str,
+        _cancellation_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error> {
+        Err(Error::TransportClosed)
     }
 
     async fn list_tools(
@@ -233,33 +245,12 @@ impl McpClientTrait for GooseAppsClient {
         };
 
         match content {
-            Ok(content) => Ok(CallToolResult {
-                content: Some(content),
-                is_error: None,
-                structured_content: None,
-            }),
-            Err(error) => Ok(CallToolResult {
-                content: Some(vec![Content::text(format!("Error: {}", error))]),
-                is_error: Some(true),
-                structured_content: None,
-            }),
+            Ok(content) => Ok(CallToolResult::success(content)),
+            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: {}",
+                error
+            ))])),
         }
-    }
-
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
     }
 
     async fn list_prompts(
@@ -281,5 +272,9 @@ impl McpClientTrait for GooseAppsClient {
 
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
         mpsc::channel(1).1
+    }
+
+    fn get_info(&self) -> Option<&InitializeResult> {
+        Some(&self.info)
     }
 }

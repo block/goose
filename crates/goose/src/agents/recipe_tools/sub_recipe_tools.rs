@@ -6,7 +6,8 @@ use anyhow::Result;
 use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
-use crate::agents::subagent_execution_tool::lib::{ExecutionMode, Task};
+use crate::agents::subagent_execution_tool::lib::ExecutionMode;
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskType};
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
@@ -67,7 +68,7 @@ fn create_tasks_from_params(
             });
             Task {
                 id: uuid::Uuid::new_v4().to_string(),
-                task_type: "sub_recipe".to_string(),
+                task_type: TaskType::SubRecipe,
                 payload,
             }
         })

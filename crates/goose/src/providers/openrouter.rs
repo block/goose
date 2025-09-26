@@ -16,15 +16,18 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
-pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
+pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
+pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-1.5";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
     "anthropic/claude-sonnet-4",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-opus-4",
+    "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
+    "google/gemini-flash-1.5",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
@@ -42,6 +45,8 @@ impl_provider_default!(OpenRouterProvider);
 
 impl OpenRouterProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config
@@ -100,7 +105,12 @@ impl OpenRouterProvider {
             // Return appropriate error based on the OpenRouter error code
             match error_code {
                 401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
-                429 => return Err(ProviderError::RateLimitExceeded(error_message.to_string())),
+                429 => {
+                    return Err(ProviderError::RateLimitExceeded {
+                        details: error_message.to_string(),
+                        retry_delay: None,
+                    })
+                }
                 500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
                 _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
             }
@@ -238,11 +248,12 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -264,9 +275,9 @@ impl Provider for OpenRouterProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)

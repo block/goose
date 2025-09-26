@@ -317,7 +317,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
             );
           }
-        } catch (error) {
+        } catch {
           setParsedRecipe(null);
           setInternalValidationError(
             'Failed to parse deep link. Please ensure using a goose://bot or goose://recipe link and try again.'
@@ -395,7 +395,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               return `${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
                 dateObj.getMonth() + 1
               } *`;
-            } catch (e) {
+            } catch {
               return "Error parsing date/time for 'once'.";
             }
           }
@@ -450,7 +450,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       } else {
         setReadableCronExpression(cronstrue.toString(cron));
       }
-    } catch (e) {
+    } catch {
       setReadableCronExpression('Could not parse cron string.');
     }
   }, [

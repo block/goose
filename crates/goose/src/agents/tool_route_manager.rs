@@ -1,11 +1,8 @@
 use crate::agents::extension_manager::ExtensionManager;
-use crate::agents::router_tool_selector::{
-    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
-};
+use crate::agents::router_tool_selector::{create_tool_selector, RouterToolSelector};
 use crate::agents::router_tools::{self};
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::agents::tool_vectordb::generate_table_id;
 use crate::config::Config;
 use crate::conversation::message::ToolRequest;
 use crate::providers::base::Provider;
@@ -14,7 +11,6 @@ use rmcp::model::{ErrorCode, ErrorData, Tool};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::sync::RwLock;
 use tracing::error;
 
 pub struct ToolRouteManager {
@@ -70,57 +66,47 @@ impl ToolRouteManager {
         }
     }
 
-    pub async fn get_router_tool_selection_strategy(&self) -> Option<RouterToolSelectionStrategy> {
+    pub async fn is_router_enabled(&self) -> bool {
         if *self.router_disabled_override.lock().await {
-            return None;
+            return false;
         }
 
         let config = Config::global();
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
+        if let Ok(config_value) = config.get_param::<String>("GOOSE_ENABLE_ROUTER") {
+            return config_value.to_lowercase() == "true";
         }
+
+        // Default to false if neither is set
+        false
     }
 
     pub async fn update_router_tool_selector(
         &self,
         provider: Arc<dyn Provider>,
         reindex_all: Option<bool>,
-        extension_manager: &Arc<RwLock<ExtensionManager>>,
+        extension_manager: &ExtensionManager,
     ) -> Result<()> {
-        let strategy = self.get_router_tool_selection_strategy().await;
-        let selector = match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider.clone(), None)
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            None => return Ok(()),
-        };
+        let enabled = self.is_router_enabled().await;
+        if !enabled {
+            return Ok(());
+        }
+
+        let selector = create_tool_selector(provider.clone())
+            .await
+            .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+
+        // Wrap selector in Arc for the index manager methods
+        let selector_arc = Arc::new(selector);
 
         // First index platform tools
-        let extension_manager = extension_manager.read().await;
-        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
+        ToolRouterIndexManager::index_platform_tools(&selector_arc, extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;
             for extension_name in enabled_extensions {
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &extension_manager,
+                    &selector_arc,
+                    extension_manager,
                     &extension_name,
                     "add",
                 )
@@ -135,7 +121,7 @@ impl ToolRouteManager {
         }
 
         // Update the selector
-        *self.router_tool_selector.lock().await = Some(selector.clone());
+        *self.router_tool_selector.lock().await = Some(selector_arc);
 
         Ok(())
     }
@@ -144,31 +130,34 @@ impl ToolRouteManager {
         self.router_tool_selector.lock().await.clone()
     }
 
-    pub async fn list_tools_for_router(
-        &self,
-        strategy: Option<RouterToolSelectionStrategy>,
-        extension_manager: &Arc<RwLock<ExtensionManager>>,
-    ) -> Vec<Tool> {
+    /// Check if the router is actually functional (enabled in config AND initialized)
+    pub async fn is_router_functional(&self) -> bool {
+        if !self.is_router_enabled().await {
+            return false;
+        }
+
+        // Check if the selector actually exists (meaning it was successfully initialized)
+        self.router_tool_selector.lock().await.is_some()
+    }
+
+    pub async fn list_tools_for_router(&self, extension_manager: &ExtensionManager) -> Vec<Tool> {
+        // If router is disabled or overridden, return empty
         if *self.router_disabled_override.lock().await {
             return vec![];
         }
 
         let mut prefixed_tools = vec![];
-        match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                prefixed_tools.push(router_tools::vector_search_tool());
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                prefixed_tools.push(router_tools::llm_search_tool());
-            }
-            None => {}
-        }
 
-        // Get recent tool calls from router tool selector if available
+        // If router is enabled but not functional (no provider), just return the search tool
+        if !self.is_router_functional().await {
+            return prefixed_tools;
+        }
+        prefixed_tools.push(router_tools::llm_search_tool());
+
+        // Get recent tool calls from router tool selector
         let selector = self.router_tool_selector.lock().await.clone();
         if let Some(selector) = selector {
             if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = extension_manager.read().await;
                 // Add recent tool calls to the list, avoiding duplicates
                 for tool_name in recent_calls {
                     // Find the tool in the extension manager's tools

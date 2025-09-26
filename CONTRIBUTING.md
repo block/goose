@@ -1,10 +1,10 @@
 # Contribution Guide
 
-Goose is open source! 
+Goose is open source!
 
 We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
 
-> [!TIP] 
+> [!TIP]
 > Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
 ## Prerequisites
@@ -93,6 +93,28 @@ This command regenerates `ui/desktop/openapi.json` and then runs the UI's
 
 Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
 
+### Debugging
+
+To debug the Goose server, you can run it from your preferred IDE. How to configure the command
+to start the server will depend on your IDE. The command to run is:
+
+```
+export GOOSE_SERVER__SECRET_KEY=test
+cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+```
+
+The server will start listening on port `3000` by default, but this can be changed by setting the
+`GOOSE_PORT` environment variable.
+
+Once the server is running, you can start a UI and connect it to the server by running:
+
+```
+just debug-ui
+```
+
+The UI will now be connected to the server you started in your IDE, allowing you to set breakpoints
+and step through the server code as you interact with the UI.
+
 ## Creating a fork
 
 To fork the repository:
@@ -100,10 +122,12 @@ To fork the repository:
 1. Go to https://github.com/block/goose and click “Fork” (top-right corner).
 2. This creates https://github.com/<your-username>/goose under your GitHub account.
 3. Clone your fork (not the main repo):
+
 ```
 git clone https://github.com/<your-username>/goose.git
 cd goose
 ```
+
 4. Add the main repository as upstream:
 
 ```
@@ -115,6 +139,7 @@ git remote add upstream https://github.com/block/goose.git
 ```
 git checkout -b my-feature-branch
 ```
+
 6. Sync your fork with the main repo:
 
 ```
@@ -126,6 +151,7 @@ git merge upstream/main
 ```
 
 7. Push to your fork. Because you’re the owner of the fork, you have permission to push here.
+
 ```
 git push origin my-feature-branch
 ```
@@ -139,37 +165,36 @@ To ensure a smooth integration of your contributions, it's important that your f
 ### Syncing Your Fork with the Main Repository
 
 1. **Add the Main Repository as a Remote** (Skip if you have already set this up):
-    
-    ```bash
-    git remote add upstream https://github.com/block/goose.git
-    ```
-    
+
+   ```bash
+   git remote add upstream https://github.com/block/goose.git
+   ```
+
 2. **Fetch the Latest Changes from the Main Repository**:
-    
-    ```bash
-    git fetch upstream
-    ```
-    
+
+   ```bash
+   git fetch upstream
+   ```
+
 3. **Checkout Your Development Branch**:
-    
-    ```bash
-    git checkout your-branch-name
-    ```
-    
+
+   ```bash
+   git checkout your-branch-name
+   ```
+
 4. **Merge Changes from the Main Branch into Your Branch**:
-    
-    ```bash
-    git merge upstream/main
-    ```
-    
-    Resolve any conflicts that arise and commit the changes.
-    
+
+   ```bash
+   git merge upstream/main
+   ```
+
+   Resolve any conflicts that arise and commit the changes.
+
 5. **Push the Merged Changes to Your Fork**:
-    
-    ```bash
-    git push origin your-branch-name
-    ```
-    
+
+   ```bash
+   git push origin your-branch-name
+   ```
 
 This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when it comes time to merge!
 
@@ -197,9 +222,8 @@ or `DATABRICKS_HOST`. Refer to the provider details for more info on required ke
 
 ## Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
-- Run `just langfuse-server` to start your local Langfuse server. It requires Docker.
-- Go to http://localhost:3000 and log in with the default email/password output by the shell script (values can also be found in the `.env.langfuse.local` file).
-- Set the environment variables so that rust can connect to the langfuse server
+- Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
+- Set the environment variables so that Goose can connect to the langfuse server:
 
 ```
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=publickey-local
@@ -219,7 +243,7 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 
 ## Developer Certificate of Origin
 
-This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit. 
+This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit.
 
 ```
 git commit --signoff ...
@@ -232,7 +256,7 @@ There are numerous ways to be an open source contributor and contribute to Goose
 - **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our Goose on GitHub! 🌟
 - **Ask Questions:** Your questions not only help us improve but also benefit the community. If you have a question, don't hesitate to ask it on [Discord](https://discord.gg/block-opensource).
 - **Give Feedback:** Have a feature you want to see or encounter an issue with Goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
-- **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/blockopensource) to stay in touch.
+- **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/goose_oss) to stay in touch.
 - **Improve Documentation:** Good documentation is key to the success of any project. You can help improve the quality of our existing docs or add new pages.
 - **Help Other Members:** See another community member stuck? Or a contributor blocked by a question you know the answer to? Reply to community threads or do a code review for others to help.
 - **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.

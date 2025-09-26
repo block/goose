@@ -692,7 +692,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello! How can I assist you today?"
             }],
-            "model": "claude-3-5-sonnet-latest",
+            "model": "claude-sonnet-4-20250514",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -962,7 +962,7 @@ mod tests {
                 "type": "text",
                 "text": "Based on the cached context, here's my response."
             }],
-            "model": "claude-3-5-sonnet-latest",
+            "model": "claude-sonnet-4-20250514",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {

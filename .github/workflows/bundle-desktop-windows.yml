@@ -70,9 +70,10 @@ jobs:
           path: |
             node_modules
             ui/desktop/node_modules
-          key: ${{ runner.os }}-build-desktop-windows-node22-${{ hashFiles('**/package-lock.json') }}
+            .hermit/node/cache
+          key: windows-npm-cache-v1-${{ runner.os }}-node22-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-build-desktop-windows-node22-
+            windows-npm-cache-v1-${{ runner.os }}-node22-
 
       # Cache Cargo registry and git dependencies
       - name: Cache Cargo registry

@@ -1,8 +1,7 @@
-use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -60,19 +59,7 @@ pub struct ErrorResponse {
     ),
     tag = "App Management"
 )]
-async fn list_apps(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<AppListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized".to_string(),
-            }),
-        )
-    })?;
-
+async fn list_apps() -> Result<Json<AppListResponse>, (StatusCode, Json<ErrorResponse>)> {
     let manager = GooseAppsManager::new().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -112,19 +99,9 @@ async fn list_apps(
     tag = "App Management"
 )]
 async fn get_app(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
-    headers: HeaderMap,
 ) -> Result<Json<AppResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized".to_string(),
-            }),
-        )
-    })?;
-
     let manager = GooseAppsManager::new().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -171,19 +148,9 @@ async fn get_app(
     tag = "App Management"
 )]
 async fn create_app(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    State(_state): State<Arc<AppState>>,
     Json(request): Json<CreateAppRequest>,
 ) -> Result<(StatusCode, Json<SuccessResponse>), (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized".to_string(),
-            }),
-        )
-    })?;
-
     let manager = GooseAppsManager::new().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -193,7 +160,6 @@ async fn create_app(
         )
     })?;
 
-    // Check if app already exists
     if manager.app_exists(&request.app.name) {
         return Err((
             StatusCode::CONFLICT,
@@ -246,20 +212,10 @@ async fn create_app(
     tag = "App Management"
 )]
 async fn update_app(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
-    headers: HeaderMap,
     Json(request): Json<UpdateAppRequest>,
 ) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized".to_string(),
-            }),
-        )
-    })?;
-
     let manager = GooseAppsManager::new().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -269,7 +225,6 @@ async fn update_app(
         )
     })?;
 
-    // Check if app exists
     if !manager.app_exists(&name) {
         return Err((
             StatusCode::NOT_FOUND,
@@ -317,19 +272,9 @@ async fn update_app(
     tag = "App Management"
 )]
 async fn delete_app(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
-    headers: HeaderMap,
 ) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized".to_string(),
-            }),
-        )
-    })?;
-
     let manager = GooseAppsManager::new().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,

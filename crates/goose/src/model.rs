@@ -17,7 +17,7 @@ pub enum ConfigError {
 static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
     vec![
         // openai
-        ("gpt-5", 272_000),
+        ("gpt-5", 400_000),
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
@@ -28,6 +28,7 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         // anthropic - all 200k
         ("claude", 200_000),
         // google
+        ("gemini-1.5-flash", 1_000_000),
         ("gemini-1", 128_000),
         ("gemini-2", 1_000_000),
         ("gemma-3-27b", 128_000),
@@ -72,6 +73,7 @@ pub struct ModelConfig {
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
+    pub fast_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,7 +91,7 @@ impl ModelConfig {
         model_name: String,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let context_limit = Self::parse_context_limit(&model_name, context_env_var)?;
+        let context_limit = Self::parse_context_limit(&model_name, None, context_env_var)?;
         let temperature = Self::parse_temperature()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
@@ -101,13 +103,16 @@ impl ModelConfig {
             max_tokens: None,
             toolshim,
             toolshim_model,
+            fast_model: None,
         })
     }
 
     fn parse_context_limit(
         model_name: &str,
+        fast_model: Option<&str>,
         custom_env_var: Option<&str>,
     ) -> Result<Option<usize>, ConfigError> {
+        // First check if there's an explicit environment variable override
         if let Some(env_var) = custom_env_var {
             if let Ok(val) = std::env::var(env_var) {
                 return Self::validate_context_limit(&val, env_var).map(Some);
@@ -116,7 +121,24 @@ impl ModelConfig {
         if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
             return Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT").map(Some);
         }
-        Ok(Self::get_model_specific_limit(model_name))
+
+        // Get the model's limit
+        let model_limit = Self::get_model_specific_limit(model_name);
+
+        // If there's a fast_model, get its limit and use the minimum
+        if let Some(fast_model_name) = fast_model {
+            let fast_model_limit = Self::get_model_specific_limit(fast_model_name);
+
+            // Return the minimum of both limits (if both exist)
+            match (model_limit, fast_model_limit) {
+                (Some(m), Some(f)) => Ok(Some(m.min(f))),
+                (Some(m), None) => Ok(Some(m)),
+                (None, Some(f)) => Ok(Some(f)),
+                (None, None) => Ok(None),
+            }
+        } else {
+            Ok(model_limit)
+        }
     }
 
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
@@ -231,8 +253,39 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_fast(mut self, fast_model: String) -> Self {
+        self.fast_model = Some(fast_model);
+        self
+    }
+
+    pub fn use_fast_model(&self) -> Self {
+        if let Some(fast_model) = &self.fast_model {
+            let mut config = self.clone();
+            config.model_name = fast_model.clone();
+            config
+        } else {
+            self.clone()
+        }
+    }
+
     pub fn context_limit(&self) -> usize {
-        self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
+        // If we have an explicit context limit set, use it
+        if let Some(limit) = self.context_limit {
+            return limit;
+        }
+
+        // Otherwise, get the model's default limit
+        let main_limit =
+            Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT);
+
+        // If we have a fast_model, also check its limit and use the minimum
+        if let Some(fast_model) = &self.fast_model {
+            let fast_limit =
+                Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
+            main_limit.min(fast_limit)
+        } else {
+            main_limit
+        }
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {

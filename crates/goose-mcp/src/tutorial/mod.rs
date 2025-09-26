@@ -1,56 +1,41 @@
-use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use mcp_core::{
-    handler::{PromptError, ResourceError},
-    protocol::ServerCapabilities,
+use rmcp::{
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, Role, ServerCapabilities,
+        ServerInfo,
+    },
+    schemars::JsonSchema,
+    tool, tool_handler, tool_router, ServerHandler,
 };
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::{
-    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, Role, Tool, ToolAnnotations,
-};
-use rmcp::object;
-use serde_json::Value;
-use std::{future::Future, pin::Pin};
-use tokio::sync::mpsc;
+use serde::{Deserialize, Serialize};
 
 static TUTORIALS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/tutorial/tutorials");
 
-pub struct TutorialRouter {
-    tools: Vec<Tool>,
+/// Parameters for the load_tutorial tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LoadTutorialParams {
+    /// Name of the tutorial to load, e.g. 'getting-started' or 'developer-mcp'
+    pub name: String,
+}
+
+/// Tutorial MCP Server using official RMCP SDK
+#[derive(Clone)]
+pub struct TutorialServer {
+    tool_router: ToolRouter<Self>,
     instructions: String,
 }
 
-impl Default for TutorialRouter {
+impl Default for TutorialServer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TutorialRouter {
+#[tool_router(router = tool_router)]
+impl TutorialServer {
     pub fn new() -> Self {
-        let load_tutorial = Tool::new(
-            "load_tutorial".to_string(),
-            "Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions.".to_string(),
-            object!({
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Name of the tutorial to load, e.g. 'getting-started' or 'developer-mcp'"
-                    }
-                }
-            })
-        ).annotate(ToolAnnotations {
-            title: Some("Load Tutorial".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(false),
-            open_world_hint: Some(false),
-        });
-
         // Get base instructions and available tutorials
         let available_tutorials = Self::get_available_tutorials();
 
@@ -73,7 +58,7 @@ impl TutorialRouter {
         };
 
         Self {
-            tools: vec![load_tutorial],
+            tool_router: Self::tool_router(),
             instructions,
         }
     }
@@ -94,105 +79,133 @@ impl TutorialRouter {
         tutorials
     }
 
-    async fn load_tutorial(&self, name: &str) -> Result<String, ErrorData> {
+    /// Load a specific tutorial by name.
+    /// The tutorial will be returned as markdown content that provides step by step instructions.
+    #[tool(
+        name = "load_tutorial",
+        description = "Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions."
+    )]
+    pub async fn load_tutorial(
+        &self,
+        params: Parameters<LoadTutorialParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let name = &params.name;
+
         let file_name = format!("{}.md", name);
         let file = TUTORIALS_DIR.get_file(&file_name).ok_or(ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Could not locate tutorial '{}'", name),
             None,
         ))?;
-        Ok(String::from_utf8_lossy(file.contents()).into_owned())
+        let content = String::from_utf8_lossy(file.contents()).into_owned();
+
+        Ok(CallToolResult::success(vec![
+            Content::text(content).with_audience(vec![Role::Assistant])
+        ]))
     }
 }
 
-impl Router for TutorialRouter {
-    fn name(&self) -> String {
-        "tutorial".to_string()
-    }
-
-    fn instructions(&self) -> String {
-        self.instructions.clone()
-    }
-
-    fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new().with_tools(false).build()
-    }
-
-    fn list_tools(&self) -> Vec<Tool> {
-        self.tools.clone()
-    }
-
-    fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Value,
-        _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
-        let this = self.clone();
-        let tool_name = tool_name.to_string();
-
-        Box::pin(async move {
-            match tool_name.as_str() {
-                "load_tutorial" => {
-                    let name = arguments
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ErrorData::new(
-                                ErrorCode::INVALID_PARAMS,
-                                "Missing 'name' parameter".to_string(),
-                                None,
-                            )
-                        })?;
-
-                    let content = this.load_tutorial(name).await?;
-                    Ok(vec![
-                        Content::text(content).with_audience(vec![Role::Assistant])
-                    ])
-                }
-                _ => Err(ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Tool {} not found", tool_name),
-                    None,
-                )),
-            }
-        })
-    }
-
-    fn list_resources(&self) -> Vec<Resource> {
-        Vec::new()
-    }
-
-    fn read_resource(
-        &self,
-        _uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        Box::pin(async move { Ok("".to_string()) })
-    }
-
-    fn list_prompts(&self) -> Vec<Prompt> {
-        vec![]
-    }
-
-    fn get_prompt(
-        &self,
-        prompt_name: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
-        let prompt_name = prompt_name.to_string();
-        Box::pin(async move {
-            Err(PromptError::NotFound(format!(
-                "Prompt {} not found",
-                prompt_name
-            )))
-        })
-    }
-}
-
-impl Clone for TutorialRouter {
-    fn clone(&self) -> Self {
-        Self {
-            tools: self.tools.clone(),
-            instructions: self.instructions.clone(),
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for TutorialServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            server_info: Implementation {
+                name: "goose-tutorial".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            instructions: Some(self.instructions.clone()),
+            ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmcp::handler::server::wrapper::Parameters;
+
+    #[tokio::test]
+    async fn test_tutorial_server_creation() {
+        let server = TutorialServer::new();
+        assert!(!server.instructions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_info() {
+        let server = TutorialServer::new();
+        let info = server.get_info();
+
+        assert_eq!(info.server_info.name, "goose-tutorial");
+        assert!(info.instructions.is_some());
+        assert!(info
+            .instructions
+            .unwrap()
+            .contains("tutorial extension is enabled"));
+    }
+
+    #[tokio::test]
+    async fn test_get_available_tutorials() {
+        let tutorials = TutorialServer::get_available_tutorials();
+        assert!(!tutorials.is_empty());
+        // Check for known tutorials that actually exist
+        assert!(tutorials.contains("build-mcp-extension") || tutorials.contains("first-game"));
+    }
+
+    #[tokio::test]
+    async fn test_load_tutorial_success() {
+        let server = TutorialServer::new();
+
+        // Try to load a tutorial that should exist (build-mcp-extension)
+        let params = LoadTutorialParams {
+            name: "build-mcp-extension".to_string(),
+        };
+
+        let result = server.load_tutorial(Parameters(params)).await;
+        assert!(result.is_ok());
+
+        let call_result = result.unwrap();
+        assert!(!call_result.content.is_empty());
+
+        // Check that content has Assistant audience
+        let first_content = &call_result.content[0];
+        assert!(first_content.audience().is_some());
+        assert_eq!(first_content.audience().unwrap(), &vec![Role::Assistant]);
+
+        // Check that the content is text
+        assert!(first_content.as_text().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_load_tutorial_not_found() {
+        let server = TutorialServer::new();
+
+        let params = LoadTutorialParams {
+            name: "non-existent-tutorial".to_string(),
+        };
+
+        let result = server.load_tutorial(Parameters(params)).await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.contains("Could not locate tutorial"));
+    }
+
+    #[tokio::test]
+    async fn test_instructions_contain_available_tutorials() {
+        let server = TutorialServer::new();
+        let info = server.get_info();
+
+        let instructions = info.instructions.unwrap();
+        assert!(instructions.contains("Available tutorials:"));
+
+        // Check that the instructions contain the tutorial list
+        let available_tutorials = TutorialServer::get_available_tutorials();
+        // The instructions should contain at least some part of the tutorial list
+        assert!(available_tutorials
+            .lines()
+            .any(|line| instructions.contains(line)));
     }
 }

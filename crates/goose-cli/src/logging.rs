@@ -1,6 +1,4 @@
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy};
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Once;
@@ -21,33 +19,36 @@ static INIT: Once = Once::new();
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    get_log_directory_with_date(None)
+    goose::logging::get_log_directory("cli", true)
 }
 
 /// Internal function that allows specifying a custom date string for testing
+#[cfg(test)]
 fn get_log_directory_with_date(test_date: Option<String>) -> Result<PathBuf> {
-    // choose_app_strategy().state_dir()
-    // - macOS/Linux: ~/.local/state/goose/logs/cli
-    // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\cli
-    // - Windows has no convention for state_dir, use data_dir instead
-    let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
-        .context("HOME environment variable not set")?;
+    use etcetera::{choose_app_strategy, AppStrategy};
+    use goose::config::APP_STRATEGY;
+
+    let home_dir =
+        choose_app_strategy(APP_STRATEGY.clone()).context("HOME environment variable not set")?;
 
     let base_log_dir = home_dir
-        .in_state_dir("logs/cli")
-        .unwrap_or_else(|| home_dir.in_data_dir("logs/cli"));
+        .in_state_dir("logs")
+        .unwrap_or_else(|| home_dir.in_data_dir("logs"));
 
-    // Create date-based subdirectory
-    let date_str = test_date.unwrap_or_else(|| {
+    let component_dir = base_log_dir.join("cli");
+
+    let log_dir = if let Some(date_str) = test_date {
+        component_dir.join(date_str)
+    } else {
+        // Create date-based subdirectory
         let now = chrono::Local::now();
-        now.format("%Y-%m-%d").to_string()
-    });
-    let date_dir = base_log_dir.join(date_str);
+        component_dir.join(now.format("%Y-%m-%d").to_string())
+    };
 
     // Ensure log directory exists
-    fs::create_dir_all(&date_dir).context("Failed to create log directory")?;
+    std::fs::create_dir_all(&log_dir).context("Failed to create log directory")?;
 
-    Ok(date_dir)
+    Ok(log_dir)
 }
 
 /// Sets up the logging infrastructure for the application.
@@ -106,6 +107,7 @@ fn setup_logging_internal(
 
             // Create console logging layer for development - INFO and above only
             let console_layer = fmt::layer()
+                .with_writer(std::io::stderr)
                 .with_target(true)
                 .with_level(true)
                 .with_ansi(true)
@@ -117,8 +119,6 @@ fn setup_logging_internal(
             let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 // Set default levels for different modules
                 EnvFilter::new("")
-                    // Set mcp-server module to DEBUG
-                    .add_directive("mcp_server=debug".parse().unwrap())
                     // Set mcp-client to DEBUG
                     .add_directive("mcp_client=debug".parse().unwrap())
                     // Set goose module to DEBUG
@@ -248,7 +248,7 @@ mod tests {
         );
 
         // Create a proper temporary directory that will be automatically cleaned up
-        let _temp_dir = TempDir::with_prefix(&format!("goose_test_{}_", test_id)).unwrap();
+        let _temp_dir = TempDir::with_prefix(format!("goose_test_{}_", test_id)).unwrap();
         let test_dir = _temp_dir.path();
 
         // Set up environment
@@ -273,14 +273,14 @@ mod tests {
         println!("Log directory: {}", log_dir.display());
         println!("Test directory: {}", test_dir.display());
         if log_dir.exists() {
-            for entry in fs::read_dir(&log_dir).unwrap() {
+            for entry in std::fs::read_dir(&log_dir).unwrap() {
                 let entry = entry.unwrap();
-                if entry.path().extension().map_or(false, |ext| ext == "log") {
-                    fs::remove_file(entry.path()).unwrap();
+                if entry.path().extension().is_some_and(|ext| ext == "log") {
+                    std::fs::remove_file(entry.path()).unwrap();
                 }
             }
         } else {
-            fs::create_dir_all(&log_dir).unwrap();
+            std::fs::create_dir_all(&log_dir).unwrap();
         }
         println!("Log directory created: {}", log_dir.exists());
 
@@ -305,7 +305,7 @@ mod tests {
         println!("Log directory exists: {}", log_dir.exists());
 
         // Check if there are any log files directly
-        let all_files = fs::read_dir(&log_dir)
+        let all_files = std::fs::read_dir(&log_dir)
             .unwrap_or_else(|e| {
                 println!("Error reading log directory: {}", e);
                 panic!("Failed to read log directory: {}", e);
@@ -315,7 +315,7 @@ mod tests {
 
         let log_count = all_files
             .iter()
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
             .count();
 
         println!("Found {} log files in directory", log_count);
@@ -330,12 +330,12 @@ mod tests {
                 format!("{}.log", timestamp)
             };
             let log_path = log_dir.join(&log_filename);
-            fs::write(&log_path, "Test log content").unwrap();
+            std::fs::write(&log_path, "Test log content").unwrap();
             println!("Created test log file: {}", log_path.display());
         }
 
         // Read directory again after potential manual creation
-        let entries = fs::read_dir(&log_dir)
+        let entries = std::fs::read_dir(&log_dir)
             .unwrap_or_else(|e| {
                 println!("Error reading log directory: {}", e);
                 panic!("Failed to read log directory: {}", e);
@@ -358,8 +358,8 @@ mod tests {
             .iter()
             .filter(|e| {
                 let path = e.path();
-                let matches = path.extension().map_or(false, |ext| ext == "log")
-                    && path.file_name().map_or(false, |name| {
+                let matches = path.extension().is_some_and(|ext| ext == "log")
+                    && path.file_name().is_some_and(|name| {
                         let name = name.to_string_lossy();
                         if let Some(session) = session_name {
                             name.ends_with(&format!("{}.log", session))
@@ -411,7 +411,7 @@ mod tests {
             })
             .collect();
 
-        log_files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        log_files.sort_by_key(|a| a.file_name());
         assert_eq!(log_files.len(), 1, "Expected exactly one matching log file");
 
         let log_file_name = log_files[0].file_name().to_string_lossy().into_owned();

@@ -1,7 +1,8 @@
 use reqwest::StatusCode;
+use std::time::Duration;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),
@@ -9,8 +10,11 @@ pub enum ProviderError {
     #[error("Context length exceeded: {0}")]
     ContextLengthExceeded(String),
 
-    #[error("Rate limit exceeded: {0}")]
-    RateLimitExceeded(String),
+    #[error("Rate limit exceeded: {details}")]
+    RateLimitExceeded {
+        details: String,
+        retry_delay: Option<Duration>,
+    },
 
     #[error("Server error: {0}")]
     ServerError(String),

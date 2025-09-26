@@ -20,6 +20,7 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
     ImageFormat,
 };
+use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
@@ -28,6 +29,7 @@ use crate::providers::formats::openai::response_to_streaming_message;
 use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
+pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
@@ -51,12 +53,15 @@ pub struct OpenAiProvider {
     project: Option<String>,
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(OpenAiProvider);
 
 impl OpenAiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENAI_API_KEY")?;
         let host: String = config
@@ -103,6 +108,60 @@ impl OpenAiProvider {
             project,
             model,
             custom_headers,
+            supports_streaming: true,
+        })
+    }
+
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+        let global_config = crate::config::Config::global();
+        let api_key: String = global_config
+            .get_secret(&config.api_key_env)
+            .map_err(|_e| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let url = url::Url::parse(&config.base_url)
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+        let host = if let Some(port) = url.port() {
+            format!(
+                "{}://{}:{}",
+                url.scheme(),
+                url.host_str().unwrap_or(""),
+                port
+            )
+        } else {
+            format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+        };
+        let base_path = url.path().trim_start_matches('/').to_string();
+        let base_path = if base_path.is_empty() {
+            "v1/chat/completions".to_string()
+        } else {
+            base_path
+        };
+
+        let timeout_secs = config.timeout_seconds.unwrap_or(600);
+        let auth = AuthMethod::BearerToken(api_key);
+        let mut api_client =
+            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+
+        // Add custom headers if present
+        if let Some(headers) = &config.headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
+
+        Ok(Self {
+            api_client,
+            base_path,
+            organization: None,
+            project: None,
+            model,
+            custom_headers: config.headers,
+            supports_streaming: config.supports_streaming.unwrap_or(true),
         })
     }
 
@@ -146,16 +205,17 @@ impl Provider for OpenAiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
         let json_response = self.post(&payload).await?;
 
@@ -206,7 +266,7 @@ impl Provider for OpenAiProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        true
+        self.supports_streaming
     }
 
     async fn stream(
