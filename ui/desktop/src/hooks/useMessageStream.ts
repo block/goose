@@ -399,6 +399,70 @@ export function useMessageStream({
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
+  // Function to expand custom command pills in text
+  const expandCustomCommandPills = useCallback((text: string): string => {
+    // Find all action pills in the format [Action Label]
+    const actionPillRegex = /\[([^\]]+)\]/g;
+    let expandedText = text;
+    
+    // Replace each action pill with its corresponding prompt
+    expandedText = expandedText.replace(actionPillRegex, (match, label) => {
+      // Check if it's a custom command by looking for a command with this label
+      try {
+        const stored = localStorage.getItem('goose-custom-commands');
+        if (stored) {
+          const commands = JSON.parse(stored);
+          const customCommand = commands.find((cmd: any) => cmd.label === label);
+          
+          if (customCommand) {
+            // Increment usage count for the custom command
+            try {
+              const updatedCommands = commands.map((cmd: any) => 
+                cmd.id === customCommand.id 
+                  ? { ...cmd, usageCount: (cmd.usageCount || 0) + 1 }
+                  : cmd
+              );
+              localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+            } catch (error) {
+              console.error('Error updating usage count:', error);
+            }
+            
+            // Return the expanded prompt
+            return customCommand.prompt || match;
+          }
+        }
+      } catch (error) {
+        console.error('Error expanding custom command:', error);
+      }
+      
+      // If not a custom command, return the original pill (built-in actions)
+      return match;
+    });
+    
+    return expandedText;
+  }, []);
+
+  // Function to expand action pills in messages before sending to API
+  const expandActionPillsInMessages = useCallback((messages: Message[]): Message[] => {
+    return messages.map(message => {
+      if (message.role === 'user') {
+        return {
+          ...message,
+          content: message.content.map(content => {
+            if (content.type === 'text') {
+              return {
+                ...content,
+                text: expandCustomCommandPills(content.text)
+              };
+            }
+            return content;
+          })
+        };
+      }
+      return message;
+    });
+  }, [expandCustomCommandPills]);
+
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
@@ -410,6 +474,9 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
+        // Expand action pills in messages before sending to API
+        const expandedMessages = expandActionPillsInMessages(requestMessages);
+
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -419,7 +486,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: requestMessages,
+            messages: expandedMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,
@@ -486,7 +553,7 @@ export function useMessageStream({
       }
     },
 
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages]
   );
 
   // Append a new message and send request

@@ -5,8 +5,9 @@ import React, {
   useImperativeHandle,
   useState,
 } from 'react';
-import { Zap, FileText, Code, Settings, Search, Play, Hash } from 'lucide-react';
+import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus } from 'lucide-react';
 import { CustomCommand } from '../types/customCommands';
+import { Button } from './ui/button';
 
 interface ActionItem {
   id: string;
@@ -26,12 +27,13 @@ interface ActionPopoverProps {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   query?: string; // Filter actions based on query
+  onCreateCommand?: () => void; // Callback to open command creation modal
 }
 
 const ActionPopover = forwardRef<
   { getDisplayActions: () => ActionItem[]; selectAction: (index: number) => void },
   ActionPopoverProps
->(({ isOpen, onClose, onSelect, position, selectedIndex, onSelectedIndexChange, query = '' }, ref) => {
+>(({ isOpen, onClose, onSelect, position, selectedIndex, onSelectedIndexChange, query = '', onCreateCommand }, ref) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
@@ -93,7 +95,14 @@ const ActionPopover = forwardRef<
 
   // Filter custom commands based on query
   const filteredActions = customActions.filter(action => {
-    if (!query) return true;
+    const cmd = customCommands.find(c => c.id === action.id);
+    
+    // If no query, show only starred commands
+    if (!query) {
+      return cmd?.isFavorite === true;
+    }
+    
+    // If there's a query, search through all commands
     const searchTerm = query.toLowerCase();
     return (
       action.label.toLowerCase().includes(searchTerm) ||
@@ -202,8 +211,12 @@ const ActionPopover = forwardRef<
     >
       <div className="p-3">
         <div className="mb-2">
-          <h3 className="text-sm font-medium text-textStandard">Custom Commands</h3>
-          <p className="text-xs text-textSubtle">Your custom slash commands</p>
+          <h3 className="text-sm font-medium text-textStandard">
+            {query ? 'Search Results' : 'Starred Commands'}
+          </h3>
+          <p className="text-xs text-textSubtle">
+            {query ? `Commands matching "${query}"` : 'Your favorite slash commands'}
+          </p>
         </div>
         
         <div ref={listRef} className="space-y-1">
@@ -234,8 +247,45 @@ const ActionPopover = forwardRef<
             ))
           ) : (
             <div className="p-3 text-center text-textSubtle">
-              <div className="text-sm">No custom commands found</div>
-              <div className="text-xs mt-1">Create custom commands in Settings → Chat</div>
+              <div className="text-sm mb-2">
+                {query 
+                  ? `No commands match "${query}"` 
+                  : customCommands.length === 0 
+                    ? 'No custom commands found'
+                    : 'No starred commands found'
+                }
+              </div>
+              {query && onCreateCommand ? (
+                <Button
+                  onClick={() => {
+                    onCreateCommand();
+                    onClose();
+                  }}
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Plus size={14} />
+                  Create Command
+                </Button>
+              ) : !query && customCommands.length === 0 ? (
+                onCreateCommand ? (
+                  <Button
+                    onClick={() => {
+                      onCreateCommand();
+                      onClose();
+                    }}
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Plus size={14} />
+                    Create Command
+                  </Button>
+                ) : (
+                  <div className="text-xs">Create custom commands in Settings → Chat</div>
+                )
+              ) : (
+                <div className="text-xs">Star commands to see them here when you type /</div>
+              )}
             </div>
           )}
         </div>

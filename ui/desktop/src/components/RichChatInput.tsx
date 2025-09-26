@@ -23,14 +23,41 @@ interface RichChatInputProps {
   rows?: number;
 }
 
-// Action mapping for pill display
-const ACTION_MAP = {
-  'quick-task': { label: 'Quick Task', icon: <Zap size={12} /> },
-  'generate-code': { label: 'Generate Code', icon: <Code size={12} /> },
-  'create-document': { label: 'Create Document', icon: <FileText size={12} /> },
-  'search-files': { label: 'Search Files', icon: <Search size={12} /> },
-  'run-command': { label: 'Run Command', icon: <Play size={12} /> },
-  'settings': { label: 'Settings', icon: <Settings size={12} /> },
+// Icon mapping for custom commands
+const getCustomCommandIcon = (iconName?: string) => {
+  const iconMap: Record<string, React.ReactNode> = {
+    'Zap': <Zap size={12} />,
+    'Code': <Code size={12} />,
+    'FileText': <FileText size={12} />,
+    'Search': <Search size={12} />,
+    'Play': <Play size={12} />,
+    'Settings': <Settings size={12} />,
+  };
+  return iconMap[iconName || 'Zap'] || <Zap size={12} />;
+};
+
+// Dynamic action mapping that loads from localStorage
+const getActionMap = () => {
+  try {
+    const stored = localStorage.getItem('goose-custom-commands');
+    if (stored) {
+      const commands = JSON.parse(stored);
+      const actionMap: Record<string, { label: string; icon: React.ReactNode }> = {};
+      
+      commands.forEach((cmd: any) => {
+        actionMap[cmd.id] = {
+          label: cmd.label,
+          icon: getCustomCommandIcon(cmd.icon),
+        };
+      });
+      
+      return actionMap;
+    }
+  } catch (error) {
+    console.error('Error loading custom commands for action map:', error);
+  }
+  
+  return {};
 };
 
 export interface RichChatInputRef {
@@ -490,7 +517,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       if (type === 'action') {
         // Handle action pills
         const actionLabel = content;
-        const actionEntry = Object.entries(ACTION_MAP).find(
+        const actionMap = getActionMap();
+        const actionEntry = Object.entries(actionMap).find(
           ([_, config]) => config.label === actionLabel
         );
         
