@@ -102,8 +102,8 @@ jobs:
           echo "Cross version:"
           cross --version
 
-          echo "Building with explicit PROTOC path..."
-          cross build --release --target ${TARGET} -p goose-cli -vv
+          export CC=gcc-10
+          cross build --release --target ${TARGET} -p goose-cli
 
       - name: Build CLI (Windows)
         if: matrix.use-docker
