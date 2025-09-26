@@ -705,11 +705,7 @@ enum Command {
         open: bool,
 
         /// Authentication token for both Basic Auth (password) and Bearer token
-        #[arg(
-            long,
-            help = "Optional authentication token to secure the web interface",
-            long_help = "Optional token for authentication. Can be used as password in Basic Auth (username ignored) or as Bearer token in API calls. If not provided, no authentication is required."
-        )]
+        #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
 }

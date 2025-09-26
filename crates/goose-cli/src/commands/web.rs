@@ -108,11 +108,8 @@ async fn auth_middleware(
             if let Some(basic_token) = auth_str.strip_prefix("Basic ") {
                 if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(basic_token) {
                     if let Ok(credentials) = String::from_utf8(decoded) {
-                        // Split on first colon, ignore username, check password
-                        if let Some((_, password)) = credentials.split_once(':') {
-                            if password == expected_token {
-                                return Ok(next.run(req).await);
-                            }
+                        if credentials.ends_with(expected_token) {
+                            return Ok(next.run(req).await);
                         }
                     }
                 }
