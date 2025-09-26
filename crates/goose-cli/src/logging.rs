@@ -115,8 +115,8 @@ fn setup_logging_internal(
                 .with_line_number(true)
                 .pretty();
 
-            // Base filter
-            let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            // Base filter for file logging
+            let file_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 // Set default levels for different modules
                 EnvFilter::new("")
                     // Set mcp-client to DEBUG
@@ -125,14 +125,25 @@ fn setup_logging_internal(
                     .add_directive("goose=debug".parse().unwrap())
                     // Set goose-cli to INFO
                     .add_directive("goose_cli=info".parse().unwrap())
+                    // Suppress llama_cpp warnings (like g3 does)
+                    .add_directive("llama_cpp=off".parse().unwrap())
+                    .add_directive("llama=off".parse().unwrap())
                     // Set everything else to WARN
                     .add_directive(LevelFilter::WARN.into())
             });
 
+            // Console filter - same but only show WARN and above for most things, except llama_cpp which is OFF
+            let console_filter = EnvFilter::new("")
+                // Suppress llama_cpp warnings completely
+                .add_directive("llama_cpp=off".parse().unwrap())
+                .add_directive("llama=off".parse().unwrap())
+                // Show everything else at WARN level
+                .add_directive(LevelFilter::WARN.into());
+
             // Start building the subscriber
             let mut layers = vec![
-                file_layer.with_filter(env_filter).boxed(),
-                console_layer.with_filter(LevelFilter::WARN).boxed(),
+                file_layer.with_filter(file_filter).boxed(),
+                console_layer.with_filter(console_filter).boxed(),
             ];
 
             // Only add ErrorCaptureLayer if not in test mode
