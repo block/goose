@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import path from 'node:path';
 
 const ModalHelpText = () => (
   <div className="text-sm flex-col space-y-4">
@@ -63,7 +64,7 @@ type GoosehintsModalProps = {
 };
 
 export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: GoosehintsModalProps) => {
-  const goosehintsFilePath = `${directory}/.goosehints`;
+  const goosehintsFilePath = path.join(directory, '.goosehints');
   const [goosehintsFile, setGoosehintsFile] = useState<string>('');
   const [goosehintsFileFound, setGoosehintsFileFound] = useState<boolean>(false);
   const [goosehintsFileReadError, setGoosehintsFileReadError] = useState<string>('');

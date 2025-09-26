@@ -2,6 +2,8 @@ import { listRecipes, RecipeManifestResponse } from '../api';
 import { Recipe } from './index';
 import * as yaml from 'yaml';
 import { validateRecipe, getValidationErrorMessages } from './validation';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 export interface SaveRecipeOptions {
   name: string;
@@ -37,11 +39,12 @@ function parseLastModified(val: string | Date): Date {
  */
 export function getStorageDirectory(isGlobal: boolean): string {
   if (isGlobal) {
-    return '~/.config/goose/recipes';
+    // Use cross-platform path construction for global recipes
+    return path.join(os.homedir(), '.config', 'goose', 'recipes');
   } else {
     // For directory recipes, build absolute path using working directory
     const workingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
-    return `${workingDir}/.goose/recipes`;
+    return path.join(workingDir, '.goose', 'recipes');
   }
 }
 
@@ -50,7 +53,7 @@ export function getStorageDirectory(isGlobal: boolean): string {
  */
 function getRecipeFilePath(recipeName: string, isGlobal: boolean): string {
   const dir = getStorageDirectory(isGlobal);
-  return `${dir}/${recipeName}.yaml`;
+  return path.join(dir, `${recipeName}.yaml`);
 }
 
 /**
