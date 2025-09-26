@@ -500,7 +500,7 @@ const MentionPopover = forwardRef<
                   className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
                     index === selectedIndex
                       ? 'bg-blue-500 text-white'
-                      : 'hover:bg-background-muted'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className={`flex-shrink-0 ${index === selectedIndex ? 'text-white' : 'text-textSubtle'}`}>
