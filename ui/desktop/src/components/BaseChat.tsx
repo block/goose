@@ -120,7 +120,7 @@ function BaseChatContent({
   // Timeout ref for debouncing auto-scroll
   const autoScrollTimeoutRef = useRef<number | null>(null);
   // Track if user was following when agent started responding
-  const wasFollowingRef = useRef<boolean>(true);
+  const isFollowingStreamRef = useRef<boolean>(true);
 
   const isNearBottom = React.useCallback(() => {
     if (!scrollRef.current) return false;
@@ -134,7 +134,7 @@ function BaseChatContent({
     const scrollBottom = scrollTop + clientHeight;
     const distanceFromBottom = scrollHeight - scrollBottom;
 
-    return distanceFromBottom <= 100;
+    return distanceFromBottom <= 50;
   }, []);
 
   // Function to auto-scroll if user was following when agent started
@@ -145,12 +145,19 @@ function BaseChatContent({
     }
 
     // Debounce the auto-scroll to prevent jumpy behavior and prevent multiple rapid scrolls
+    // Immediate scroll if following, with fallback timeout
+    if (isFollowingStreamRef.current && scrollRef.current) {
+      scrollRef.current.scrollToBottom();
+      console.log('📍 Auto-scrolled to follow stream (immediate)');
+    }
+    
+    // Also set a timeout as backup
     autoScrollTimeoutRef.current = window.setTimeout(() => {
-      // Only auto-scroll if user was following when the agent started responding
-      if (wasFollowingRef.current && scrollRef.current) {
+      if (isFollowingStreamRef.current && scrollRef.current) {
         scrollRef.current.scrollToBottom();
+        console.log('📍 Auto-scrolled to follow stream (timeout backup)');
       }
-    }, 150);
+    }, 50); // Reduced from 150ms to 50ms
   }, []);
 
   useEffect(() => {
@@ -160,6 +167,102 @@ function BaseChatContent({
       }
     };
   }, []);
+
+  // Setup scroll listener for following behavior (robust version)
+  useEffect(() => {
+    const viewport = scrollRef.current as any;
+    if (!viewport?.viewportRef?.current) return;
+
+    const viewportElement = viewport.viewportRef.current;
+    
+    const handleScroll = () => {
+      // Use a more direct approach to avoid stale closures
+      const nearBottom = (() => {
+        if (!scrollRef.current) return false;
+        const vp = scrollRef.current as any;
+        if (!vp.viewportRef?.current) return false;
+        const vpElement = vp.viewportRef.current;
+        const { scrollHeight, scrollTop, clientHeight } = vpElement;
+        const scrollBottom = scrollTop + clientHeight;
+        const distanceFromBottom = scrollHeight - scrollBottom;
+        return distanceFromBottom <= 50;
+      })();
+      
+      // Update following state based on scroll position
+      if (nearBottom && !isFollowingStreamRef.current) {
+        // User scrolled back to bottom - resume following
+        isFollowingStreamRef.current = true;
+        console.log('✅ FOLLOWING STARTED/RESUMED');
+        console.log('📍 Resumed following stream - user at bottom');
+      } else if (!nearBottom && isFollowingStreamRef.current) {
+        // User scrolled away from bottom - stop following
+        isFollowingStreamRef.current = false;
+        console.log('🛑 FOLLOWING STOPPED - User scrolled away from bottom');
+        console.log('📍 Stopped following stream - user scrolled away');
+        console.log('🔍 Scroll position debug:', {
+          scrollTop: (() => {
+            const vp = scrollRef.current as any;
+            return vp?.viewportRef?.current?.scrollTop || 'unknown';
+          })(),
+          scrollHeight: (() => {
+            const vp = scrollRef.current as any;
+            return vp?.viewportRef?.current?.scrollHeight || 'unknown';
+          })(),
+          clientHeight: (() => {
+            const vp = scrollRef.current as any;
+            return vp?.viewportRef?.current?.clientHeight || 'unknown';
+          })(),
+          distanceFromBottom: (() => {
+            const vp = scrollRef.current as any;
+            if (!vp?.viewportRef?.current) return 'unknown';
+            const { scrollHeight, scrollTop, clientHeight } = vp.viewportRef.current;
+            return scrollHeight - (scrollTop + clientHeight);
+          })()
+        });
+      }
+    };
+
+    // Add the scroll listener
+    viewportElement.addEventListener('scroll', handleScroll, { passive: true });
+    
+    // Also add focus/blur listeners to handle window focus changes
+    const handleFocus = () => {
+      console.log('🔍 Window focused - checking scroll position');
+      handleScroll(); // Re-check position when window gains focus
+    };
+    
+    const handleBlur = () => {
+      console.log('🔍 Window blurred - maintaining following state');
+      // Don't change following state on blur, just log it
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      viewportElement.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []); // Remove handleScrollChange dependency to avoid re-creating listener
+
+  // More frequent check to ensure following state stays correct
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (scrollRef.current) {
+        const nearBottom = isNearBottom();
+        if (nearBottom && !isFollowingStreamRef.current) {
+          isFollowingStreamRef.current = true;
+        console.log('✅ FOLLOWING STARTED/RESUMED');
+          console.log('🔄 Periodic check: Resumed following stream');
+          // Immediately scroll if we just resumed following
+          scrollRef.current.scrollToBottom();
+        }
+      }
+    }, 500); // Check every 500ms instead of 2 seconds
+
+    return () => clearInterval(interval);
+  }, [isNearBottom]);
 
   // Use shared chat engine
   const {
@@ -187,13 +290,29 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
+      console.log('🏁 Stream finished - calling conditionalAutoScroll');
       conditionalAutoScroll();
 
       // Call the original callback if provided
       onMessageStreamFinish?.();
     },
+    onMessageStreamStart: () => {
+      // When streaming starts, check if we should follow
+      isFollowingStreamRef.current = isNearBottom();
+      console.log('🚀 Stream started - following:', isFollowingStreamRef.current);
+      
+      onMessageStreamStart?.();
+    },
     onMessageSent: () => {
-      wasFollowingRef.current = isNearBottom();
+      isFollowingStreamRef.current = true;
+        console.log('✅ FOLLOWING STARTED/RESUMED');
+      console.log('📤 Message sent - will follow response');
+      // Ensure we scroll to bottom immediately when sending
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
 
       // Mark that user has started using the recipe
       if (recipeConfig) {
@@ -222,6 +341,31 @@ function BaseChatContent({
     hasSecurityWarnings,
   } = useRecipeManager(chat, location.state?.recipeConfig);
 
+  // Auto-scroll when messages change during streaming - ENHANCED DEBUG
+  useEffect(() => {
+    console.log('🔍 Messages useEffect triggered:', {
+      messagesLength: messages.length,
+      isFollowing: isFollowingStreamRef.current,
+      hasScrollRef: !!scrollRef.current
+    });
+    
+    if (messages.length > 0) {
+      if (isFollowingStreamRef.current) {
+        console.log('📨 Messages updated - following stream, scrolling to bottom');
+        if (scrollRef.current) {
+          console.log('🚀 Calling scrollToBottom...');
+          scrollRef.current.scrollToBottom();
+          console.log('✅ scrollToBottom called successfully');
+        } else {
+          console.log('❌ scrollRef.current is null!');
+        }
+      } else {
+        console.log('⏸️ Messages updated but not following - isFollowing:', isFollowingStreamRef.current);
+      }
+    } else {
+      console.log('📭 No messages yet');
+    }
+  }, [messages]);
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
     const previousTitle = currentRecipeTitle;
@@ -344,7 +488,7 @@ function BaseChatContent({
           <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
-            autoScroll
+            autoScroll={false}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             data-drop-zone="true"
