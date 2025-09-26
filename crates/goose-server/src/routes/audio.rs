@@ -391,7 +391,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
 mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
-    use serde_json::json;
     use tower::ServiceExt;
 
     #[tokio::test(flavor = "multi_thread")]
@@ -424,7 +423,6 @@ mod tests {
         let state = AppState::new().await.unwrap();
         let app = routes(state);
 
-        let large_data = "a".repeat(30 * 1024 * 1024); // 30MB
         let request = Request::builder()
             .uri("/audio/transcribe")
             .method("POST")

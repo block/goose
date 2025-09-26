@@ -952,52 +952,6 @@ impl Agent {
         Ok(None)
     }
 
-    /// Create events for successful compaction
-    fn create_compaction_events(messages: &Conversation) -> Vec<AgentEvent> {
-        vec![
-            AgentEvent::Message(Message::assistant().with_summarization_requested(
-                "Context limit reached. Conversation has been automatically compacted to continue.",
-            )),
-            AgentEvent::HistoryReplaced(messages.messages().to_vec()),
-        ]
-    }
-
-    /// Check if an error message indicates a context limit error
-    fn is_context_limit_error(error_msg: &str) -> bool {
-        let error_lower = error_msg.to_lowercase();
-        error_lower.contains("exceed context limit")
-            || error_lower.contains("exceeds context limit")
-            || error_lower.contains("context_length_exceeded")
-            || (error_lower.contains("input length")
-                && error_lower.contains("max_tokens")
-                && error_lower.contains("exceed"))
-            || (error_lower.contains("input_tokens")
-                && error_lower.contains("max_tokens")
-                && error_lower.contains("exceed"))
-    }
-
-    /// Handle context limit exceeded error by attempting compaction
-    /// Returns Ok(compacted_messages) if successful, Err if compaction fails
-    async fn handle_context_limit_error(
-        &self,
-        messages: &[Message],
-        error_msg: &str,
-    ) -> Result<Conversation> {
-        info!("Context length exceeded, attempting compaction");
-
-        match auto_compact::perform_compaction(self, messages).await {
-            Ok(compact_result) => {
-                Ok(compact_result.messages)
-            }
-            Err(e) => {
-                Err(anyhow::anyhow!(
-                    "Context length exceeded and cannot summarize: {}. Unable to continue. Compaction error: {}",
-                    error_msg, e
-                ))
-            }
-        }
-    }
-
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -1312,50 +1266,27 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(error_msg)) => {
-                            match self.handle_context_limit_error(messages.messages(), &error_msg).await {
-                                Ok(compacted_messages) => {
-                                    messages = compacted_messages;
-                                    // Yield compaction events and continue
-                                    for event in Self::create_compaction_events(&messages) {
-                                        yield event;
-                                    }
+                            info!("Context length exceeded, attempting compaction");
+
+                            match auto_compact::perform_compaction(self, messages.messages()).await {
+                                Ok(compact_result) => {
+                                    messages = compact_result.messages;
+
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_summarization_requested(
+                                            "Context limit reached. Conversation has been automatically compacted to continue."
+                                        )
+                                    );
+                                    yield AgentEvent::HistoryReplaced(messages.messages().to_vec());
+
                                     continue;
                                 }
-                                Err(e) => {
+                                Err(_) => {
                                     yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                        e.to_string()
+                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
                                     ));
                                     break;
                                 }
-                            }
-                        }
-                        Err(ProviderError::RequestFailed(error_msg)) => {
-                            // Check if this is actually a context limit error that wasn't properly classified
-                            if Self::is_context_limit_error(&error_msg) {
-                                info!("Context length exceeded (detected from RequestFailed)");
-
-                                match self.handle_context_limit_error(messages.messages(), &error_msg).await {
-                                    Ok(compacted_messages) => {
-                                        messages = compacted_messages;
-                                        // Yield compaction events and continue
-                                        for event in Self::create_compaction_events(&messages) {
-                                            yield event;
-                                        }
-                                        continue;
-                                    }
-                                    Err(e) => {
-                                        yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                            e.to_string()
-                                        ));
-                                        break;
-                                    }
-                                }
-                            } else {
-                                error!("Error: {}", error_msg);
-                                yield AgentEvent::Message(Message::assistant().with_text(
-                                        format!("Ran into this error: {}.\n\nPlease retry if you think this is a transient or recoverable error.", error_msg)
-                                    ));
-                                break;
                             }
                         }
                         Err(e) => {

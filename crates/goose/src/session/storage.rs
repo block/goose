@@ -1364,7 +1364,7 @@ mod tests {
 
     #[test]
     fn test_corruption_recovery() -> Result<()> {
-        let test_cases = vec![
+        let test_cases = [
             // Case 1: Unclosed quotes
             (
                 r#"{"role":"user","content":[{"type":"text","text":"Hello there}]"#,
@@ -1665,7 +1665,10 @@ mod tests {
         let file_path = dir.path().join("metadata.jsonl");
 
         let mut metadata = SessionMetadata::default();
-        metadata.description = "Description with\nnewline and \"quotes\" and 🦆".to_string();
+        #[allow(clippy::field_reassign_with_default)]
+        {
+            metadata.description = "Description with\nnewline and \"quotes\" and 🦆".to_string();
+        }
 
         let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test")]);
 
@@ -1702,7 +1705,7 @@ mod tests {
         let mut lines: Vec<String> = contents.lines().map(String::from).collect();
         lines[0] = lines[0].replace(
             &get_home_dir().to_string_lossy().into_owned(),
-            &invalid_dir.to_string_lossy().into_owned(),
+            &invalid_dir.to_string_lossy(),
         );
         fs::write(&file_path, lines.join("\n"))?;
 
