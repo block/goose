@@ -6,14 +6,13 @@ use serde_json::json;
 use crate::agents::recipe_tools::param_utils::prepare_command_params;
 
 fn setup_default_sub_recipe() -> SubRecipe {
-    let sub_recipe = SubRecipe {
+    SubRecipe {
         name: "test_sub_recipe".to_string(),
         path: "test_sub_recipe.yaml".to_string(),
         values: Some(HashMap::from([("key1".to_string(), "value1".to_string())])),
         sequential_when_repeated: true,
         description: Some("Test subrecipe".to_string()),
-    };
-    sub_recipe
+    }
 }
 
 mod prepare_command_params_tests {

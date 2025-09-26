@@ -20,5 +20,5 @@ export interface Alert {
   compactButtonDisabled?: boolean;
   onCompact?: () => void;
   compactIcon?: React.ReactNode;
-  autoCompactThreshold?: number; // Add this for showing the auto-compact threshold
+  autoCompactThreshold?: number;
 }

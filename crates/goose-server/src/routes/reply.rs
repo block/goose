@@ -11,13 +11,11 @@ use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::execution::SessionExecutionMode;
+use goose::permission::{Permission, PermissionConfirmation};
+use goose::session::SessionManager;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
-};
-use goose::{
-    permission::{Permission, PermissionConfirmation},
-    session,
 };
 use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
@@ -228,30 +226,13 @@ async fn reply_handler(
             }
         };
 
-        // Load session metadata to get the working directory and other config
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path for {}: {}", session_id, e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
-
-        let session_metadata = match session::read_metadata(&session_path) {
+        let session = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
+                tracing::error!("Failed to read session for {}: {}", session_id, e);
                 let _ = stream_event(
                     MessageEvent::Error {
-                        error: format!("Failed to read session metadata: {}", e),
+                        error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
                     &cancel_token,
@@ -262,9 +243,9 @@ async fn reply_handler(
         };
 
         let session_config = SessionConfig {
-            id: session::Identifier::Name(session_id.clone()),
-            working_dir: session_metadata.working_dir.clone(),
-            schedule_id: session_metadata.schedule_id.clone(),
+            id: session_id.clone(),
+            working_dir: session.working_dir.clone(),
+            schedule_id: session.schedule_id.clone(),
             execution_mode: None,
             max_turns: None,
             retry_config: None,
@@ -294,22 +275,6 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path: {}", e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
-        let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
@@ -376,40 +341,18 @@ async fn reply_handler(
             }
         }
 
-        if all_messages.len() > saved_message_count {
-            if let Ok(provider) = agent.provider().await {
-                let provider = Arc::clone(&provider);
-                let session_path_clone = session_path.to_path_buf();
-                let all_messages_clone = all_messages.clone();
-                let working_dir = session_config.working_dir.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session::persist_messages(
-                        &session_path_clone,
-                        &all_messages_clone,
-                        Some(provider),
-                        Some(working_dir),
-                    )
-                    .await
-                    {
-                        tracing::error!("Failed to store session history: {:?}", e);
-                    }
-                });
-            }
-        }
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = session::read_metadata(&session_path) {
-            let total_tokens = metadata.total_tokens.unwrap_or(0);
-            let message_count = metadata.message_count;
-
+        if let Ok(session) = SessionManager::get_session(&session_id, true).await {
+            let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
                 counter.goose.session_completions = 1,
                 session_type = "app",
                 interface = "ui",
                 exit_type = "normal",
                 duration_ms = session_duration.as_millis() as u64,
-                total_tokens,
-                message_count,
+                total_tokens = total_tokens,
+                message_count = session.message_count,
                 "Session completed"
             );
 
@@ -557,58 +500,15 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::conversation::message::Message;
-    use goose::{
-        model::ModelConfig,
-        providers::{
-            base::{Provider, ProviderUsage, Usage},
-            errors::ProviderError,
-        },
-    };
-
-    #[derive(Clone)]
-    struct MockProvider {
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl Provider for MockProvider {
-        fn metadata() -> goose::providers::base::ProviderMetadata {
-            goose::providers::base::ProviderMetadata::empty()
-        }
-
-        async fn complete_with_model(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[rmcp::model::Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::assistant().with_text("Mock response"),
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-    }
 
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
         use goose::conversation::message::Message;
-        use serde_json::json;
         use tower::ServiceExt;
 
         #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
-            let mock_model_config = ModelConfig::new("test-model").unwrap();
-            let mock_provider = MockProvider {
-                model_config: mock_model_config,
-            };
-
             let state = AppState::new().await.unwrap();
 
             let app = routes(state);

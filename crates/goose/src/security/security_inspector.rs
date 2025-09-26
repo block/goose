@@ -130,7 +130,7 @@ mod tests {
         if inspector.is_enabled() {
             // If security is enabled, should detect the dangerous command
             assert!(
-                results.len() >= 1,
+                !results.is_empty(),
                 "Security inspector should detect dangerous command when enabled"
             );
             if !results.is_empty() {

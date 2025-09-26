@@ -15,7 +15,7 @@ import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
-import { upsertConfig } from '../../../../api/sdk.gen';
+import { upsertConfig } from '../../../../api';
 import { ConfirmationModal } from '../../../ui/ConfirmationModal';
 
 interface ExtensionModalProps {

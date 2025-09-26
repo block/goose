@@ -50,13 +50,14 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { decodeRecipe } from './api/sdk.gen';
-import { client } from './api/client.gen';
+import { decodeRecipe } from './api';
+import { Client, createClient, createConfig } from './api/client';
 
-async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
+async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
   try {
     return (
       await decodeRecipe({
+        client,
         throwOnError: true,
         body: { deeplink },
       })
@@ -487,9 +488,9 @@ let appConfig = {
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
 };
 
-// Track windows by ID
-let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
+
+const goosedClients = new Map<number, Client>();
 
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
@@ -507,7 +508,7 @@ const createChat = async (
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
-  let working_dir = '';
+  let workingDir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
 
   if (viewType === 'recipeEditor') {
@@ -521,7 +522,7 @@ const createChat = async (
         );
         if (config) {
           port = config.GOOSE_PORT;
-          working_dir = config.GOOSE_WORKING_DIR;
+          workingDir = config.GOOSE_WORKING_DIR;
         }
       } catch (e) {
         console.error('Failed to get config from localStorage:', e);
@@ -551,7 +552,7 @@ const createChat = async (
       envVars
     );
     port = newPort;
-    working_dir = newWorkingDir;
+    workingDir = newWorkingDir;
     goosedProcess = newGoosedProcess;
   }
 
@@ -592,7 +593,7 @@ const createChat = async (
         JSON.stringify({
           ...appConfig,
           GOOSE_PORT: port,
-          GOOSE_WORKING_DIR: working_dir,
+          GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
@@ -602,6 +603,17 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  const goosedClient = createClient(
+    createConfig({
+      baseUrl: `http://127.0.0.1:${port}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': SERVER_SECRET,
+      },
+    })
+  );
+  goosedClients.set(mainWindow.id, goosedClient);
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -660,7 +672,7 @@ const createChat = async (
     shell.openExternal(url);
   });
 
-  const windowId = ++windowCounter;
+  const windowId = mainWindow.id;
   const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
     : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
@@ -738,7 +750,7 @@ const createChat = async (
     console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
 
     // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink)
+    decodeRecipeMain(goosedClient, recipeDeeplink)
       .then((decodedRecipe) => {
         if (decodedRecipe) {
           console.log('[Main] Recipe decoded successfully, updating window config');
@@ -1061,8 +1073,16 @@ ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
 });
 
-ipcMain.handle('get-goosed-host-port', async () => {
-  await checkServerStatus();
+ipcMain.handle('get-goosed-host-port', async (event) => {
+  const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+  if (!windowId) {
+    return null;
+  }
+  const client = goosedClients.get(windowId);
+  if (!client) {
+    return null;
+  }
+  await checkServerStatus(client);
   return client.getConfig().baseUrl || null;
 });
 

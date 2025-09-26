@@ -72,7 +72,7 @@ export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, ch
 /**
  * Props for the SessionMessages component
  */
-export interface SessionMessagesProps {
+interface SessionMessagesProps {
   messages: Message[];
   isLoading: boolean;
   error: string | null;

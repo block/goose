@@ -248,7 +248,7 @@ mod tests {
         );
 
         // Create a proper temporary directory that will be automatically cleaned up
-        let _temp_dir = TempDir::with_prefix(&format!("goose_test_{}_", test_id)).unwrap();
+        let _temp_dir = TempDir::with_prefix(format!("goose_test_{}_", test_id)).unwrap();
         let test_dir = _temp_dir.path();
 
         // Set up environment
@@ -275,7 +275,7 @@ mod tests {
         if log_dir.exists() {
             for entry in std::fs::read_dir(&log_dir).unwrap() {
                 let entry = entry.unwrap();
-                if entry.path().extension().map_or(false, |ext| ext == "log") {
+                if entry.path().extension().is_some_and(|ext| ext == "log") {
                     std::fs::remove_file(entry.path()).unwrap();
                 }
             }
@@ -315,7 +315,7 @@ mod tests {
 
         let log_count = all_files
             .iter()
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
             .count();
 
         println!("Found {} log files in directory", log_count);
@@ -358,8 +358,8 @@ mod tests {
             .iter()
             .filter(|e| {
                 let path = e.path();
-                let matches = path.extension().map_or(false, |ext| ext == "log")
-                    && path.file_name().map_or(false, |name| {
+                let matches = path.extension().is_some_and(|ext| ext == "log")
+                    && path.file_name().is_some_and(|name| {
                         let name = name.to_string_lossy();
                         if let Some(session) = session_name {
                             name.ends_with(&format!("{}.log", session))
@@ -411,7 +411,7 @@ mod tests {
             })
             .collect();
 
-        log_files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        log_files.sort_by_key(|a| a.file_name());
         assert_eq!(log_files.len(), 1, "Expected exactly one matching log file");
 
         let log_file_name = log_files[0].file_name().to_string_lossy().into_owned();

@@ -1,38 +1,42 @@
 use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
-use crate::{logging, session, Session};
+use crate::{logging, CliSession};
 use async_trait::async_trait;
 use goose::conversation::Conversation;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 // allow session obj to be used in benchmarking
 #[async_trait]
-impl BenchBaseSession for Session {
+impl BenchBaseSession for CliSession {
     async fn headless(&mut self, message: String) -> anyhow::Result<()> {
         self.headless(message).await
-    }
-    fn session_file(&self) -> Option<PathBuf> {
-        self.session_file()
     }
     fn message_history(&self) -> Conversation {
         self.message_history()
     }
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>> {
-        self.get_total_token_usage()
+        // Since the trait requires sync but the session method is async,
+        // we need to block on the async call
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.get_total_token_usage())
+        })
+    }
+
+    fn get_session_id(&self) -> anyhow::Result<String> {
+        self.session_id()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("No session ID available"))
     }
 }
 pub async fn agent_generator(
     requirements: ExtensionRequirements,
     session_id: String,
 ) -> BenchAgent {
-    let identifier = Some(session::Identifier::Name(session_id));
-
     let base_session = build_session(SessionBuilderConfig {
-        identifier,
+        session_id: Some(session_id),
         resume: false,
         no_session: false,
         extensions: requirements.external,
@@ -56,10 +60,8 @@ pub async fn agent_generator(
     })
     .await;
 
-    // package session obj into benchmark-compatible struct
     let bench_agent = BenchAgent::new(Box::new(base_session));
 
-    // Initialize logging with error capture
     let errors = Some(Arc::new(Mutex::new(bench_agent.get_errors().await)));
     logging::setup_logging(Some("bench"), errors).expect("Failed to initialize logging");
 

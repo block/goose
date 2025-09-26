@@ -265,7 +265,7 @@ function BaseChatContent({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
-    sessionMetadata,
+    session: sessionMetadata,
   });
 
   useEffect(() => {

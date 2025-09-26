@@ -6,13 +6,11 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
-use goose::conversation::message::Message;
-use goose::conversation::Conversation;
+
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
-use goose::session;
-use goose::session::SessionMetadata;
+use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -22,7 +20,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
@@ -81,14 +78,6 @@ pub struct ResumeAgentRequest {
     session_id: String,
 }
 
-// This is the same as SessionHistoryResponse
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct StartAgentResponse {
-    session_id: String,
-    metadata: SessionMetadata,
-    messages: Vec<Message>,
-}
-
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
     error: String,
@@ -99,7 +88,7 @@ pub struct ErrorResponse {
     path = "/agent/start",
     request_body = StartAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -108,39 +97,28 @@ pub struct ErrorResponse {
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
-    let session_id = session::generate_session_id();
+) -> Result<Json<Session>, StatusCode> {
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let description = format!("New session {}", counter);
 
-    let metadata = SessionMetadata {
-        working_dir: PathBuf::from(&payload.working_dir),
-        description: format!("New session {}", counter),
-        schedule_id: None,
-        message_count: 0,
-        total_tokens: Some(0),
-        input_tokens: Some(0),
-        output_tokens: Some(0),
-        accumulated_total_tokens: Some(0),
-        accumulated_input_tokens: Some(0),
-        accumulated_output_tokens: Some(0),
-        extension_data: Default::default(),
-        recipe: payload.recipe,
-    };
+    let mut session =
+        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
+    if let Some(recipe) = payload.recipe {
+        SessionManager::update_session(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let conversation = Conversation::empty();
-    session::storage::save_messages_with_metadata(&session_path, &metadata, &conversation)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        session = SessionManager::get_session(&session.id, false)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
 
-    Ok(Json(StartAgentResponse {
-        session_id,
-        metadata,
-        messages: conversation.messages().clone(),
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(
@@ -148,7 +126,7 @@ async fn start_agent(
     path = "/agent/resume",
     request_body = ResumeAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -156,28 +134,12 @@ async fn start_agent(
 )]
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
-    let session_path =
-        match session::get_path(session::Identifier::Name(payload.session_id.clone())) {
-            Ok(path) => path,
-            Err(_) => return Err(StatusCode::BAD_REQUEST),
-        };
+) -> Result<Json<Session>, StatusCode> {
+    let session = SessionManager::get_session(&payload.session_id, true)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let conversation = match session::read_messages(&session_path) {
-        Ok(messages) => messages,
-        Err(e) => {
-            error!("Failed to read session messages: {:?}", e);
-            return Err(StatusCode::NOT_FOUND);
-        }
-    };
-
-    Ok(Json(StartAgentResponse {
-        session_id: payload.session_id.clone(),
-        metadata,
-        messages: conversation.messages().clone(),
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(

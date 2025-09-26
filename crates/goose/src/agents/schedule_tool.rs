@@ -421,12 +421,12 @@ impl Agent {
                 } else {
                     let sessions_info: Vec<String> = sessions
                         .into_iter()
-                        .map(|(session_name, metadata)| {
+                        .map(|(session_name, session)| {
                             format!(
                                 "- Session: {} (Messages: {}, Working Dir: {})",
                                 session_name,
-                                metadata.message_count,
-                                metadata.working_dir.display()
+                                session.conversation.unwrap_or_default().len(),
+                                session.working_dir.display()
                             )
                         })
                         .collect();
@@ -462,55 +462,19 @@ impl Agent {
                 )
             })?;
 
-        // Get the session file path
-        let session_path = match crate::session::storage::get_path(
-            crate::session::storage::Identifier::Name(session_id.to_string()),
-        ) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Invalid session ID '{}': {}", session_id, e),
-                    None,
-                ));
-            }
-        };
-
-        // Check if session file exists
-        if !session_path.exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Session '{}' not found", session_id),
-                None,
-            ));
-        }
-
-        // Read session metadata
-        let metadata = match crate::session::storage::read_metadata(&session_path) {
+        let session = match crate::session::SessionManager::get_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session metadata: {}", e),
-                    None,
-                ));
-            }
-        };
-
-        // Read session messages
-        let messages = match crate::session::storage::read_messages(&session_path) {
-            Ok(messages) => messages,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read session messages: {}", e),
+                    format!("Failed to read session for '{}': {}", session_id, e),
                     None,
                 ));
             }
         };
 
         // Format the response with metadata and messages
-        let metadata_json = match serde_json::to_string_pretty(&metadata) {
+        let metadata_json = match serde_json::to_string_pretty(&session) {
             Ok(json) => json,
             Err(e) => {
                 return Err(ErrorData::new(
@@ -521,20 +485,9 @@ impl Agent {
             }
         };
 
-        let messages_json = match serde_json::to_string_pretty(&messages) {
-            Ok(json) => json,
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to serialize messages: {}", e),
-                    None,
-                ));
-            }
-        };
-
         Ok(vec![Content::text(format!(
-            "Session '{}' Content:\n\nMetadata:\n{}\n\nMessages:\n{}",
-            session_id, metadata_json, messages_json
+            "Session '{}' Content:\n\nSession:\n{}",
+            session_id, metadata_json
         ))])
     }
 }

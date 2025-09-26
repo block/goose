@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -685,12 +685,12 @@ pub fn display_session_info(
     resume: bool,
     provider: &str,
     model: &str,
-    session_file: &Option<PathBuf>,
+    session_id: &Option<String>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     let start_session_msg = if resume {
         "resuming session |"
-    } else if session_file.is_none() {
+    } else if session_id.is_none() {
         "running without session |"
     } else {
         "starting session |"
@@ -729,14 +729,6 @@ pub fn display_session_info(
             style(provider).cyan().dim(),
             style("model:").dim(),
             style(model).cyan().dim(),
-        );
-    }
-
-    if let Some(session_file) = session_file {
-        println!(
-            "    {} {}",
-            style("logging to").dim(),
-            style(session_file.display()).dim().cyan(),
         );
     }
 

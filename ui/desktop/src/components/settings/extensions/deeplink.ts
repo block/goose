@@ -13,7 +13,16 @@ function getStdioConfig(
   timeout: number
 ) {
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['cu', 'docker', 'jbang', 'npx', 'uvx', 'goosed', 'npx.cmd', 'i-ching-mcp-server'];
+  const allowedCommands = [
+    'cu',
+    'docker',
+    'jbang',
+    'npx',
+    'uvx',
+    'goosed',
+    'npx.cmd',
+    'i-ching-mcp-server',
+  ];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(
       'Invalid Command',

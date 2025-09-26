@@ -1,6 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ChatType } from '../types/chat';
-import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
@@ -54,16 +53,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   };
 
   const resetChat = () => {
-    const newSessionId = generateSessionId();
     setChat({
-      sessionId: newSessionId,
+      sessionId: '',
       title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
-      recipeConfig: null, // Clear recipe when resetting chat
-      recipeParameters: null, // Clear  when resetting chat
+      recipeConfig: null,
+      recipeParameters: null,
     });
-    // Clear draft when resetting chat
     clearDraft();
   };
 

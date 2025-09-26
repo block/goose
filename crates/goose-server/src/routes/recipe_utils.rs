@@ -129,6 +129,6 @@ recipe: recipe_content
         let result = RecipeManifestMetadata::from_yaml_file(&file_path).unwrap();
 
         assert_eq!(result.name, "Test Recipe");
-        assert_eq!(result.is_global, true);
+        assert!(result.is_global);
     }
 }

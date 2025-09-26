@@ -1,0 +1,111 @@
+[
+  [
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "file:///Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt",
+        "mimeType": "text",
+        "text": "# codename goose\n"
+      },
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "### /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt\n```\n1: # codename goose\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "The file /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# codename goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "```\n# codename goose (modified by test)\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.2
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "# codename goose (modified by test)\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "# codename goose (modified by test)\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "The file /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# codename goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "```\n# codename goose\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.2
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "Available windows:\nMenubar",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "Available windows:\nMenubar",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ]
+]

@@ -506,7 +506,7 @@ mod tests {
         let context_limit = 25;
 
         let result = truncate_messages(
-            &messages.messages(),
+            messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
@@ -590,7 +590,7 @@ mod tests {
         let context_limit = 100; // Exactly matches total tokens
 
         let result = truncate_messages(
-            &messages.messages(),
+            messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
@@ -605,7 +605,7 @@ mod tests {
         token_counts.push(1);
 
         let result = truncate_messages(
-            &messages.messages(),
+            messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
@@ -698,7 +698,7 @@ mod tests {
         let (messages, token_counts) = result;
 
         // Verify the conversation still makes sense
-        assert!(messages.len() >= 1);
+        assert!(!messages.is_empty());
         assert!(messages.last().unwrap().role == Role::User);
         assert!(token_counts.iter().sum::<usize>() <= context_limit);
 
@@ -710,7 +710,7 @@ mod tests {
         // Test impossibly small context window
         let (messages, token_counts) = create_messages_with_counts(1, 10, false);
         let result = truncate_messages(
-            &messages.messages(),
+            messages.messages(),
             &token_counts,
             5, // Impossibly small context
             &OldestFirstTruncation,

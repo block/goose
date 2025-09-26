@@ -103,6 +103,8 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type Conversation = Array<Message>;
+
 export type CreateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -698,6 +700,25 @@ export type ScheduledJob = {
     source: string;
 };
 
+export type Session = {
+    accumulated_input_tokens?: number | null;
+    accumulated_output_tokens?: number | null;
+    accumulated_total_tokens?: number | null;
+    conversation?: Conversation | null;
+    created_at: string;
+    description: string;
+    extension_data: ExtensionData;
+    id: string;
+    input_tokens?: number | null;
+    message_count: number;
+    output_tokens?: number | null;
+    recipe?: Recipe | null;
+    schedule_id?: string | null;
+    total_tokens?: number | null;
+    updated_at: string;
+    working_dir: string;
+};
+
 export type SessionConfigRequest = {
     response?: Response | null;
     session_id: string;
@@ -718,78 +739,22 @@ export type SessionDisplayInfo = {
     workingDir: string;
 };
 
-export type SessionHistoryResponse = {
+export type SessionInsights = {
     /**
-     * List of messages in the session conversation
+     * Total number of sessions
      */
-    messages: Array<Message>;
-    metadata: SessionMetadata;
+    totalSessions: number;
     /**
-     * Unique identifier for the session
+     * Total tokens used across all sessions
      */
-    sessionId: string;
-};
-
-export type SessionInfo = {
-    id: string;
-    metadata: SessionMetadata;
-    modified: string;
-    path: string;
+    totalTokens: number;
 };
 
 export type SessionListResponse = {
     /**
      * List of available session information objects
      */
-    sessions: Array<SessionInfo>;
-};
-
-/**
- * Metadata for a session, stored as the first line in the session file
- */
-export type SessionMetadata = {
-    /**
-     * The number of input tokens used in the session. Accumulated across all messages.
-     */
-    accumulated_input_tokens?: number | null;
-    /**
-     * The number of output tokens used in the session. Accumulated across all messages.
-     */
-    accumulated_output_tokens?: number | null;
-    /**
-     * The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).
-     */
-    accumulated_total_tokens?: number | null;
-    /**
-     * A short description of the session, typically 3 words or less
-     */
-    description: string;
-    extension_data?: ExtensionData;
-    /**
-     * The number of input tokens used in the session. Retrieved from the provider's last usage.
-     */
-    input_tokens?: number | null;
-    /**
-     * Number of messages in the session
-     */
-    message_count: number;
-    /**
-     * The number of output tokens used in the session. Retrieved from the provider's last usage.
-     */
-    output_tokens?: number | null;
-    recipe?: Recipe | null;
-    /**
-     * ID of the schedule that triggered this session, if any
-     */
-    schedule_id?: string | null;
-    /**
-     * The total number of tokens used in the session. Retrieved from the provider's last usage.
-     */
-    total_tokens?: number | null;
-    /**
-     * Working directory for the session
-     */
-    working_dir: string;
+    sessions: Array<Session>;
 };
 
 export type SessionsQuery = {
@@ -810,12 +775,6 @@ export type SetupResponse = {
 export type StartAgentRequest = {
     recipe?: Recipe | null;
     working_dir: string;
-};
-
-export type StartAgentResponse = {
-    messages: Array<Message>;
-    metadata: SessionMetadata;
-    session_id: string;
 };
 
 export type SubRecipe = {
@@ -930,6 +889,13 @@ export type UpdateScheduleRequest = {
     cron: string;
 };
 
+export type UpdateSessionDescriptionRequest = {
+    /**
+     * Updated description (name) for the session (max 200 characters)
+     */
+    description: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -1020,7 +986,7 @@ export type ResumeAgentResponses = {
     /**
      * Agent started successfully
      */
-    200: StartAgentResponse;
+    200: Session;
 };
 
 export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
@@ -1082,10 +1048,10 @@ export type StartAgentResponses = {
     /**
      * Agent started successfully
      */
-    200: StartAgentResponse;
+    200: Session;
 };
 
-export type StartAgentResponse2 = StartAgentResponses[keyof StartAgentResponses];
+export type StartAgentResponse = StartAgentResponses[keyof StartAgentResponses];
 
 export type GetToolsData = {
     body?: never;
@@ -2144,7 +2110,34 @@ export type ListSessionsResponses = {
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
-export type GetSessionHistoryData = {
+export type GetSessionInsightsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions/insights';
+};
+
+export type GetSessionInsightsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionInsightsResponses = {
+    /**
+     * Session insights retrieved successfully
+     */
+    200: SessionInsights;
+};
+
+export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
+
+export type DeleteSessionData = {
     body?: never;
     path: {
         /**
@@ -2156,7 +2149,7 @@ export type GetSessionHistoryData = {
     url: '/sessions/{session_id}';
 };
 
-export type GetSessionHistoryErrors = {
+export type DeleteSessionErrors = {
     /**
      * Unauthorized - Invalid or missing API key
      */
@@ -2171,14 +2164,86 @@ export type GetSessionHistoryErrors = {
     500: unknown;
 };
 
-export type GetSessionHistoryResponses = {
+export type DeleteSessionResponses = {
+    /**
+     * Session deleted successfully
+     */
+    200: unknown;
+};
+
+export type GetSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}';
+};
+
+export type GetSessionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionResponses = {
     /**
      * Session history retrieved successfully
      */
-    200: SessionHistoryResponse;
+    200: Session;
 };
 
-export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
+export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type UpdateSessionDescriptionData = {
+    body: UpdateSessionDescriptionRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/description';
+};
+
+export type UpdateSessionDescriptionErrors = {
+    /**
+     * Bad request - Description too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionDescriptionResponses = {
+    /**
+     * Session description updated successfully
+     */
+    200: unknown;
+};
 
 export type StatusData = {
     body?: never;

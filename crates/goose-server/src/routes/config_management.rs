@@ -822,8 +822,8 @@ mod tests {
         let status_code = result.unwrap_err();
 
         assert!(status_code == StatusCode::BAD_REQUEST,
-            "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
-            status_code
+                "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
+                status_code
         );
 
         std::env::remove_var("OPENAI_API_KEY");

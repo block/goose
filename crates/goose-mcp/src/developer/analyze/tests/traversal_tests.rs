@@ -134,7 +134,7 @@ fn test_symlink_handling() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::symlink;
-        let _ = symlink(&dir_path.join("target.rs"), dir_path.join("link.rs"));
+        let _ = symlink(dir_path.join("target.rs"), dir_path.join("link.rs"));
         let _ = symlink(&target_dir, dir_path.join("link_dir"));
     }
 

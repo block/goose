@@ -117,6 +117,7 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
+          CC: gcc-10
         run: |
           source ./bin/activate-hermit
           export TARGET="x86_64-unknown-linux-gnu"
@@ -157,10 +158,10 @@ jobs:
           source ./bin/activate-hermit
           cd ui/desktop
           echo "Building Linux packages (.deb and .rpm)..."
-          
+
           # Build both .deb and .rpm packages
           npm run make -- --platform=linux --arch=x64
-          
+
           echo "Build completed. Checking output..."
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" | head -10

@@ -1,0 +1,96 @@
+# GitHub Actions workflow for managing stale Pull Requests
+# This workflow runs daily to mark inactive PRs as stale and close them after a grace period
+name: 'Close Stale PRs'
+
+# Trigger configuration
+on:
+  # Run daily at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Allow manual triggering from GitHub UI
+  workflow_dispatch:
+
+# Define permissions for the GITHUB_TOKEN
+permissions:
+  # Required to read repository contents and PR information
+  contents: read
+  # Required to add labels, comments, and close PRs
+  pull-requests: write
+  # Required to read issues (PRs are issues in GitHub API)
+  issues: write
+
+jobs:
+  stale:
+    name: 'Mark and Close Stale PRs'
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Use the official stale action from GitHub
+      - name: 'Close Stale PRs'
+        uses: actions/stale@v10
+        with:
+          # Authentication token with required permissions
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # === TIMING CONFIGURATION ===
+          # Mark PRs as stale after 23 days of inactivity
+          days-before-stale: 23
+          # Close PRs 7 days after being marked stale (total 30 days)
+          days-before-close: 7
+          
+          # === STALE MARKING CONFIGURATION ===
+          # Message posted when marking PR as stale
+          stale-pr-message: |
+            This pull request has been automatically marked as stale because it has not had recent activity for 23 days.
+            
+            **What happens next?**
+            - If no further activity occurs, this PR will be automatically closed in 7 days
+            - To keep this PR active, simply add a comment, push new commits, or add the `keep-open` label
+            - If you believe this PR was marked as stale in error, please comment and we'll review it
+            
+            Thank you for your contribution! 🚀
+          
+          # Label applied to stale PRs
+          stale-pr-label: 'stale'
+          
+          # === CLOSING CONFIGURATION ===
+          # Message posted when closing stale PR
+          close-pr-message: |
+            This pull request has been automatically closed due to inactivity.
+            
+            **Why was this closed?**
+            - No activity for 30 days total (23 days + 7 day grace period)
+            - Marked as stale 7 days ago with no subsequent activity
+            
+            **Want to reopen?**
+            - You can reopen this PR at any time if you want to continue working on it
+            - Consider rebasing against the latest main branch before reopening
+            - Feel free to reach out if you need any assistance
+            
+            Thank you for your contribution! We appreciate your effort. 🙏
+          
+          # === EXEMPTION CONFIGURATION ===
+          # Skip PRs with these labels (comma-separated)
+          exempt-pr-labels: 'keep-open,wip,work-in-progress,security,pinned,dependencies'
+          
+          # Skip draft PRs (they're typically work in progress)
+          exempt-draft-pr: true
+          
+          # === ISSUE CONFIGURATION (DISABLED) ===
+          # We only want to manage PRs, not issues
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          
+          # === OPERATIONAL SETTINGS ===
+          # Maximum number of operations per run (prevents API rate limiting)
+          operations-per-run: 100
+          
+          # Remove stale label when PR becomes active again
+          remove-stale-when-updated: true
+          
+          # Enable debug output for troubleshooting
+          debug-only: false
+          
+          # Order to process PRs (oldest first is more fair)
+          ascending: true

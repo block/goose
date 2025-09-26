@@ -274,30 +274,6 @@ mod tests {
     use mcp_core::ToolCall;
     use serde_json::json;
 
-    struct MockInspector {
-        name: &'static str,
-        results: Vec<InspectionResult>,
-    }
-
-    #[async_trait]
-    impl ToolInspector for MockInspector {
-        fn name(&self) -> &'static str {
-            self.name
-        }
-
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        async fn inspect(
-            &self,
-            _tool_requests: &[ToolRequest],
-            _messages: &[Message],
-        ) -> Result<Vec<InspectionResult>> {
-            Ok(self.results.clone())
-        }
-    }
-
     #[test]
     fn test_apply_inspection_results() {
         let tool_request = ToolRequest {

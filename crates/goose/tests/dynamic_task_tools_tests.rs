@@ -431,7 +431,7 @@ mod tests {
         assert!(recipe.extensions.is_some());
         let extensions = recipe.extensions.unwrap();
         // At minimum we should get the full config (stdio), shortname may not resolve
-        assert!(extensions.len() >= 1 && extensions.len() <= 2);
+        assert!(!extensions.is_empty() && extensions.len() <= 2);
         // The last one should always be the stdio config we provided
         if let Some(last) = extensions.last() {
             match last {

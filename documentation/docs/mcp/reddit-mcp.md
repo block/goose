@@ -10,8 +10,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VBtFinHieHA" /> 
 
 
 This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhikasp/mcp-reddit) as a Goose extension to fetch trending threads, analyze Reddit post content, and explore subreddit discussions.

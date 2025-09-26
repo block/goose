@@ -21,7 +21,7 @@ async fn test_pricing_cache_performance() {
         ("anthropic", "claude-sonnet-4"),
         ("openai", "gpt-4o"),
         ("openai", "gpt-4o-mini"),
-        ("google", "gemini-flash-1.5"),
+        ("google", "gemini-2.5-flash"),
         ("anthropic", "claude-opus-4"),
     ];
 

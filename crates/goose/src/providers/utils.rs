@@ -545,7 +545,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data).unwrap();
+        std::fs::write(&png_path, png_data).unwrap();
         let png_path_str = png_path.to_str().unwrap();
 
         // Create a fake PNG (wrong magic numbers)
@@ -583,7 +583,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data).unwrap();
+        std::fs::write(&png_path, png_data).unwrap();
         let png_path_str = png_path.to_str().unwrap();
 
         // Create a fake PNG (wrong magic numbers)
@@ -613,7 +613,7 @@ mod tests {
         let gif_path = temp_dir.path().join("test.gif");
         // Minimal GIF89a header
         let gif_data = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61];
-        std::fs::write(&gif_path, &gif_data).unwrap();
+        std::fs::write(&gif_path, gif_data).unwrap();
         let gif_path_str = gif_path.to_str().unwrap();
 
         // Test loading unsupported GIF format
@@ -965,7 +965,7 @@ mod tests {
             // Make request to mock server
             let client = reqwest::Client::new();
             let response = client
-                .get(&format!("{}/test", &mock_server.uri()))
+                .get(format!("{}/test", &mock_server.uri()))
                 .send()
                 .await
                 .unwrap();
