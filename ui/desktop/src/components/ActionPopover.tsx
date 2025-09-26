@@ -227,21 +227,29 @@ const ActionPopover = forwardRef<
                 onClick={() => handleItemClick(index)}
                 className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
                   index === selectedIndex
-                    ? 'bg-bgProminent text-textProminentInverse'
+                    ? 'bg-blue-500 text-white'
                     : 'hover:bg-background-muted'
                 }`}
               >
-                <div className="flex-shrink-0 text-textSubtle">
+                <div className={`flex-shrink-0 ${index === selectedIndex ? 'text-white' : 'text-textSubtle'}`}>
                   {action.icon}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="text-sm font-medium text-textStandard">{action.label}</div>
-                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full font-medium">
+                    <div className={`text-sm font-medium ${index === selectedIndex ? 'text-white' : 'text-textStandard'}`}>
+                      {action.label}
+                    </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      index === selectedIndex 
+                        ? 'bg-blue-400 text-white' 
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                    }`}>
                       Custom
                     </span>
                   </div>
-                  <div className="text-xs text-textSubtle">{action.description}</div>
+                  <div className={`text-xs ${index === selectedIndex ? 'text-blue-100' : 'text-textSubtle'}`}>
+                    {action.description}
+                  </div>
                 </div>
               </div>
             ))
