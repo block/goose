@@ -29,10 +29,17 @@ pub struct ConfigurableMockScheduler {
     running_jobs: Arc<Mutex<HashSet<String>>>,
     call_log: Arc<Mutex<Vec<String>>>,
     behaviors: Arc<Mutex<HashMap<String, MockBehavior>>>,
+    #[allow(clippy::type_complexity)]
     sessions_data: Arc<Mutex<HashMap<String, Vec<(String, SessionMetadata)>>>>,
 }
 
 #[allow(dead_code)]
+impl Default for ConfigurableMockScheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigurableMockScheduler {
     pub fn new() -> Self {
         Self {
@@ -42,36 +49,6 @@ impl ConfigurableMockScheduler {
             behaviors: Arc::new(Mutex::new(HashMap::new())),
             sessions_data: Arc::new(Mutex::new(HashMap::new())),
         }
-    }
-
-    pub async fn with_behavior(self, method: &str, behavior: MockBehavior) -> Self {
-        self.behaviors
-            .lock()
-            .await
-            .insert(method.to_string(), behavior);
-        self
-    }
-
-    pub async fn with_existing_job(self, job: ScheduledJob) -> Self {
-        self.jobs.lock().await.insert(job.id.clone(), job);
-        self
-    }
-
-    pub async fn with_running_job(self, job_id: &str) -> Self {
-        self.running_jobs.lock().await.insert(job_id.to_string());
-        self
-    }
-
-    pub async fn with_sessions_data(
-        self,
-        job_id: &str,
-        sessions: Vec<(String, SessionMetadata)>,
-    ) -> Self {
-        self.sessions_data
-            .lock()
-            .await
-            .insert(job_id.to_string(), sessions);
-        self
     }
 
     pub async fn get_calls(&self) -> Vec<String> {
@@ -335,6 +312,12 @@ prompt: "Hello world"
 // Test builder for easy setup
 pub struct ScheduleToolTestBuilder {
     scheduler: Arc<ConfigurableMockScheduler>,
+}
+
+impl Default for ScheduleToolTestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ScheduleToolTestBuilder {

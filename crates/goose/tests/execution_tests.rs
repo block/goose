@@ -57,9 +57,7 @@ mod execution_tests {
     async fn test_session_limit() {
         let manager = AgentManager::new(Some(3)).await.unwrap();
 
-        let sessions: Vec<_> = (0..3)
-            .map(|i| String::from(format!("session-{}", i)))
-            .collect();
+        let sessions: Vec<_> = (0..3).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
             manager

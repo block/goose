@@ -575,7 +575,7 @@ impl ComputerControllerServer {
             Some examples:
             - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
             - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
-            - Find text: Select-String -Pattern "pattern" -Path file.txt
+            - Find text: Select-String -Pattern 'pattern' -Path file.txt
         "
     )]
     pub async fn automation_script(

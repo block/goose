@@ -558,11 +558,14 @@ mod tests {
         ];
 
         // Create session metadata with specific token counts
+        #[allow(clippy::field_reassign_with_default)]
         let mut session_metadata = SessionMetadata::default();
-        session_metadata.total_tokens = Some(8000); // High token count to trigger compaction
-        session_metadata.accumulated_total_tokens = Some(15000); // Even higher accumulated count
-        session_metadata.input_tokens = Some(5000);
-        session_metadata.output_tokens = Some(3000);
+        {
+            session_metadata.total_tokens = Some(8000); // High token count to trigger compaction
+            session_metadata.accumulated_total_tokens = Some(15000); // Even higher accumulated count
+            session_metadata.input_tokens = Some(5000);
+            session_metadata.output_tokens = Some(3000);
+        }
 
         // Test with session metadata - should use total_tokens for compaction (not accumulated)
         let result_with_metadata = check_compaction_needed(
@@ -594,7 +597,10 @@ mod tests {
 
         // Test with metadata that has only accumulated tokens (no total_tokens)
         let mut session_metadata_no_total = SessionMetadata::default();
-        session_metadata_no_total.accumulated_total_tokens = Some(7500);
+        #[allow(clippy::field_reassign_with_default)]
+        {
+            session_metadata_no_total.accumulated_total_tokens = Some(7500);
+        }
 
         let result_with_no_total = check_compaction_needed(
             &agent,
@@ -650,7 +656,10 @@ mod tests {
 
         // Create session metadata with high token count to trigger compaction
         let mut session_metadata = SessionMetadata::default();
-        session_metadata.total_tokens = Some(9000); // High enough to trigger compaction
+        #[allow(clippy::field_reassign_with_default)]
+        {
+            session_metadata.total_tokens = Some(9000); // High enough to trigger compaction
+        }
 
         // Test full compaction flow with session metadata
         let result = check_and_compact_messages(
