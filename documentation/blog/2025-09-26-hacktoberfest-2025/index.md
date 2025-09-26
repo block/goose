@@ -64,9 +64,9 @@ As thanks for every contribution we receive this year, the team is offering excl
 
 | Place | Prize |
 | -------- | -------- |
-| :first_place_medal: Top 1-5 Contributors | $100 gift card to goose swag shop + $100 LLM credits     | 
-| :second_place_medal: Top 6-10 Contributors | $50 gift card to goose swag shop + $50 LLM credits     | 
-| :third_place_medal: Top 11-20 Contributors | $25 LLM credits    | 
+| 🥇 Top 1-5 Contributors | $100 gift card to goose swag shop + $100 LLM credits     | 
+| 🥈 Top 6-10 Contributors | $50 gift card to goose swag shop + $50 LLM credits     | 
+| 🥉 Top 11-20 Contributors | $25 LLM credits    | 
 
 You can keep an eye on your progress all month long in our Hacktoberfest 2025 Leaderboard here!
 
