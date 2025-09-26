@@ -26,6 +26,8 @@ export interface ExtensionFormData {
   endpoint?: string;
   enabled: boolean;
   timeout?: number;
+  stdoutLogPath?: string;
+  stderrLogPath?: string;
   envVars: {
     key: string;
     value: string;
@@ -47,6 +49,8 @@ export function getDefaultFormData(): ExtensionFormData {
     endpoint: '',
     enabled: true,
     timeout: 300,
+    stdoutLogPath: '',
+    stderrLogPath: '',
     envVars: [],
     headers: [],
   };
@@ -109,6 +113,8 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'sse' || extension.type === 'streamable_http' ? extension.uri : undefined,
     enabled: extension.enabled,
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
+    stdoutLogPath: extension.type === 'stdio' ? extension.stdout_log_path || '' : '',
+    stderrLogPath: extension.type === 'stdio' ? extension.stderr_log_path || '' : '',
     envVars,
     headers,
   };
@@ -130,6 +136,8 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       args: args,
       timeout: formData.timeout,
       ...(env_keys.length > 0 ? { env_keys } : {}),
+      ...(formData.stdoutLogPath ? { stdout_log_path: formData.stdoutLogPath } : {}),
+      ...(formData.stderrLogPath ? { stderr_log_path: formData.stderrLogPath } : {}),
     };
   } else if (formData.type === 'sse') {
     return {

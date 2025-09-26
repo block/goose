@@ -16,7 +16,8 @@ export default function ExtensionConfigFields({
   onChange,
   submitAttempted = false,
   isValid,
-}: ExtensionConfigFieldsProps) {
+  stderrLogPath,
+}: ExtensionConfigFieldsProps & { stderrLogPath?: string }) {
   if (type === 'stdio') {
     return (
       <div className="space-y-4">
@@ -33,6 +34,21 @@ export default function ExtensionConfigFields({
               <div className="absolute text-xs text-red-500 mt-1">Command is required</div>
             )}
           </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium mb-2 block text-textStandard">
+            Stderr Log Path (optional)
+          </label>
+          <Input
+            value={stderrLogPath || ''}
+            onChange={(e) => onChange('stderrLogPath', e.target.value)}
+            placeholder="e.g. /tmp/my-extension/stderr.log"
+            className="w-full border-borderSubtle text-textStandard"
+          />
+          <p className="text-xs text-textMuted mt-1">
+            Path to redirect stderr output for debugging. Leave empty to disable.
+          </p>
         </div>
       </div>
     );
