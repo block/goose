@@ -14,7 +14,8 @@ pre-build = [
      pkg-config \
      libssl-dev:arm64 \
      libdbus-1-dev:arm64 \
-     libxcb1-dev:arm64
+     libxcb1-dev:arm64 \
+     gcc-10
     """
 ]
 
