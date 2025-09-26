@@ -1,5 +1,4 @@
 use crate::state::AppState;
-use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -28,7 +27,6 @@ use tracing::error;
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -40,7 +38,6 @@ pub struct ExtendPromptResponse {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
     sub_recipes: Vec<SubRecipe>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -53,27 +50,23 @@ pub struct AddSubRecipesResponse {
 pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct SessionConfigRequest {
     response: Option<Response>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -116,8 +109,6 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
-    state.reset().await;
-
     let session_id = session::generate_session_id();
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -203,7 +194,7 @@ async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AddSubRecipesRequest>,
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.add_sub_recipes(payload.sub_recipes.clone()).await;
     Ok(Json(AddSubRecipesResponse { success: true }))
 }
@@ -222,7 +213,7 @@ async fn extend_prompt(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.extend_system_prompt(payload.extension.clone()).await;
     Ok(Json(ExtendPromptResponse { success: true }))
 }
@@ -247,7 +238,7 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(query.session_id).await?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
@@ -298,35 +289,37 @@ async fn get_tools(
 async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, impl IntoResponse> {
-    let agent = state.get_agent().await;
+) -> Result<StatusCode, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
     let config = Config::global();
     let model = match payload
         .model
         .or_else(|| config.get_param("GOOSE_MODEL").ok())
     {
         Some(m) => m,
-        None => return Err((StatusCode::BAD_REQUEST, "No model specified".to_string())),
+        None => {
+            tracing::error!("No model specified");
+            return Err(StatusCode::BAD_REQUEST);
+        }
     };
 
     let model_config = ModelConfig::new(&model).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid model config: {}", e),
-        )
+        tracing::error!("Invalid model config: {}", e);
+        StatusCode::BAD_REQUEST
     })?;
 
     let new_provider = create(&payload.provider, model_config).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create provider: {}", e),
-        )
+        tracing::error!("Failed to create provider: {}", e);
+        StatusCode::BAD_REQUEST
     })?;
 
-    agent
-        .update_provider(new_provider)
-        .await
-        .map_err(|_e| (StatusCode::INTERNAL_SERVER_ERROR, String::new()))?;
+    agent.update_provider(new_provider).await.map_err(|e| {
+        tracing::error!("Failed to update provider: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(StatusCode::OK)
 }
@@ -344,17 +337,15 @@ async fn update_agent_provider(
 )]
 async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
-    Json(_payload): Json<UpdateRouterToolSelectorRequest>,
-) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = state.get_agent().await;
+    Json(payload): Json<UpdateRouterToolSelectorRequest>,
+) -> Result<Json<String>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent
         .update_router_tool_selector(None, Some(true))
         .await
         .map_err(|e| {
             tracing::error!("Failed to update tool selection strategy: {}", e);
-            Json(ErrorResponse {
-                error: format!("Failed to update tool selection strategy: {}", e),
-            })
+            StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     Ok(Json(
@@ -376,8 +367,8 @@ async fn update_router_tool_selector(
 async fn update_session_config(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SessionConfigRequest>,
-) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = state.get_agent().await;
+) -> Result<Json<String>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     if let Some(response) = payload.response {
         agent.add_final_output_tool(response).await;
 

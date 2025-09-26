@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import LinkPreview from './LinkPreview';
 import ImagePreview from './ImagePreview';
-import GooseResponseForm from './GooseResponseForm';
-import { extractUrls } from '../utils/urlUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
@@ -44,7 +41,6 @@ export default function GooseMessage({
   sessionId,
   messageHistoryIndex,
   message,
-  metadata,
   messages,
   toolCallNotifications,
   append,
@@ -135,15 +131,6 @@ export default function GooseMessage({
 
   // Get the chain this message belongs to
   const messageChain = getChainForMessage(messageIndex, toolCallChains);
-
-  // Extract URLs under a few conditions
-  // 1. The message is purely text
-  // 2. The link wasn't also present in the previous message
-  // 3. The message contains the explicit http:// or https:// protocol at the beginning
-  const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
-  const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
-  const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
-
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
 
@@ -302,27 +289,6 @@ export default function GooseMessage({
           />
         )}
       </div>
-
-      {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-      {/* TEMPORARILY DISABLED (dorien-koelemeijer): This is causing issues in properly "generating" tool calls
-       that contain links and prevents security scanning */}
-      {/* eslint-disable-next-line no-constant-binary-expression */}
-      {false && urls.length > 0 && (
-        <div className="mt-4">
-          {urls.map((url, index) => (
-            <LinkPreview key={index} url={url} />
-          ))}
-        </div>
-      )}
-
-      {/* enable or disable prompts here */}
-      {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
-      {/* eslint-disable-next-line no-constant-binary-expression */}
-      {false && metadata && (
-        <div className="flex mt-[16px]">
-          <GooseResponseForm message={displayText} metadata={metadata || null} append={append} />
-        </div>
-      )}
     </div>
   );
 }

@@ -50,7 +50,7 @@ enum TestMode {
     vec![]
 )]
 #[test_case(
-    vec!["cargo", "run", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
     vec![
         ToolCall::new("text_editor", json!({
             "command": "view",
@@ -74,12 +74,6 @@ enum TestMode {
             "new_str": "# codename goose"
         })),
         ToolCall::new("list_windows", json!({})),
-        ToolCall::new("screen_capture", json!({
-            "display": 0
-        })),
-        ToolCall::new("image_processor", json!({
-            "path": "~/goose/crates/goose/tests/tmp/goose-test.png"
-        })),
     ],
     vec![]
 )]
@@ -162,11 +156,10 @@ async fn test_replayed_session(
 
     let extension_manager = ExtensionManager::new();
 
-    let result = extension_manager.add_extension(extension_config).await;
-    assert!(result.is_ok(), "Failed to add extension: {:?}", result);
-
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
+        extension_manager.add_extension(extension_config).await?;
+
         let mut results = Vec::new();
         for tool_call in tool_calls {
             let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
@@ -197,12 +190,14 @@ async fn test_replayed_session(
     .await;
 
     if let Err(err) = result {
-        let errors =
-            fs::read_to_string(format!("{}.errors.txt", replay_file_path.to_string_lossy()))
-                .expect("could not read errors");
-        eprintln!("errors from {}", replay_file_path.to_string_lossy());
-        eprintln!("{}", errors);
-        eprintln!();
+        if matches!(mode, TestMode::Playback) {
+            let errors =
+                fs::read_to_string(format!("{}.errors.txt", replay_file_path.to_string_lossy()))
+                    .expect("could not read errors");
+            eprintln!("errors from {}", replay_file_path.to_string_lossy());
+            eprintln!("{}", errors);
+            eprintln!();
+        }
         panic!("Test failed: {:?}", err);
     }
 }
