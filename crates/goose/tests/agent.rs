@@ -852,7 +852,7 @@ mod final_output_tool_tests {
 mod retry_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::agents::types::{RetryConfig, SuccessCheck};
     use goose::conversation::message::Message;
     use goose::conversation::Conversation;
     use goose::model::ModelConfig;

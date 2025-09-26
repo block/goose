@@ -572,10 +572,12 @@ mod tests {
         // Create session with specific token counts
         #[allow(clippy::field_reassign_with_default)]
         let mut session = Session::default();
-        session.total_tokens = Some(8000); // High token count to trigger compaction
-        session.accumulated_total_tokens = Some(15000); // Even higher accumulated count
-        session.input_tokens = Some(5000);
-        session.output_tokens = Some(3000);
+        {
+            session.total_tokens = Some(8000); // High token count to trigger compaction
+            session.accumulated_total_tokens = Some(15000); // Even higher accumulated count
+            session.input_tokens = Some(5000);
+            session.output_tokens = Some(3000);
+        }
 
         // Test with session - should use total_tokens for compaction (not accumulated)
         let result_with_metadata = check_compaction_needed(
