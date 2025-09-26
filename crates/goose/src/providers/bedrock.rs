@@ -11,7 +11,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{types as bedrock, Client as RuntimeClient};
+use aws_sdk_bedrock::Client;
+use aws_sdk_bedrock::operation::list_inference_profiles::ListInferenceProfilesError;
+use aws_sdk_bedrock::operation::list_foundation_models::ListFoundationModelsError;
+use aws_config::SdkConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -23,24 +27,32 @@ use super::formats::bedrock::{
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
-pub const BEDROCK_DEFAULT_MODEL: &str = "anthropic.claude-sonnet-4-20250514-v1:0";
+// Picked this default since it's available on most regions
+pub const BEDROCK_DEFAULT_MODEL: &str = "global.anthropic.claude-sonnet-4-20250514-v1:0";
+// A selection of models that are available for on-demand inference
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
-    "anthropic.claude-sonnet-4-20250514-v1:0",
-    "anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "anthropic.claude-opus-4-20250514-v1:0",
-    "anthropic.claude-opus-4-1-20250805-v1:0",
+    "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "global.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
+    "deepseek.v3-v1:0",
+    "meta.llama3-1-405b-instruct-v1:0",
+    "mistral.mixtral-8x7b-instruct-v0:1",
+    "openai.gpt-oss-120b-1:0"
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
 pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
 pub const BEDROCK_DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
 pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
+pub const BEDROCK_MAX_MODEL_RESULTS: i32 = 500;
 
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
     #[serde(skip)]
-    client: Client,
+    client: RuntimeClient,
     model: ModelConfig,
+    #[serde(skip)]
+    sdk_config: SdkConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
 }
@@ -72,7 +84,7 @@ impl BedrockProvider {
                 .unwrap()
                 .provide_credentials(),
         )?;
-        let client = Client::new(&sdk_config);
+        let client = RuntimeClient::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
 
@@ -80,6 +92,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
+            sdk_config
         })
     }
 
@@ -169,6 +182,101 @@ impl BedrockProvider {
             )),
         }
     }
+
+    async fn fetch_inference_profiles(&self, profile_type: aws_sdk_bedrock::types::InferenceProfileType) -> Result<Vec<String>, ProviderError> {
+        let bedrock_control_client = Client::new(&self.sdk_config);
+        let response = bedrock_control_client
+            .list_inference_profiles()
+            .max_results(BEDROCK_MAX_MODEL_RESULTS)
+            .type_equals(profile_type.clone())
+            .send()
+            .await
+            .map_err(|err| { match err.into_service_error() {
+                    ListInferenceProfilesError::AccessDeniedException(bedrock_err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
+                    }
+                    ListInferenceProfilesError::ThrottlingException(bedrock_err) => {
+                        ProviderError::RateLimitExceeded(format!(
+                            "Bedrock throttling error: {:?}",
+                            bedrock_err
+                        ))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+                }
+            });
+
+        match response {
+            Ok(profiles_result) => {
+                let profiles: Vec<String> = match profiles_result.inference_profile_summaries {
+                    Some(summaries) => {
+                        summaries
+                            .into_iter()
+                            .map(|s| {
+                                match profile_type {
+                                    aws_sdk_bedrock::types::InferenceProfileType::SystemDefined => s.inference_profile_id().to_string(),
+                                    aws_sdk_bedrock::types::InferenceProfileType::Application => s.inference_profile_arn().to_string(),
+                                    _ => s.inference_profile_arn().to_string()
+                                }
+                            })
+                            .collect()
+                    }
+                    None => {
+                        Vec::new()
+                    }
+                };
+
+                Ok(profiles)
+            }
+            Err(err) => {
+                return Err(err)
+            }
+        }
+    }
+
+    async fn fetch_foundation_models(&self) -> Result<Vec<String>, ProviderError> {
+        let bedrock_control_client = Client::new(&self.sdk_config);
+        let response = bedrock_control_client
+            .list_foundation_models()
+            .by_inference_type(aws_sdk_bedrock::types::InferenceType::OnDemand)
+            .send()
+            .await
+            .map_err(|err| { match err.into_service_error() {
+                    ListFoundationModelsError::AccessDeniedException(bedrock_err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", bedrock_err))
+                    }
+                    ListFoundationModelsError::ThrottlingException(bedrock_err) => {
+                        ProviderError::RateLimitExceeded(format!(
+                            "Bedrock throttling error: {:?}",
+                            bedrock_err
+                        ))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+                }
+            });
+
+        match response {
+            Ok(models_result) => {
+                let models: Vec<String> = match models_result.model_summaries {
+                    Some(summaries) => {
+                        summaries
+                            .into_iter()
+                            .map(|s| {
+                                s.model_id().to_string()
+                            })
+                            .collect()
+                    }
+                    None => {
+                        Vec::new()
+                    }
+                };
+
+                Ok(models)
+            }
+            Err(err) => {
+                return Err(err)
+            }
+        }
+    }
 }
 
 impl_provider_default!(BedrockProvider);
@@ -234,5 +342,41 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let mut application_profiles = match self.fetch_inference_profiles(aws_sdk_bedrock::types::InferenceProfileType::Application).await {
+            Ok(profiles) => profiles,
+            Err(profile_error) => return Err(profile_error)
+        };
+
+        let mut system_profiles = match self.fetch_inference_profiles(aws_sdk_bedrock::types::InferenceProfileType::SystemDefined).await {
+            Ok(profiles) => profiles,
+            Err(profile_error) => return Err(profile_error)
+        };
+
+        let mut foundation_models = match self.fetch_foundation_models().await {
+            Ok(models) => models,
+            Err(model_error) => return Err(model_error)
+        };
+
+        // System profiles and foundation models are invokable
+        // by ID not ARN. But some models have a profile and
+        // some don't. Some models require the profile, so they
+        // aren't in the bare list of foundation models. As a result,
+        // we need to combine the two lists and dedupe.
+        system_profiles.append(&mut foundation_models);
+        
+        system_profiles.sort_unstable();
+        system_profiles.dedup();
+
+        // We want application inference profiles before
+        // the list of available on demand models since
+        // they are user/account created and more likely
+        // to be what they want to use.
+        application_profiles.sort_unstable();        
+        application_profiles.append(&mut system_profiles);
+
+        Ok(Some(application_profiles))
     }
 }
