@@ -782,31 +782,36 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       }
     }
     
-    // Create a proper synthetic event that maintains all the original event properties
+    // Pass the original event directly to maintain all properties and behavior
+    // The parent ChatInput expects a KeyboardEvent<HTMLDivElement>, so we need to cast it properly
     const syntheticEvent = {
       ...e,
+      // Preserve all keyboard event properties
       key: e.key,
+      code: e.code,
+      keyCode: e.keyCode,
+      which: e.which,
       shiftKey: e.shiftKey,
       altKey: e.altKey,
       ctrlKey: e.ctrlKey,
       metaKey: e.metaKey,
-      preventDefault: () => e.preventDefault(),
-      stopPropagation: () => e.stopPropagation(),
-      currentTarget: {
-        ...e.currentTarget,
-        value: e.currentTarget.value,
-        selectionStart: e.currentTarget.selectionStart,
-        selectionEnd: e.currentTarget.selectionEnd,
-        getBoundingClientRect: () => displayRef.current?.getBoundingClientRect() || new DOMRect(),
-      },
-      target: {
-        ...e.currentTarget,
-        value: e.currentTarget.value,
-        selectionStart: e.currentTarget.selectionStart,
-        selectionEnd: e.currentTarget.selectionEnd,
-        getBoundingClientRect: () => displayRef.current?.getBoundingClientRect() || new DOMRect(),
-      },
-    } as any;
+      repeat: e.repeat,
+      // Preserve event methods
+      preventDefault: e.preventDefault.bind(e),
+      stopPropagation: e.stopPropagation.bind(e),
+      stopImmediatePropagation: e.stopImmediatePropagation?.bind(e),
+      // Update target and currentTarget to reference the display div for positioning
+      currentTarget: displayRef.current as any,
+      target: displayRef.current as any,
+      // Preserve other event properties
+      bubbles: e.bubbles,
+      cancelable: e.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      eventPhase: e.eventPhase,
+      isTrusted: e.isTrusted,
+      timeStamp: e.timeStamp,
+      type: e.type,
+    } as React.KeyboardEvent<HTMLDivElement>;
     
     onKeyDown?.(syntheticEvent);
   }, [value, handleRemoveAction, onKeyDown, updateCursorPosition]);
