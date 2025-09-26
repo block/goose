@@ -349,6 +349,11 @@ func main() {
 	if temporalLog := os.Getenv("TEMPORAL_LOG_LEVEL"); temporalLog != "" {
 		log.Printf("TEMPORAL_LOG_LEVEL environment variable: %s", temporalLog)
 	}
+	if secretKey := os.Getenv("TEMPORAL_SECRET_KEY"); secretKey != "" {
+		log.Printf("TEMPORAL_SECRET_KEY environment variable is set (value hidden)")
+	} else {
+		log.Printf("TEMPORAL_SECRET_KEY environment variable not set, using default")
+	}
 
 	// Create Temporal service (this will find available ports automatically)
 	log.Println("Creating Temporal service...")
@@ -367,11 +372,15 @@ func main() {
 	log.Printf("Temporal server running on port %d", temporalPort)
 	log.Printf("Temporal UI available at http://localhost:%d", uiPort)
 
-	// Set up HTTP server
+	// Set up HTTP server with authentication middleware
 	mux := http.NewServeMux()
-	mux.HandleFunc("/jobs", service.handleJobs)
+	
+	// Register health handler without auth
 	mux.HandleFunc("/health", service.handleHealth)
-	mux.HandleFunc("/ports", service.handlePorts)
+	
+	// Wrap all other endpoints with authentication
+	mux.Handle("/ports", AuthMiddleware(http.HandlerFunc(service.handlePorts)))
+	mux.Handle("/jobs", AuthMiddleware(http.HandlerFunc(service.handleJobs)))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", httpPort),
