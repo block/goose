@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
+use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
 use tracing::debug;
 
@@ -100,33 +101,26 @@ fn get_agent_messages(
         let agent_manager = AgentManager::instance(None)
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-        let session_id_for_return = session::generate_session_id();
         let parent_session_id = task_config
             .parent_session_id
-            .clone()
             .ok_or_else(|| anyhow!("Parent session ID is missing"))?;
-        let agent = match agent_manager
+        let session_id = session::generate_session_id();
+        let agent = agent_manager
             .get_or_create_agent(
-                session_id_for_return.clone(),
+                session_id.clone(),
                 SessionExecutionMode::SubTask {
                     parent_session: parent_session_id,
                 },
             )
             .await
-        {
-            Ok(agent) => agent,
-            Err(e) => {
-                tracing::error!("Failed to get session agent: {}", e);
-                return Err(anyhow!("Failed to get sub agent session file path: {}", e));
-            }
-        };
-
+            .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
         let agent_provider: Arc<dyn Provider> = task_config
             .provider
             .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
-        if let Err(e) = agent.update_provider(agent_provider).await {
-            return Err(anyhow!("Failed to set provider on sub agent: {}", e));
-        }
+        agent
+            .update_provider(agent_provider)
+            .await
+            .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
         if let Some(recipe_extensions) = task_config.extensions {
             for extension in recipe_extensions {
@@ -136,94 +130,59 @@ fn get_agent_messages(
                         extension.name(),
                         e
                     );
-                    // Continue with other extensions even if one fails
                 }
             }
         }
 
-        let session_id_for_return = session::generate_session_id();
-        let session_file_path = match crate::session::storage::get_path(
-            crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-        ) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(anyhow!("Failed to get sub agent session file path: {}", e));
-            }
-        };
-
+        let session_file_path = crate::session::storage::get_path(
+            crate::session::storage::Identifier::Name(session_id.clone()),
+        )
+        .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
         let mut session_messages =
             Conversation::new_unvalidated(
                 vec![Message::user().with_text(text_instruction.clone())],
             );
-
-        let current_dir = match std::env::current_dir() {
-            Ok(cd) => cd,
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to get current directory for sub agent: {}",
-                    e
-                ));
-            }
-        };
+        let current_dir = std::env::current_dir()
+            .map_err(|e| anyhow!("Failed to get current directory for sub agent: {}", e))?;
         let session_config = SessionConfig {
-            id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-            working_dir: current_dir.clone(),
+            id: crate::session::storage::Identifier::Name(session_id.clone()),
+            working_dir: current_dir,
             schedule_id: None,
             execution_mode: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,
         };
 
-        let reply_result = agent
-            .reply(session_messages.clone(), Some(session_config.clone()), None)
-            .await;
-
-        match reply_result {
-            Ok(mut stream) => {
-                use futures::StreamExt;
-
-                while let Some(message_result) = stream.next().await {
-                    match message_result {
-                        Ok(AgentEvent::Message(msg)) => {
-                            session_messages.push(msg);
-                        }
-                        Ok(AgentEvent::McpNotification(_)) => {
-                            // Handle notifications if needed
-                        }
-                        Ok(AgentEvent::ModelChange { .. }) => {
-                            // Model change events are informational, just continue
-                        }
-                        Ok(AgentEvent::HistoryReplaced(_)) => {
-                            // Handle history replacement events if needed
-                        }
-                        Err(e) => {
-                            tracing::error!("Error receiving message from subagent: {}", e);
-                            break;
-                        }
-                    }
+        let mut stream = agent
+            .reply(session_messages.clone(), Some(session_config), None)
+            .await
+            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+        while let Some(message_result) = stream.next().await {
+            match message_result {
+                Ok(AgentEvent::Message(msg)) => session_messages.push(msg),
+                Ok(AgentEvent::McpNotification(_))
+                | Ok(AgentEvent::ModelChange { .. })
+                | Ok(AgentEvent::HistoryReplaced(_)) => {} // Handle informational events
+                Err(e) => {
+                    tracing::error!("Error receiving message from subagent: {}", e);
+                    break;
                 }
-            }
-            Err(e) => {
-                tracing::error!("Failed to get reply from agent: {}", e);
-                return Err(anyhow!("Failed to get reply from agent: {}", e));
             }
         }
 
-        match crate::session::storage::read_metadata(&session_file_path) {
-            Ok(mut updated_metadata) => {
-                updated_metadata.message_count = session_messages.len();
-                if let Err(e) = crate::session::storage::save_messages_with_metadata(
-                    &session_file_path,
-                    &updated_metadata,
-                    &session_messages,
-                ) {
-                    tracing::error!("Failed to persist final messages: {}", e);
-                    return Err(anyhow!("Failed to save messages: {}", e));
-                }
+        if let Ok(mut updated_metadata) = crate::session::storage::read_metadata(&session_file_path)
+        {
+            updated_metadata.message_count = session_messages.len();
+            if let Err(e) = crate::session::storage::save_messages_with_metadata(
+                &session_file_path,
+                &updated_metadata,
+                &session_messages,
+            ) {
+                tracing::error!("Failed to persist final messages: {}", e);
+                return Err(anyhow!("Failed to save messages: {}", e));
             }
-            Err(e) => {
-                tracing::error!("Failed to read updated metadata before final save: {}", e);
-            }
+        } else {
+            tracing::error!("Failed to read updated metadata before final save");
         }
 
         Ok(session_messages)
