@@ -87,10 +87,10 @@ Happy hacking and cheers to goose x Hacktoberfest 2025! 🎉
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025-09-26-hacktoberfest2025" />
   <meta property="og:description" content="Explore goose prizes you can earn and contributions you can make during Hacktoberfest 2025" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/hacktoberfest2025.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/hacktoberfest2025-49342480747ee95fe69415c0f2de26f2.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="goose is Celebrating Hacktoberfest 2025!" />
   <meta name="twitter:description" content="Explore goose prizes you can earn and contributions you can make during Hacktoberfest 2025" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/hacktoberfest2025.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/hacktoberfest2025-49342480747ee95fe69415c0f2de26f2.png" />
 </head>
