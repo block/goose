@@ -21,7 +21,6 @@ use url::Url;
 
 /// Represents a single goose session for ACP
 struct GooseSession {
-    agent: Agent,
     messages: Conversation,
     tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
     cancel_token: Option<CancellationToken>, // Active cancellation token for prompt processing
