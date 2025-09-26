@@ -16,6 +16,8 @@ on:
         required: false
         default: ''
 
+  pull_request: {}
+
 name: "Bundle Desktop (Linux)"
 
 jobs:
