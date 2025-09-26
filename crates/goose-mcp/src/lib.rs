@@ -12,10 +12,12 @@ pub mod computercontroller;
 pub mod developer;
 pub mod mcp_server_runner;
 mod memory;
+pub mod sandbox;
 pub mod tutorial;
 
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerServer;
 pub use developer::rmcp_developer::DeveloperServer;
 pub use memory::MemoryServer;
+pub use sandbox::SandboxServer;
 pub use tutorial::TutorialServer;

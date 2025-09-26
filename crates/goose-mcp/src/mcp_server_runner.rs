@@ -1,5 +1,6 @@
 use crate::{
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, SandboxServer,
+    TutorialServer,
 };
 use anyhow::{anyhow, Result};
 use rmcp::{transport::stdio, ServiceExt};
@@ -22,6 +23,7 @@ pub async fn run_mcp_server(name: &str) -> Result<()> {
         "computercontroller" => serve_and_wait(ComputerControllerServer::new()).await,
         "developer" => serve_and_wait(DeveloperServer::new()).await,
         "memory" => serve_and_wait(MemoryServer::new()).await,
+        "sandbox" => serve_and_wait(SandboxServer::new()).await,
         "tutorial" => serve_and_wait(TutorialServer::new()).await,
         _ => {
             tracing::warn!("Unknown MCP server name: {}", name);
