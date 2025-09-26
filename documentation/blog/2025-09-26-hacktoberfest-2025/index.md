@@ -7,19 +7,19 @@ authors:
 
 ![blog banner](hacktoberfest2025.png)
 
-October is around the corner, which means spooky season is upon us, and with that crispy fall air to make your "gooses" bump...it's finally time for Hacktoberfest 2025! The goose team is beyond excited to celebrate with you all for the first time this year. Let's get into how you can participate, and what prizes you can win. 👀
+October is around the corner, which means spooky season is upon us, and with that crispy fall air that gives you "goose" bumps...it's finally time for Hacktoberfest 2025! The goose team is beyond excited to celebrate with you all for the first time this year. Let's get into how you can participate, and what prizes you can win. 👀
 
 <!-- truncate -->
 
 # 📌 What is Hacktoberfest?
-So [Hacktoberfest](https://hacktoberfest.com/participation/) is a month-long celebration every October of open source and participating open source projects. Sponsored by x, it's a great chance to earn fun prizes for contributing to your favorite projects, or a perfect opportunity to get your feet wet in a new project. 
+[Hacktoberfest](https://hacktoberfest.com/participation/) is a month-long celebration every October of open source and participating open source projects. It's a great chance to earn fun prizes for contributing to your favorite projects, or a perfect opportunity to get your feet wet in a new project. 
 
 # 🎉 How Can I Contribute to goose?
-Since it's goose repo's first year participating, the team wanted to make sure whether you're a newbie or veteran, that there's something for everyone.
+In the [goose repo](https://github.com/block/goose), there's something for everyone no matter if you're a newbie or a veteran.
 
-block/goose is our participating repo, and in it we've created an official [goose Hacktoberfest 2025 Project Hub](https://github.com/block/goose/issues/4705). This hub will serve as your source of truth for all open `hacktoberfest` labeled-issues and resources you will need throughout the month. It will be updated every week with new issues as we experience contributions, so make sure to bookmark it!
+We've created an official [goose Hacktoberfest 2025 Project Hub](https://github.com/block/goose/issues/4705). This hub will serve as your source of truth for all open `hacktoberfest` labeled-issues and resources you will need throughout the month. It will be updated every week with new issues as we experience contributions, so make sure to bookmark it!
 
-From writing blog posts about goose, to fixing bugs or adding new features, our goal is to give contributors of various practices the chance to contribute to goose! Here are all the categories of issues you can expect to make your impact:
+From writing blog posts about goose, fixing bugs, or adding new features, our goal is to give contributors of various practices the chance to contribute to goose! Here are all the categories of issues you can expect to make your impact:
 
 - Feature Requests: Add new features to improve the goose experience
 - Bug Fixes: Fix key bugs that have been troubling community members
