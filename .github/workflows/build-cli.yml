@@ -19,8 +19,6 @@ on:
         required: false
         default: ""
 
-  pull_request: {}
-
 name: "Reusable workflow to build CLI"
 
 jobs:
