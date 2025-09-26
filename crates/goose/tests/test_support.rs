@@ -402,3 +402,24 @@ impl ScheduleToolTestBuilder {
         (agent, self.scheduler)
     }
 }
+
+pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> Session {
+    Session {
+        id: "".to_string(),
+        working_dir: PathBuf::from(working_dir),
+        description: "Test session".to_string(),
+        created_at: "".to_string(),
+        schedule_id: Some("test_job".to_string()),
+        recipe: None,
+        total_tokens: Some(100),
+        input_tokens: Some(50),
+        output_tokens: Some(50),
+        accumulated_total_tokens: Some(100),
+        accumulated_input_tokens: Some(50),
+        accumulated_output_tokens: Some(50),
+        extension_data: Default::default(),
+        updated_at: "".to_string(),
+        conversation: None,
+        message_count,
+    }
+}
