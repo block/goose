@@ -30,8 +30,8 @@ version: 1.0.0
 title: "Complete Project Setup"
 description: "Creates a full project with README, image, and code using specialized models"
 instructions: |
-  You are a project orchestrator. Execute the sub-recipes to create a complete project setup.
-  Each sub-recipe is specialized for its task and uses the optimal model and instructions for that work.
+  You are a project orchestrator. Execute the subrecipes to create a complete project setup.
+  Each subrecipe is specialized for its task and uses the optimal model and instructions for that work.
   
   EXECUTION ORDER: 
   - Run image-creator and code-writer first, in parallel
