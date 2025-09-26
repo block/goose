@@ -37,10 +37,6 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Custom Commands</CardTitle>
-          <CardDescription>Create and manage your own slash commands with custom prompts</CardDescription>
-        </CardHeader>
         <CardContent className="px-2">
           <CustomCommandsSettings />
         </CardContent>

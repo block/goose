@@ -23,7 +23,7 @@ const ICON_MAP = {
   'Search': <Search size={16} />,
 };
 
-export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = ({ onClose }) => {
+export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () => {
   const [commands, setCommands] = useState<CustomCommand[]>([]);
   const [categories] = useState<CustomCommandCategory[]>(DEFAULT_CATEGORIES);
   const [isEditing, setIsEditing] = useState(false);
@@ -200,25 +200,11 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = ({ 
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-textStandard">Custom Slash Commands</h2>
-          <p className="text-textSubtle mt-1">
-            Create custom slash commands with rich prompts that expand when sent to the AI
-          </p>
-        </div>
-        {onClose && (
-          <Button onClick={onClose} variant="outline">
-            Close
-          </Button>
-        )}
-      </div>
-
+    <div className="space-y-1">
       {!isEditing ? (
         <>
           {/* Header Actions */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-4">
               <Input
                 placeholder="Search commands..."
@@ -229,7 +215,7 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = ({ 
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 border border-borderStandard rounded-md bg-background-default text-textStandard"
+                className="px-3 py-2 border border-border-default rounded-md bg-background-default text-text-default"
               >
                 <option value="all">All Categories</option>
                 {categories.map(cat => (
@@ -253,78 +239,91 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = ({ 
             </div>
           </div>
 
-          {/* Commands List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCommands.map(command => (
-              <div key={command.id} className="border border-borderStandard rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-bgProminent rounded-full flex items-center justify-center">
-                      {ICON_MAP[command.icon as keyof typeof ICON_MAP] || ICON_MAP.Zap}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-textStandard">/{command.name}</h3>
-                      <p className="text-sm text-textSubtle">{command.label}</p>
-                    </div>
+          {/* Commands List - Row Style */}
+          {filteredCommands.map(command => (
+            <div key={command.id} className="group hover:cursor-pointer text-sm">
+              <div className="flex items-center justify-between text-text-default py-2 px-2 bg-background-default hover:bg-background-muted rounded-lg transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-background-muted rounded-full flex items-center justify-center">
+                    {ICON_MAP[command.icon as keyof typeof ICON_MAP] || ICON_MAP.Zap}
                   </div>
+                  <div>
+                    <h3 className="text-text-default font-medium">/{command.name}</h3>
+                    <p className="text-text-muted text-xs mt-[2px]">{command.description}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggleFavorite(command.id)}
-                    className="p-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(command.id);
+                    }}
+                    className="p-1 h-6 w-6"
                   >
                     {command.isFavorite ? (
-                      <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                      <Star size={12} className="text-yellow-500 fill-yellow-500" />
                     ) : (
-                      <StarOff size={16} className="text-textSubtle" />
+                      <StarOff size={12} className="text-text-muted" />
                     )}
                   </Button>
-                </div>
-                
-                <p className="text-sm text-textSubtle mb-3 line-clamp-2">{command.description}</p>
-                
-                <div className="flex items-center justify-between text-xs text-textSubtle mb-3">
-                  <span>Used {command.usageCount} times</span>
-                  <span>{categories.find(c => c.id === command.category)?.name}</span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(command)}>
-                    <Edit size={14} />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDuplicate(command)}>
-                    <Copy size={14} />
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(command);
+                    }}
+                    className="p-1 h-6 w-6"
+                  >
+                    <Edit size={12} className="text-text-muted hover:text-text-default" />
                   </Button>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="sm" 
-                    onClick={() => handleDelete(command.id)}
-                    className="text-red-600 hover:text-red-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDuplicate(command);
+                    }}
+                    className="p-1 h-6 w-6"
                   >
-                    <Trash2 size={14} />
+                    <Copy size={12} className="text-text-muted hover:text-text-default" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(command.id);
+                    }}
+                    className="p-1 h-6 w-6 text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 size={12} />
                   </Button>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
           {filteredCommands.length === 0 && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-bgSubtle rounded-full flex items-center justify-center mx-auto mb-4">
-                <Zap size={24} className="text-textSubtle" />
+            <div className="text-center py-8">
+              <div className="w-12 h-12 bg-background-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                <Zap size={16} className="text-text-muted" />
               </div>
-              <h3 className="text-lg font-medium text-textStandard mb-2">
+              <h3 className="text-sm font-medium text-text-default mb-1">
                 {searchQuery || selectedCategory !== 'all' ? 'No commands found' : 'No custom commands yet'}
               </h3>
-              <p className="text-textSubtle mb-4">
+              <p className="text-text-muted text-xs mb-3">
                 {searchQuery || selectedCategory !== 'all' 
                   ? 'Try adjusting your search or category filter'
                   : 'Create your first custom slash command to get started'
                 }
               </p>
               {!searchQuery && selectedCategory === 'all' && (
-                <Button onClick={() => setIsEditing(true)}>
-                  <Plus size={16} className="mr-2" />
+                <Button onClick={() => setIsEditing(true)} size="sm">
+                  <Plus size={14} className="mr-2" />
                   Create Command
                 </Button>
               )}
