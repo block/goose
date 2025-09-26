@@ -3,15 +3,17 @@ import { Switch } from '../../ui/switch';
 import { useConfig } from '../../ConfigContext';
 
 interface SecurityConfig {
-  security_enabled?: boolean;
-  security_threshold?: number;
+  security_prompt_enabled?: boolean;
+  security_prompt_threshold?: number;
 }
 
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  const { security_enabled: enabled = false, security_threshold: configThreshold = 0.7 } =
-    (config as SecurityConfig) ?? {};
+  const {
+    security_prompt_enabled: enabled = false,
+    security_prompt_threshold: configThreshold = 0.7,
+  } = (config as SecurityConfig) ?? {};
 
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
 
@@ -20,12 +22,12 @@ export const SecurityToggle = () => {
   }, [configThreshold]);
 
   const handleToggle = async (enabled: boolean) => {
-    await upsert('security_enabled', enabled, false);
+    await upsert('security_prompt_enabled', enabled, false);
   };
 
   const handleThresholdChange = async (threshold: number) => {
     const validThreshold = Math.max(0, Math.min(1, threshold));
-    await upsert('security_threshold', validThreshold, false);
+    await upsert('security_prompt_threshold', validThreshold, false);
   };
 
   return (

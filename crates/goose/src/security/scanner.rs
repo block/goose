@@ -27,7 +27,7 @@ impl PromptInjectionScanner {
         use crate::config::Config;
         let config = Config::global();
 
-        if let Ok(threshold) = config.get_param::<f64>("security_threshold") {
+        if let Ok(threshold) = config.get_param::<f64>("security_prompt_threshold") {
             return threshold as f32;
         }
 

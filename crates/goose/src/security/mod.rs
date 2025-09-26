@@ -30,13 +30,13 @@ impl SecurityManager {
         }
     }
 
-    /// Check if security is enabled
-    pub fn is_enabled(&self) -> bool {
+    /// Check if prompt injection security is enabled
+    pub fn is_prompt_injection_detection_enabled(&self) -> bool {
         use crate::config::Config;
         let config = Config::global();
 
         config
-            .get_param::<bool>("security_enabled")
+            .get_param::<bool>("security_prompt_enabled")
             .unwrap_or(false)
     }
 
@@ -46,7 +46,7 @@ impl SecurityManager {
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
-        if !self.is_enabled() {
+        if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!("🔓 Security scanning disabled - returning empty results");
             return Ok(vec![]);
         }
