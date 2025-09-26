@@ -27,7 +27,7 @@ use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, Extension
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{Config, ExtensionConfigManager, ToolLimitsManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
@@ -849,7 +849,28 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content)
+                .map(|call| {
+                    // Check and truncate the content if it exceeds the size limit
+                    let (truncated_content, error_msg) =
+                        ToolLimitsManager::check_and_truncate_content(call.content);
+
+                    // If there was truncation, log it and potentially modify the response
+                    if let Some(ref msg) = error_msg {
+                        tracing::warn!(
+                            tool = tool_name,
+                            extension = client_name,
+                            "Tool response truncated: {}",
+                            msg
+                        );
+
+                        // Add an error message to the content if it was truncated
+                        let mut result = truncated_content;
+                        result.push(Content::text(format!("\n\n⚠️ {}", msg)));
+                        result
+                    } else {
+                        truncated_content
+                    }
+                })
                 .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
         };
 
