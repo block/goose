@@ -1,4 +1,3 @@
-use chrono::Utc;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -10,7 +9,6 @@ use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
 pub struct PromptManager {
     system_prompt_override: Option<String>,
     system_prompt_extras: Vec<String>,
-    current_date_timestamp: String,
 }
 
 impl Default for PromptManager {
@@ -24,8 +22,6 @@ impl PromptManager {
         PromptManager {
             system_prompt_override: None,
             system_prompt_extras: Vec::new(),
-            // Use the fixed current date time so that prompt cache can be used.
-            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
 
@@ -101,11 +97,6 @@ impl PromptManager {
                 Value::String(llm_search_tool_prompt()),
             );
         }
-
-        context.insert(
-            "current_date_time",
-            Value::String(self.current_date_timestamp.clone()),
-        );
 
         // Add the suggestion about disabling extensions if flag is true
         context.insert(

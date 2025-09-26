@@ -60,9 +60,7 @@ use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::agents::todo_tools::{
-    todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
-};
+use crate::agents::todo_tools::{todo_write_tool, TODO_WRITE_TOOL_NAME};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::session::extension_data::ExtensionState;
 use crate::session::{extension_data, SessionManager};
@@ -504,22 +502,6 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
                 None,
             )))
-        } else if tool_call.name == TODO_READ_TOOL_NAME {
-            // Handle task planner read tool
-            let todo_content = if let Some(session_config) = session {
-                SessionManager::get_session(&session_config.id, false)
-                    .await
-                    .ok()
-                    .and_then(|metadata| {
-                        extension_data::TodoState::from_extension_data(&metadata.extension_data)
-                            .map(|state| state.content)
-                    })
-                    .unwrap_or_default()
-            } else {
-                String::new()
-            };
-
-            ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
             // Handle task planner write tool
             let content = tool_call
@@ -816,8 +798,8 @@ impl Agent {
                 platform_tools::manage_schedule_tool(),
             ]);
 
-            // Add task planner tools
-            prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
+            // Add task planner tool (write only, read happens via MOIM)
+            prefixed_tools.push(todo_write_tool());
 
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
@@ -1105,6 +1087,7 @@ impl Agent {
                     conversation.messages(),
                     &tools,
                     &toolshim_tools,
+                    &session,
                 ).await?;
 
                 let mut no_tools_called = true;
@@ -1741,13 +1724,11 @@ mod tests {
     async fn test_todo_tools_integration() -> Result<()> {
         let agent = Agent::new();
 
-        // Test that task planner tools are listed
+        // Test that task planner tool is listed (write only, read happens via MOIM)
         let tools = agent.list_tools(None).await;
 
-        let todo_read = tools.iter().find(|tool| tool.name == TODO_READ_TOOL_NAME);
         let todo_write = tools.iter().find(|tool| tool.name == TODO_WRITE_TOOL_NAME);
 
-        assert!(todo_read.is_some(), "TODO read tool should be present");
         assert!(todo_write.is_some(), "TODO write tool should be present");
         Ok(())
     }
