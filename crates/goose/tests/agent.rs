@@ -20,6 +20,7 @@ use goose::providers::{
 enum ProviderType {
     Azure,
     OpenAi,
+    #[allow(dead_code)]
     Anthropic,
     Bedrock,
     Databricks,
@@ -229,6 +230,16 @@ mod tests {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenAi,
             model: "o3-mini-low",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_agent_with_anthropic() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Anthropic,
+            model: "claude-sonnet-4",
             context_window: 200_000,
         })
         .await
@@ -540,9 +551,7 @@ mod schedule_tool_tests {
 mod final_output_tool_tests {
     use super::*;
     use futures::stream;
-    use goose::agents::final_output_tool::{
-        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    };
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
@@ -1151,7 +1160,7 @@ mod max_turns_tests {
         }
 
         assert!(
-            responses.len() >= 1,
+            !responses.is_empty(),
             "Expected at least 1 response, got {}",
             responses.len()
         );

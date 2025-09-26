@@ -156,6 +156,7 @@ async fn test_replayed_session(
 
     let extension_manager = ExtensionManager::new();
 
+    #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         extension_manager.add_extension(extension_config).await?;
 

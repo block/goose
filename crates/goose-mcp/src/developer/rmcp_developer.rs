@@ -2970,7 +2970,7 @@ mod tests {
         let temp_path = temp_dir.path();
 
         // Set the current directory before creating the server
-        std::env::set_current_dir(&temp_path).unwrap();
+        std::env::set_current_dir(temp_path).unwrap();
 
         // Create some test files and directories
         fs::create_dir(temp_path.join("subdir1")).unwrap();
@@ -3029,7 +3029,7 @@ mod tests {
         let temp_path = temp_dir.path();
 
         // Set the current directory before creating the server
-        std::env::set_current_dir(&temp_path).unwrap();
+        std::env::set_current_dir(temp_path).unwrap();
 
         // Create more than 50 files to test the limit
         for i in 0..60 {
@@ -3085,7 +3085,7 @@ mod tests {
         let temp_path = temp_dir.path();
 
         // Set the current directory before creating the server
-        std::env::set_current_dir(&temp_path).unwrap();
+        std::env::set_current_dir(temp_path).unwrap();
 
         let server = create_test_server();
 
@@ -3666,7 +3666,7 @@ Additional instructions here.
 
             // Cancel the command
             let cancel_params = CancelledNotificationParam {
-                request_id: request_id,
+                request_id,
                 reason: Some("test cancellation".to_string()),
             };
 
@@ -3748,7 +3748,7 @@ Additional instructions here.
 
             // Cancel the command
             let cancel_params = CancelledNotificationParam {
-                request_id: request_id,
+                request_id,
                 reason: Some("test cancellation".to_string()),
             };
 

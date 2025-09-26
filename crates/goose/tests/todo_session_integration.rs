@@ -11,7 +11,6 @@ use goose::session::storage::SessionMetadata;
 use rmcp::model::Tool;
 use std::sync::Arc;
 use tempfile::TempDir;
-use tokio;
 use uuid::Uuid;
 
 // Mock provider implementation for testing
@@ -298,7 +297,7 @@ async fn test_todo_clear_removes_from_session() {
         .unwrap();
 
     // Consume the stream
-    while let Some(_) = stream.next().await {}
+    while (stream.next().await).is_some() {}
 
     // With mock provider, the TODO won't actually be cleared via tool calls
     // but we can verify the structure is correct
@@ -463,9 +462,12 @@ async fn test_todo_update_preserves_other_metadata() {
 
     // Set initial metadata with various fields
     let mut metadata = SessionMetadata::default();
-    metadata.message_count = 5;
-    metadata.description = "Test session".to_string();
-    metadata.total_tokens = Some(1000);
+    #[allow(clippy::field_reassign_with_default)]
+    {
+        metadata.message_count = 5;
+        metadata.description = "Test session".to_string();
+        metadata.total_tokens = Some(1000);
+    }
     let todo_state = TodoState::new("Initial TODO".to_string());
     todo_state
         .to_extension_data(&mut metadata.extension_data)

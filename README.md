@@ -23,7 +23,7 @@ Whether you're prototyping an idea, refining existing code, or managing intricat
 
 Designed for maximum flexibility, goose works with any LLM and supports multi-model configuration to optimize performance and cost, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation.
 
-[![Watch the video](https://github.com/user-attachments/assets/c477019c-570d-4cf9-9553-c274b79cb279)](https://youtu.be/D-DpDunrbpo)
+[![Watch the video](https://github.com/user-attachments/assets/ddc71240-3928-41b5-8210-626dfb28af7a)](https://youtu.be/D-DpDunrbpo)
 
 # Quick Links
 - [Quickstart](https://block.github.io/goose/docs/quickstart)

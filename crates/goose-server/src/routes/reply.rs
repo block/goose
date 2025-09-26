@@ -557,58 +557,15 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::conversation::message::Message;
-    use goose::{
-        model::ModelConfig,
-        providers::{
-            base::{Provider, ProviderUsage, Usage},
-            errors::ProviderError,
-        },
-    };
-
-    #[derive(Clone)]
-    struct MockProvider {
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl Provider for MockProvider {
-        fn metadata() -> goose::providers::base::ProviderMetadata {
-            goose::providers::base::ProviderMetadata::empty()
-        }
-
-        async fn complete_with_model(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[rmcp::model::Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::assistant().with_text("Mock response"),
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-    }
 
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
         use goose::conversation::message::Message;
-        use serde_json::json;
         use tower::ServiceExt;
 
         #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
-            let mock_model_config = ModelConfig::new("test-model").unwrap();
-            let mock_provider = MockProvider {
-                model_config: mock_model_config,
-            };
-
             let state = AppState::new().await.unwrap();
 
             let app = routes(state);

@@ -14,9 +14,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio_util::sync::CancellationToken;
 
+type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
+
 pub struct MockClient {
     tools: HashMap<String, Tool>,
-    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>>,
+    handlers: HashMap<String, Handler>,
 }
 
 impl MockClient {
