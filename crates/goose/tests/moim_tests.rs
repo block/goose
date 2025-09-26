@@ -6,6 +6,7 @@ use rmcp::model::Content;
 use serial_test::serial;
 
 #[tokio::test]
+#[serial]
 async fn test_moim_basic_injection() {
     let messages = vec![Message::user().with_text("Only message")];
     let conversation = Conversation::new_unvalidated(messages.clone());
@@ -43,6 +44,7 @@ async fn test_moim_disabled_no_injection() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_moim_respects_tool_pairs() {
     // Critical test: ensure MOIM doesn't break tool call/response pairs
     let tool_call = Ok(ToolCall::new(
