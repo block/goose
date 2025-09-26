@@ -100,14 +100,12 @@ impl SecurityManager {
                     "🔍 Starting security analysis for current tool call"
                 );
 
-                // Analyze only the current tool call content, not the entire conversation history
-                // This prevents re-analyzing and re-flagging historical malicious content
                 let analysis_result = scanner
-                    .analyze_tool_call_with_context(tool_call, &[]) // Pass empty messages to avoid historical analysis
+                    .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
 
                 // Get threshold from config - only flag things above threshold
-                let config_threshold = scanner.get_threshold_from_config();
+                let config_threshold = scanner.get_confidence_threshold_from_config();
 
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
                     // Generate a unique finding ID based on normalized tool call content
