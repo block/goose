@@ -3,12 +3,14 @@ import { FaCircle } from 'react-icons/fa';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
+import { Message } from '../../types/message';
 
 interface AlertPopoverProps {
   alerts: Alert[];
+  messages?: Message[];
 }
 
-export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
+export default function BottomMenuAlertPopover({ alerts, messages }: AlertPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [wasAutoShown, setWasAutoShown] = useState(false);
@@ -255,7 +257,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
           <div className="flex flex-col">
             {alerts.map((alert, index) => (
               <div key={index} className={cn(index > 0 && 'border-t border-white/20')}>
-                <AlertBox alert={alert} />
+                <AlertBox alert={alert} messages={messages} />
               </div>
             ))}
           </div>

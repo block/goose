@@ -64,12 +64,7 @@ async fn manage_context(
     }
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages
-            .messages()
-            .iter()
-            .filter(|m| m.is_user_visible())
-            .cloned()
-            .collect(),
+        messages: processed_messages.messages().to_vec(),
         token_counts,
     }))
 }

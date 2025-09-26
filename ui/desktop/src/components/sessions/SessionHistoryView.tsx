@@ -42,7 +42,8 @@ const isUserMessage = (message: Message): boolean => {
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages;
+  // Filter out messages that are not user-visible
+  return messages.filter((msg) => msg.metadata?.userVisible !== false);
 };
 
 interface SessionHistoryViewProps {

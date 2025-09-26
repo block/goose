@@ -51,14 +51,53 @@ export async function manageContextFromBackend({
 
 // Function to convert API Message to frontend Message
 export function convertApiMessageToFrontendMessage(apiMessage: ApiMessage): FrontendMessage {
-  return {
+  // Debug log for metadata preservation
+  if (
+    apiMessage.metadata &&
+    (apiMessage.metadata.userVisible === false || apiMessage.metadata.agentVisible === false)
+  ) {
+    console.log('[METADATA DEBUG] Converting message with visibility metadata:', {
+      role: apiMessage.role,
+      userVisible: apiMessage.metadata.userVisible,
+      agentVisible: apiMessage.metadata.agentVisible,
+      contentTypes: apiMessage.content.map((c) => c.type),
+      hasSummarizationRequested: apiMessage.content.some(
+        (c) => c.type === 'summarizationRequested'
+      ),
+    });
+  }
+
+  const frontendMessage: FrontendMessage = {
     id: generateId(),
     role: apiMessage.role as Role,
     created: apiMessage.created ?? Math.floor(Date.now() / 1000),
     content: apiMessage.content
       .map((apiContent) => mapApiContentToFrontendMessageContent(apiContent))
       .filter((content): content is FrontendMessageContent => content !== null),
+    // Preserve metadata from the API message exactly as it comes
+    metadata: apiMessage.metadata
+      ? {
+          userVisible: apiMessage.metadata.userVisible,
+          agentVisible: apiMessage.metadata.agentVisible,
+        }
+      : undefined,
   };
+
+  // Additional debug logging for messages with special metadata
+  if (
+    frontendMessage.metadata &&
+    (frontendMessage.metadata.userVisible === false ||
+      frontendMessage.metadata.agentVisible === false)
+  ) {
+    console.log('[METADATA DEBUG] Created frontend message with metadata:', {
+      id: frontendMessage.id,
+      role: frontendMessage.role,
+      metadata: frontendMessage.metadata,
+      contentTypes: frontendMessage.content.map((c) => c.type),
+    });
+  }
+
+  return frontendMessage;
 }
 
 // Function to convert API MessageContent to frontend MessageContent
@@ -114,6 +153,8 @@ function mapApiContentToFrontendMessageContent(
     return {
       type: 'summarizationRequested',
       msg: apiContent.msg,
+      // Preserve the summary field if it exists (convert null to undefined)
+      summary: apiContent.summary || undefined,
     };
   }
 

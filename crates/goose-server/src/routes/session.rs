@@ -125,18 +125,12 @@ async fn get_session_history(
         }
     };
 
-    // Filter messages to only include user_visible ones
-    let user_visible_messages: Vec<Message> = messages
-        .messages()
-        .iter()
-        .filter(|m| m.is_user_visible())
-        .cloned()
-        .collect();
-
+    // Return all messages with metadata preserved
+    // Frontend will handle visibility based on metadata
     Ok(Json(SessionHistoryResponse {
         session_id,
         metadata,
-        messages: user_visible_messages,
+        messages: messages.messages().to_vec(),
     }))
 }
 

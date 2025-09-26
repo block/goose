@@ -7,19 +7,30 @@ import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import Edit from './icons/Edit';
 import { Button } from './ui/button';
+import { cn } from '../utils';
+import EditConfirmationModal from './EditConfirmationModal';
+import { resumeSession } from '../sessions';
 
 interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  messages?: Message[];
+  sessionId?: string;
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+export default function UserMessage({
+  message,
+  onMessageUpdate,
+  messages,
+  sessionId,
+}: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEditConfirmation, setShowEditConfirmation] = useState(false);
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -56,30 +67,67 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     window.electron.logInfo(`Entering edit mode with content: ${displayText}`);
   }, [displayText]);
 
-  // Handle edit button click
+  // Handle edit button click - directly enter edit mode
   const handleEditClick = useCallback(() => {
-    const newEditingState = !isEditing;
-    setIsEditing(newEditingState);
+    setIsEditing(true);
+    initializeEditMode();
 
-    // Initialize edit content when entering edit mode
-    if (newEditingState) {
-      initializeEditMode();
-      window.electron.logInfo(`Edit interface shown for message: ${message.id}`);
+    // Focus the textarea after a brief delay to ensure it's rendered
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(
+          textareaRef.current.value.length,
+          textareaRef.current.value.length
+        );
+      }
+    }, 50);
+  }, [initializeEditMode]);
 
-      // Focus the textarea after a brief delay to ensure it's rendered
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-          textareaRef.current.setSelectionRange(
-            textareaRef.current.value.length,
-            textareaRef.current.value.length
-          );
-        }
-      }, 50);
+  // Handle continuing in the same session
+  const handleContinueEdit = useCallback(() => {
+    setShowEditConfirmation(false);
+    setIsEditing(false);
+
+    // Update the message content through the callback
+    if (onMessageUpdate && message.id) {
+      onMessageUpdate(message.id, editContent);
+      setHasBeenEdited(true);
     }
+  }, [editContent, onMessageUpdate, message.id]);
 
-    window.electron.logInfo(`Edit state toggled: ${newEditingState} for message: ${message.id}`);
-  }, [isEditing, initializeEditMode, message.id]);
+  // Handle continuing in a new session
+  const handleContinueNewSession = useCallback(async () => {
+    setShowEditConfirmation(false);
+
+    // Get messages up to but not including the current message
+    if (messages && sessionId) {
+      const messageIndex = messages.findIndex((msg) => msg.id === message.id);
+      if (messageIndex >= 0) {
+        const messagesToKeep = messages.slice(0, messageIndex);
+
+        // Get the current working directory from the first message or use home
+        const workingDir = process.env.HOME || '/';
+
+        // Create a session details object to resume
+        const sessionToResume = {
+          sessionId: `${sessionId}-branch-${Date.now()}`,
+          messages: messagesToKeep,
+          metadata: {
+            description: 'Branched session',
+            working_dir: workingDir,
+            message_count: messagesToKeep.length,
+            total_tokens: null,
+            accumulated_input_tokens: null,
+            accumulated_output_tokens: null,
+          },
+        };
+
+        // Resume the session with the branched messages
+        resumeSession(sessionToResume);
+      }
+    }
+  }, [messages, sessionId, message.id]);
 
   // Handle content changes in edit mode
   const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -89,11 +137,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     window.electron.logInfo(`Content changed: ${newContent}`);
   }, []);
 
-  // Handle save action
+  // Handle save action - show confirmation modal
   const handleSave = useCallback(() => {
-    // Exit edit mode immediately
-    setIsEditing(false);
-
     // Check if content has actually changed
     if (editContent !== displayText) {
       // Validate content
@@ -102,13 +147,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         return;
       }
 
-      // Update the message content through the callback
-      if (onMessageUpdate && message.id) {
-        onMessageUpdate(message.id, editContent);
-        setHasBeenEdited(true);
-      }
+      // Show confirmation modal
+      setShowEditConfirmation(true);
+    } else {
+      // No changes, just exit edit mode
+      setIsEditing(false);
     }
-  }, [editContent, displayText, onMessageUpdate, message.id]);
+  }, [editContent, displayText]);
 
   // Handle cancel action
   const handleCancel = useCallback(() => {
@@ -145,8 +190,17 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     }
   }, [editContent, isEditing]);
 
+  // Check if this message was part of a summarization (user visible but not agent visible)
+  const isSummarizedMessage =
+    message.metadata?.userVisible === true && message.metadata?.agentVisible === false;
+
   return (
-    <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div
+      className={cn(
+        'w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]',
+        isSummarizedMessage && 'opacity-50 italic'
+      )}
+    >
       <div className="flex flex-col group">
         {isEditing ? (
           // Truly wide, centered, in-place edit box replacing the bubble
@@ -249,6 +303,14 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
           </div>
         )}
       </div>
+
+      {/* Edit Confirmation Modal */}
+      <EditConfirmationModal
+        isOpen={showEditConfirmation}
+        onClose={() => setShowEditConfirmation(false)}
+        onContinue={handleContinueEdit}
+        onContinueNewSession={handleContinueNewSession}
+      />
     </div>
   );
 }

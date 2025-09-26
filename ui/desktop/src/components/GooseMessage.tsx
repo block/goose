@@ -196,8 +196,17 @@ export default function GooseMessage({
   // Determine rendering logic based on chain membership and content
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
 
+  // Check if this message was part of a summarization (user visible but not agent visible)
+  const isSummarizedMessage =
+    message.metadata?.userVisible === true && message.metadata?.agentVisible === false;
+
   return (
-    <div className="goose-message flex w-[90%] justify-start min-w-0">
+    <div
+      className={cn(
+        'goose-message flex w-[90%] justify-start min-w-0',
+        isSummarizedMessage && 'opacity-50 italic'
+      )}
+    >
       <div className="flex flex-col w-full min-w-0">
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">

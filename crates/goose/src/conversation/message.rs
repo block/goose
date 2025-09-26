@@ -113,6 +113,8 @@ pub struct ContextLengthExceeded {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct SummarizationRequested {
     pub msg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -239,7 +241,17 @@ impl MessageContent {
     }
 
     pub fn summarization_requested<S: Into<String>>(msg: S) -> Self {
-        MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
+        MessageContent::SummarizationRequested(SummarizationRequested { 
+            msg: msg.into(),
+            summary: None,
+        })
+    }
+    
+    pub fn summarization_requested_with_summary<S1: Into<String>, S2: Into<String>>(msg: S1, summary: S2) -> Self {
+        MessageContent::SummarizationRequested(SummarizationRequested { 
+            msg: msg.into(),
+            summary: Some(summary.into()),
+        })
     }
 
     // Add this new method to check for summarization requested content
@@ -379,9 +391,11 @@ impl From<PromptMessage> for Message {
 pub struct MessageMetadata {
     /// Whether the message should be visible to the user in the UI
     #[serde(default = "default_true")]
+    #[schema(example = true)]
     pub user_visible: bool,
     /// Whether the message should be included in the agent's context window
     #[serde(default = "default_true")]
+    #[schema(example = true)]
     pub agent_visible: bool,
 }
 
@@ -1119,6 +1133,36 @@ mod tests {
 
         assert_eq!(value["metadata"]["userVisible"], false);
         assert_eq!(value["metadata"]["agentVisible"], true);
+    }
+    
+    #[test]
+    fn test_metadata_serialization_defaults() {
+        // Test that when metadata has default values, they are still serialized
+        let metadata1 = MessageMetadata {
+            user_visible: true,
+            agent_visible: false,
+        };
+        
+        let json1 = serde_json::to_string(&metadata1).unwrap();
+        println!("Metadata with userVisible=true, agentVisible=false: {}", json1);
+        
+        // Parse it back
+        let value1: Value = serde_json::from_str(&json1).unwrap();
+        assert_eq!(value1["userVisible"], true);
+        assert_eq!(value1["agentVisible"], false);
+        
+        // Test with both false
+        let metadata2 = MessageMetadata {
+            user_visible: false,
+            agent_visible: false,
+        };
+        
+        let json2 = serde_json::to_string(&metadata2).unwrap();
+        println!("Metadata with both false: {}", json2);
+        
+        let value2: Value = serde_json::from_str(&json2).unwrap();
+        assert_eq!(value2["userVisible"], false);
+        assert_eq!(value2["agentVisible"], false);
     }
 
     #[test]

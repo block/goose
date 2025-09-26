@@ -330,16 +330,35 @@ async fn reply_handler(
 
                             all_messages.push(message.clone());
 
-                            // Only send message to client if it's user_visible
-                            if message.is_user_visible() {
-                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
-                            }
+                            // Always send the message to client with metadata preserved
+                            // The frontend will handle visibility based on metadata
+                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             // Replace the message history with the compacted messages
                             all_messages = Conversation::new_unvalidated(new_messages);
                             // Note: We don't send this as a stream event since it's an internal operation
                             // The client will see the compaction notification message that was sent before this event
+                            
+                            // Persist the compacted messages immediately
+                            if let Ok(provider) = agent.provider().await {
+                                let provider = Arc::clone(&provider);
+                                let session_path_clone = session_path.to_path_buf();
+                                let all_messages_clone = all_messages.clone();
+                                let working_dir = session_config.working_dir.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = session::persist_messages(
+                                        &session_path_clone,
+                                        &all_messages_clone,
+                                        Some(provider),
+                                        Some(working_dir),
+                                    )
+                                    .await
+                                    {
+                                        tracing::error!("Failed to persist compacted messages: {:?}", e);
+                                    }
+                                });
+                            }
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;

@@ -20,6 +20,7 @@ import { Recipe } from '../../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../../toasts';
 import ViewRecipeModal from '../../../recipes/ViewRecipeModal';
+import { Message } from '../../../../types/message';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -28,6 +29,7 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
+  messages?: Message[]; // Add messages prop for AlertBox
 }
 
 export default function ModelsBottomBar({
@@ -37,6 +39,7 @@ export default function ModelsBottomBar({
   alerts,
   recipeConfig,
   hasMessages = false,
+  messages,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -226,7 +229,7 @@ export default function ModelsBottomBar({
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
-      <BottomMenuAlertPopover alerts={alerts} />
+      <BottomMenuAlertPopover alerts={alerts} messages={messages} />
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">

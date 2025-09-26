@@ -1626,6 +1626,7 @@ export default function ChatInput({
                 alerts={alerts}
                 recipeConfig={recipeConfig}
                 hasMessages={messages.length > 0}
+                messages={messages}
               />
             </div>
           </Tooltip>

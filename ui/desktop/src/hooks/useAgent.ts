@@ -74,13 +74,33 @@ export function useAgent(): UseAgentReturn {
 
         const agentSessionInfo = agentResponse.data;
         const sessionMetadata = agentSessionInfo.metadata;
+
+        const convertedMessages = agentSessionInfo.messages.map((message: ApiMessage) =>
+          convertApiMessageToFrontendMessage(message)
+        );
+
+        // Debug logging for resumed session
+        console.log('[SESSION RESUME] Converting messages from API:', {
+          sessionId: agentSessionInfo.session_id,
+          totalMessages: agentSessionInfo.messages.length,
+          messagesWithMetadata: agentSessionInfo.messages.filter((m: ApiMessage) => m.metadata)
+            .length,
+          convertedMessagesWithMetadata: convertedMessages.filter((m) => m.metadata).length,
+          sampleMetadata: agentSessionInfo.messages
+            .filter((m: ApiMessage) => m.metadata)
+            .slice(0, 3)
+            .map((m: ApiMessage) => ({
+              role: m.role,
+              metadata: m.metadata,
+              contentTypes: m.content.map((c) => c.type),
+            })),
+        });
+
         let chat: ChatType = {
           sessionId: agentSessionInfo.session_id,
           title: sessionMetadata.recipe?.title || sessionMetadata.description,
           messageHistoryIndex: 0,
-          messages: agentSessionInfo.messages.map((message: ApiMessage) =>
-            convertApiMessageToFrontendMessage(message)
-          ),
+          messages: convertedMessages,
           recipeConfig: sessionMetadata.recipe,
         };
 
@@ -154,13 +174,31 @@ export function useAgent(): UseAgentReturn {
           }
 
           const sessionMetadata = agentSessionInfo.metadata;
+          const convertedMessages = agentSessionInfo.messages.map((message: ApiMessage) =>
+            convertApiMessageToFrontendMessage(message)
+          );
+
+          // Debug logging to understand metadata
+          console.log('[SESSION LOAD] Converting messages from API:', {
+            totalMessages: agentSessionInfo.messages.length,
+            messagesWithMetadata: agentSessionInfo.messages.filter((m: ApiMessage) => m.metadata)
+              .length,
+            convertedMessagesWithMetadata: convertedMessages.filter((m) => m.metadata).length,
+            sampleMetadata: agentSessionInfo.messages
+              .filter((m: ApiMessage) => m.metadata)
+              .slice(0, 3)
+              .map((m: ApiMessage) => ({
+                role: m.role,
+                metadata: m.metadata,
+                contentTypes: m.content.map((c) => c.type),
+              })),
+          });
+
           let initChat: ChatType = {
             sessionId: agentSessionInfo.session_id,
             title: sessionMetadata.recipe?.title || sessionMetadata.description,
             messageHistoryIndex: 0,
-            messages: agentSessionInfo.messages.map((message: ApiMessage) =>
-              convertApiMessageToFrontendMessage(message)
-            ),
+            messages: convertedMessages,
             recipeConfig: sessionMetadata.recipe,
           };
 

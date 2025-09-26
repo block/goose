@@ -92,6 +92,7 @@ export interface ContextLengthExceededContent {
 export interface SummarizationRequestedContent {
   type: 'summarizationRequested';
   msg: string;
+  summary?: string;
 }
 
 export type MessageContent =
@@ -108,6 +109,10 @@ export interface Message {
   role: Role;
   created: number;
   content: MessageContent[];
+  metadata?: {
+    userVisible?: boolean;
+    agentVisible?: boolean;
+  };
 }
 
 // Helper functions to create messages

@@ -173,6 +173,25 @@ async fn resume_agent(
         }
     };
 
+    // Debug logging for session loading
+    let messages_with_metadata: Vec<_> = conversation.messages()
+        .iter()
+        .filter(|m| !m.metadata.user_visible || !m.metadata.agent_visible)
+        .map(|m| (m.role.clone(), m.metadata, m.content.iter().map(|c| format!("{:?}", c)).collect::<Vec<_>>()))
+        .collect();
+    
+    if !messages_with_metadata.is_empty() {
+        tracing::info!("Session {} has {} messages with non-default metadata", 
+            payload.session_id, messages_with_metadata.len());
+        for (i, (role, metadata, _content_types)) in messages_with_metadata.iter().take(3).enumerate() {
+            tracing::info!("  Message {}: role={:?}, userVisible={}, agentVisible={}", 
+                i, role, metadata.user_visible, metadata.agent_visible);
+        }
+    }
+
+    tracing::info!("Resuming session {} with {} total messages", 
+        payload.session_id, conversation.messages().len());
+
     Ok(Json(StartAgentResponse {
         session_id: payload.session_id.clone(),
         metadata,
