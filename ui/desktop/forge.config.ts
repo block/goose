@@ -67,7 +67,7 @@ module.exports = {
       config: {
         name: 'goose',
         bin: 'goose',
-        maintainer: 'Block, Inc.,
+        maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
