@@ -15,7 +15,6 @@ async fn test_moim_basic_injection() {
 
     let result = moim::inject_moim_if_enabled(conversation, &None).await;
 
-    // Should inject MOIM with timestamp
     assert_eq!(result.len(), 2);
     assert!(result.messages()[0]
         .as_concat_text()
@@ -33,15 +32,12 @@ async fn test_moim_disabled_no_injection() {
     ];
     let conversation = Conversation::new_unvalidated(messages.clone());
 
-    // Try to inject MOIM
     let result = moim::inject_moim_if_enabled(conversation, &None).await;
 
-    // Should be unchanged when disabled
     assert_eq!(result.len(), messages.len());
     assert_eq!(result.messages()[0].as_concat_text(), "Test message");
     assert_eq!(result.messages()[1].as_concat_text(), "Test response");
 
-    // Clean up
     std::env::remove_var("GOOSE_MOIM_ENABLED");
 }
 
@@ -86,7 +82,6 @@ async fn test_moim_respects_tool_pairs() {
     }
 }
 
-// This test doesn't use inject_moim_if_enabled, so doesn't need #[serial]
 #[test]
 fn test_find_safe_insertion_point_ending_with_tool_response() {
     // Critical test: when conversation ends with tool response, don't break the pair
