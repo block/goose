@@ -639,17 +639,11 @@ mod tests {
             "uvx mcp_slack"
         );
         assert_eq!(
-            make_full_cmd(
-                "uvx",
-                &["mcp_slack".to_string(), "--verbose".to_string()]
-            ),
+            make_full_cmd("uvx", &["mcp_slack".to_string(), "--verbose".to_string()]),
             "uvx mcp_slack --verbose"
         );
         assert_eq!(
-            make_full_cmd(
-                "uvx",
-                &["mcp_slack".to_string(), " --verbose".to_string()]
-            ),
+            make_full_cmd("uvx", &["mcp_slack".to_string(), " --verbose".to_string()]),
             "uvx mcp_slack --verbose"
         );
     }
