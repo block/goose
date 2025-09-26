@@ -58,7 +58,7 @@ Every hacktoberfest PR and contribution will earn you points on our leaderboard.
 | 🐰 Medium     | 10 points     | For average issues that take additional time to complete and/or require some product knowledge.     |
 | 🐂 Large     | 15 points     | For meaty issues that take a significant amount of time to complete and/or possibly require deep product knowledge.     |
 
-As thanks for every contribution we receive this year, the team is offering exclusive gift cards for the fresh new goose swag shop along with free LLM credits for our Top 20:
+As a special thank you, the team is offering exclusive gift cards for the fresh new goose swag shop along with free LLM credits for our Top 20 contributors:
 
 ![goose swag shop](gooseswag.png)
 
