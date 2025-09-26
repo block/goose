@@ -545,6 +545,8 @@ impl ExtensionManager {
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
+                                icons: None,
+                                title: None,
                             });
                         }
                     }
@@ -1117,27 +1119,21 @@ mod tests {
             use std::sync::Arc;
             Ok(ListToolsResult {
                 tools: vec![
-                    Tool {
-                        name: "tool".into(),
-                        description: Some("A basic tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
-                    Tool {
-                        name: "available_tool".into(),
-                        description: Some("An available tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
-                    Tool {
-                        name: "hidden_tool".into(),
-                        description: Some("A hidden tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
+                    Tool::new(
+                        "tool".to_string(),
+                        "A basic tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "available_tool".to_string(),
+                        "An available tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "hidden_tool".to_string(),
+                        "hidden tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
                 ],
                 next_cursor: None,
             })

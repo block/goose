@@ -132,6 +132,9 @@ impl ClientHandler for GooseClient {
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                icons: None,
+                title: None,
+                website_url: None,
             },
         }
     }

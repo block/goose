@@ -409,6 +409,9 @@ impl ServerHandler for AutoVisualiserRouter {
             server_info: Implementation {
                 name: "goose-autovisualiser".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                title: None,
+                icons: None,
+                website_url: None,
             },
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(self.instructions.clone()),
@@ -458,7 +461,7 @@ impl AutoVisualiserRouter {
     /// show a Sankey diagram from flow data
     #[tool(
         name = "render_sankey",
-        description = r#"show a Sankey diagram from flow data               
+        description = r#"show a Sankey diagram from flow data
 The data must contain:
 - nodes: Array of objects with 'name' and optional 'category' properties
 - links: Array of objects with 'source', 'target', and 'value' properties
@@ -537,7 +540,7 @@ Example:
     /// show a radar chart (spider chart) for multi-dimensional data comparison
     #[tool(
         name = "render_radar",
-        description = r#"show a radar chart (spider chart) for multi-dimensional data comparison             
+        description = r#"show a radar chart (spider chart) for multi-dimensional data comparison
 
 The data must contain:
 - labels: Array of strings representing the dimensions/axes
@@ -552,7 +555,7 @@ Example:
       "data": [85, 70, 90, 75, 80]
     },
     {
-      "label": "Player 2", 
+      "label": "Player 2",
       "data": [75, 85, 80, 90, 70]
     }
   ]

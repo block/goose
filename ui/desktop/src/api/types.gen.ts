@@ -9,8 +9,6 @@ export type AddSubRecipesResponse = {
     success: boolean;
 };
 
-export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
-
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -65,7 +63,7 @@ export type ConfigResponse = {
     };
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated | RawResource;
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -329,6 +327,12 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+export type Icon = {
+    mimeType?: string;
+    sizes?: string;
+    src: string;
+};
+
 export type ImageContent = {
     _meta?: {
         [key: string]: unknown;
@@ -497,6 +501,11 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+export type RawAudioContent = {
+    data: string;
+    mimeType: string;
+};
+
 export type RawEmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -514,9 +523,11 @@ export type RawImageContent = {
 
 export type RawResource = {
     description?: string;
+    icons?: Array<Icon>;
     mimeType?: string;
     name: string;
     size?: number;
+    title?: string;
     uri: string;
 };
 
@@ -863,6 +874,7 @@ export type Tool = {
         [key: string]: unknown;
     };
     description?: string;
+    icons?: Array<Icon>;
     inputSchema: {
         [key: string]: unknown;
     };
@@ -870,6 +882,7 @@ export type Tool = {
     outputSchema?: {
         [key: string]: unknown;
     };
+    title?: string;
 };
 
 export type ToolAnnotations = {
