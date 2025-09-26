@@ -1349,22 +1349,22 @@ impl Agent {
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
-                    }
-
-                    match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
-                        Ok(should_retry) => {
-                            if should_retry {
-                                info!("Retry logic triggered, restarting agent loop");
-                            } else {
+                    } else {
+                        match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
+                            Ok(should_retry) => {
+                                if should_retry {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                } else {
+                                    exit_chat = true;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Retry logic failed: {}", e);
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Retry logic encountered an error: {}", e)
+                                ));
                                 exit_chat = true;
                             }
-                        }
-                        Err(e) => {
-                            error!("Retry logic failed: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                format!("Retry logic encountered an error: {}", e)
-                            ));
-                            exit_chat = true;
                         }
                     }
                 }
