@@ -51,32 +51,6 @@ impl ConfigurableMockScheduler {
         }
     }
 
-    pub async fn with_behavior(self, method: &str, behavior: MockBehavior) -> Self {
-        self.behaviors
-            .lock()
-            .await
-            .insert(method.to_string(), behavior);
-        self
-    }
-
-    pub async fn with_existing_job(self, job: ScheduledJob) -> Self {
-        self.jobs.lock().await.insert(job.id.clone(), job);
-        self
-    }
-
-    pub async fn with_running_job(self, job_id: &str) -> Self {
-        self.running_jobs.lock().await.insert(job_id.to_string());
-        self
-    }
-
-    pub async fn with_sessions_data(self, job_id: &str, sessions: Vec<(String, Session)>) -> Self {
-        self.sessions_data
-            .lock()
-            .await
-            .insert(job_id.to_string(), sessions);
-        self
-    }
-
     pub async fn get_calls(&self) -> Vec<String> {
         self.call_log.lock().await.clone()
     }
