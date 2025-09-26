@@ -19,6 +19,7 @@ export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMet
     accumulated_input_tokens: metadata.accumulated_input_tokens || null,
     accumulated_output_tokens: metadata.accumulated_output_tokens || null,
     accumulated_total_tokens: metadata.accumulated_total_tokens || null,
+    schedule_id: metadata.schedule_id || null,
   };
 }
 
