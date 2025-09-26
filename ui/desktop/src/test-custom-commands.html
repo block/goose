@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Commands Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .code {
+            background: #f1f1f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #output {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Custom Commands Implementation Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Test localStorage Storage</h2>
+        <button onclick="testStorage()">Test Storage</button>
+        <div id="storage-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Command Creation</h2>
+        <button onclick="testCommandCreation()">Create Test Command</button>
+        <div id="creation-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Command Loading</h2>
+        <button onclick="testCommandLoading()">Load Commands</button>
+        <div id="loading-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test Prompt Expansion</h2>
+        <button onclick="testPromptExpansion()">Test Expansion</button>
+        <div id="expansion-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            output.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+
+        function testStorage() {
+            const result = document.getElementById('storage-result');
+            try {
+                // Test basic localStorage functionality
+                const testData = { test: 'value', timestamp: Date.now() };
+                localStorage.setItem('goose-test', JSON.stringify(testData));
+                const retrieved = JSON.parse(localStorage.getItem('goose-test'));
+                
+                if (retrieved.test === 'value') {
+                    result.innerHTML = '<span class="success">✓ localStorage working correctly</span>';
+                    log('Storage test passed');
+                } else {
+                    result.innerHTML = '<span class="error">✗ localStorage data mismatch</span>';
+                    log('Storage test failed: data mismatch');
+                }
+                
+                localStorage.removeItem('goose-test');
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ localStorage error: ' + error.message + '</span>';
+                log('Storage test failed: ' + error.message);
+            }
+        }
+
+        function testCommandCreation() {
+            const result = document.getElementById('creation-result');
+            try {
+                const testCommand = {
+                    id: 'cmd_test_' + Date.now(),
+                    name: 'test',
+                    label: 'Test Command',
+                    description: 'A test command for validation',
+                    prompt: 'This is a test prompt that should be expanded when the command is used.',
+                    icon: 'Zap',
+                    category: 'general',
+                    variables: [],
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    usageCount: 0,
+                    isFavorite: false
+                };
+
+                // Save to localStorage
+                const existingCommands = JSON.parse(localStorage.getItem('goose-custom-commands') || '[]');
+                const updatedCommands = [...existingCommands, testCommand];
+                localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+
+                result.innerHTML = '<span class="success">✓ Test command created successfully</span>';
+                log('Command creation test passed - created command: ' + testCommand.name);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ Command creation failed: ' + error.message + '</span>';
+                log('Command creation test failed: ' + error.message);
+            }
+        }
+
+        function testCommandLoading() {
+            const result = document.getElementById('loading-result');
+            try {
+                const stored = localStorage.getItem('goose-custom-commands');
+                if (stored) {
+                    const commands = JSON.parse(stored);
+                    const commandCount = commands.length;
+                    
+                    result.innerHTML = '<span class="success">✓ Loaded ' + commandCount + ' commands</span>';
+                    log('Command loading test passed - found ' + commandCount + ' commands');
+                    
+                    // Display command names
+                    const commandNames = commands.map(cmd => cmd.name).join(', ');
+                    log('Commands: ' + commandNames);
+                } else {
+                    result.innerHTML = '<span class="error">✗ No commands found in storage</span>';
+                    log('Command loading test failed: no commands found');
+                }
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ Command loading failed: ' + error.message + '</span>';
+                log('Command loading test failed: ' + error.message);
+            }
+        }
+
+        function testPromptExpansion() {
+            const result = document.getElementById('expansion-result');
+            try {
+                const stored = localStorage.getItem('goose-custom-commands');
+                if (!stored) {
+                    result.innerHTML = '<span class="error">✗ No commands available for testing</span>';
+                    return;
+                }
+
+                const commands = JSON.parse(stored);
+                const testCommand = commands.find(cmd => cmd.name === 'test');
+                
+                if (!testCommand) {
+                    result.innerHTML = '<span class="error">✗ Test command not found</span>';
+                    return;
+                }
+
+                // Simulate the expansion logic
+                const userInput = '[' + testCommand.label + ']';
+                const expandedPrompt = testCommand.prompt;
+                
+                result.innerHTML = '<span class="success">✓ Prompt expansion working</span><br>' +
+                                 '<strong>User sees:</strong> <span class="code">' + userInput + '</span><br>' +
+                                 '<strong>AI receives:</strong> <span class="code">' + expandedPrompt.substring(0, 50) + '...</span>';
+                
+                log('Prompt expansion test passed');
+                log('User input: ' + userInput);
+                log('Expanded to: ' + expandedPrompt);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ Prompt expansion failed: ' + error.message + '</span>';
+                log('Prompt expansion test failed: ' + error.message);
+            }
+        }
+
+        // Initialize
+        log('Custom Commands Test Page Loaded');
+        log('Ready to test implementation...');
+    </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { CustomCommandsSettings } from '../CustomCommandsSettings';
 
 export default function ChatSettingsSection() {
   return (
@@ -32,6 +33,16 @@ export default function ChatSettingsSection() {
         </CardHeader>
         <CardContent className="px-2">
           <ResponseStylesSection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Custom Commands</CardTitle>
+          <CardDescription>Create and manage your own slash commands with custom prompts</CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <CustomCommandsSettings />
         </CardContent>
       </Card>
 

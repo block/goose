@@ -19,7 +19,7 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import ActionPopover from './ActionPopover';
-import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
+
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
@@ -31,6 +31,7 @@ import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
+import { useCustomCommands } from '../hooks/useCustomCommands';
 
 interface QueuedMessage {
   id: string;
@@ -295,6 +296,9 @@ export default function ChatInput({
 
   // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
+  
+  // Custom commands hook
+  const { getCommand, expandCommandPrompt, incrementUsage } = useCustomCommands();
 
   // Update internal value when initialValue changes
   useEffect(() => {
@@ -978,6 +982,54 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
+  // Function to expand custom command pills to their full prompts
+  const expandCustomCommandPills = useCallback((text: string): string => {
+    // Find all action pills in the format [Action Label]
+    const actionPillRegex = /\[([^\]]+)\]/g;
+    let expandedText = text;
+    
+    // Replace each action pill with its corresponding prompt
+    expandedText = expandedText.replace(actionPillRegex, (match, label) => {
+      // First check if it's a custom command by looking for a command with this label
+      const customCommand = getCommand ? (() => {
+        try {
+          // We need to find the command by label since that's what's stored in the pill
+          // This is a bit inefficient but necessary given our current architecture
+          const stored = localStorage.getItem('goose-custom-commands');
+          if (stored) {
+            const commands = JSON.parse(stored);
+            return commands.find((cmd: any) => cmd.label === label);
+          }
+        } catch (error) {
+          console.error('Error finding custom command:', error);
+        }
+        return null;
+      })() : null;
+      
+      if (customCommand) {
+        // Increment usage count for the custom command
+        if (incrementUsage) {
+          incrementUsage(customCommand.id);
+        }
+        
+        // Expand the custom command prompt
+        const context = {
+          // Add any context variables here in the future
+          // filename: currentFileName,
+          // selection: selectedText,
+          // directory: currentDirectory,
+        };
+        
+        return expandCommandPrompt ? expandCommandPrompt(customCommand, context) : customCommand.prompt;
+      }
+      
+      // If not a custom command, return the original pill (built-in actions)
+      return match;
+    });
+    
+    return expandedText;
+  }, [getCommand, expandCommandPrompt, incrementUsage]);
+
   const canSubmit =
     !isLoading &&
     agentIsReady &&
@@ -996,6 +1048,9 @@ export default function ChatInput({
         .map((file) => file.path);
 
       let textToSend = text ?? displayValue.trim();
+
+      // Expand custom command pills before sending
+      textToSend = expandCustomCommandPills(textToSend);
 
       // Combine pasted images and dropped files
       const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
@@ -1056,6 +1111,7 @@ export default function ChatInput({
       chatContext,
       displayValue,
       droppedFiles.length,
+      expandCustomCommandPills,
       handleSubmit,
       lastInterruption,
       localDroppedFiles.length,
@@ -1210,21 +1266,18 @@ export default function ChatInput({
     });
   };
 
-    // Helper function to get action info
-  const getActionInfo = (actionId: string) => {
-    const actionMap = {
-      'quick-task': { label: 'Quick Task', icon: <Zap size={12} /> },
-      'generate-code': { label: 'Generate Code', icon: <Code size={12} /> },
-      'create-document': { label: 'Create Document', icon: <FileText size={12} /> },
-      'search-files': { label: 'Search Files', icon: <Search size={12} /> },
-      'run-command': { label: 'Run Command', icon: <Play size={12} /> },
-      'settings': { label: 'Settings', icon: <Settings size={12} /> },
-    };
-    return actionMap[actionId as keyof typeof actionMap] || { label: actionId, icon: <Zap size={12} /> };
-  };
+
 
   const handleActionSelect = (actionId: string) => {
-    const actionInfo = getActionInfo(actionId);
+    // Get the action info from the ActionPopover's display actions
+    const displayActions = actionPopoverRef.current?.getDisplayActions() || [];
+    const selectedAction = displayActions.find(action => action.id === actionId);
+    
+    if (!selectedAction) {
+      console.error('Selected action not found:', actionId);
+      setActionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
     
     // Get current cursor position from the RichChatInput
     const currentValue = displayValue;
@@ -1237,9 +1290,9 @@ export default function ChatInput({
       const afterSlash = beforeCursor.slice(lastSlashIndex + 1);
       // Check if we're still in the same "word" after the slash
       if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
-        // Replace the /query with [Action] text
+        // Replace the /query with [Action Label] text
         const beforeSlash = currentValue.slice(0, lastSlashIndex);
-        const actionText = `[${actionInfo.label}]`;
+        const actionText = `[${selectedAction.label}]`;
         const newValue = beforeSlash + actionText + " " + afterCursor;
         
         setDisplayValue(newValue);
@@ -1256,7 +1309,7 @@ export default function ChatInput({
       }
     }
     
-    console.log('Action selected:', actionId, 'at position:', cursorPosition);
+    console.log('Action selected:', actionId, 'label:', selectedAction.label);
     setActionPopover(prev => ({ ...prev, isOpen: false }));
   };
 
