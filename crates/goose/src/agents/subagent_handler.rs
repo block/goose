@@ -5,7 +5,7 @@ use crate::{
     conversation::{message::Message, Conversation},
     execution::{manager::AgentManager, SessionExecutionMode},
     providers::base::Provider,
-    session,
+    session::SessionManager,
 };
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
@@ -104,10 +104,19 @@ fn get_agent_messages(
         let parent_session_id = task_config
             .parent_session_id
             .ok_or_else(|| anyhow!("Parent session ID is missing"))?;
-        let session_id = session::generate_session_id();
+
+        let current_dir = std::env::current_dir()
+            .map_err(|e| anyhow!("Failed to get current directory for sub agent: {}", e))?;
+        let session = SessionManager::create_session(
+            current_dir.clone(),
+            format!("Subagent task for: {}", parent_session_id),
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
+
         let agent = agent_manager
             .get_or_create_agent(
-                session_id.clone(),
+                session.id.clone(),
                 SessionExecutionMode::SubTask {
                     parent_session: parent_session_id,
                 },
@@ -134,10 +143,6 @@ fn get_agent_messages(
             }
         }
 
-        let session_file_path = crate::session::storage::get_path(
-            crate::session::storage::Identifier::Name(session_id.clone()),
-        )
-        .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
         let mut session_messages =
             Conversation::new_unvalidated(
                 vec![Message::user().with_text(text_instruction.clone())],
@@ -145,7 +150,7 @@ fn get_agent_messages(
         let current_dir = std::env::current_dir()
             .map_err(|e| anyhow!("Failed to get current directory for sub agent: {}", e))?;
         let session_config = SessionConfig {
-            id: crate::session::storage::Identifier::Name(session_id.clone()),
+            id: session.id,
             working_dir: current_dir,
             schedule_id: None,
             execution_mode: None,
@@ -168,21 +173,6 @@ fn get_agent_messages(
                     break;
                 }
             }
-        }
-
-        if let Ok(mut updated_metadata) = crate::session::storage::read_metadata(&session_file_path)
-        {
-            updated_metadata.message_count = session_messages.len();
-            if let Err(e) = crate::session::storage::save_messages_with_metadata(
-                &session_file_path,
-                &updated_metadata,
-                &session_messages,
-            ) {
-                tracing::error!("Failed to persist final messages: {}", e);
-                return Err(anyhow!("Failed to save messages: {}", e));
-            }
-        } else {
-            tracing::error!("Failed to read updated metadata before final save");
         }
 
         Ok(session_messages)
