@@ -5,6 +5,8 @@ use mcp_core::ToolCall;
 use rmcp::model::Content;
 use serial_test::serial;
 
+// All async tests that call inject_moim_if_enabled need #[serial] because
+// that function accesses Config::global() to check if MOIM is enabled
 #[tokio::test]
 #[serial]
 async fn test_moim_basic_injection() {
@@ -84,6 +86,7 @@ async fn test_moim_respects_tool_pairs() {
     }
 }
 
+// This test doesn't use inject_moim_if_enabled, so doesn't need #[serial]
 #[test]
 fn test_find_safe_insertion_point_ending_with_tool_response() {
     // Critical test: when conversation ends with tool response, don't break the pair
