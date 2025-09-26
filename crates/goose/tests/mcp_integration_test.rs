@@ -35,7 +35,7 @@ enum TestMode {
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
-            "sha": "48c1ec8afdb7d4d5b4f6e67e623926c884034776"
+            "sha": "ab62b863c1666232a67048b6c4e10007a2a5b83c"
         })),
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
