@@ -524,9 +524,18 @@ impl Session {
                             }
 
                             output::show_thinking();
+                            let start_time = Instant::now();
                             self.process_agent_response(true, CancellationToken::default())
                                 .await?;
                             output::hide_thinking();
+
+                            // Display elapsed time
+                            let elapsed = start_time.elapsed();
+                            let elapsed_str = format_elapsed_time(elapsed);
+                            println!(
+                                "\n{}",
+                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                            );
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -1819,4 +1828,89 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_elapsed_time_under_60_seconds() {
+        // Test sub-second duration
+        let duration = Duration::from_millis(500);
+        assert_eq!(format_elapsed_time(duration), "0.50s");
+
+        // Test exactly 1 second
+        let duration = Duration::from_secs(1);
+        assert_eq!(format_elapsed_time(duration), "1.00s");
+
+        // Test 45.75 seconds
+        let duration = Duration::from_millis(45750);
+        assert_eq!(format_elapsed_time(duration), "45.75s");
+
+        // Test 59.99 seconds
+        let duration = Duration::from_millis(59990);
+        assert_eq!(format_elapsed_time(duration), "59.99s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes() {
+        // Test exactly 60 seconds (1 minute)
+        let duration = Duration::from_secs(60);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+
+        // Test 61 seconds (1 minute 1 second)
+        let duration = Duration::from_secs(61);
+        assert_eq!(format_elapsed_time(duration), "1m 01s");
+
+        // Test 90 seconds (1 minute 30 seconds)
+        let duration = Duration::from_secs(90);
+        assert_eq!(format_elapsed_time(duration), "1m 30s");
+
+        // Test 119 seconds (1 minute 59 seconds)
+        let duration = Duration::from_secs(119);
+        assert_eq!(format_elapsed_time(duration), "1m 59s");
+
+        // Test 120 seconds (2 minutes)
+        let duration = Duration::from_secs(120);
+        assert_eq!(format_elapsed_time(duration), "2m 00s");
+
+        // Test 605 seconds (10 minutes 5 seconds)
+        let duration = Duration::from_secs(605);
+        assert_eq!(format_elapsed_time(duration), "10m 05s");
+
+        // Test 3661 seconds (61 minutes 1 second)
+        let duration = Duration::from_secs(3661);
+        assert_eq!(format_elapsed_time(duration), "61m 01s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_edge_cases() {
+        // Test zero duration
+        let duration = Duration::from_secs(0);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test very small duration (1 millisecond)
+        let duration = Duration::from_millis(1);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test fractional seconds are truncated for minute display
+        // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
+        let duration = Duration::from_millis(60500);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
 }

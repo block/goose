@@ -195,6 +195,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
           messages: messagesRef.current,
           title: '',
           description: '',
+          session_id: chat.sessionId,
         };
 
         const response = await createRecipe(createRecipeRequest);
@@ -243,7 +244,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     return () => {
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
-  }, []);
+  }, [chat.sessionId]);
 
   return {
     recipeConfig: finalRecipeConfig,

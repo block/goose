@@ -60,6 +60,7 @@ pub struct SessionInsights {
 }
 
 #[derive(Serialize, ToSchema, Debug)]
+#[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityHeatmapCell {
     pub week: usize,

@@ -251,7 +251,7 @@ impl SubAgent {
                     last_error = Some(anyhow::anyhow!("Context length exceeded"));
                     break;
                 }
-                Err(ProviderError::RateLimitExceeded(_)) => {
+                Err(ProviderError::RateLimitExceeded { .. }) => {
                     self.set_status(SubAgentStatus::Completed("Rate limit exceeded".to_string()))
                         .await;
                     last_error = Some(anyhow::anyhow!("Rate limit exceeded"));

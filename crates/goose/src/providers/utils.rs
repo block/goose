@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::providers::errors::{OpenAIError, ProviderError};
 
@@ -105,7 +106,10 @@ pub fn map_http_error_to_provider_error(
                 ))
             }
         }
-        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded(format!("{:?}", payload)),
+        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
+            details: format!("{:?}", payload),
+            retry_delay: None,
+        },
         _ if status.is_server_error() => ProviderError::ServerError(format!("{:?}", payload)),
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
@@ -212,6 +216,31 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
     status
 }
 
+fn parse_google_retry_delay(payload: &Value) -> Option<Duration> {
+    payload
+        .get("error")
+        .and_then(|error| error.get("details"))
+        .and_then(|details| details.as_array())
+        .and_then(|details_array| {
+            details_array.iter().find_map(|detail| {
+                if detail
+                    .get("@type")
+                    .and_then(|t| t.as_str())
+                    .is_some_and(|s| s.ends_with("RetryInfo"))
+                {
+                    detail
+                        .get("retryDelay")
+                        .and_then(|delay| delay.as_str())
+                        .and_then(|s| s.strip_suffix('s'))
+                        .and_then(|num| num.parse::<u64>().ok())
+                        .map(Duration::from_secs)
+                } else {
+                    None
+                }
+            })
+        })
+}
+
 /// Handle response from Google Gemini API-compatible endpoints.
 ///
 /// Processes HTTP responses, handling specific statuses and parsing the payload
@@ -252,6 +281,13 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
+        }
+        StatusCode::TOO_MANY_REQUESTS => {
+            let retry_delay = payload.as_ref().and_then(parse_google_retry_delay);
+            Err(ProviderError::RateLimitExceeded {
+                details: format!("{:?}", payload),
+                retry_delay,
+            })
         }
         _ if final_status.is_server_error() => {
             Err(ProviderError::ServerError(format!("{:?}", payload)))
@@ -804,6 +840,25 @@ mod tests {
             "Hello\\u0001World"
         );
     }
+
+    #[test]
+    fn test_parse_google_retry_delay() {
+        let payload = json!({
+            "error": {
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                        "retryDelay": "42s"
+                    }
+                ]
+            }
+        });
+        assert_eq!(
+            parse_google_retry_delay(&payload),
+            Some(Duration::from_secs(42))
+        );
+    }
+
     #[tokio::test]
     async fn test_handle_status_openai_compat() {
         let test_cases = vec![
@@ -969,9 +1024,10 @@ mod tests {
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 Some(json!({"retry_after": 60})),
-                ProviderError::RateLimitExceeded(
-                    "Some(Object {\"retry_after\": Number(60)})".to_string(),
-                ),
+                ProviderError::RateLimitExceeded{
+                    details: "Some(Object {\"retry_after\": Number(60)})".to_string(),
+                    retry_delay: None,
+                },
             ),
             // is_server_error() without payload
             (

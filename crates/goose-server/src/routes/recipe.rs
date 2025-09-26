@@ -25,6 +25,7 @@ pub struct CreateRecipeRequest {
     activities: Option<Vec<String>>,
     #[serde(default)]
     author: Option<AuthorRequest>,
+    session_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -108,13 +109,13 @@ pub struct ListRecipeResponse {
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
+) -> Result<Json<CreateRecipeResponse>, StatusCode> {
     tracing::info!(
         "Recipe creation request received with {} messages",
         request.messages.len()
     );
 
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(request.session_id).await?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent
@@ -143,12 +144,7 @@ async fn create_recipe(
         }
         Err(e) => {
             tracing::error!("Error details: {:?}", e);
-            let error_message = format!("Recipe creation failed: {}", e);
-            let error_response = CreateRecipeResponse {
-                recipe: None,
-                error: Some(error_message),
-            };
-            Err((StatusCode::BAD_REQUEST, Json(error_response)))
+            Err(StatusCode::BAD_REQUEST)
         }
     }
 }
