@@ -37,6 +37,10 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Custom Commands</CardTitle>
+          <CardDescription>Create custom slash commands with rich prompts that expand when sent to the AI</CardDescription>
+        </CardHeader>
         <CardContent className="px-2">
           <CustomCommandsSettings />
         </CardContent>

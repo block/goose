@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Zap, Code, FileText, Search, Play, Settings, Hash } from 'lucide-react';
+import { Plus, Zap, Code, FileText, Search, Play, Settings, Hash } from 'lucide-react';
 import { CustomCommand } from '../types/customCommands';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from './ui/button';
 
 interface AddCustomCommandModalProps {
   isOpen: boolean;
@@ -31,7 +33,6 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
     description: '',
     prompt: '',
     icon: 'Zap',
-    category: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -45,7 +46,6 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
           description: editingCommand.description,
           prompt: editingCommand.prompt,
           icon: editingCommand.icon || 'Zap',
-          category: editingCommand.category || '',
         });
       } else {
         setFormData({
@@ -54,7 +54,6 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
           description: '',
           prompt: '',
           icon: 'Zap',
-          category: '',
         });
       }
       setErrors({});
@@ -100,7 +99,7 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
       description: formData.description.trim(),
       prompt: formData.prompt.trim(),
       icon: formData.icon,
-      category: formData.category.trim() || undefined,
+      category: editingCommand?.category || undefined,
       createdAt: editingCommand?.createdAt || new Date(),
       updatedAt: new Date(),
       usageCount: editingCommand?.usageCount || 0,
@@ -129,33 +128,23 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-background-default border border-borderStandard rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-borderStandard">
-          <h2 className="text-lg font-semibold text-textStandard">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
             {editingCommand ? 'Edit Custom Command' : 'Add Custom Command'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-bgSubtle rounded-md transition-colors"
-          >
-            <X size={20} className="text-textSubtle" />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="py-4">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Command Name */}
             <div>
@@ -179,7 +168,7 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
               {errors.name && (
                 <p className="mt-1 text-sm text-red-500">{errors.name}</p>
               )}
-              <p className="mt-1 text-xs text-textSubtle">
+              <p className="mt-1 text-xs text-gray-500">
                 This will be the command users type (e.g., /document)
               </p>
             </div>
@@ -201,7 +190,7 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
               {errors.label && (
                 <p className="mt-1 text-sm text-red-500">{errors.label}</p>
               )}
-              <p className="mt-1 text-xs text-textSubtle">
+              <p className="mt-1 text-xs text-gray-500">
                 Friendly name shown in the command list
               </p>
             </div>
@@ -248,22 +237,7 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
               </div>
             </div>
 
-            {/* Category */}
-            <div>
-              <label className="block text-sm font-medium text-textStandard mb-2">
-                Category
-              </label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => handleInputChange('category', e.target.value)}
-                placeholder="Documentation, Code, etc."
-                className="w-full px-3 py-2 border border-borderStandard rounded-md bg-background-default text-textStandard placeholder-textSubtle focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <p className="mt-1 text-xs text-textSubtle">
-                Optional category for organization
-              </p>
-            </div>
+
 
             {/* Prompt */}
             <div>
@@ -282,52 +256,26 @@ export const AddCustomCommandModal: React.FC<AddCustomCommandModalProps> = ({
               {errors.prompt && (
                 <p className="mt-1 text-sm text-red-500">{errors.prompt}</p>
               )}
-              <p className="mt-1 text-xs text-textSubtle">
+              <p className="mt-1 text-xs text-gray-500">
                 This is the full prompt that will be sent to the AI when the command is used
               </p>
             </div>
 
-            {/* Preview */}
-            <div className="bg-bgSubtle rounded-lg p-4">
-              <h3 className="text-sm font-medium text-textStandard mb-2">Preview</h3>
-              <div className="space-y-2">
-                <div className="text-xs text-textSubtle">User types:</div>
-                <div className="font-mono text-sm bg-background-default px-2 py-1 rounded border">
-                  /{formData.name || 'command'}
-                </div>
-                <div className="text-xs text-textSubtle">Appears as pill:</div>
-                <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm">
-                  {iconOptions.find(opt => opt.name === formData.icon)?.icon}
-                  {formData.label || 'Command Label'}
-                </div>
-                <div className="text-xs text-textSubtle">AI receives:</div>
-                <div className="text-sm bg-background-default px-2 py-1 rounded border max-h-20 overflow-y-auto">
-                  {formData.prompt || 'Your prompt will appear here...'}
-                </div>
-              </div>
-            </div>
+
           </form>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-borderStandard">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-textStandard hover:bg-bgSubtle rounded-md transition-colors"
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2"
-          >
+          </Button>
+          <Button onClick={handleSubmit} className="flex items-center gap-2">
             <Plus size={16} />
             {editingCommand ? 'Update Command' : 'Add Command'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
