@@ -3,6 +3,7 @@ pub mod java;
 pub mod javascript;
 pub mod kotlin;
 pub mod python;
+pub mod ruby;
 pub mod rust;
 pub mod swift;
 
@@ -16,6 +17,7 @@ pub fn get_element_query(language: &str) -> &'static str {
         "java" => java::ELEMENT_QUERY,
         "kotlin" => kotlin::ELEMENT_QUERY,
         "swift" => swift::ELEMENT_QUERY,
+        "ruby" => ruby::ELEMENT_QUERY,
         _ => "",
     }
 }
@@ -30,6 +32,7 @@ pub fn get_call_query(language: &str) -> &'static str {
         "java" => java::CALL_QUERY,
         "kotlin" => kotlin::CALL_QUERY,
         "swift" => swift::CALL_QUERY,
+        "ruby" => ruby::CALL_QUERY,
         _ => "",
     }
 }

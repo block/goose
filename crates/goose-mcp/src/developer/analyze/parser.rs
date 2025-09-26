@@ -42,6 +42,7 @@ impl ParserManager {
             "java" => tree_sitter_java::language(),
             "kotlin" => tree_sitter_kotlin::language(),
             "swift" => devgen_tree_sitter_swift::language(),
+            "ruby" => tree_sitter_ruby::language(),
             _ => {
                 tracing::warn!("Unsupported language: {}", language);
                 return Err(ErrorData::new(
@@ -177,6 +178,7 @@ impl ElementExtractor {
             "java" => languages::java::ELEMENT_QUERY,
             "kotlin" => languages::kotlin::ELEMENT_QUERY,
             "swift" => languages::swift::ELEMENT_QUERY,
+            "ruby" => languages::ruby::ELEMENT_QUERY,
             _ => "",
         }
     }
@@ -256,6 +258,7 @@ impl ElementExtractor {
             "java" => languages::java::CALL_QUERY,
             "kotlin" => languages::kotlin::CALL_QUERY,
             "swift" => languages::swift::CALL_QUERY,
+            "ruby" => languages::ruby::CALL_QUERY,
             _ => "",
         }
     }
@@ -359,6 +362,7 @@ impl ElementExtractor {
                         || kind == "deinit_declaration"
                         || kind == "subscript_declaration"
                 }
+                "ruby" => kind == "method" || kind == "singleton_method",
                 _ => false,
             };
 
