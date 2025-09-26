@@ -12,6 +12,7 @@ import { Button } from './ui/button';
 import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 import type { ExtensionConfig } from '../api/types.gen';
+import { View, ViewOptions } from '../utils/navigationUtils';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
@@ -41,6 +42,7 @@ interface ExtensionModalConfig {
 
 interface ExtensionInstallModalProps {
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+  setView?: (view: View, options?: ViewOptions) => void;
 }
 
 function extractCommand(link: string): string {
@@ -55,7 +57,7 @@ function extractRemoteUrl(link: string): string | null {
   return url.searchParams.get('url');
 }
 
-export function ExtensionInstallModal({ addExtension }: ExtensionInstallModalProps) {
+export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
     modalType: 'trusted',
@@ -197,9 +199,16 @@ export function ExtensionInstallModal({ addExtension }: ExtensionInstallModalPro
       console.log(`Confirming installation of extension from: ${pendingLink}`);
 
       if (addExtension) {
-        await addExtensionFromDeepLink(pendingLink, addExtension, () => {
-          console.log('Extension installation completed, navigating to extensions');
-        });
+        await addExtensionFromDeepLink(
+          pendingLink,
+          addExtension,
+          (view: string, options?: ViewOptions) => {
+            console.log('Extension installation completed, navigating to:', view, options);
+            if (setView) {
+              setView(view as View, options);
+            }
+          }
+        );
       } else {
         throw new Error('addExtension function not provided to component');
       }
@@ -216,7 +225,7 @@ export function ExtensionInstallModal({ addExtension }: ExtensionInstallModalPro
         isPending: false,
       }));
     }
-  }, [pendingLink, dismissModal, addExtension]);
+  }, [pendingLink, dismissModal, addExtension, setView]);
 
   useEffect(() => {
     console.log('Setting up extension install modal handler');

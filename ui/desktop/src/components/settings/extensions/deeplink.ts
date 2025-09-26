@@ -180,9 +180,9 @@ export async function addExtensionFromDeepLink(
     config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
 
   if (hasEnvVars || hasHeaders) {
-    console.log('Environment variables or headers required, redirecting to settings');
+    console.log('Environment variables or headers required, redirecting to extensions');
     console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
-    setView('settings', { deepLinkConfig: config, showEnvVars: true });
+    setView('extensions', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
 
@@ -193,6 +193,15 @@ export async function addExtensionFromDeepLink(
     // It will be activated when the next session starts
     console.warn('Extension will be added to config but requires a session to activate');
     await addExtensionFn(config.name, config, true);
+
+    // Show success toast and navigate to extensions page
+    toastService.success({
+      title: 'Extension Installed',
+      msg: `${config.name} extension has been installed successfully. Start a new chat session to use it.`,
+    });
+
+    // Navigate to extensions page to show the newly installed extension
+    setView('extensions', { deepLinkConfig: config, showEnvVars: false, extensionId: config.name });
   } catch (error) {
     console.error('Failed to activate extension from deeplink:', error);
     throw error;

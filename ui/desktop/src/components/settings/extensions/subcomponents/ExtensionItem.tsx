@@ -73,6 +73,7 @@ export default function ExtensionItem({
 
   return (
     <Card
+      id={`extension-${extension.name}`}
       className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
       onClick={() => handleToggle(extension)}
     >

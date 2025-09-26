@@ -19,6 +19,7 @@ import { useConfig } from '../ConfigContext';
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
+  extensionId?: string;
 };
 
 export default function ExtensionsView({
@@ -44,6 +45,26 @@ export default function ExtensionsView({
       setRefreshKey((prevKey) => prevKey + 1);
     }
   }, [viewOptions.deepLinkConfig, viewOptions.showEnvVars]);
+
+  // Scroll to extension after refresh if extensionId is provided
+  useEffect(() => {
+    if (viewOptions.extensionId && refreshKey > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`extension-${viewOptions.extensionId}`);
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+          // Add a subtle highlight effect
+          element.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
+          setTimeout(() => {
+            element.style.boxShadow = '';
+          }, 2000);
+        }
+      }, 100);
+    }
+  }, [viewOptions.extensionId, refreshKey]);
 
   const handleModalClose = () => {
     setIsAddModalOpen(false);
