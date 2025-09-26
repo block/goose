@@ -83,6 +83,10 @@ export type ContextManageRequest = {
      * Collection of messages to be managed
      */
     messages: Array<Message>;
+    /**
+     * Optional session ID for session-specific agent
+     */
+    sessionId: string;
 };
 
 /**
@@ -115,6 +119,7 @@ export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     description: string;
     messages: Array<Message>;
+    session_id: string;
     title: string;
 };
 

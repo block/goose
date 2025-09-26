@@ -96,33 +96,31 @@ struct ExtensionResponse {
     message: Option<String>,
 }
 
+/// Request structure for adding an extension, combining session_id with the extension config
+#[derive(Deserialize)]
+struct AddExtensionRequest {
+    session_id: String,
+    #[serde(flatten)]
+    config: ExtensionConfigRequest,
+}
+
 /// Handler for adding a new extension configuration.
 async fn add_extension(
     State(state): State<Arc<AppState>>,
-    raw: axum::extract::Json<serde_json::Value>,
+    Json(request): Json<AddExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    // Log the raw request for debugging
+    // Log the request for debugging
     tracing::info!(
-        "Received extension request: {}",
-        serde_json::to_string_pretty(&raw.0).unwrap()
+        "Received extension request for session: {}",
+        request.session_id
     );
 
-    // Try to parse into our enum
-    let request: ExtensionConfigRequest = match serde_json::from_value(raw.0.clone()) {
-        Ok(req) => req,
-        Err(e) => {
-            tracing::error!("Failed to parse extension request: {}", e);
-            tracing::error!(
-                "Raw request was: {}",
-                serde_json::to_string_pretty(&raw.0).unwrap()
-            );
-            return Err(StatusCode::UNPROCESSABLE_ENTITY);
-        }
-    };
+    let session_id = request.session_id.clone();
+    let extension_request = request.config;
 
     // If this is a Stdio extension that uses npx, check for Node.js installation
     #[cfg(target_os = "windows")]
-    if let ExtensionConfigRequest::Stdio { cmd, .. } = &request {
+    if let ExtensionConfigRequest::Stdio { cmd, .. } = &extension_request {
         if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
             // Check if Node.js is installed in standard locations
             let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
@@ -175,7 +173,7 @@ async fn add_extension(
     }
 
     // Construct ExtensionConfig with Envs populated from keyring based on provided env_keys.
-    let extension_config: ExtensionConfig = match request {
+    let extension_config: ExtensionConfig = match extension_request {
         ExtensionConfigRequest::Sse {
             name,
             uri,
@@ -267,7 +265,7 @@ async fn add_extension(
         },
     };
 
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(session_id).await?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -289,13 +287,20 @@ async fn add_extension(
     }
 }
 
+#[derive(Deserialize)]
+struct RemoveExtensionRequest {
+    name: String,
+    session_id: String,
+}
+
 /// Handler for removing an extension by name
 async fn remove_extension(
     State(state): State<Arc<AppState>>,
-    Json(name): Json<String>,
+    Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    let agent = state.get_agent().await;
-    match agent.remove_extension(&name).await {
+    let agent = state.get_agent_for_route(request.session_id).await?;
+
+    match agent.remove_extension(&request.name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
             error: false,
             message: None,
@@ -626,25 +631,19 @@ mod tests {
     #[test]
     fn test_make_full() {
         assert_eq!(
-            make_full_cmd("uvx", &vec!["mcp_slack".to_string()]),
+            make_full_cmd("uvx", &["mcp_slack".to_string()]),
             "uvx mcp_slack"
         );
         assert_eq!(
-            make_full_cmd("uvx", &vec!["mcp_slack ".to_string()]),
+            make_full_cmd("uvx", &["mcp_slack ".to_string()]),
             "uvx mcp_slack"
         );
         assert_eq!(
-            make_full_cmd(
-                "uvx",
-                &vec!["mcp_slack".to_string(), "--verbose".to_string()]
-            ),
+            make_full_cmd("uvx", &["mcp_slack".to_string(), "--verbose".to_string()]),
             "uvx mcp_slack --verbose"
         );
         assert_eq!(
-            make_full_cmd(
-                "uvx",
-                &vec!["mcp_slack".to_string(), " --verbose".to_string()]
-            ),
+            make_full_cmd("uvx", &["mcp_slack".to_string(), " --verbose".to_string()]),
             "uvx mcp_slack --verbose"
         );
     }
@@ -1088,14 +1087,14 @@ mod tests {
         // With bypass enabled, any command should be allowed regardless of allowlist
         assert!(is_command_allowed(
             "uvx",
-            &vec!["unauthorized_command".to_string()]
+            &["unauthorized_command".to_string()]
         ));
 
         // Test case insensitivity
         env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE");
         assert!(is_command_allowed(
             "uvx",
-            &vec!["unauthorized_command".to_string()]
+            &["unauthorized_command".to_string()]
         ));
 
         // Clean up

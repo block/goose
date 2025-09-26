@@ -10,6 +10,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
+use goose::execution::SessionExecutionMode;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
 use goose::{
@@ -84,7 +85,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 #[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
     messages: Vec<Message>,
-    session_id: Option<String>,
+    session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
 }
@@ -176,17 +177,24 @@ async fn reply_handler(
         "Session started"
     );
 
-    if let Some(recipe_name) = &request.recipe_name {
-        let recipe_version = request.recipe_version.as_deref().unwrap_or("unknown");
+    let session_id = request.session_id.clone();
 
-        tracing::info!(
-            counter.goose.recipe_runs = 1,
-            recipe_name = %recipe_name,
-            recipe_version = %recipe_version,
-            session_type = "app",
-            interface = "ui",
-            "Recipe execution started"
-        );
+    if let Some(recipe_name) = request.recipe_name.clone() {
+        if state.mark_recipe_run_if_absent(&session_id).await {
+            let recipe_version = request
+                .recipe_version
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            tracing::info!(
+                counter.goose.recipe_runs = 1,
+                recipe_name = %recipe_name,
+                recipe_version = %recipe_version,
+                session_type = "app",
+                interface = "ui",
+                "Recipe execution started"
+            );
+        }
     }
 
     let (tx, rx) = mpsc::channel(100);
@@ -195,16 +203,28 @@ async fn reply_handler(
 
     let messages = Conversation::new_unvalidated(request.messages);
 
-    let session_id = request.session_id.ok_or_else(|| {
-        tracing::error!("session_id is required but was not provided");
-        StatusCode::BAD_REQUEST
-    })?;
-
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = state.get_agent().await;
+        let agent = match state
+            .get_agent(session_id.clone(), SessionExecutionMode::Interactive)
+            .await
+        {
+            Ok(agent) => agent,
+            Err(e) => {
+                tracing::error!("Failed to get session agent: {}", e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get session agent: {}", e),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
 
         let session = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,
@@ -389,7 +409,6 @@ pub struct PermissionConfirmationRequest {
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -411,7 +430,7 @@ pub async fn confirm_permission(
     State(state): State<Arc<AppState>>,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(request.session_id).await?;
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -435,7 +454,6 @@ pub async fn confirm_permission(
 struct ToolResultRequest {
     id: String,
     result: ToolResult<Vec<Content>>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -460,7 +478,7 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
@@ -482,61 +500,16 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::conversation::message::Message;
-    use goose::{
-        agents::Agent,
-        model::ModelConfig,
-        providers::{
-            base::{Provider, ProviderUsage, Usage},
-            errors::ProviderError,
-        },
-    };
-
-    #[derive(Clone)]
-    struct MockProvider {
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl Provider for MockProvider {
-        fn metadata() -> goose::providers::base::ProviderMetadata {
-            goose::providers::base::ProviderMetadata::empty()
-        }
-
-        async fn complete_with_model(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[rmcp::model::Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::assistant().with_text("Mock response"),
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-    }
 
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
         use goose::conversation::message::Message;
-        use std::sync::Arc;
         use tower::ServiceExt;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
-            let mock_model_config = ModelConfig::new("test-model").unwrap();
-            let mock_provider = Arc::new(MockProvider {
-                model_config: mock_model_config,
-            });
-            let agent = Agent::new();
-            let _ = agent.update_provider(mock_provider).await;
-            let state = AppState::new(Arc::new(agent));
+            let state = AppState::new().await.unwrap();
 
             let app = routes(state);
 
@@ -548,7 +521,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
                         messages: vec![Message::user().with_text("test message")],
-                        session_id: Some("test-session".to_string()),
+                        session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
                     })

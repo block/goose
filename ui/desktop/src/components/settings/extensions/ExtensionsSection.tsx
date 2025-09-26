@@ -17,6 +17,7 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
+  sessionId: string; // Add required sessionId prop
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -26,6 +27,7 @@ interface ExtensionSectionProps {
 }
 
 export default function ExtensionsSection({
+  sessionId,
   deepLinkConfig,
   showEnvVars,
   hideButtons,
@@ -97,6 +99,7 @@ export default function ExtensionsSection({
         extensionConfig: extensionConfig,
         addToConfig: addExtension,
         toastOptions: { silent: false },
+        sessionId: sessionId,
       });
 
       await fetchExtensions(); // Refresh the list after successful toggle
@@ -119,7 +122,11 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+      await activateExtension({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
+        sessionId: sessionId,
+      });
       // Immediately refresh the extensions list after successful activation
       await fetchExtensions();
     } catch (error) {
@@ -147,6 +154,7 @@ export default function ExtensionsSection({
         addToConfig: addExtension,
         removeFromConfig: removeExtension,
         originalName: originalName,
+        sessionId: sessionId,
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
@@ -162,7 +170,7 @@ export default function ExtensionsSection({
     handleModalClose();
 
     try {
-      await deleteExtension({ name, removeFromConfig: removeExtension });
+      await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });
     } catch (error) {
       console.error('Failed to delete extension:', error);
       // We don't reopen the modal on failure

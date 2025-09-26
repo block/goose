@@ -155,6 +155,10 @@ impl CliSession {
         }
     }
 
+    pub fn session_id(&self) -> Option<&String> {
+        self.session_id.as_ref()
+    }
+
     async fn summarize_context_messages(
         messages: &mut Conversation,
         agent: &Agent,
@@ -463,9 +467,18 @@ impl CliSession {
                             let _provider = self.agent.provider().await?;
 
                             output::show_thinking();
+                            let start_time = Instant::now();
                             self.process_agent_response(true, CancellationToken::default())
                                 .await?;
                             output::hide_thinking();
+
+                            // Display elapsed time
+                            let elapsed = start_time.elapsed();
+                            let elapsed_str = format_elapsed_time(elapsed);
+                            println!(
+                                "\n{}",
+                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                            );
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -856,7 +869,7 @@ impl CliSession {
             .reply(
                 self.messages.clone(),
                 session_config.clone(),
-                Some(cancel_token),
+                Some(cancel_token.clone()),
             )
             .await?;
 
@@ -1174,6 +1187,43 @@ impl CliSession {
                         }
 
                         Some(Err(e)) => {
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+
+                                output::render_text(
+                                    "Context limit reached. Performing auto-compaction...",
+                                    Some(Color::Yellow),
+                                    true
+                                );
+
+                                // Try auto-compaction first - keep the stream alive!
+                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
+                                    self.messages = compact_result.messages;
+                                    if let Some(session_id) = &self.session_id {
+                                        SessionManager::replace_conversation(session_id, &self.messages).await?;
+                                    }
+
+                                    output::render_text(
+                                        "Compaction complete. Conversation has been automatically compacted to continue.",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+
+                                    // Restart the stream after successful compaction - keep the stream alive!
+                                    stream = self
+                                        .agent
+                                        .reply(
+                                            self.messages.clone(),
+                                            session_config.clone(),
+                                            Some(cancel_token.clone())
+                                        )
+                                        .await?;
+                                    continue;
+                                }
+                                // Auto-compaction failed, fall through to common error handling below
+                            }
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
@@ -1185,13 +1235,46 @@ impl CliSession {
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
-                                output::render_error(
-                                    "Context length exceeded error.\n\
-                                    The conversation is too long for the model's context window.\n\
-                                    Consider using /summarize to condense the conversation history\n\
-                                    or /clear to start fresh.\n\
-                                    We've removed the conversation up to the most recent user message.",
-                                );
+                                    output::render_error(&format!("Error: Context length exceeded: {}", e));
+
+                                    let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
+                                    let selected = match cliclack::select(prompt.to_string())
+                                        .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                        .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                        .interact()
+                                    {
+                                        Ok(choice) => Some(choice),
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                // If interrupted, do nothing and let user handle it manually
+                                                output::render_text("Operation cancelled. You can use /clear or /summarize to continue.", Some(Color::Yellow), true);
+                                                None
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
+
+                                    if let Some(choice) = selected {
+                                        match choice {
+                                            "clear" => {
+                                                self.messages.clear();
+                                                let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                                output::render_text(&msg, Some(Color::Yellow), true);
+                                            }
+                                            "summarize" => {
+                                                // Use the helper function to summarize context
+                                                let message_suffix = "Goose summarized messages for you.";
+                                                if let Err(e) = Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await {
+                                                    output::render_error(&format!("Failed to summarize: {}", e));
+                                                    output::render_text("Consider using /clear to start fresh.", Some(Color::Yellow), true);
+                                                }
+                                            }
+                                            _ => {
+                                                unreachable!()
+                                            }
+                                        }
+                                    }
                             } else {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
@@ -1580,4 +1663,89 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_elapsed_time_under_60_seconds() {
+        // Test sub-second duration
+        let duration = Duration::from_millis(500);
+        assert_eq!(format_elapsed_time(duration), "0.50s");
+
+        // Test exactly 1 second
+        let duration = Duration::from_secs(1);
+        assert_eq!(format_elapsed_time(duration), "1.00s");
+
+        // Test 45.75 seconds
+        let duration = Duration::from_millis(45750);
+        assert_eq!(format_elapsed_time(duration), "45.75s");
+
+        // Test 59.99 seconds
+        let duration = Duration::from_millis(59990);
+        assert_eq!(format_elapsed_time(duration), "59.99s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes() {
+        // Test exactly 60 seconds (1 minute)
+        let duration = Duration::from_secs(60);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+
+        // Test 61 seconds (1 minute 1 second)
+        let duration = Duration::from_secs(61);
+        assert_eq!(format_elapsed_time(duration), "1m 01s");
+
+        // Test 90 seconds (1 minute 30 seconds)
+        let duration = Duration::from_secs(90);
+        assert_eq!(format_elapsed_time(duration), "1m 30s");
+
+        // Test 119 seconds (1 minute 59 seconds)
+        let duration = Duration::from_secs(119);
+        assert_eq!(format_elapsed_time(duration), "1m 59s");
+
+        // Test 120 seconds (2 minutes)
+        let duration = Duration::from_secs(120);
+        assert_eq!(format_elapsed_time(duration), "2m 00s");
+
+        // Test 605 seconds (10 minutes 5 seconds)
+        let duration = Duration::from_secs(605);
+        assert_eq!(format_elapsed_time(duration), "10m 05s");
+
+        // Test 3661 seconds (61 minutes 1 second)
+        let duration = Duration::from_secs(3661);
+        assert_eq!(format_elapsed_time(duration), "61m 01s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_edge_cases() {
+        // Test zero duration
+        let duration = Duration::from_secs(0);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test very small duration (1 millisecond)
+        let duration = Duration::from_millis(1);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test fractional seconds are truncated for minute display
+        // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
+        let duration = Duration::from_millis(60500);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
 }

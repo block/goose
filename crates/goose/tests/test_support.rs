@@ -29,10 +29,17 @@ pub struct ConfigurableMockScheduler {
     running_jobs: Arc<Mutex<HashSet<String>>>,
     call_log: Arc<Mutex<Vec<String>>>,
     behaviors: Arc<Mutex<HashMap<String, MockBehavior>>>,
+    #[allow(clippy::type_complexity)]
     sessions_data: Arc<Mutex<HashMap<String, Vec<(String, Session)>>>>,
 }
 
 #[allow(dead_code)]
+impl Default for ConfigurableMockScheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigurableMockScheduler {
     pub fn new() -> Self {
         Self {
@@ -331,6 +338,12 @@ prompt: "Hello world"
 // Test builder for easy setup
 pub struct ScheduleToolTestBuilder {
     scheduler: Arc<ConfigurableMockScheduler>,
+}
+
+impl Default for ScheduleToolTestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ScheduleToolTestBuilder {

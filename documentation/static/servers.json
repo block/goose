@@ -107,6 +107,17 @@
     ]
   },
   {
+    "id": "chrome-devtools-mcp",
+    "name": "Chrome DevTools",
+    "description": "Control and inspect a live Chrome browser",
+    "command": "npx -y chrome-devtools-mcp@latest",
+    "link": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "cloudflare-mcp",
     "name": "Cloudflare",
     "description": "Cloudflare API integration for DNS and domain management",
@@ -341,6 +352,17 @@
     "environmentVariables": []
   },
   {
+    "id": "i-ching",
+    "name": "I Ching",
+    "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
+    "command": "i-ching-mcp-server",
+    "link": "https://github.com/threemachines/i-ching",
+    "installation_notes": "Install from crates.io using: cargo install i-ching",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate Goose with any JetBrains IDE",
@@ -447,6 +469,23 @@
     "endorsed": false,
     "environmentVariables": []
   },
+  {
+    "id": "openmetadata",
+    "name": "OpenMetadata",
+    "description": "Bring OpenMetadata's single source of truth across your data systems to agents",
+    "command": "npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}",
+    "link": "https://open-metadata.org/mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+        {
+            "name": "AUTH_HEADER",
+            "description": "OpenMetadata Personal Access Token",
+            "required": true
+        }
+    ]
+  },  
   {
     "id": "pdf_read",
     "name": "PDF Reader",
@@ -644,6 +683,17 @@
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uv package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+    {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
+    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

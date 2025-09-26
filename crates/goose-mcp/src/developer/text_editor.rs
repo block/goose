@@ -468,15 +468,105 @@ pub fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Conte
     ), None))
 }
 
+/// Lists the contents of a directory with a maximum number of items
+fn list_directory_contents(path: &Path) -> Result<Vec<Content>, ErrorData> {
+    const MAX_ITEMS: usize = 50; // Maximum number of items to display
+
+    // List files in the directory (similar to ls output)
+    let entries = std::fs::read_dir(path).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to read directory: {}", e),
+            None,
+        )
+    })?;
+
+    let mut files = Vec::new();
+    let mut dirs = Vec::new();
+    let mut total_count = 0;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read directory entry: {}", e),
+                None,
+            )
+        })?;
+
+        total_count += 1;
+
+        // Only process up to MAX_ITEMS entries
+        if dirs.len() + files.len() < MAX_ITEMS {
+            let metadata = entry.metadata().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to read metadata: {}", e),
+                    None,
+                )
+            })?;
+
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            if metadata.is_dir() {
+                dirs.push(format!("{}/", name));
+            } else {
+                files.push(name);
+            }
+        }
+    }
+
+    // Sort for consistent output
+    dirs.sort();
+    files.sort();
+
+    let mut output = format!("'{}' is a directory. Contents:\n\n", path.display());
+
+    if !dirs.is_empty() {
+        output.push_str("Directories:\n");
+        for dir in &dirs {
+            output.push_str(&format!("  {}\n", dir));
+        }
+        output.push('\n');
+    }
+
+    if !files.is_empty() {
+        output.push_str("Files:\n");
+        for file in &files {
+            output.push_str(&format!("  {}\n", file));
+        }
+    }
+
+    if dirs.is_empty() && files.is_empty() {
+        output.push_str("  (empty directory)\n");
+    }
+
+    // If we hit the limit, indicate there are more items
+    if total_count > MAX_ITEMS {
+        output.push_str(&format!(
+            "\n... and {} more items (showing first {} items)\n",
+            total_count - MAX_ITEMS,
+            MAX_ITEMS
+        ));
+    }
+
+    Ok(vec![Content::text(output)])
+}
+
 pub async fn text_editor_view(
     path: &PathBuf,
     view_range: Option<(usize, i64)>,
 ) -> Result<Vec<Content>, ErrorData> {
+    // Check if path is a directory
+    if path.is_dir() {
+        return list_directory_contents(path);
+    }
+
     if !path.is_file() {
         return Err(ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!(
-                "The path '{}' does not exist or is not a file.",
+                "The path '{}' does not exist or is not accessible.",
                 path.display()
             ),
             None,

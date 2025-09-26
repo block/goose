@@ -344,9 +344,10 @@ mod tests {
     use tokio::sync::mpsc;
     use tracing::dispatcher;
 
+    type Events = Arc<Mutex<Vec<(String, Value)>>>;
     struct TestFixture {
         original_subscriber: Option<dispatcher::Dispatch>,
-        events: Option<Arc<Mutex<Vec<(String, Value)>>>>,
+        events: Option<Events>,
     }
 
     impl TestFixture {

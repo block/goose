@@ -19,6 +19,7 @@ pub trait BenchBaseSession: Send + Sync {
     async fn headless(&mut self, message: String) -> anyhow::Result<()>;
     fn message_history(&self) -> Conversation;
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>>;
+    fn get_session_id(&self) -> anyhow::Result<String>;
 }
 // struct for managing agent-session-access. to be passed to evals for benchmarking
 pub struct BenchAgent {
@@ -49,5 +50,9 @@ impl BenchAgent {
 
     pub(crate) async fn get_token_usage(&self) -> Option<i32> {
         self.session.get_total_token_usage().ok().flatten()
+    }
+
+    pub(crate) fn get_session_id(&self) -> anyhow::Result<String> {
+        self.session.get_session_id()
     }
 }

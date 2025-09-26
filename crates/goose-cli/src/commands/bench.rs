@@ -24,6 +24,12 @@ impl BenchBaseSession for CliSession {
             tokio::runtime::Handle::current().block_on(self.get_total_token_usage())
         })
     }
+
+    fn get_session_id(&self) -> anyhow::Result<String> {
+        self.session_id()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("No session ID available"))
+    }
 }
 pub async fn agent_generator(
     requirements: ExtensionRequirements,
