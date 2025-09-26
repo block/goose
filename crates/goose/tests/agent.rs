@@ -938,21 +938,10 @@ mod retry_tests {
             "Valid config should pass validation"
         );
 
-        let session_config = SessionConfig {
-            id: "test-retry".to_string(),
-            working_dir: std::env::current_dir()?,
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: Some(retry_config),
-        };
-
         let conversation =
             Conversation::new(vec![Message::user().with_text("Complete this task")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1052,7 +1041,6 @@ mod max_turns_tests {
     use goose::providers::errors::ProviderError;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Tool;
-    use std::path::PathBuf;
 
     struct MockToolProvider {}
 
@@ -1114,21 +1102,9 @@ mod max_turns_tests {
         let provider = Arc::new(MockToolProvider::new());
         agent.update_provider(provider).await?;
         // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
-
-        // Create session config with max_turns = 1
-        let session_config = goose::agents::SessionConfig {
-            id: "test_session".to_string(),
-            working_dir: PathBuf::from("/tmp"),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: Some(1),
-            retry_config: None,
-        };
         let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();

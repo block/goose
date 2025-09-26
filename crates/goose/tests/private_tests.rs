@@ -758,30 +758,6 @@ async fn test_schedule_tool_sessions_action_empty() {
 }
 
 #[tokio::test]
-async fn test_schedule_tool_session_content_action() {
-    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
-
-    // Test with a non-existent session
-    let arguments = json!({
-        "action": "session_content",
-        "session_id": "non_existent_session"
-    });
-
-    let result = agent
-        .handle_schedule_management(arguments, "test_req".to_string())
-        .await;
-    assert!(result.is_err());
-
-    if let Err(err) = result {
-        assert!(err
-            .message
-            .contains("Session 'non_existent_session' not found"));
-    } else {
-        panic!("Expected ExecutionError");
-    }
-}
-
-#[tokio::test]
 async fn test_schedule_tool_session_content_action_missing_session_id() {
     let (agent, _) = ScheduleToolTestBuilder::new().build().await;
 

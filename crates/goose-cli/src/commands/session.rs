@@ -168,12 +168,13 @@ pub async fn handle_session_export(
     let output = match format.as_str() {
         "json" => serde_json::to_string_pretty(&session)?,
         "yaml" => serde_yaml::to_string(&session)?,
-        "markdown" | _ => {
+        "markdown" => {
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
             export_session_to_markdown(conversation.messages().to_vec(), &session.description)
         }
+        _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
 
     if let Some(output_path) = output_path {
