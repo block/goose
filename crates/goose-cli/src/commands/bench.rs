@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use goose::conversation::Conversation;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -14,10 +13,6 @@ use tokio::sync::Mutex;
 impl BenchBaseSession for CliSession {
     async fn headless(&mut self, message: String) -> anyhow::Result<()> {
         self.headless(message).await
-    }
-    fn session_file(&self) -> Option<PathBuf> {
-        // Return None since CliSession doesn't have a session file concept
-        None
     }
     fn message_history(&self) -> Conversation {
         self.message_history()

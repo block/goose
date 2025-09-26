@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]
@@ -114,17 +114,6 @@ impl Conversation {
         } else {
             Ok(self)
         }
-    }
-}
-
-impl PartialEq for Conversation {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.len() == other.0.len()
-            && self
-                .0
-                .iter()
-                .zip(&other.0)
-                .all(|(a, b)| a.role == b.role && a.created == b.created && a.content == b.content)
     }
 }
 

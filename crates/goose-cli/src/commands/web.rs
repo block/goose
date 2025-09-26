@@ -8,6 +8,9 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use goose::session::SessionManager;
+use webbrowser;
+
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
@@ -167,18 +170,14 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 }
 
 async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
-    match SessionManager::create_session(
+    let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
     )
     .await
-    {
-        Ok(session) => Ok(Redirect::permanent(&format!("/session/{}", session.id))),
-        Err(e) => Err((
-            http::StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create session: {}", e),
-        )),
-    }
+    .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+
+    Ok(Redirect::to(&format!("/session/{}", session.id)))
 }
 
 async fn serve_session(
@@ -588,7 +587,3 @@ async fn process_message_streaming(
 
     Ok(())
 }
-
-// Add webbrowser dependency for opening browser
-use goose::session::SessionManager;
-use webbrowser;

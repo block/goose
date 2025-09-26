@@ -147,12 +147,11 @@ impl SessionUpdateBuilder {
 pub struct SessionManager;
 
 impl SessionManager {
-    async fn instance() -> Result<Arc<SessionStorage>> {
-        let storage = Arc::new(SessionStorage::new().await?);
-        match SESSION_STORAGE.set(storage) {
-            Ok(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
-            Err(_) => Ok(SESSION_STORAGE.get().unwrap().clone()),
-        }
+    pub async fn instance() -> Result<Arc<SessionStorage>> {
+        SESSION_STORAGE
+            .get_or_try_init(|| async { SessionStorage::new().await.map(Arc::new) })
+            .await
+            .map(Arc::clone)
     }
 
     pub async fn create_session(working_dir: PathBuf, description: String) -> Result<Session> {
@@ -328,7 +327,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             schedule_id: row.try_get("schedule_id")?,
             recipe,
             conversation: None,
-            message_count: 0,
+            message_count: row.try_get("message_count").unwrap_or(0) as usize,
         })
     }
 }
@@ -798,31 +797,22 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        let sessions = sqlx::query_as::<_, Session>(
+        sqlx::query_as::<_, Session>(
             r#"
-            SELECT DISTINCT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
-                   s.total_tokens, s.input_tokens, s.output_tokens,
-                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-                   s.schedule_id, s.recipe_json
-            FROM sessions s
-            ORDER BY s.updated_at DESC
+        SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
+               s.total_tokens, s.input_tokens, s.output_tokens,
+               s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+               s.schedule_id, s.recipe_json,
+               COUNT(m.id) as message_count
+        FROM sessions s
+        INNER JOIN messages m ON s.id = m.session_id
+        GROUP BY s.id
+        ORDER BY s.updated_at DESC
     "#,
         )
-            .fetch_all(&self.pool)
-            .await?;
-
-        let mut result = Vec::new();
-        for mut session in sessions {
-            let count =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&session.id)
-                    .fetch_one(&self.pool)
-                    .await? as usize;
-            session.message_count = count;
-            result.push(session);
-        }
-
-        Ok(result)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(Into::into)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {

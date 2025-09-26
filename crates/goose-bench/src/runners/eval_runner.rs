@@ -155,15 +155,16 @@ impl EvalRunner {
                 .canonicalize()
                 .context("Failed to canonicalize current directory path")?;
 
-            BenchmarkWorkDir::deep_copy(
-                agent
-                    .session_file()
-                    .expect("Failed to get session file")
-                    .as_path(),
-                here.as_path(),
-                false,
-            )
-            .context("Failed to copy session file to evaluation directory")?;
+            // TODO(Douwe): fix
+            // BenchmarkWorkDir::deep_copy(
+            //     agent
+            //         .session_file()
+            //         .expect("Failed to get session file")
+            //         .as_path(),
+            //     here.as_path(),
+            //     false,
+            // )
+            // .context("Failed to copy session file to evaluation directory")?;
 
             tracing::info!("Evaluation completed successfully");
         } else {

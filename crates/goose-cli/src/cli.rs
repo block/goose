@@ -141,6 +141,14 @@ enum SessionCommand {
             long_help = "Path to save the exported Markdown. If not provided, output will be sent to stdout"
         )]
         output: Option<PathBuf>,
+
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (markdown, json, yaml)",
+            default_value = "markdown"
+        )]
+        format: String,
     },
 }
 
@@ -794,7 +802,11 @@ pub async fn cli() -> Result<()> {
                     handle_session_remove(id, regex).await?;
                     return Ok(());
                 }
-                Some(SessionCommand::Export { identifier, output }) => {
+                Some(SessionCommand::Export {
+                    identifier,
+                    output,
+                    format,
+                }) => {
                     let session_identifier = if let Some(id) = identifier {
                         get_session_id(id).await?
                     } else {
@@ -809,8 +821,12 @@ pub async fn cli() -> Result<()> {
                         }
                     };
 
-                    crate::commands::session::handle_session_export(session_identifier, output)
-                        .await?;
+                    crate::commands::session::handle_session_export(
+                        session_identifier,
+                        output,
+                        format,
+                    )
+                    .await?;
                     Ok(())
                 }
                 None => {

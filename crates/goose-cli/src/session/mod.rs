@@ -58,9 +58,8 @@ pub struct CliSession {
     agent: Agent,
     messages: Conversation,
     session_id: Option<String>,
-    // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
-    debug: bool, // New field for debug mode
+    debug: bool,
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
@@ -130,16 +129,12 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
     ) -> Self {
         let messages = if let Some(session_id) = &session_id {
-            // Use SessionManager to load messages
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
                     SessionManager::get_session(session_id, true)
                         .await
                         .map(|session| session.conversation.unwrap_or_default())
-                        .unwrap_or_else(|e| {
-                            eprintln!("Warning: Failed to load message history: {}", e);
-                            Conversation::new_unvalidated(Vec::new())
-                        })
+                        .unwrap()
                 })
             })
         } else {
@@ -160,13 +155,11 @@ impl CliSession {
         }
     }
 
-    /// Helper function to summarize context messages
     async fn summarize_context_messages(
         messages: &mut Conversation,
         agent: &Agent,
         message_suffix: &str,
     ) -> Result<()> {
-        // Summarize messages to fit within context length
         let (summarized_messages, _, _) = agent.summarize_context(messages.messages()).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
@@ -184,7 +177,6 @@ impl CliSession {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
         let mut envs = HashMap::new();
 
-        // Parse environment variables (format: KEY=value)
         while let Some(part) = parts.first() {
             if !part.contains('=') {
                 break;
@@ -199,7 +191,6 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
-        // Generate a random name for the ephemeral extension
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(8)

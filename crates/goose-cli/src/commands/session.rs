@@ -149,8 +149,11 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
     Ok(())
 }
 
-/// Export a session to Markdown without creating a full Session object
-pub async fn handle_session_export(session_id: String, output_path: Option<PathBuf>) -> Result<()> {
+pub async fn handle_session_export(
+    session_id: String,
+    output_path: Option<PathBuf>,
+    format: String,
+) -> Result<()> {
     let session = match SessionManager::get_session(&session_id, true).await {
         Ok(session) => session,
         Err(e) => {
@@ -162,24 +165,28 @@ pub async fn handle_session_export(session_id: String, output_path: Option<PathB
         }
     };
 
-    let conversation = session
-        .conversation
-        .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
+    let output = match format.as_str() {
+        "json" => serde_json::to_string_pretty(&session)?,
+        "yaml" => serde_yaml::to_string(&session)?,
+        "markdown" | _ => {
+            let conversation = session
+                .conversation
+                .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
+            export_session_to_markdown(conversation.messages().to_vec(), &session.description)
+        }
+    };
 
-    let markdown =
-        export_session_to_markdown(conversation.messages().to_vec(), &session.description);
-
-    if let Some(output) = output_path {
-        fs::write(&output, markdown)
-            .with_context(|| format!("Failed to write to output file: {}", output.display()))?;
-        println!("Session exported to {}", output.display());
+    if let Some(output_path) = output_path {
+        fs::write(&output_path, output).with_context(|| {
+            format!("Failed to write to output file: {}", output_path.display())
+        })?;
+        println!("Session exported to {}", output_path.display());
     } else {
-        println!("{}", markdown);
+        println!("{}", output);
     }
 
     Ok(())
 }
-
 /// Convert a list of messages to markdown format for session export
 ///
 /// This function handles the formatting of a complete session including headers,
