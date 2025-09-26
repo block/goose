@@ -497,10 +497,10 @@ const MentionPopover = forwardRef<
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
-                  className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
                     index === selectedIndex
                       ? 'bg-bgProminent text-textProminentInverse'
-                      : 'hover:bg-bgSubtle'
+                      : 'hover:bg-background-muted'
                   }`}
                 >
                   <div className="flex-shrink-0 text-textSubtle">
