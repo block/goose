@@ -348,6 +348,10 @@ export type InspectJobResponse = {
     sessionId?: string | null;
 };
 
+export type JsonObject = {
+    [key: string]: unknown;
+};
+
 export type KillJobResponse = {
     message: string;
 };
@@ -840,7 +844,7 @@ export type ToolAnnotations = {
 };
 
 export type ToolConfirmationRequest = {
-    arguments: unknown;
+    arguments: JsonObject;
     id: string;
     prompt?: string | null;
     toolName: string;

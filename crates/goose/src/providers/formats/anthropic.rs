@@ -3,8 +3,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::ToolCall;
-use rmcp::model::{ErrorCode, ErrorData, Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -230,19 +229,24 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let name = block
                     .get(NAME_FIELD)
                     .and_then(|n| n.as_str())
-                    .ok_or_else(|| anyhow!("Missing tool_use name"))?;
+                    .ok_or_else(|| anyhow!("Missing tool_use name"))?
+                    .to_string();
                 let input = block
                     .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
-                let tool_call = ToolCall::new(name, input.clone());
+                let tool_call = CallToolRequestParam {
+                    name: name.into(),
+                    arguments: Some(object(input.clone())),
+                };
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some(THINKING_TYPE) => {
                 let thinking = block
                     .get(THINKING_TYPE)
                     .and_then(|t| t.as_str())
-                    .ok_or_else(|| anyhow!("Missing thinking content"))?;
+                    .ok_or_else(|| anyhow!("Missing thinking content"))?
+                    .to_string();
                 let signature = block
                     .get(SIGNATURE_FIELD)
                     .and_then(|s| s.as_str())
@@ -589,7 +593,8 @@ where
                                 }
                             };
 
-                            let tool_call = ToolCall::new(&name, parsed_args);
+                            let tool_call = CallToolRequestParam{ name: name.into(), arguments: Some(object(parsed_args)) };
+
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
@@ -750,7 +755,7 @@ mod tests {
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
-            assert_eq!(tool_call.arguments, json!({"expression": "2 + 2"}));
+            assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -992,7 +997,10 @@ mod tests {
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
-                Ok(ToolCall::new("calculator", json!({"expression": "2 + 2"}))),
+                Ok(CallToolRequestParam {
+                    name: "calculator".into(),
+                    arguments: Some(object!({"expression": "2 + 2"})),
+                }),
             ),
             Message::user().with_tool_response(
                 "tool_1",

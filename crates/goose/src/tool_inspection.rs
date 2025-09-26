@@ -271,16 +271,16 @@ pub fn apply_inspection_results_to_permissions(
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use mcp_core::ToolCall;
-    use serde_json::json;
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
 
     #[test]
     fn test_apply_inspection_results() {
         let tool_request = ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(ToolCall {
-                name: "test_tool".to_string(),
-                arguments: json!({}),
+            tool_call: Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({})),
             }),
         };
 

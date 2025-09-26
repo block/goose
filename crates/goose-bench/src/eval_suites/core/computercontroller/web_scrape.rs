@@ -51,7 +51,7 @@ impl Evaluation for ComputerControllerWebScrape {
                         }
 
                         // Parse the arguments as JSON
-                        if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
+                        if let Ok(args) = serde_json::from_value::<Value>(serde_json::Value::Object(tool_call.arguments.clone().unwrap_or_default())) {
                             // Check all required parameters match exactly                                                        
                             args.get("url").and_then(Value::as_str).map(|s| s.trim_end_matches('/')) == Some("https://news.ycombinator.com")
                         } else {

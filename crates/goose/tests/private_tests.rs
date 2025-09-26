@@ -1,6 +1,7 @@
 #![cfg(test)]
 
-use rmcp::model::ErrorCode;
+use rmcp::model::{CallToolRequestParam, ErrorCode};
+use rmcp::object;
 use serde_json::json;
 
 use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -808,11 +809,11 @@ async fn test_schedule_tool_dispatch() {
         .await;
 
     // Test that the tool is properly dispatched through dispatch_tool_call
-    let tool_call = mcp_core::tool::ToolCall {
-        name: PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
-        arguments: json!({
+    let tool_call = CallToolRequestParam {
+        name: PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.into(),
+        arguments: Some(object!({
             "action": "list"
-        }),
+        })),
     };
 
     let (request_id, result) = agent
