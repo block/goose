@@ -1,5 +1,6 @@
 use super::base::Config;
 use crate::agents::ExtensionConfig;
+use crate::goose_apps;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -29,10 +30,30 @@ pub struct ExtensionConfigManager;
 
 impl ExtensionConfigManager {
     fn get_extensions_map() -> Result<HashMap<String, ExtensionEntry>> {
-        let config = Config::global();
-        Ok(config
+        let mut extensions_map = Config::global()
             .get_param(EXTENSIONS_CONFIG_KEY)
-            .unwrap_or_else(|_| HashMap::new()))
+            .unwrap_or_else(|_| HashMap::new());
+
+        // undo this hack when we have the infra (Douwe):
+        if !extensions_map.contains_key(goose_apps::mcp_server::EXTENSION_NAME) {
+            extensions_map.insert(
+                goose_apps::mcp_server::EXTENSION_NAME.to_string(),
+                ExtensionEntry {
+                    config: ExtensionConfig::Builtin {
+                        name: goose_apps::mcp_server::EXTENSION_NAME.to_string(),
+                        display_name: Some("Goose Apps".to_string()),
+                        description: Some(
+                            "Create and edit goose apps through the goose chat interface and share with your friends".to_string()),
+                        timeout: Some(300),
+                        bundled: Some(true),
+                        available_tools: Vec::new(),
+                    },
+                    enabled: false,
+                }
+            );
+        }
+
+        Ok(extensions_map)
     }
 
     fn save_extensions_map(extensions: HashMap<String, ExtensionEntry>) -> Result<()> {

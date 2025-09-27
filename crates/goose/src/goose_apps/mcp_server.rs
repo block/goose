@@ -7,11 +7,14 @@ use rmcp::model::{
     ServerNotification, Tool, ToolsCapability,
 };
 use serde_json::{json, Map, Value};
+use std::string::ToString;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::service::{goose_app_from_json, GooseAppUpdates, GooseAppsService};
+
+pub static EXTENSION_NAME: &str = "goose_apps";
 
 pub struct GooseAppsClient {
     service: GooseAppsService,
