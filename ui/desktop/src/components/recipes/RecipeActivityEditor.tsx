@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 
 export default function RecipeActivityEditor({
-  activities,
+  activities = [],
   setActivities,
+  onBlur,
 }: {
-  activities: string[];
+  activities?: string[];
   setActivities: (prev: string[]) => void;
+  onBlur?: () => void;
 }) {
   const [newActivity, setNewActivity] = useState('');
   const [messageContent, setMessageContent] = useState('');
@@ -30,6 +32,10 @@ export default function RecipeActivityEditor({
     if (newActivity.trim()) {
       setActivities([...activities, newActivity.trim()]);
       setNewActivity('');
+      // Trigger parameter extraction after adding activity
+      if (onBlur) {
+        onBlur();
+      }
     }
   };
 
@@ -57,14 +63,14 @@ export default function RecipeActivityEditor({
       <label htmlFor="activities" className="block text-md text-textProminent mb-2 font-bold">
         Activities
       </label>
-      <p className="text-textSubtle space-y-2 pb-4">
-        The top-line prompts and activities that will display within your goose home page.
+      <p className="text-sm text-textSubtle space-y-2 pb-4">
+        The top-line prompts and activity buttons that will display in the recipe chat window.
       </p>
 
       {/* Message Field */}
-      <div className="mb-6">
+      <div>
         <label htmlFor="message" className="block text-sm font-medium text-textStandard mb-2">
-          Message (Optional)
+          Message
         </label>
         <p className="text-xs text-textSubtle mb-2">
           A formatted message that will appear at the top of the recipe. Supports markdown
@@ -74,8 +80,9 @@ export default function RecipeActivityEditor({
           id="message"
           value={messageContent}
           onChange={(e) => handleMessageChange(e.target.value)}
+          onBlur={onBlur}
           className="w-full px-4 py-3 border rounded-lg bg-background-default text-textStandard placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent resize-vertical"
-          placeholder="Enter a message for your recipe (supports **bold**, *italic*, `code`, etc.)"
+          placeholder="Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)"
           rows={3}
           autoCorrect="off"
           autoCapitalize="off"
@@ -90,44 +97,51 @@ export default function RecipeActivityEditor({
             Activity Buttons
           </label>
           <p className="text-xs text-textSubtle mb-3">
-            Clickable buttons that will appear below the message.
+            Clickable buttons that will appear below the message to help users interact with your
+            recipe.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {nonMessageActivities.map((activity, index) => (
-            <div
-              key={index}
-              className="inline-flex items-center bg-background-default border-2 border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
-              title={activity.length > 100 ? activity : undefined}
-            >
-              <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
-              <Button
-                onClick={() => handleRemoveActivity(activity)}
-                variant="ghost"
-                size="sm"
-                className="ml-2 text-textStandard hover:text-textSubtle transition-colors p-0 h-auto"
+        {nonMessageActivities.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {nonMessageActivities.map((activity, index) => (
+              <div
+                key={index}
+                className="inline-flex items-center bg-background-default border-2 border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
+                title={activity.length > 100 ? activity : undefined}
               >
-                ×
-              </Button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 mt-6">
+                <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
+                <Button
+                  type="button"
+                  onClick={() => handleRemoveActivity(activity)}
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 text-textStandard hover:text-textSubtle transition-colors p-0 h-auto"
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 mt-3">
           <input
             type="text"
             value={newActivity}
             onChange={(e) => setNewActivity(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
-            className="flex-1 px-4 py-3 border rounded-lg bg-background-default text-textStandard placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent"
+            onBlur={onBlur}
+            className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Add new activity..."
           />
-          <Button
+          <button
+            type="button"
             onClick={handleAddActivity}
-            className="px-5 py-1.5 text-sm bg-background-defaultInverse text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+            disabled={!newActivity.trim()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             Add activity
-          </Button>
+          </button>
         </div>
       </div>
     </div>

@@ -330,6 +330,7 @@ mod tests {
             extension_data: extension_data::ExtensionData::new(),
             conversation: Some(conversation),
             message_count,
+            recipe_parameters: None,
         }
     }
 

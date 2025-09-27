@@ -45,7 +45,6 @@ import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
-import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
 import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
@@ -57,6 +56,7 @@ import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import ParameterInputModal from './ParameterInputModal';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useFileDrop } from '../hooks/useFileDrop';
@@ -76,7 +76,7 @@ interface BaseChatProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageStreamFinish?: () => void;
-  onMessageSubmit?: (message: string) => void;
+  onMessageSubmit?: () => void;
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
@@ -205,21 +205,22 @@ function BaseChatContent({
   // Use shared recipe manager
   const {
     recipeConfig,
+    recipeParameters,
     filteredParameters,
     initialPrompt,
-    isGeneratingRecipe,
     isParameterModalOpen,
     setIsParameterModalOpen,
-    recipeParameters,
     handleParameterSubmit,
     handleAutoExecution,
-    recipeError,
-    setRecipeError,
     isRecipeWarningModalOpen,
     recipeAccepted,
     handleRecipeAccept,
     handleRecipeCancel,
     hasSecurityWarnings,
+    isCreateRecipeModalOpen,
+    setIsCreateRecipeModalOpen,
+    handleRecipeCreated,
+    handleStartRecipe,
   } = useRecipeManager(chat, location.state?.recipeConfig);
 
   // Reset recipe usage tracking when recipe changes
@@ -236,16 +237,14 @@ function BaseChatContent({
       const hasExistingConversation = newTitle && messages.length > 0;
 
       if (isSwitchingBetweenRecipes) {
-        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
         setHasStartedUsingRecipe(false);
-        setMessages([]);
       } else if (isInitialRecipeLoad) {
         setHasStartedUsingRecipe(false);
       } else if (hasExistingConversation) {
         setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages]);
+  }, [recipeConfig?.title, currentRecipeTitle, messages.length]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -268,13 +267,6 @@ function BaseChatContent({
     session: sessionMetadata,
   });
 
-  useEffect(() => {
-    window.electron.logInfo(
-      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Auto-scroll when messages are loaded (for session resuming)
   const handleRenderingComplete = React.useCallback(() => {
     if (scrollRef.current?.scrollToBottom) {
@@ -294,7 +286,7 @@ function BaseChatContent({
 
     // Call the callback if provided (for Hub to handle navigation)
     if (onMessageSubmit && combinedTextFromInput.trim()) {
-      onMessageSubmit(combinedTextFromInput);
+      onMessageSubmit();
     }
 
     engineHandleSubmit(combinedTextFromInput);
@@ -333,9 +325,6 @@ function BaseChatContent({
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
-        {/* Loader when generating recipe */}
-        {isGeneratingRecipe && <LayingEggLoader />}
-
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
@@ -388,8 +377,7 @@ function BaseChatContent({
 
             {/* Messages or Popular Topics */}
             {
-              loadingChat ? null : filteredMessages.length > 0 ||
-                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
+              loadingChat ? null : filteredMessages.length > 0 ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -549,25 +537,14 @@ function BaseChatContent({
         />
       )}
 
-      {/* Recipe Error Modal */}
-      {recipeError && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
-            <h3 className="text-lg font-medium text-textProminent mb-4">Recipe Creation Failed</h3>
-            <p className="text-textStandard mb-6">{recipeError}</p>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setRecipeError(null)}
-                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors"
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* No modals needed for the new simplified context manager */}
+      {/* Create Recipe from Session Modal */}
+      <CreateRecipeFromSessionModal
+        isOpen={isCreateRecipeModalOpen}
+        onClose={() => setIsCreateRecipeModalOpen(false)}
+        sessionId={chat.sessionId}
+        onRecipeCreated={handleRecipeCreated}
+        onStartRecipe={handleStartRecipe}
+      />
     </div>
   );
 }

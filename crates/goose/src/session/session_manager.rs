@@ -10,6 +10,7 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Pool, Sqlite};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -17,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 1;
+const CURRENT_SCHEMA_VERSION: i32 = 2;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -38,6 +39,7 @@ pub struct Session {
     pub accumulated_output_tokens: Option<i32>,
     pub schedule_id: Option<String>,
     pub recipe: Option<Recipe>,
+    pub recipe_parameters: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
 }
@@ -55,6 +57,7 @@ pub struct SessionUpdateBuilder {
     accumulated_output_tokens: Option<Option<i32>>,
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
+    recipe_parameters: Option<Option<HashMap<String, String>>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -81,6 +84,7 @@ impl SessionUpdateBuilder {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe: None,
+            recipe_parameters: None,
         }
     }
 
@@ -136,6 +140,11 @@ impl SessionUpdateBuilder {
 
     pub fn recipe(mut self, recipe: Option<Recipe>) -> Self {
         self.recipe = Some(recipe);
+        self
+    }
+
+    pub fn recipe_parameters(mut self, recipe_parameters: Option<HashMap<String, String>>) -> Self {
+        self.recipe_parameters = Some(recipe_parameters);
         self
     }
 
@@ -290,6 +299,7 @@ impl Default for Session {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe: None,
+            recipe_parameters: None,
             conversation: None,
             message_count: 0,
         }
@@ -310,6 +320,10 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let recipe_json: Option<String> = row.try_get("recipe_json")?;
         let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let recipe_parameters_json: Option<String> = row.try_get("recipe_parameters_json")?;
+        let recipe_parameters =
+            recipe_parameters_json.and_then(|json| serde_json::from_str(&json).ok());
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
@@ -326,6 +340,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
             schedule_id: row.try_get("schedule_id")?,
             recipe,
+            recipe_parameters,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
         })
@@ -409,7 +424,8 @@ impl SessionStorage {
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
-                recipe_json TEXT
+                recipe_json TEXT,
+                recipe_parameters_json TEXT
             )
         "#,
         )
@@ -495,14 +511,19 @@ impl SessionStorage {
             None => None,
         };
 
+        let recipe_parameters_json = match &session.recipe_parameters {
+            Some(recipe_parameters) => Some(serde_json::to_string(recipe_parameters)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
             id, description, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, recipe_parameters_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(&session.id)
@@ -519,6 +540,7 @@ impl SessionStorage {
         .bind(session.accumulated_output_tokens)
         .bind(&session.schedule_id)
         .bind(recipe_json)
+        .bind(recipe_parameters_json)
         .execute(&self.pool)
         .await?;
 
@@ -595,6 +617,15 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            2 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN recipe_parameters_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -609,7 +640,7 @@ impl SessionStorage {
         SELECT id, working_dir, description, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json
+               schedule_id, recipe_json, recipe_parameters_json
         FROM sessions
         WHERE id = ?
     "#,
@@ -666,6 +697,7 @@ impl SessionStorage {
         );
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
+        add_update!(builder.recipe_parameters, "recipe_parameters_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -711,6 +743,12 @@ impl SessionStorage {
         if let Some(recipe) = builder.recipe {
             let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
             q = q.bind(recipe_json);
+        }
+        if let Some(recipe_parameters) = builder.recipe_parameters {
+            let recipe_parameters_json = recipe_parameters
+                .map(|rp| serde_json::to_string(&rp))
+                .transpose()?;
+            q = q.bind(recipe_parameters_json);
         }
 
         q = q.bind(&builder.session_id);
@@ -802,7 +840,7 @@ impl SessionStorage {
         SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json,
+               s.schedule_id, s.recipe_json, s.recipe_parameters_json,
                COUNT(m.id) as message_count
         FROM sessions s
         INNER JOIN messages m ON s.id = m.session_id

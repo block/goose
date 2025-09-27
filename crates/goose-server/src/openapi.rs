@@ -6,7 +6,6 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
-
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
@@ -372,6 +371,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::session::get_session_insights,
         super::routes::session::update_session_description,
         super::routes::session::delete_session,
+        super::routes::session::update_session_recipe_parameters,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -407,6 +407,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionDescriptionRequest,
+        super::routes::session::UpdateSessionRecipeParametersRequest,
         Message,
         MessageContent,
         MessageMetadata,

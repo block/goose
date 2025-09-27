@@ -115,12 +115,8 @@ export type CreateCustomProviderRequest = {
 };
 
 export type CreateRecipeRequest = {
-    activities?: Array<string> | null;
     author?: AuthorRequest | null;
-    description: string;
-    messages: Array<Message>;
     session_id: string;
-    title: string;
 };
 
 export type CreateRecipeResponse = {
@@ -713,6 +709,9 @@ export type Session = {
     message_count: number;
     output_tokens?: number | null;
     recipe?: Recipe | null;
+    recipe_parameters?: {
+        [key: string]: string;
+    } | null;
     schedule_id?: string | null;
     total_tokens?: number | null;
     updated_at: string;
@@ -894,6 +893,15 @@ export type UpdateSessionDescriptionRequest = {
      * Updated description (name) for the session (max 200 characters)
      */
     description: string;
+};
+
+export type UpdateSessionRecipeParametersRequest = {
+    /**
+     * Recipe parameter values entered by the user
+     */
+    recipeParameters: {
+        [key: string]: string;
+    };
 };
 
 export type UpsertConfigQuery = {
@@ -2241,6 +2249,40 @@ export type UpdateSessionDescriptionErrors = {
 export type UpdateSessionDescriptionResponses = {
     /**
      * Session description updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateSessionRecipeParametersData = {
+    body: UpdateSessionRecipeParametersRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/recipe_parameters';
+};
+
+export type UpdateSessionRecipeParametersErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionRecipeParametersResponses = {
+    /**
+     * Session recipe parameters updated successfully
      */
     200: unknown;
 };

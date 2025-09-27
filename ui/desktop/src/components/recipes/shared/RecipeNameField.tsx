@@ -54,6 +54,7 @@ export function RecipeNameField({
           errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         placeholder={RECIPE_NAME_PLACEHOLDER}
+        data-testid="recipe-name-input"
       />
       <p className="text-xs text-text-muted mt-1">
         Will be automatically formatted (lowercase, dashes for spaces)

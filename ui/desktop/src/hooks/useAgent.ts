@@ -30,6 +30,7 @@ export interface InitializationContext {
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
   setIsExtensionsLoading?: (isLoading: boolean) => void;
+  forceReset?: boolean;
 }
 
 interface UseAgentReturn {
@@ -59,12 +60,19 @@ export function useAgent(): UseAgentReturn {
     setSessionId(null);
     setAgentState(AgentState.UNINITIALIZED);
     setRecipeFromAppConfig(null);
+    initPromiseRef.current = null; // Clear any pending initialization
   }, []);
 
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
-      if (agentIsInitialized && sessionId) {
+      // If forceReset is true, always reinitialize
+      if (initContext.forceReset) {
+        setSessionId(null);
+        setAgentState(AgentState.UNINITIALIZED);
+        initPromiseRef.current = null;
+        // Don't return early, continue to initialization
+      } else if (agentIsInitialized && sessionId) {
         const agentResponse = await resumeAgent({
           body: {
             session_id: sessionId,
@@ -82,6 +90,7 @@ export function useAgent(): UseAgentReturn {
             convertApiMessageToFrontendMessage(message)
           ),
           recipeConfig: agentSession.recipe,
+          recipeParameters: agentSession.recipe_parameters || null,
         };
       }
 
@@ -137,10 +146,14 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
+
+          const recipeConfigForInit = initContext.recipeConfig || agentSession.recipe || undefined;
           await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
+            recipeParameters: agentSession.recipe_parameters,
+            recipeConfig: recipeConfigForInit,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -151,15 +164,24 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const messages = agentSession.conversation || [];
+          const recipeConfig = initContext.recipeConfig || agentSession.recipe;
+          const conversation = agentSession.conversation || [];
+          // If we're loading a recipe from initContext (new recipe load), start with empty messages
+          // Otherwise, use the messages from the session
+          const messages =
+            initContext.recipeConfig && !initContext.resumeSessionId
+              ? []
+              : conversation.map((message: ApiMessage) =>
+                  convertApiMessageToFrontendMessage(message)
+                );
+
           let initChat: ChatType = {
             sessionId: agentSession.id,
             title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
-            messages: messages.map((message: ApiMessage) =>
-              convertApiMessageToFrontendMessage(message)
-            ),
-            recipeConfig: agentSession.recipe,
+            messages: messages,
+            recipeConfig: recipeConfig,
+            recipeParameters: agentSession.recipe_parameters || null,
           };
 
           setAgentState(AgentState.INITIALIZED);

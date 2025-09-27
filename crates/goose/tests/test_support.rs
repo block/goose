@@ -395,5 +395,6 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         updated_at: "".to_string(),
         conversation: None,
         message_count,
+        recipe_parameters: None,
     }
 }

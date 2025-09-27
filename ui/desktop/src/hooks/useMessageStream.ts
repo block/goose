@@ -626,7 +626,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    session: session,
+    session,
     setError,
   };
 }

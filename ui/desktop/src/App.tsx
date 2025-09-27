@@ -36,7 +36,6 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
-import RecipeEditor from './components/recipes/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
@@ -107,6 +106,7 @@ const PairRouteWrapper = ({
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}
+      recipeConfig={routeState.recipeConfig}
     />
   );
 };
@@ -123,10 +123,7 @@ const SettingsRoute = () => {
 };
 
 const SessionsRoute = () => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
-
-  return <SessionsView setView={setView} />;
+  return <SessionsView />;
 };
 
 const SchedulesRoute = () => {
@@ -135,31 +132,10 @@ const SchedulesRoute = () => {
 };
 
 const RecipesRoute = () => {
-  return <RecipesView />;
-};
+  const navigate = useNavigate();
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
-const RecipeEditorRoute = () => {
-  // Check for config from multiple sources:
-  // 1. localStorage (from "View Recipe" button)
-  // 2. Window electron config (from deeplinks)
-  let config;
-  const storedConfig = localStorage.getItem('viewRecipeConfig');
-  if (storedConfig) {
-    try {
-      config = JSON.parse(storedConfig);
-      // Clear the stored config after using it
-      localStorage.removeItem('viewRecipeConfig');
-    } catch (error) {
-      console.error('Failed to parse stored recipe config:', error);
-    }
-  }
-
-  if (!config) {
-    const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipe;
-  }
-
-  return <RecipeEditor config={config} />;
+  return <RecipesView setView={setView} />;
 };
 
 const PermissionRoute = () => {
@@ -329,15 +305,13 @@ export function AppInner() {
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
-  const resetChatIfNecessary = useCallback(() => {
-    if (chat.messages.length > 0) {
-      setSearchParams((prev) => {
-        prev.delete('resumeSessionId');
-        return prev;
-      });
-      resetChat();
-    }
-  }, [chat.messages.length, setSearchParams, resetChat]);
+  const resetChatForNewConversation = useCallback(() => {
+    setSearchParams((prev) => {
+      prev.delete('resumeSessionId');
+      return prev;
+    });
+    resetChat();
+  }, [setSearchParams, resetChat]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -563,7 +537,7 @@ export function AppInner() {
                 <HubRouteWrapper
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   isExtensionsLoading={isExtensionsLoading}
-                  resetChat={resetChatIfNecessary}
+                  resetChat={resetChatForNewConversation}
                 />
               }
             />
@@ -586,7 +560,6 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="recipe-editor" element={<RecipeEditorRoute />} />
             <Route
               path="shared-session"
               element={

@@ -15,7 +15,6 @@ export type View =
   | 'schedules'
   | 'sharedSession'
   | 'loading'
-  | 'recipeEditor'
   | 'recipes'
   | 'permission';
 
@@ -27,13 +26,14 @@ export type ViewOptions = {
   sessionDetails?: unknown;
   error?: string;
   baseUrl?: string;
-  config?: unknown;
+  recipeConfig?: unknown;
   parentView?: View;
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
   initialMessage?: string;
   resetChat?: boolean;
   shareToken?: string;
+  resumeSessionId?: string;
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {
@@ -66,9 +66,7 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
       case 'sharedSession':
         navigate('/shared-session', { state: options });
         break;
-      case 'recipeEditor':
-        navigate('/recipe-editor', { state: options });
-        break;
+
       case 'welcome':
         navigate('/welcome', { state: options });
         break;
