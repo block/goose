@@ -59,8 +59,8 @@ enum TestMode {
         ToolCall::new("text_editor", json!({
             "command": "str_replace",
             "path": "~/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose",
-            "new_str": "# codename goose (modified by test)"
+            "old_str": "# goose",
+            "new_str": "# goose (modified by test)"
         })),
         // Test shell command to verify file was modified
         ToolCall::new("shell", json!({
@@ -70,8 +70,8 @@ enum TestMode {
         ToolCall::new("text_editor", json!({
             "command": "str_replace",
             "path": "~/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose (modified by test)",
-            "new_str": "# codename goose"
+            "old_str": "# goose (modified by test)",
+            "new_str": "# goose"
         })),
         ToolCall::new("list_windows", json!({})),
     ],
