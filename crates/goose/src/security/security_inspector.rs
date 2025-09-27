@@ -75,8 +75,6 @@ impl ToolInspector for SecurityInspector {
         let inspection_results = security_results
             .into_iter()
             .map(|security_result| {
-                // Extract the tool request ID from the security result's context
-                // The SecurityManager should provide this information
                 let tool_request_id = security_result.tool_request_id.clone();
                 self.convert_security_result(&security_result, tool_request_id)
             })
@@ -86,15 +84,8 @@ impl ToolInspector for SecurityInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        // Check if security is enabled in config
-        use crate::config::Config;
-        let config = Config::global();
-
-        config
-            .get_param::<serde_json::Value>("security")
-            .ok()
-            .and_then(|security_config| security_config.get("enabled")?.as_bool())
-            .unwrap_or(false)
+        self.security_manager
+            .is_prompt_injection_detection_enabled()
     }
 }
 
@@ -127,7 +118,7 @@ mod tests {
         let results = inspector.inspect(&tool_requests, &[]).await.unwrap();
 
         // Results depend on whether security is enabled in config
-        if inspector.is_enabled() {
+        if inspector.is_prompt_injection_detection_enabled() {
             // If security is enabled, should detect the dangerous command
             assert!(
                 !results.is_empty(),

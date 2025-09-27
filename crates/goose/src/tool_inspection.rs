@@ -267,6 +267,18 @@ pub fn apply_inspection_results_to_permissions(
     permission_result
 }
 
+pub fn get_security_finding_id_from_results(
+    tool_request_id: &str,
+    inspection_results: &[InspectionResult],
+) -> Option<String> {
+    inspection_results
+        .iter()
+        .find(|result| {
+            result.tool_request_id == tool_request_id && result.inspector_name == "security"
+        })
+        .and_then(|result| result.finding_id.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
