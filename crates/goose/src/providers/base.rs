@@ -330,7 +330,6 @@ pub trait Provider: Send + Sync {
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
     // Default implementation: use the provider's configured model
-    // This method filters messages to only include agent_visible ones
     async fn complete(
         &self,
         system: &str,
@@ -338,20 +337,11 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-
-        // Filter messages to only include agent_visible ones
-        let agent_visible_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .cloned()
-            .collect();
-
-        self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
+        self.complete_with_model(&model_config, system, messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
-    // This method filters messages to only include agent_visible ones
     async fn complete_fast(
         &self,
         system: &str,
@@ -361,15 +351,8 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
-        // Filter messages to only include agent_visible ones
-        let agent_visible_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .cloned()
-            .collect();
-
         match self
-            .complete_with_model(&fast_config, system, &agent_visible_messages, tools)
+            .complete_with_model(&fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -381,7 +364,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
+                    self.complete_with_model(&model_config, system, messages, tools)
                         .await
                 } else {
                     Err(e)

@@ -71,10 +71,18 @@ pub async fn check_compaction_needed(
     let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
+            // Filter to only agent-visible messages for token counting
+            let agent_visible_messages: Vec<Message> = messages
+                .iter()
+                .filter(|m| m.is_agent_visible())
+                .cloned()
+                .collect();
+
             let token_counter = create_async_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-            let token_counts = get_messages_token_counts_async(&token_counter, messages);
+            let token_counts =
+                get_messages_token_counts_async(&token_counter, &agent_visible_messages);
             (token_counts.iter().sum(), "estimated")
         }
     };

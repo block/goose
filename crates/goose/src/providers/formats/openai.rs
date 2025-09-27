@@ -59,7 +59,8 @@ struct StreamingChunk {
 ///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
-    for message in messages {
+    // Filter messages to only include agent_visible ones
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let mut converted = json!({
             "role": message.role
         });
@@ -88,11 +89,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     }
                 }
                 MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
+                    // Thinking blocks are not sent to the API
                     continue;
                 }
                 MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
+                    // Redacted thinking blocks are not sent to the API
                     continue;
                 }
                 MessageContent::ContextLengthExceeded(_) => {

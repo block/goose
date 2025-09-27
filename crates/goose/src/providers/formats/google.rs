@@ -16,6 +16,8 @@ use std::ops::Deref;
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     messages
         .iter()
+        // Filter to only include agent_visible messages
+        .filter(|m| m.is_agent_visible())
         .filter(|message| {
             message
                 .content
@@ -35,6 +37,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         if !text.text.is_empty() {
                             parts.push(json!({"text": text.text}));
                         }
+                    }
+                    MessageContent::Thinking(_) => {
+                        // Skip thinking blocks - they should not be sent to the API
+                        continue;
+                    }
+                    MessageContent::RedactedThinking(_) => {
+                        // Skip redacted thinking blocks - internal use only
+                        continue;
                     }
                     MessageContent::ToolRequest(request) => match &request.tool_call {
                         Ok(tool_call) => {
