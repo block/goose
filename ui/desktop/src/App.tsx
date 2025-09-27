@@ -44,6 +44,7 @@ import {
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
+import GooseAppsView from './components/apps/GooseAppsView';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -587,6 +588,8 @@ export function AppInner() {
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
             <Route path="recipe-editor" element={<RecipeEditorRoute />} />
+            <Route path="apps" element={<GooseAppsView />} />
+
             <Route
               path="shared-session"
               element={

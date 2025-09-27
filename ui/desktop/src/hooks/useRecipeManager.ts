@@ -53,7 +53,9 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     const checkRecipeAcceptance = async () => {
       if (finalRecipeConfig) {
         try {
-          const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipeConfig);
+          const hasAccepted =
+            finalRecipeConfig.internal ||
+            (await window.electron.hasAcceptedRecipeBefore(finalRecipeConfig));
 
           if (!hasAccepted) {
             const securityScanResult = await scanRecipe(finalRecipeConfig);
