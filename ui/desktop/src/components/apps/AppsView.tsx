@@ -13,7 +13,7 @@ export default function AppsView() {
     const loadApps = async () => {
       try {
         setLoading(true);
-        const response = await listApps();
+        const response = await listApps({ throwOnError: true });
         setApps(response.data?.apps || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load apps');

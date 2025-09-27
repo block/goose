@@ -4,7 +4,6 @@ import { Buffer } from 'node:buffer';
 import { GooseApp } from '../api';
 
 export async function launchGooseApp(gapp: GooseApp): Promise<void> {
-  console.log(`Launching Goose app: ${gapp.name}`);
   const appWindow = new BrowserWindow({
     title: gapp.name,
     width: gapp.width || 800,
