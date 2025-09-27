@@ -747,6 +747,14 @@ To use the Azure Credential Chain:
 
 This method simplifies authentication and enhances security for enterprise environments.
 
+## Multi-Model Configuration
+
+Beyond single-model setups, goose supports [multi-model configurations](/docs/guides/multi-model/) that can use different models and providers for specialized tasks:
+
+- **AutoPilot** - Intelligent, context-aware switching between specialized models based on conversation content and complexity
+- **Lead/Worker Model** - Automatic switching between a lead model for initial turns and a worker model for execution tasks
+- **Planning Mode** - Manual planning phase using a dedicated model to create detailed project breakdowns before execution
+
 ---
 
 If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/block-opensource) or on the [Goose repo](https://github.com/block/goose).

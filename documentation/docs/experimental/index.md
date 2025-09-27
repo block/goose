@@ -39,6 +39,11 @@ The list of experimental features may change as Goose development progresses. So
       description="An experimental extension enabling Goose to work within VS Code."
       link="/docs/experimental/vs-code-extension"
     />
+    <Card 
+      title="Automatic Multi-Model Switching"
+      description="Intelligent, context-aware switching between models based on conversation content, complexity, and tool usage patterns."
+      link="/docs/guides/multi-model/autopilot"
+    />
   </div>
 </div>
 

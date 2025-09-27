@@ -24,7 +24,7 @@ The Goose Desktop doesn't have a `plan` keyword. If you want Goose Desktop to cr
 Unless you ask Goose to "create a plan", it might just start into the project work. 
 :::
 
-The Goose CLI's plan mode is interactive, asking clarifying questions to understand your project before creating a plan. If you can provide thoughtful and informative answers to those questions, Goose can generate a really useul and actionable plan.
+The Goose CLI's plan mode is interactive, asking clarifying questions to understand your project before creating a plan. If you can provide thoughtful and informative answers to those questions, Goose can generate a really useful and actionable plan.
 
 ## Set your planner provider and model
 In some workflows, it can be helpful to use one LLM for planning and a different one for execution. For example, GPT-4.1 tends to excel at strategic planning and breaking down complex tasks into clear, logical steps. On the other hand, Claude Sonnet 3.5 is particularly strong at writing clean, efficient code and following instructions precisely. By using GPT-4.1 to plan and Claude to execute, you can play to the strengths of both models and get better results overall.
@@ -34,8 +34,10 @@ The Goose CLI plan mode uses two configuration values:
 - `GOOSE_PLANNER_PROVIDER`: Which provider to use for planning
 - `GOOSE_PLANNER_MODEL`: Which model to use for planning
 
-:::tip Use Lead/Worker Mode For Automatic Model Switching
-[Lead/worker mode](/docs/guides/environment-variables#leadworker-model-configuration) is an alternative to plan mode. It allows you to configure a powerful lead model for initial planning and reasoning before automatically switching to a faster and/or cheaper worker model for execution. Both modes help you achieve optimal results by balancing model capabilities with cost and speed.
+:::tip Multi-Model Alternatives to Plan Mode
+goose also supports two options for automatic model switching that help balance model capabilities with cost and speed:
+- **[Lead/Worker mode](/docs/guides/environment-variables#leadworker-model-configuration)**: Turn-based switching between two models
+- **[AutoPilot](/docs/guides/multi-model/autopilot)**: Context-aware switching between multiple models
 :::
 
 ### Set Goose planner environment variables

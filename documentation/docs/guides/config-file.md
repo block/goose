@@ -26,7 +26,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 | No |
 | `GOOSE_LEAD_PROVIDER` | Provider for lead model in [lead/worker mode](/docs/guides/environment-variables#leadworker-model-configuration) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
 | `GOOSE_LEAD_MODEL` | Lead model for lead/worker mode | Model name | None | No |
-| `GOOSE_PLANNER_PROVIDER` | Provider for [planning mode](/docs/guides/creating-plans) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
+| `GOOSE_PLANNER_PROVIDER` | Provider for [planning mode](/docs/guides/multi-model/creating-plans) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
 | `GOOSE_PLANNER_MODEL` | Model for planning mode | Model name | Falls back to `GOOSE_MODEL` | No |
 | `GOOSE_TOOLSHIM` | Enable tool interpretation | true/false | false | No |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
@@ -36,6 +36,10 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
+
+:::info Automatic Multi-Model Configuration
+The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
+:::
 
 ## Experimental Features
 
@@ -137,6 +141,6 @@ This will show all active settings and their current values.
 
 ## See Also
 
-- [Environment Variables](./environment-variables.md) - For environment variable configuration
-- [Using Extensions](/docs/getting-started/using-extensions.md) - For more details on extension configuration
-- [Creating Plans](./creating-plans.md) - For information about planning mode configuration
+- **[Multi-Model Configuration](/docs/guides/multi-model/)** - For multiple model-selection strategies
+- **[Environment Variables](./environment-variables.md)** - For environment variable configuration
+- **[Using Extensions](/docs/getting-started/using-extensions.md)** - For more details on extension configuration

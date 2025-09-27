@@ -150,6 +150,10 @@ const config: Config = {
             from: '/docs/guides/goose-in-docker',
             to: '/docs/tutorials/goose-in-docker'
           },
+          {
+            from: '/docs/guides/creating-plans',
+            to: '/docs/guides/multi-model/creating-plans'
+          },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
             from: '/docs/tutorials/agentql-mcp',
