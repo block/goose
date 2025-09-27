@@ -18,7 +18,7 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
-        let agent_manager = Arc::new(AgentManager::new(None).await?);
+        let agent_manager = AgentManager::instance(None).await?;
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),

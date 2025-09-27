@@ -111,28 +111,53 @@ fn process_extensions(
         let mut converted_extensions = Vec::new();
 
         for ext in arr {
-            if let Some(name_str) = ext.as_str() {
-                // Look up the full extension config by name
-                match crate::config::ExtensionConfigManager::get_config_by_name(name_str) {
-                    Ok(Some(config)) => {
-                        // Check if the extension is enabled
-                        if crate::config::ExtensionConfigManager::is_enabled(&config.key())
-                            .unwrap_or(false)
-                        {
-                            converted_extensions.push(config);
-                        } else {
-                            tracing::warn!("Extension '{}' is disabled, skipping", name_str);
-                        }
-                    }
-                    Ok(None) => {
-                        tracing::warn!("Extension '{}' not found in configuration", name_str);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Error looking up extension '{}': {}", name_str, e);
+            // First, try to deserialize as a full ExtensionConfig object
+            if let Ok(ext_config) = serde_json::from_value::<ExtensionConfig>(ext.clone()) {
+                // Case 1: Extension is a full ExtensionConfig object - always include it
+                converted_extensions.push(ext_config);
+                continue;
+            }
+
+            // Otherwise, try to extract the extension name (string or from object)
+            let name_str = if let Some(name_str) = ext.as_str() {
+                // Case 2: Extension is a simple string (e.g., "slack")
+                name_str
+            } else if let Some(name_value) = ext.get("name") {
+                // Case 3: Extension is an object with a "name" field (e.g., {"name": "slack"})
+                if let Some(name_str) = name_value.as_str() {
+                    name_str
+                } else {
+                    tracing::warn!("Extension name field is not a string: {:?}", name_value);
+                    continue;
+                }
+            } else {
+                tracing::warn!("Extension format not recognized: {:?}", ext);
+                continue;
+            };
+
+            // Look up the extension config by name - only add if found and enabled
+            match crate::config::ExtensionConfigManager::get_config_by_name(name_str) {
+                Ok(Some(config)) => {
+                    // Check if the extension is enabled
+                    if crate::config::ExtensionConfigManager::is_enabled(&config.key())
+                        .unwrap_or(false)
+                    {
+                        converted_extensions.push(config);
+                    } else {
+                        tracing::warn!("Extension '{}' is disabled, skipping", name_str);
                     }
                 }
-            } else if let Ok(ext_config) = serde_json::from_value::<ExtensionConfig>(ext.clone()) {
-                converted_extensions.push(ext_config);
+                Ok(None) => {
+                    tracing::warn!(
+                        "Extension '{}' not found in configuration, skipping",
+                        name_str
+                    );
+                    // Don't add unknown extensions - just skip them
+                }
+                Err(e) => {
+                    tracing::warn!("Error looking up extension '{}': {}, skipping", name_str, e);
+                    // Don't add extensions that cause lookup errors - just skip them
+                }
             }
         }
 

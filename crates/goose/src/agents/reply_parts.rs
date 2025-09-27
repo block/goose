@@ -84,48 +84,6 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-    /// Generate a response from the LLM provider
-    /// Handles toolshim transformations if needed
-    pub(crate) async fn generate_response_from_provider(
-        provider: Arc<dyn Provider>,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-        toolshim_tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = provider.get_model_config();
-
-        // Convert tool messages to text if toolshim is enabled
-        let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
-        } else {
-            Conversation::new_unvalidated(messages.to_vec())
-        };
-
-        // Call the provider to get a response
-        let (mut response, mut usage) = provider
-            .complete(system_prompt, messages_for_provider.messages(), tools)
-            .await?;
-
-        // Ensure we have token counts, estimating if necessary
-        usage
-            .ensure_tokens(
-                system_prompt,
-                messages_for_provider.messages(),
-                &response,
-                tools,
-            )
-            .await?;
-
-        crate::providers::base::set_current_model(&usage.model);
-
-        if config.toolshim {
-            response = toolshim_postprocess(response, toolshim_tools).await?;
-        }
-
-        Ok((response, usage))
-    }
-
     /// Stream a response from the LLM provider.
     /// Handles toolshim transformations if needed
     pub(crate) async fn stream_response_from_provider(
