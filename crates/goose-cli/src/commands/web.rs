@@ -17,6 +17,7 @@ use goose::conversation::message::Message as GooseMessage;
 
 use axum::response::Redirect;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
@@ -459,8 +460,10 @@ async fn process_message_streaming(
                                                 serde_json::to_string(
                                                     &WebSocketMessage::ToolRequest {
                                                         id: req.id.clone(),
-                                                        tool_name: tool_call.name.clone(),
-                                                        arguments: tool_call.arguments.clone(),
+                                                        tool_name: tool_call.name.to_string(),
+                                                        arguments: Value::from(
+                                                            tool_call.arguments.clone(),
+                                                        ),
                                                     },
                                                 )
                                                 .unwrap()
@@ -477,8 +480,13 @@ async fn process_message_streaming(
                                             serde_json::to_string(
                                                 &WebSocketMessage::ToolConfirmation {
                                                     id: confirmation.id.clone(),
-                                                    tool_name: confirmation.tool_name.clone(),
-                                                    arguments: confirmation.arguments.clone(),
+                                                    tool_name: confirmation
+                                                        .tool_name
+                                                        .to_string()
+                                                        .clone(),
+                                                    arguments: Value::from(
+                                                        confirmation.arguments.clone(),
+                                                    ),
                                                     needs_confirmation: true,
                                                 },
                                             )
