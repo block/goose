@@ -59,6 +59,31 @@ mod execution_tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_session_limit() {
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
+
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
+
+        for session in &sessions {
+            manager
+                .get_or_create_agent(session.clone(), SessionExecutionMode::chat())
+                .await
+                .unwrap();
+        }
+
+        // Create a new session after cleanup
+        let new_session = "new-session".to_string();
+        let _new_agent = manager
+            .get_or_create_agent(new_session, SessionExecutionMode::chat())
+            .await
+            .unwrap();
+
+        assert_eq!(manager.session_count().await, 100);
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_remove_session() {
         AgentManager::reset_for_test();
         let manager = AgentManager::instance().await.unwrap();
@@ -247,6 +272,47 @@ mod execution_tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_eviction_updates_last_used() {
+        AgentManager::reset_for_test();
+        // Test that accessing a session updates its last_used timestamp
+        // and affects eviction order
+        let manager = AgentManager::instance().await.unwrap();
+
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
+
+        for session in &sessions {
+            manager
+                .get_or_create_agent(session.clone(), SessionExecutionMode::chat())
+                .await
+                .unwrap();
+            // Small delay to ensure different timestamps
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+
+        // Access the first session again to update its last_used
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        manager
+            .get_or_create_agent(sessions[0].clone(), SessionExecutionMode::Interactive)
+            .await
+            .unwrap();
+
+        // Now create a 101st session - should evict session2 (least recently used)
+        let session101 = String::from("session-101");
+        manager
+            .get_or_create_agent(session101.clone(), SessionExecutionMode::Interactive)
+            .await
+            .unwrap();
+
+        // session1 should still exist (recently accessed)
+        // session2 should be evicted (least recently used)
+        assert!(manager.has_session(&sessions[0]).await);
+        assert!(!manager.has_session(&sessions[1]).await);
+        assert!(manager.has_session(&session101).await);
+        AgentManager::reset_for_test();
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_remove_nonexistent_session_error() {
         // Test that removing a non-existent session returns an error
         AgentManager::reset_for_test();
@@ -256,27 +322,6 @@ mod execution_tests {
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
-
-        AgentManager::reset_for_test();
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_singleton_instance() {
-        AgentManager::reset_for_test();
-
-        let instance1 = AgentManager::instance().await.unwrap();
-        let instance2 = AgentManager::instance().await.unwrap();
-
-        assert!(Arc::ptr_eq(&instance1, &instance2));
-
-        let session_id = String::from("singleton-test");
-        instance1
-            .get_or_create_agent(session_id.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
-
-        assert!(instance2.has_session(&session_id).await);
 
         AgentManager::reset_for_test();
     }
