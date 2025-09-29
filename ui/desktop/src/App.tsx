@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -38,13 +38,14 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
-import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
+import { View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
   InitializationContext,
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
+import { useNavigation } from './hooks/useNavigation';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -56,8 +57,7 @@ const HubRouteWrapper = ({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   return (
     <Hub
@@ -87,8 +87,7 @@ const PairRouteWrapper = ({
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams] = useSearchParams();
@@ -115,7 +114,7 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   // Get viewOptions from location.state or history.state
   const viewOptions =
@@ -124,8 +123,7 @@ const SettingsRoute = () => {
 };
 
 const SessionsRoute = () => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   return <SessionsView setView={setView} />;
 };
@@ -242,8 +240,7 @@ const SharedSessionRouteWrapper = ({
   sharedSessionError: string | null;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useNavigation();
 
   const historyState = window.history.state;
   const sessionDetails = (location.state?.sessionDetails ||
@@ -316,7 +313,7 @@ export function AppInner() {
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   const location = useLocation();
   const [_searchParams, setSearchParams] = useSearchParams();
