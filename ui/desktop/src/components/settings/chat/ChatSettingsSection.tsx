@@ -4,6 +4,7 @@ import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { CustomCommandsSettings } from '../CustomCommandsSettings';
 
 export default function ChatSettingsSection() {
   return (
@@ -25,6 +26,16 @@ export default function ChatSettingsSection() {
         </CardHeader>
         <CardContent className="px-2">
           <ResponseStylesSection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Custom Commands</CardTitle>
+          <CardDescription>Create custom slash commands with rich prompts that expand when sent to the AI</CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <CustomCommandsSettings />
         </CardContent>
       </Card>
 

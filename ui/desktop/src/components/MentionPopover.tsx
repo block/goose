@@ -474,18 +474,22 @@ const MentionPopover = forwardRef<
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
-                  className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
                     index === selectedIndex
-                      ? 'bg-bgProminent text-textProminentInverse'
-                      : 'hover:bg-bgSubtle'
+                      ? 'bg-gray-100 dark:bg-gray-700'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="flex-shrink-0 text-textSubtle">
                     <FileIcon fileName={file.name} isDirectory={file.isDirectory} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate text-textStandard">{file.name}</div>
-                    <div className="text-xs text-textSubtle truncate">{file.path}</div>
+                    <div className="text-sm truncate text-textStandard">
+                      {file.name}
+                    </div>
+                    <div className="text-xs truncate text-textSubtle">
+                      {file.path}
+                    </div>
                   </div>
                 </div>
               ))}

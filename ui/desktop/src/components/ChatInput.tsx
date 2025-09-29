@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone } from './icons';
+import { Attach, Send, Close, Microphone, Action } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -19,16 +19,22 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import ActionPopover from './ActionPopover';
+
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
+import { RichChatInput, RichChatInputRef } from './RichChatInput';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { getApiUrl } from '../config';
+import { useCustomCommands } from '../hooks/useCustomCommands';
+import { AddCustomCommandModal } from './AddCustomCommandModal';
+import { CustomCommand } from '../types/customCommands';
 
 interface QueuedMessage {
   id: string;
@@ -232,6 +238,25 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
   });
+  const [actionPopover, setActionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    selectedIndex: number;
+    cursorPosition?: number;
+    query?: string;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    selectedIndex: 0,
+    cursorPosition: 0,
+    query: '',
+  });
+  const actionPopoverRef = useRef<{
+    getDisplayActions: () => any[];
+    selectAction: (index: number) => void;
+  }>(null);
+  
+  // Action pills for visual display
   const mentionPopoverRef = useRef<{
     getDisplayFiles: () => FileItemWithMatch[];
     selectFile: (index: number) => void;
@@ -272,6 +297,47 @@ export default function ChatInput({
 
   // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
+  
+  // Custom commands hook
+  const { getCommand, expandCommandPrompt, incrementUsage } = useCustomCommands();
+
+  // Add Custom Command Modal state
+  const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
+  const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+
+  // Load custom commands on mount
+  useEffect(() => {
+    const loadCustomCommands = () => {
+      try {
+        const stored = localStorage.getItem('goose-custom-commands');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setCustomCommands(parsed.map((cmd: any) => ({
+            ...cmd,
+            createdAt: new Date(cmd.createdAt),
+            updatedAt: new Date(cmd.updatedAt)
+          })));
+        }
+      } catch (error) {
+        console.error('Failed to load custom commands:', error);
+      }
+    };
+
+    loadCustomCommands();
+  }, []);
+
+  // Handle modal save
+  const handleModalSave = (command: CustomCommand) => {
+    const now = new Date();
+    const updatedCommands = [...customCommands, { ...command, createdAt: now, updatedAt: now }];
+    
+    try {
+      localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+      setCustomCommands(updatedCommands);
+    } catch (error) {
+      console.error('Failed to save custom commands:', error);
+    }
+  };
 
   // Update internal value when initialValue changes
   useEffect(() => {
@@ -348,7 +414,7 @@ export default function ChatInput({
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textAreaRef = useRef<RichChatInputRef>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
@@ -639,7 +705,7 @@ export default function ChatInput({
 
   const debouncedAutosize = useMemo(
     () =>
-      debounce((element: HTMLTextAreaElement) => {
+      debounce((element: HTMLElement) => {
         element.style.height = '0px'; // Reset height
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
@@ -649,67 +715,90 @@ export default function ChatInput({
 
   useEffect(() => {
     if (textAreaRef.current) {
-      debouncedAutosize(textAreaRef.current);
+      const element = (textAreaRef.current as any).contentRef?.current; if (element) { debouncedAutosize(element); }
     }
   }, [debouncedAutosize, displayValue]);
 
   // Reset textarea height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
-      textAreaRef.current.style.height = 'auto';
+      const element = (textAreaRef.current as any)?.contentRef?.current; if (element && element.style) { element.style.height = 'auto'; }
     }
   }, [displayValue]);
 
-  const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = evt.target.value;
-    const cursorPosition = evt.target.selectionStart;
+  //   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
+  //     const val = evt.target.value;
+  //     const cursorPosition = evt.target.selectionStart;
+  // 
+  //     setDisplayValue(val); // Update display immediately
+  //     updateValue(val); // Update actual value immediately for better responsiveness
+  //     debouncedSaveDraft(val); // Save draft with debounce
+  //     // Mark that the user has typed something
+  //     setHasUserTyped(true);
+  // 
+  //     // Check for @ mention
+  //     checkForMention(val, cursorPosition, evt.target);
+  //   };
 
-    setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
-    // Mark that the user has typed something
-    setHasUserTyped(true);
-
-    // Check for @ mention
-    checkForMention(val, cursorPosition, evt.target);
-  };
-
-  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
-    // Find the last @ before the cursor
+  const checkForMention = (text: string, cursorPosition: number, textArea: any) => {
+    // Find the last @ and / before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    // Determine which symbol is closer to cursor
+    const isSlashTrigger = lastSlashIndex > lastAtIndex;
+    const triggerIndex = isSlashTrigger ? lastSlashIndex : lastAtIndex;
 
-    if (lastAtIndex === -1) {
-      // No @ found, close mention popover
+    if (triggerIndex === -1) {
+      // No trigger symbol found, close both popovers
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
-    // Check if there's a space between @ and cursor (which would end the mention)
-    const afterAt = beforeCursor.slice(lastAtIndex + 1);
-    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+    // Check if there's a space between trigger symbol and cursor (which would end the trigger)
+    const afterTrigger = beforeCursor.slice(triggerIndex + 1);
+    if (afterTrigger.includes(' ') || afterTrigger.includes('\n')) {
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
     // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
 
-    setMentionPopover((prev) => ({
-      ...prev,
-      isOpen: true,
-      position: {
-        x: textAreaRect.left,
-        y: textAreaRect.top, // Position at the top of the textarea
-      },
-      query: afterAt,
-      mentionStart: lastAtIndex,
-      selectedIndex: 0, // Reset selection when query changes
-      // filteredFiles will be populated by the MentionPopover component
-    }));
+    if (isSlashTrigger) {
+      // Open action popover for / trigger
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      setActionPopover({
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        selectedIndex: 0,
+        cursorPosition: cursorPosition,
+        query: afterTrigger,
+      });
+    } else {
+      // Open mention popover for @ trigger (existing functionality)
+      setActionPopover((prev) => ({ ...prev, isOpen: false }));
+      setMentionPopover((prev) => ({
+        ...prev,
+        isOpen: true,
+        position: {
+          x: textAreaRect.left,
+          y: textAreaRect.top,
+        },
+        query: afterTrigger,
+        mentionStart: triggerIndex,
+        selectedIndex: 0,
+      }));
+    }
   };
 
-  const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (evt: React.ClipboardEvent<HTMLDivElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
 
@@ -838,7 +927,7 @@ export default function ChatInput({
     setIsComposing(false);
   };
 
-  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLDivElement>) => {
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
@@ -964,6 +1053,54 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
+  // Function to expand custom command pills to their full prompts
+  const expandCustomCommandPills = useCallback((text: string): string => {
+    // Find all action pills in the format [Action Label]
+    const actionPillRegex = /\[([^\]]+)\]/g;
+    let expandedText = text;
+    
+    // Replace each action pill with its corresponding prompt
+    expandedText = expandedText.replace(actionPillRegex, (match, label) => {
+      // First check if it's a custom command by looking for a command with this label
+      const customCommand = getCommand ? (() => {
+        try {
+          // We need to find the command by label since that's what's stored in the pill
+          // This is a bit inefficient but necessary given our current architecture
+          const stored = localStorage.getItem('goose-custom-commands');
+          if (stored) {
+            const commands = JSON.parse(stored);
+            return commands.find((cmd: any) => cmd.label === label);
+          }
+        } catch (error) {
+          console.error('Error finding custom command:', error);
+        }
+        return null;
+      })() : null;
+      
+      if (customCommand) {
+        // Increment usage count for the custom command
+        if (incrementUsage) {
+          incrementUsage(customCommand.id);
+        }
+        
+        // Expand the custom command prompt
+        const context = {
+          // Add any context variables here in the future
+          // filename: currentFileName,
+          // selection: selectedText,
+          // directory: currentDirectory,
+        };
+        
+        return expandCommandPrompt ? expandCommandPrompt(customCommand, context) : customCommand.prompt;
+      }
+      
+      // If not a custom command, return the original pill (built-in actions)
+      return match;
+    });
+    
+    return expandedText;
+  }, [getCommand, expandCommandPrompt, incrementUsage]);
+
   const canSubmit =
     !isLoading &&
     !isCompacting &&
@@ -1026,6 +1163,9 @@ export default function ChatInput({
           chatContext.clearDraft();
         }
 
+        // Clear selected actions when message is sent
+        // Actions cleared when message sent
+
         // Clear both parent and local dropped files after processing
         if (onFilesProcessed && droppedFiles.length > 0) {
           onFilesProcessed();
@@ -1040,6 +1180,7 @@ export default function ChatInput({
       chatContext,
       displayValue,
       droppedFiles.length,
+      expandCustomCommandPills,
       handleSubmit,
       lastInterruption,
       localDroppedFiles.length,
@@ -1056,7 +1197,39 @@ export default function ChatInput({
     }
   }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (evt: React.KeyboardEvent<HTMLDivElement>) => {
+    // If action popover is open, handle arrow keys and enter
+    if (actionPopover.isOpen && actionPopoverRef.current) {
+      if (evt.key === 'ArrowDown') {
+        evt.preventDefault();
+        const displayActions = actionPopoverRef.current.getDisplayActions();
+        const maxIndex = Math.max(0, displayActions.length - 1);
+        setActionPopover((prev) => ({
+          ...prev,
+          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex),
+        }));
+        return;
+      }
+      if (evt.key === 'ArrowUp') {
+        evt.preventDefault();
+        setActionPopover((prev) => ({
+          ...prev,
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0),
+        }));
+        return;
+      }
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        actionPopoverRef.current.selectAction(actionPopover.selectedIndex);
+        return;
+      }
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        setActionPopover((prev) => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -1144,26 +1317,104 @@ export default function ChatInput({
   };
 
   const handleMentionFileSelect = (filePath: string) => {
-    // Replace the @ mention with the file path
+    console.log('📁 handleMentionFileSelect called with:', filePath);
+    
+    // Extract just the filename from the full path for the pill
+    const fileName = filePath.split('/').pop() || filePath;
+    console.log('📁 Extracted filename:', fileName);
+    
+    // Create @filename format for pill detection
+    const mentionText = `@${fileName}`;
+    console.log('📁 Creating mention text:', mentionText);
+    
+    // Replace the @ mention with @filename format
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    const newValue = `${beforeMention}${mentionText} ${afterMention}`;
+    
+    console.log('📁 New value will be:', newValue);
 
     setDisplayValue(newValue);
     setValue(newValue);
     setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
 
-    // Set cursor position after the inserted file path
+    // Set cursor position after the inserted mention and space
+    const newCursorPosition = beforeMention.length + mentionText.length + 1;
     setTimeout(() => {
       if (textAreaRef.current) {
-        const newCursorPosition = beforeMention.length + filePath.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+        textAreaRef.current.focus();
       }
     }, 0);
   };
+
+  const handleActionButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    
+    // Get the current cursor position from the RichChatInput
+    const currentCursorPosition = textAreaRef.current?.getBoundingClientRect ? displayValue.length : 0;
+    
+    setActionPopover({
+      isOpen: true,
+      position: {
+        x: buttonRect.left,
+        y: buttonRect.top,
+      },
+      selectedIndex: 0,
+      cursorPosition: currentCursorPosition,
+    });
+  };
+
+
+
+  const handleActionSelect = (actionId: string) => {
+    // Get the action info from the ActionPopover's display actions
+    const displayActions = actionPopoverRef.current?.getDisplayActions() || [];
+    const selectedAction = displayActions.find(action => action.id === actionId);
+    
+    if (!selectedAction) {
+      console.error('Selected action not found:', actionId);
+      setActionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+    
+    // Get current cursor position from the RichChatInput
+    const currentValue = displayValue;
+    const cursorPosition = actionPopover.cursorPosition || 0;
+    const beforeCursor = currentValue.slice(0, cursorPosition);
+    const afterCursor = currentValue.slice(cursorPosition);
+    const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    if (lastSlashIndex !== -1) {
+      const afterSlash = beforeCursor.slice(lastSlashIndex + 1);
+      // Check if we're still in the same "word" after the slash
+      if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
+        // Replace the /query with [Action Label] text
+        const beforeSlash = currentValue.slice(0, lastSlashIndex);
+        const actionText = `[${selectedAction.label}]`;
+        const newValue = beforeSlash + actionText + " " + afterCursor;
+        
+        setDisplayValue(newValue);
+        setValue(newValue);
+        
+        // Set cursor position after the action text and space
+        const newCursorPosition = lastSlashIndex + actionText.length + 1;
+        setTimeout(() => {
+          if (textAreaRef.current) {
+            textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+            textAreaRef.current.focus();
+          }
+        }, 0);
+      }
+    }
+    
+    console.log('Action selected:', actionId, 'label:', selectedAction.label);
+    setActionPopover(prev => ({ ...prev, isOpen: false }));
+  };
+
 
   const hasSubmittableContent =
     displayValue.trim() ||
@@ -1290,13 +1541,30 @@ export default function ChatInput({
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">
-          <textarea
+                  
+
+        <RichChatInput
             data-testid="chat-input"
             autoFocus
-            id="dynamic-textarea"
             placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
             value={displayValue}
-            onChange={handleChange}
+            onChange={(newValue, cursorPos) => {
+              setDisplayValue(newValue);
+              updateValue(newValue);
+              debouncedSaveDraft(newValue);
+              setHasUserTyped(true);
+              
+              // Check for @ mention and / action triggers
+              if (cursorPos !== undefined) {
+                const syntheticTarget = {
+                  getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
+                  selectionStart: cursorPos,
+                  selectionEnd: cursorPos,
+                  value: newValue,
+                };
+                checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
+              }
+            }}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
@@ -1583,7 +1851,25 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher />
+        <div className="w-px h-4 bg-border-default mx-2" />
+
+        {/* Action button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              onClick={handleActionButtonClick}
+              variant="ghost"
+              size="sm"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
+            >
+              <Action className="w-4 h-4 min-[1050px]:mr-1" />
+              <span className="text-xs hidden min-[1050px]:inline">Actions</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Quick Actions</TooltipContent>
+        </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Attach button */}
@@ -1594,9 +1880,10 @@ export default function ChatInput({
               onClick={handleFileSelect}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
-              <Attach className="w-4 h-4" />
+              <Attach className="w-4 h-4 min-[1050px]:mr-1" />
+              <span className="text-xs hidden min-[1050px]:inline">Attach</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
@@ -1608,13 +1895,11 @@ export default function ChatInput({
           {/* Cost Tracker */}
           {COST_TRACKING_ENABLED && (
             <>
-              <div className="flex items-center h-full ml-1 mr-1">
-                <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
-                  sessionCosts={sessionCosts}
-                />
-              </div>
+              <CostTracker
+                inputTokens={inputTokens}
+                outputTokens={outputTokens}
+                sessionCosts={sessionCosts}
+              />
             </>
           )}
           <Tooltip>
@@ -1632,21 +1917,20 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setIsGoosehintsModalOpen?.(true)}
+                variant="ghost"
+                size="sm"
+                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
+              >
+                <FolderKey size={16} className="min-[1050px]:mr-1" />
+                <span className="text-xs hidden min-[1050px]:inline">Hints</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Configure goosehints</TooltipContent>
+          </Tooltip>
         </div>
 
         <MentionPopover
@@ -1661,7 +1945,31 @@ export default function ChatInput({
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
+
+        <ActionPopover
+          ref={actionPopoverRef}
+          isOpen={actionPopover.isOpen}
+          onClose={() => setActionPopover((prev) => ({ ...prev, isOpen: false }))}
+          onSelect={handleActionSelect}
+          position={actionPopover.position}
+          selectedIndex={actionPopover.selectedIndex}
+          onSelectedIndexChange={(index) =>
+            setActionPopover((prev) => ({ ...prev, selectedIndex: index }))
+          }
+          query={actionPopover.query}
+          onCreateCommand={() => {
+            setIsAddCommandModalOpen(true);
+            setActionPopover((prev) => ({ ...prev, isOpen: false }));
+          }}
+        />
       </div>
+
+      {/* Add Custom Command Modal */}
+      <AddCustomCommandModal
+        isOpen={isAddCommandModalOpen}
+        onClose={() => setIsAddCommandModalOpen(false)}
+        onSave={handleModalSave}
+      />
     </div>
   );
 }
