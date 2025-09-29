@@ -102,6 +102,12 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     match &request.tool_call {
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
+                            let arguments_str = match &tool_call.arguments {
+                                Some(args) => {
+                                    serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                                }
+                                None => "{}".to_string(),
+                            };
 
                             let tool_calls = converted.tool_calls.get_or_insert_default();
                             tool_calls.push(json!({
@@ -109,7 +115,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 "type": "function",
                                 "function": {
                                     "name": sanitized_name,
-                                    "arguments": tool_call.arguments,
+                                    "arguments": arguments_str,
                                 }
                             }));
                         }
@@ -1233,6 +1239,67 @@ mod tests {
         } else {
             panic!("Expected Text content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with None arguments are formatted as "{}" string
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: None, // This is the key case the fix addresses
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be the string "{}", not null
+        assert_eq!(tool_call["function"]["arguments"], "{}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_some_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with Some arguments are properly JSON-serialized
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value", "number": 42})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be a JSON string representation
+        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
+        let parsed_args: Value = serde_json::from_str(args_str)?;
+        assert_eq!(parsed_args["param"], "value");
+        assert_eq!(parsed_args["number"], 42);
 
         Ok(())
     }
