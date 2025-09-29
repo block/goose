@@ -26,7 +26,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_session_isolation() {
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
 
         let session1 = uuid::Uuid::new_v4().to_string();
         let session2 = uuid::Uuid::new_v4().to_string();
@@ -55,7 +55,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_session_limit() {
-        let manager = AgentManager::new(Some(3)).await.unwrap();
+        let manager = AgentManager::new_for_test(Some(3)).await.unwrap();
 
         let sessions: Vec<_> = (0..3).map(|i| format!("session-{}", i)).collect();
 
@@ -79,7 +79,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_remove_session() {
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
         let session = String::from("remove-test");
 
         manager
@@ -96,7 +96,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_concurrent_access() {
-        let manager = Arc::new(AgentManager::new(None).await.unwrap());
+        let manager = Arc::new(AgentManager::new_for_test(None).await.unwrap());
         let session = String::from("concurrent-test");
 
         let mut handles = vec![];
@@ -125,7 +125,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_different_modes_same_session() {
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
         let session_id = String::from("mode-test");
 
         // Create initial agent
@@ -148,7 +148,7 @@ mod execution_tests {
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
-        let manager = Arc::new(AgentManager::new(None).await.unwrap());
+        let manager = Arc::new(AgentManager::new_for_test(None).await.unwrap());
         let session_id = String::from("race-condition-test");
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
@@ -185,7 +185,7 @@ mod execution_tests {
 
     #[tokio::test]
     async fn test_edge_case_max_sessions_one() {
-        let manager = AgentManager::new(Some(1)).await.unwrap();
+        let manager = AgentManager::new_for_test(Some(1)).await.unwrap();
 
         let session1 = String::from("only-session");
         manager
@@ -218,7 +218,7 @@ mod execution_tests {
         env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
         env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
 
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
         let result = manager.configure_default_provider().await;
 
         assert!(result.is_ok());
@@ -241,7 +241,7 @@ mod execution_tests {
         use goose::providers::testprovider::TestProvider;
         use std::sync::Arc;
 
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
 
         // Create a test provider for replaying (doesn't need inner provider)
         let temp_file = format!(
@@ -269,7 +269,7 @@ mod execution_tests {
     async fn test_eviction_updates_last_used() {
         // Test that accessing a session updates its last_used timestamp
         // and affects eviction order
-        let manager = AgentManager::new(Some(2)).await.unwrap();
+        let manager = AgentManager::new_for_test(Some(2)).await.unwrap();
 
         let session1 = String::from("session-1");
         let session2 = String::from("session-2");
@@ -311,7 +311,7 @@ mod execution_tests {
     #[tokio::test]
     async fn test_remove_nonexistent_session_error() {
         // Test that removing a non-existent session returns an error
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::new_for_test(None).await.unwrap();
         let session = String::from("never-created");
 
         let result = manager.remove_session(&session).await;
