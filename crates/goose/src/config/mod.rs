@@ -5,6 +5,7 @@ pub mod extensions;
 pub mod permission;
 pub mod signup_openrouter;
 pub mod signup_tetrate;
+pub mod tool_limits;
 
 pub use crate::agents::ExtensionConfig;
 pub use base::{get_config_dir, Config, ConfigError, APP_STRATEGY};
@@ -19,3 +20,4 @@ pub use extensions::DEFAULT_DISPLAY_NAME;
 pub use extensions::DEFAULT_EXTENSION;
 pub use extensions::DEFAULT_EXTENSION_DESCRIPTION;
 pub use extensions::DEFAULT_EXTENSION_TIMEOUT;
+pub use tool_limits::{ToolLimitsManager, DEFAULT_MAX_TOOL_RESPONSE_SIZE};
