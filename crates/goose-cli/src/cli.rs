@@ -119,15 +119,11 @@ enum SessionCommand {
         #[arg(
             short = 'p',
             long = "path",
-            help = "Filter sessions by working directory",
+            help = "Filter sessions by working directory"
         )]
         path: Option<PathBuf>,
 
-        #[arg(
-            short = 'l',
-            long = "limit",
-            help = "Limit the number of results",
-        )]
+        #[arg(short = 'l', long = "limit", help = "Limit the number of results")]
         limit: Option<usize>,
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
