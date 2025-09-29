@@ -77,7 +77,7 @@ The [Memory extension](https://block.github.io/goose/docs/mcp/memory-mcp) stores
 
 **4. Recipes**
 
-[Recipes](https://block.github.io/goose/docs/guides/recipes/) package complete task setups into reusable configurations, eliminating the need to provide lengthy instructions repeatedly. Instead of consuming tokens explaining complex workflows in every session, recipes contain all necessary instructions, extensions, and parameters upfront. This is particularly valuable for repetitive tasks where you'd otherwise spend significant tokens on setup and explanation. And if your recipe starts to feel overly lengthy, you can break the tasks up into [sub-recipes](https://block.github.io/goose/docs/guides/recipes/sub-recipes).
+[Recipes](https://block.github.io/goose/docs/guides/recipes/) package complete task setups into reusable configurations, eliminating the need to provide lengthy instructions repeatedly. Instead of consuming tokens explaining complex workflows in every session, recipes contain all necessary instructions, extensions, and parameters upfront. This is particularly valuable for repetitive tasks where you'd otherwise spend significant tokens on setup and explanation. And if your recipe starts to feel overly lengthy, you can break the tasks up into [subrecipes](https://block.github.io/goose/docs/guides/recipes/subrecipes).
 
 **5. Subagents**
 

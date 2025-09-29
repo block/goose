@@ -135,6 +135,14 @@ const config: Config = {
             to: '/docs/guides/recipes/recipe-reference'
           },
           {
+            from: '/docs/guides/recipes/sub-recipes',
+            to: '/docs/guides/recipes/subrecipes'
+          },
+          {
+            from: '/docs/tutorials/sub-recipes-in-parallel',
+            to: '/docs/tutorials/subrecipes-in-parallel'
+          },
+          {
             from: '/docs/guides/tool-permissions',
             to: '/docs/guides/managing-tools/tool-permissions'
           },
