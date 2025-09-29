@@ -176,7 +176,7 @@ interface SearchContainerElement extends HTMLDivElement {
 // Optimized for performance with early returns and cached regex
 // Regex pattern for scheduler-generated timestamp IDs (YYYYMMDD_HHMMSS format)
 const SCHEDULER_TIMESTAMP_PATTERN = /^\d{8}_\d{6}$/;
-const isSchedulerSession = (session: Session): boolean => {
+export const isSchedulerSession = (session: Session): boolean => {
   // Guard against malformed session data
   if (!session || !session.metadata) {
     return false;
