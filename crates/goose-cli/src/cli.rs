@@ -1247,6 +1247,7 @@ pub async fn cli() -> Result<()> {
                 .await;
                 if let Err(e) = session.interactive(None).await {
                     eprintln!("Session ended with error: {}", e);
+                    std::process::exit(1);
                 }
                 Ok(())
             };
