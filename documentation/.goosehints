@@ -18,4 +18,4 @@ This rule applies to:
 - Configuration files with user-facing text
 - Any other documentation content
 
-When editing or creating content in this documentation directory, always ensure "goose" uses a lowercase "g" unless it's the first word of a sentence.
+When editing or creating content in this documentation directory, always ensure "goose" uses a lowercase "g".
