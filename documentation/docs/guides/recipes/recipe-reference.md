@@ -104,7 +104,7 @@ Each parameter in the `parameters` array has the following structure:
 | Field | Type | Description |
 |-------|------|-------------|
 | `key` | String | Unique identifier for the parameter |
-| `input_type` | String | Type of input (e.g., "string") |
+| `input_type` | String | Type of input: `"string"` (default) or `"file"` (reads file contents) |
 | `requirement` | String | One of: "required", "optional", or "user_prompt" |
 | `description` | String | Human-readable description of the parameter |
 
@@ -122,21 +122,32 @@ Each parameter in the `parameters` array has the following structure:
 
 The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
 
+### Input Types
+
+- `string`: Default type. The parameter value is used as-is in template substitution
+- `file`: The parameter value should be a file path. Goose reads the file contents and substitutes the actual content (not the path) into the template
+
+When using `input_type: file`, this is useful for including file contents directly in your prompts or instructions.
+
+**Example:**
+```yaml
+parameters:
+  - key: source_code
+    input_type: file
+    requirement: required
+    description: "Path to the source code file to analyze"
+
+prompt: "Please review this code:\n\n{{ source_code }}"
+```
+
+When you run this recipe with `source_code: /path/to/app.py`, Goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
+
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
-- File parameters cannot have default values regardless of requirement type
+- File parameters cannot have default values regardless of requirement type to prevent unintended importing of sensitive files
 - Parameter keys must match any template variables used in instructions or prompt
 :::
-
-#### File Parameter Type
-
-When using `input_type: file`, the parameter value should be a file path. At recipe execution time, Goose will:
-
-1. **Read the file contents** from the provided path
-2. **Replace the parameter** with the actual file contents in the recipe template
-
-**Security Consideration**: File parameters **cannot have default values** to prevent unintended importing of sensitive files
 
 ## Extensions
 
