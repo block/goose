@@ -42,7 +42,7 @@ interface ExtensionModalConfig {
 
 interface ExtensionInstallModalProps {
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
-  setView?: (view: View, options?: ViewOptions) => void;
+  setView: (view: View, options?: ViewOptions) => void;
 }
 
 function extractCommand(link: string): string {
@@ -204,9 +204,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
           addExtension,
           (view: string, options?: ViewOptions) => {
             console.log('Extension installation completed, navigating to:', view, options);
-            if (setView) {
-              setView(view as View, options);
-            }
+            setView(view as View, options);
           }
         );
       } else {
