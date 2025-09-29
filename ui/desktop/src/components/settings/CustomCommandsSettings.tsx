@@ -6,7 +6,8 @@ import { AddCustomCommandModal } from '../AddCustomCommandModal';
 import { 
   CustomCommand, 
   CustomCommandCategory, 
-  DEFAULT_CATEGORIES
+  DEFAULT_CATEGORIES,
+  BUILT_IN_COMMANDS
 } from '../../types/customCommands';
 
 interface CustomCommandsSettingsProps {
@@ -21,11 +22,15 @@ const ICON_MAP = {
 };
 
 export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () => {
-  const [commands, setCommands] = useState<CustomCommand[]>([]);
+  const [userCommands, setUserCommands] = useState<CustomCommand[]>([]);
+  const [builtInCommands, setBuiltInCommands] = useState<CustomCommand[]>(BUILT_IN_COMMANDS);
   const [categories] = useState<CustomCommandCategory[]>(DEFAULT_CATEGORIES);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCommand, setEditingCommand] = useState<CustomCommand | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Combine built-in and user commands
+  const allCommands = [...builtInCommands, ...userCommands];
 
   // Load commands from storage on mount
   useEffect(() => {
@@ -34,53 +39,86 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
 
   const loadCommands = async () => {
     try {
-      // TODO: Load from actual storage (localStorage, config API, etc.)
+      // Load user commands from localStorage
       const stored = localStorage.getItem('goose-custom-commands');
       if (stored) {
         const parsed = JSON.parse(stored);
-        setCommands(parsed.map((cmd: any) => ({
+        const userCmds = parsed
+          .filter((cmd: any) => !cmd.isBuiltIn) // Only user commands
+          .map((cmd: any) => ({
+            ...cmd,
+            createdAt: new Date(cmd.createdAt),
+            updatedAt: new Date(cmd.updatedAt)
+          }));
+        setUserCommands(userCmds);
+      }
+
+      // Load built-in command favorites/usage from localStorage
+      const builtInStored = localStorage.getItem('goose-builtin-commands');
+      if (builtInStored) {
+        const builtInData = JSON.parse(builtInStored);
+        const updatedBuiltIns = BUILT_IN_COMMANDS.map(cmd => ({
           ...cmd,
-          createdAt: new Date(cmd.createdAt),
-          updatedAt: new Date(cmd.updatedAt)
-        })));
-      } else {
-        // Load some example commands for demo
-        setCommands(getExampleCommands());
+          isFavorite: builtInData[cmd.id]?.isFavorite || false,
+          usageCount: builtInData[cmd.id]?.usageCount || 0,
+        }));
+        setBuiltInCommands(updatedBuiltIns);
       }
     } catch (error) {
       console.error('Failed to load custom commands:', error);
     }
   };
 
-  const saveCommands = async (updatedCommands: CustomCommand[]) => {
+  const saveUserCommands = async (updatedUserCommands: CustomCommand[]) => {
     try {
-      localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
-      setCommands(updatedCommands);
+      localStorage.setItem('goose-custom-commands', JSON.stringify(updatedUserCommands));
+      setUserCommands(updatedUserCommands);
     } catch (error) {
-      console.error('Failed to save custom commands:', error);
+      console.error('Failed to save user commands:', error);
+    }
+  };
+
+  const saveBuiltInCommandData = async (updatedBuiltInCommands: CustomCommand[]) => {
+    try {
+      // Only save favorites and usage count for built-in commands
+      const builtInData: Record<string, { isFavorite: boolean; usageCount: number }> = {};
+      updatedBuiltInCommands.forEach(cmd => {
+        builtInData[cmd.id] = {
+          isFavorite: cmd.isFavorite,
+          usageCount: cmd.usageCount,
+        };
+      });
+      localStorage.setItem('goose-builtin-commands', JSON.stringify(builtInData));
+      setBuiltInCommands(updatedBuiltInCommands);
+    } catch (error) {
+      console.error('Failed to save built-in command data:', error);
     }
   };
 
   const handleModalSave = (command: CustomCommand) => {
     const now = new Date();
-    let updatedCommands: CustomCommand[];
+    let updatedUserCommands: CustomCommand[];
 
-    if (editingCommand) {
-      // Update existing command
-      updatedCommands = commands.map(cmd => 
+    if (editingCommand && !editingCommand.isBuiltIn) {
+      // Update existing user command
+      updatedUserCommands = userCommands.map(cmd => 
         cmd.id === editingCommand.id 
           ? { ...command, id: editingCommand.id, createdAt: editingCommand.createdAt, updatedAt: now }
           : cmd
       );
     } else {
-      // Create new command
-      updatedCommands = [...commands, { ...command, createdAt: now, updatedAt: now }];
+      // Create new user command
+      updatedUserCommands = [...userCommands, { ...command, createdAt: now, updatedAt: now }];
     }
 
-    saveCommands(updatedCommands);
+    saveUserCommands(updatedUserCommands);
   };
 
   const handleEdit = (command: CustomCommand) => {
+    // Built-in commands cannot be edited
+    if (command.isBuiltIn) {
+      return;
+    }
     setEditingCommand(command);
     setIsModalOpen(true);
   };
@@ -96,17 +134,34 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
   };
 
   const handleDelete = (commandId: string) => {
+    // Built-in commands cannot be deleted
+    const command = allCommands.find(cmd => cmd.id === commandId);
+    if (command?.isBuiltIn) {
+      return;
+    }
+    
     if (confirm('Are you sure you want to delete this command?')) {
-      const updatedCommands = commands.filter(cmd => cmd.id !== commandId);
-      saveCommands(updatedCommands);
+      const updatedUserCommands = userCommands.filter(cmd => cmd.id !== commandId);
+      saveUserCommands(updatedUserCommands);
     }
   };
 
   const handleToggleFavorite = (commandId: string) => {
-    const updatedCommands = commands.map(cmd =>
+    // Handle built-in commands separately
+    const builtInCommand = builtInCommands.find(cmd => cmd.id === commandId);
+    if (builtInCommand) {
+      const updatedBuiltInCommands = builtInCommands.map(cmd =>
+        cmd.id === commandId ? { ...cmd, isFavorite: !cmd.isFavorite } : cmd
+      );
+      saveBuiltInCommandData(updatedBuiltInCommands);
+      return;
+    }
+
+    // Handle user commands
+    const updatedUserCommands = userCommands.map(cmd =>
       cmd.id === commandId ? { ...cmd, isFavorite: !cmd.isFavorite } : cmd
     );
-    saveCommands(updatedCommands);
+    saveUserCommands(updatedUserCommands);
   };
 
   const handleDuplicate = (command: CustomCommand) => {
@@ -118,11 +173,12 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
       createdAt: new Date(),
       updatedAt: new Date(),
       usageCount: 0,
+      isBuiltIn: false, // Duplicates are always user commands
     };
-    saveCommands([...commands, duplicatedCommand]);
+    saveUserCommands([...userCommands, duplicatedCommand]);
   };
 
-  const filteredCommands = commands.filter(cmd => {
+  const filteredCommands = allCommands.filter(cmd => {
     const matchesSearch = !searchQuery || 
       cmd.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -158,18 +214,20 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
         {/* Commands List - Row Style */}
         {filteredCommands.map(command => (
           <div key={command.id} className="group hover:cursor-pointer text-sm">
-            <div className="flex items-center justify-between text-text-default py-2 px-2 bg-background-default hover:bg-background-muted rounded-lg transition-all">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center text-text-default py-2 px-2 bg-background-default hover:bg-background-muted rounded-lg transition-all relative">
+              <div className="flex items-center gap-3 flex-1">
                 <div className="flex items-center justify-center text-text-muted">
                   {ICON_MAP[command.icon as keyof typeof ICON_MAP] || ICON_MAP.Zap}
                 </div>
                 <div>
-                  <h3 className="text-text-default font-medium">/{command.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-text-default font-medium">/{command.name}</h3>
+                  </div>
                   <p className="text-text-muted text-xs mt-[2px]">{command.description}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-2 relative w-40">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -192,7 +250,8 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
                     e.stopPropagation();
                     handleEdit(command);
                   }}
-                  className="p-1 h-6 w-6"
+                  disabled={command.isBuiltIn}
+                  className={`p-1 h-6 w-6 ${command.isBuiltIn ? 'opacity-50 cursor-not-allowed blur-sm' : ''}`}
                 >
                   <Edit size={12} className="text-text-muted hover:text-text-default" />
                 </Button>
@@ -203,7 +262,8 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
                     e.stopPropagation();
                     handleDuplicate(command);
                   }}
-                  className="p-1 h-6 w-6"
+                  disabled={command.isBuiltIn}
+                  className={`p-1 h-6 w-6 ${command.isBuiltIn ? 'opacity-50 cursor-not-allowed blur-sm' : ''}`}
                 >
                   <Copy size={12} className="text-text-muted hover:text-text-default" />
                 </Button>
@@ -214,10 +274,20 @@ export const CustomCommandsSettings: React.FC<CustomCommandsSettingsProps> = () 
                     e.stopPropagation();
                     handleDelete(command.id);
                   }}
-                  className="p-1 h-6 w-6 text-red-600 hover:text-red-700"
+                  disabled={command.isBuiltIn}
+                  className={`p-1 h-6 w-6 ${command.isBuiltIn ? 'opacity-50 cursor-not-allowed blur-sm' : ''}`}
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={12} className={command.isBuiltIn ? 'text-text-muted' : 'text-red-600 hover:text-red-700'} />
                 </Button>
+                
+                {/* Built-in pill overlay */}
+                {command.isBuiltIn && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none pl-2">
+                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 rounded-full font-medium shadow-sm border border-gray-200 dark:border-gray-700">
+                      Built-in
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

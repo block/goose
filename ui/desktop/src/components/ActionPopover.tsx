@@ -6,7 +6,7 @@ import React, {
   useState,
 } from 'react';
 import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus } from 'lucide-react';
-import { CustomCommand } from '../types/customCommands';
+import { CustomCommand, BUILT_IN_COMMANDS } from '../types/customCommands';
 import { Button } from './ui/button';
 
 interface ActionItem {
@@ -36,28 +36,47 @@ const ActionPopover = forwardRef<
 >(({ isOpen, onClose, onSelect, position, selectedIndex, onSelectedIndexChange, query = '', onCreateCommand }, ref) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+  const [allCommands, setAllCommands] = useState<CustomCommand[]>([]);
 
-  // Load custom commands on mount
+  // Load both built-in and user commands on mount
   useEffect(() => {
-    const loadCustomCommands = () => {
+    const loadAllCommands = () => {
       try {
-        const stored = localStorage.getItem('goose-custom-commands');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setCustomCommands(parsed.map((cmd: any) => ({
-            ...cmd,
-            createdAt: new Date(cmd.createdAt),
-            updatedAt: new Date(cmd.updatedAt)
-          })));
+        // Load user commands
+        const userStored = localStorage.getItem('goose-custom-commands');
+        let userCommands: CustomCommand[] = [];
+        if (userStored) {
+          const parsed = JSON.parse(userStored);
+          userCommands = parsed
+            .filter((cmd: any) => !cmd.isBuiltIn) // Only user commands
+            .map((cmd: any) => ({
+              ...cmd,
+              createdAt: new Date(cmd.createdAt),
+              updatedAt: new Date(cmd.updatedAt)
+            }));
         }
+
+        // Load built-in command favorites/usage
+        const builtInStored = localStorage.getItem('goose-builtin-commands');
+        let builtInCommands = [...BUILT_IN_COMMANDS];
+        if (builtInStored) {
+          const builtInData = JSON.parse(builtInStored);
+          builtInCommands = BUILT_IN_COMMANDS.map(cmd => ({
+            ...cmd,
+            isFavorite: builtInData[cmd.id]?.isFavorite || false,
+            usageCount: builtInData[cmd.id]?.usageCount || 0,
+          }));
+        }
+
+        // Combine all commands
+        setAllCommands([...builtInCommands, ...userCommands]);
       } catch (error) {
-        console.error('Failed to load custom commands:', error);
+        console.error('Failed to load commands:', error);
       }
     };
 
     if (isOpen) {
-      loadCustomCommands();
+      loadAllCommands();
     }
   }, [isOpen]);
 
@@ -75,27 +94,46 @@ const ActionPopover = forwardRef<
     return iconMap[iconName || 'Zap'] || <Zap size={16} />;
   };
 
-  // Convert custom commands to action items
-  const customActions: ActionItem[] = customCommands.map(cmd => ({
+  // Convert all commands to action items
+  const allActions: ActionItem[] = allCommands.map(cmd => ({
     id: cmd.id,
     label: cmd.label,
     description: cmd.description,
     icon: getCustomCommandIcon(cmd.icon),
-    isCustom: true,
+    isCustom: !cmd.isBuiltIn, // Built-in commands are not "custom"
     prompt: cmd.prompt,
     action: () => {
-      console.log('Custom command action triggered:', cmd.name);
-      // Increment usage count
-      const updatedCommands = customCommands.map(c => 
-        c.id === cmd.id ? { ...c, usageCount: c.usageCount + 1 } : c
-      );
-      localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+      console.log('Command action triggered:', cmd.name);
+      // Increment usage count for both built-in and user commands
+      if (cmd.isBuiltIn) {
+        // Update built-in command usage
+        const builtInStored = localStorage.getItem('goose-builtin-commands');
+        let builtInData: Record<string, { isFavorite: boolean; usageCount: number }> = {};
+        if (builtInStored) {
+          builtInData = JSON.parse(builtInStored);
+        }
+        builtInData[cmd.id] = {
+          isFavorite: builtInData[cmd.id]?.isFavorite || cmd.isFavorite,
+          usageCount: (builtInData[cmd.id]?.usageCount || cmd.usageCount) + 1,
+        };
+        localStorage.setItem('goose-builtin-commands', JSON.stringify(builtInData));
+      } else {
+        // Update user command usage
+        const userStored = localStorage.getItem('goose-custom-commands');
+        if (userStored) {
+          const userCommands = JSON.parse(userStored);
+          const updatedCommands = userCommands.map((c: any) => 
+            c.id === cmd.id ? { ...c, usageCount: c.usageCount + 1 } : c
+          );
+          localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+        }
+      }
     },
   }));
 
-  // Filter custom commands based on query
-  const filteredActions = customActions.filter(action => {
-    const cmd = customCommands.find(c => c.id === action.id);
+  // Filter commands based on query
+  const filteredActions = allActions.filter(action => {
+    const cmd = allCommands.find(c => c.id === action.id);
     
     // If no query, show only starred commands
     if (!query) {
@@ -113,8 +151,8 @@ const ActionPopover = forwardRef<
 
   // Sort actions: favorites first, then by usage count, then alphabetically
   const sortedActions = filteredActions.sort((a, b) => {
-    const cmdA = customCommands.find(c => c.id === a.id);
-    const cmdB = customCommands.find(c => c.id === b.id);
+    const cmdA = allCommands.find(c => c.id === a.id);
+    const cmdB = allCommands.find(c => c.id === b.id);
     
     if (cmdA?.isFavorite && !cmdB?.isFavorite) return -1;
     if (!cmdA?.isFavorite && cmdB?.isFavorite) return 1;
@@ -239,8 +277,12 @@ const ActionPopover = forwardRef<
                     <div className="text-sm font-medium text-textStandard">
                       {action.label}
                     </div>
-                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full font-medium">
-                      Custom
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      action.isCustom 
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                    }`}>
+                      {action.isCustom ? 'Custom' : 'Built-in'}
                     </span>
                   </div>
                   <div className="text-xs text-textSubtle">
@@ -254,8 +296,8 @@ const ActionPopover = forwardRef<
               <div className="text-sm mb-2">
                 {query 
                   ? `No commands match "${query}"` 
-                  : customCommands.length === 0 
-                    ? 'No custom commands found'
+                  : allCommands.length === 0 
+                    ? 'No commands found'
                     : 'No starred commands found'
                 }
               </div>
@@ -271,7 +313,7 @@ const ActionPopover = forwardRef<
                   <Plus size={14} />
                   Create Command
                 </Button>
-              ) : !query && customCommands.length === 0 ? (
+              ) : !query && allCommands.length === 0 ? (
                 onCreateCommand ? (
                   <Button
                     onClick={() => {
@@ -285,7 +327,7 @@ const ActionPopover = forwardRef<
                     Create Command
                   </Button>
                 ) : (
-                  <div className="text-xs">Create custom commands in Settings → Chat</div>
+                  <div className="text-xs">Create commands in Settings → Chat</div>
                 )
               ) : (
                 <div className="text-xs">Star commands to see them here when you type /</div>

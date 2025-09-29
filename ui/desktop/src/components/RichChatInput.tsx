@@ -36,28 +36,52 @@ const getCustomCommandIcon = (iconName?: string) => {
   return iconMap[iconName || 'Zap'] || <Zap size={12} />;
 };
 
-// Dynamic action mapping that loads from localStorage
+// Import built-in commands
+import { BUILT_IN_COMMANDS } from '../types/customCommands';
+
+// Dynamic action mapping that loads both built-in and user commands
 const getActionMap = () => {
+  const actionMap: Record<string, { label: string; icon: React.ReactNode }> = {};
+  
   try {
+    // Add built-in commands
+    const builtInStored = localStorage.getItem('goose-builtin-commands');
+    let builtInCommands = [...BUILT_IN_COMMANDS];
+    if (builtInStored) {
+      const builtInData = JSON.parse(builtInStored);
+      builtInCommands = BUILT_IN_COMMANDS.map(cmd => ({
+        ...cmd,
+        isFavorite: builtInData[cmd.id]?.isFavorite || false,
+        usageCount: builtInData[cmd.id]?.usageCount || 0,
+      }));
+    }
+    
+    builtInCommands.forEach((cmd: any) => {
+      actionMap[cmd.id] = {
+        label: cmd.label,
+        icon: getCustomCommandIcon(cmd.icon),
+      };
+    });
+
+    // Add user commands
     const stored = localStorage.getItem('goose-custom-commands');
     if (stored) {
       const commands = JSON.parse(stored);
-      const actionMap: Record<string, { label: string; icon: React.ReactNode }> = {};
-      
-      commands.forEach((cmd: any) => {
-        actionMap[cmd.id] = {
-          label: cmd.label,
-          icon: getCustomCommandIcon(cmd.icon),
-        };
-      });
-      
-      return actionMap;
+      commands
+        .filter((cmd: any) => !cmd.isBuiltIn) // Only user commands
+        .forEach((cmd: any) => {
+          actionMap[cmd.id] = {
+            label: cmd.label,
+            icon: getCustomCommandIcon(cmd.icon),
+          };
+        });
     }
+    
+    return actionMap;
   } catch (error) {
-    console.error('Error loading custom commands for action map:', error);
+    console.error('Error loading commands for action map:', error);
+    return {};
   }
-  
-  return {};
 };
 
 export interface RichChatInputRef {
