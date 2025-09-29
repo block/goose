@@ -60,7 +60,6 @@ impl AgentManager {
         Ok(manager)
     }
 
-    /// Get or initialize the singleton instance
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {

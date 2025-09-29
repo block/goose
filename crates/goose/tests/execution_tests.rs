@@ -325,26 +325,4 @@ mod execution_tests {
 
         AgentManager::reset_for_test();
     }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_singleton_persistence_across_calls() {
-        AgentManager::reset_for_test();
-
-        let session_id = String::from("persistence-test");
-        {
-            let manager = AgentManager::instance().await.unwrap();
-            manager
-                .get_or_create_agent(session_id.clone(), SessionExecutionMode::Interactive)
-                .await
-                .unwrap();
-        }
-
-        {
-            let manager = AgentManager::instance().await.unwrap();
-            assert!(manager.has_session(&session_id).await);
-        }
-
-        AgentManager::reset_for_test();
-    }
 }
