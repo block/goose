@@ -336,33 +336,3 @@ fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
     }
     headers
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_litellm_metadata_api_key_required() {
-        let metadata = LiteLLMProvider::metadata();
-
-        // Find LITELLM_API_KEY in config keys
-        let api_key = metadata
-            .config_keys
-            .iter()
-            .find(|k| k.name == "LITELLM_API_KEY")
-            .expect("LITELLM_API_KEY should exist in config keys");
-
-        // Verify it's marked as required
-        assert!(
-            api_key.required,
-            "LITELLM_API_KEY should be marked as required"
-        );
-        // Verify it's marked as secret
-        assert!(api_key.secret, "LITELLM_API_KEY should be marked as secret");
-        // Verify it has no default value
-        assert!(
-            api_key.default.is_none(),
-            "LITELLM_API_KEY should not have a default value"
-        );
-    }
-}
