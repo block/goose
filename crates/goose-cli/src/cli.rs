@@ -115,6 +115,20 @@ enum SessionCommand {
             long_help = "Sort sessions by date in ascending order (oldest first). Default is descending order (newest first)."
         )]
         ascending: bool,
+
+        #[arg(
+            short = 'p',
+            long = "path",
+            help = "Filter sessions by working directory",
+        )]
+        path: Option<PathBuf>,
+
+        #[arg(
+            short = 'l',
+            long = "limit",
+            help = "Limit the number of results",
+        )]
+        limit: Option<u32>,
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
@@ -794,8 +808,10 @@ pub async fn cli() -> Result<()> {
                     verbose,
                     format,
                     ascending,
+                    path,
+                    limit,
                 }) => {
-                    handle_session_list(verbose, format, ascending).await?;
+                    handle_session_list(verbose, format, ascending, path, limit).await?;
                     Ok(())
                 }
                 Some(SessionCommand::Remove { id, regex }) => {
