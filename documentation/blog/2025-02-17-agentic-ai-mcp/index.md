@@ -116,21 +116,21 @@ Without tool calling, LLMs would only guess answers based on their training data
 
 It's worth noting that not all agents are the same when it comes to tool access. Most proprietary agents are tightly scoped to a specific LLM and a predefined set of tools, as companies build agents tailored for their own applications.
 
-Other agents, like Goose, are more extensible, allowing users to configure it with the LLM of their choice, as well as add tools for various APIs, databases, and even [local environments like IDEs](/docs/mcp/jetbrains-mcp). However, for agents to scale across different tools and systems without requiring custom integrations for each one, they need a standardized way to discover, call, and manage tools. This is exactly what the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) provides.
+Other agents, like goose, are more extensible, allowing users to configure it with the LLM of their choice, as well as add tools for various APIs, databases, and even [local environments like IDEs](/docs/mcp/jetbrains-mcp). However, for agents to scale across different tools and systems without requiring custom integrations for each one, they need a standardized way to discover, call, and manage tools. This is exactly what the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) provides.
 
 ## MCP Ecosystem
 
 Traditional AI integrations require custom API calls for every system, making scaling difficult. MCP solves this by providing an open, universal protocol for agents to communicate with external systems dynamically.
 
-With MCP, an agent like Goose can:
+With MCP, an agent like goose can:
 
 * connect to any API without a developer writing manual integration code
 * integrate with cloud services, dev tools, databases, and enterprise systems
 * retrieve and store context to enhance reasoning
 
-At the time of this writing, there are more than [1000 MCP servers](https://www.pulsemcp.com/servers) (systems that expose tools) that any MCP-enabled AI agent like Goose can connect to! These MCP servers act as bridges between agents and external systems, enabling access to APIs, databases, and development environments. Some were developed by the official API providers, while the vast majority were developed by community members. Because MCP is an open standard, anyone can build an MCP server for any resource. This greatly increases the possibilities of AI agents!
+At the time of this writing, there are more than [1000 MCP servers](https://www.pulsemcp.com/servers) (systems that expose tools) that any MCP-enabled AI agent like goose can connect to! These MCP servers act as bridges between agents and external systems, enabling access to APIs, databases, and development environments. Some were developed by the official API providers, while the vast majority were developed by community members. Because MCP is an open standard, anyone can build an MCP server for any resource. This greatly increases the possibilities of AI agents!
 
-For example, let's say I want Goose to develop a new web app for me in my WebStorm IDE based on a Figma design and then commit the code to a new repo in GitHub. I can add the following MCP Servers as Goose extensions to give it all of these capabilities:
+For example, let's say I want goose to develop a new web app for me in my WebStorm IDE based on a Figma design and then commit the code to a new repo in GitHub. I can add the following MCP Servers as goose extensions to give it all of these capabilities:
 
 * [Figma](/docs/mcp/figma-mcp)
 * [JetBrains](/docs/mcp/jetbrains-mcp)
@@ -143,7 +143,7 @@ With this, I can prompt my AI agent in natural language and it'll take care of t
 Pretty powerful, right?! 
 
 ## Get Started with AI Agents
-Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [Goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
+Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
 
 
 <head>

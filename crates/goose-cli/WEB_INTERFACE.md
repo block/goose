@@ -1,6 +1,6 @@
-# Goose Web Interface
+# goose Web Interface
 
-The `goose web` command provides a (preview) web-based chat interface for interacting with Goose.
+The `goose web` command provides a (preview) web-based chat interface for interacting with goose.
 Do not expose this publicly - this is in a preview state as an option.
 
 ## Usage
@@ -21,7 +21,7 @@ goose web --host 0.0.0.0 --port 8080
 
 ## Features
 
-- **Real-time chat interface**: Communicate with Goose through a clean web UI
+- **Real-time chat interface**: Communicate with goose through a clean web UI
 - **WebSocket support**: Real-time message streaming
 - **Session management**: Each browser tab maintains its own session
 - **Responsive design**: Works on desktop and mobile devices
@@ -53,9 +53,9 @@ The web interface provides:
 - [ ] Code syntax highlighting
 - [ ] Export chat history
 
-### Integration with Goose Agent
+### Integration with goose Agent
 
-The web server creates an instance of the Goose Agent and processes messages through the same pipeline as the CLI. However, some features like:
+The web server creates an instance of the goose Agent and processes messages through the same pipeline as the CLI. However, some features like:
 - Extension management
 - Tool confirmations
 - File system interactions

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use super::CompletionCache;
 
-/// Completer for Goose CLI commands
+/// Completer for goose CLI commands
 pub struct GooseCompleter {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     filename_completer: FilenameCompleter,
