@@ -20,6 +20,7 @@ use goose::providers::{
 enum ProviderType {
     Azure,
     OpenAi,
+    #[allow(dead_code)]
     Anthropic,
     Bedrock,
     Databricks,
@@ -235,6 +236,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_agent_with_anthropic() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Anthropic,
+            model: "claude-sonnet-4",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_agent_with_azure() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Azure,
@@ -353,10 +364,9 @@ mod schedule_tool_tests {
     use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
-    use goose::session::storage::SessionMetadata;
+    use goose::session::Session;
     use std::sync::Arc;
 
-    // Mock scheduler for testing
     struct MockScheduler {
         jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
     }
@@ -408,7 +418,7 @@ mod schedule_tool_tests {
             &self,
             _sched_id: &str,
             _limit: usize,
-        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+        ) -> Result<Vec<(String, Session)>, SchedulerError> {
             Ok(vec![])
         }
 
@@ -540,9 +550,7 @@ mod schedule_tool_tests {
 mod final_output_tool_tests {
     use super::*;
     use futures::stream;
-    use goose::agents::final_output_tool::{
-        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    };
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
@@ -661,6 +669,7 @@ mod final_output_tool_tests {
     #[tokio::test]
     async fn test_when_final_output_not_called_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
         use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage};
@@ -670,6 +679,8 @@ mod final_output_tool_tests {
         #[derive(Clone)]
         struct MockProvider {
             model_config: ModelConfig,
+            stream_round: std::sync::Arc<std::sync::Mutex<i32>>,
+            got_continuation_message: std::sync::Arc<std::sync::Mutex<bool>>,
         }
 
         #[async_trait]
@@ -692,14 +703,38 @@ mod final_output_tool_tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                let deltas = vec![
-                    Ok((Some(Message::assistant().with_text("Hello")), None)),
-                    Ok((Some(Message::assistant().with_text("Hi!")), None)),
-                    Ok((
-                        Some(Message::assistant().with_text("What is the final output?")),
+                if let Some(last_msg) = _messages.last() {
+                    for content in &last_msg.content {
+                        if let goose::conversation::message::MessageContent::Text(text_content) =
+                            content
+                        {
+                            if text_content.text == FINAL_OUTPUT_CONTINUATION_MESSAGE {
+                                let mut got_continuation =
+                                    self.got_continuation_message.lock().unwrap();
+                                *got_continuation = true;
+                            }
+                        }
+                    }
+                }
+
+                let mut round = self.stream_round.lock().unwrap();
+                *round += 1;
+
+                let deltas = if *round == 1 {
+                    vec![
+                        Ok((Some(Message::assistant().with_text("Hello")), None)),
+                        Ok((Some(Message::assistant().with_text("Hi!")), None)),
+                        Ok((
+                            Some(Message::assistant().with_text("What is the final output?")),
+                            None,
+                        )),
+                    ]
+                } else {
+                    vec![Ok((
+                        Some(Message::assistant().with_text("Additional random delta")),
                         None,
-                    )),
-                ];
+                    ))]
+                };
 
                 let stream = stream::iter(deltas.into_iter());
                 Ok(Box::pin(stream))
@@ -728,7 +763,12 @@ mod final_output_tool_tests {
         let agent = Agent::new();
 
         let model_config = ModelConfig::new("test-model").unwrap();
-        let mock_provider = Arc::new(MockProvider { model_config });
+        let mock_provider = Arc::new(MockProvider {
+            model_config,
+            stream_round: std::sync::Arc::new(std::sync::Mutex::new(0)),
+            got_continuation_message: std::sync::Arc::new(std::sync::Mutex::new(false)),
+        });
+        let mock_provider_clone = mock_provider.clone();
         agent.update_provider(mock_provider).await?;
 
         let response = Response {
@@ -764,7 +804,6 @@ mod final_output_tool_tests {
         }
 
         assert!(!responses.is_empty(), "Should have received responses");
-        println!("Responses: {:?}", responses);
         let last_message = responses.last().unwrap();
 
         // Check that the first 3 messages do not have FINAL_OUTPUT_CONTINUATION_MESSAGE
@@ -784,6 +823,27 @@ mod final_output_tool_tests {
         let message_text = last_message.as_concat_text();
         assert_eq!(message_text, FINAL_OUTPUT_CONTINUATION_MESSAGE);
 
+        // Continue streaming to consume any remaining content, this lets us verify the provider saw the continuation message
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(_response)) => {
+                    break; // Stop after receiving the next message
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error while streaming remaining content: {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        // Assert that the provider received the continuation message
+        let got_continuation = mock_provider_clone.got_continuation_message.lock().unwrap();
+        assert!(
+            *got_continuation,
+            "Provider should have received the FINAL_OUTPUT_CONTINUATION_MESSAGE"
+        );
+
         Ok(())
     }
 }
@@ -792,7 +852,7 @@ mod final_output_tool_tests {
 mod retry_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::agents::types::{RetryConfig, SuccessCheck};
     use goose::conversation::message::Message;
     use goose::conversation::Conversation;
     use goose::model::ModelConfig;
@@ -878,21 +938,10 @@ mod retry_tests {
             "Valid config should pass validation"
         );
 
-        let session_config = SessionConfig {
-            id: goose::session::Identifier::Name("test-retry".to_string()),
-            working_dir: std::env::current_dir()?,
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: Some(retry_config),
-        };
-
         let conversation =
             Conversation::new(vec![Message::user().with_text("Complete this task")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -990,10 +1039,8 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use goose::session::storage::Identifier;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Tool;
-    use std::path::PathBuf;
 
     struct MockToolProvider {}
 
@@ -1055,21 +1102,9 @@ mod max_turns_tests {
         let provider = Arc::new(MockToolProvider::new());
         agent.update_provider(provider).await?;
         // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
-
-        // Create session config with max_turns = 1
-        let session_config = goose::agents::SessionConfig {
-            id: Identifier::Name("test_session".to_string()),
-            working_dir: PathBuf::from("/tmp"),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: Some(1),
-            retry_config: None,
-        };
         let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1099,7 +1134,7 @@ mod max_turns_tests {
         }
 
         assert!(
-            responses.len() >= 1,
+            !responses.is_empty(),
             "Expected at least 1 response, got {}",
             responses.len()
         );

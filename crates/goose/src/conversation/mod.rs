@@ -3,11 +3,12 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
+use utoipa::ToSchema;
 
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]
@@ -86,7 +87,7 @@ impl Conversation {
         }
     }
 
-    pub fn iter(&self) -> std::slice::Iter<Message> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Message> {
         self.0.iter()
     }
 
@@ -119,6 +120,23 @@ impl Conversation {
 impl Default for Conversation {
     fn default() -> Self {
         Self::empty()
+    }
+}
+
+impl IntoIterator for Conversation {
+    type Item = Message;
+    type IntoIter = std::vec::IntoIter<Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+impl<'a> IntoIterator for &'a Conversation {
+    type Item = &'a Message;
+    type IntoIter = std::slice::Iter<'a, Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -379,7 +397,7 @@ mod tests {
             0,
             "Fixed conversation should have no issues, but found: {:?}\n\n{}",
             issues_with_fixed,
-            debug_conversation_fix(&messages, &fixed.messages(), &issues)
+            debug_conversation_fix(&messages, fixed.messages(), &issues)
         );
         (fixed.messages().clone(), issues)
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipeStorage';
 import { FileText, Trash2, Bot, Calendar, AlertCircle } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
@@ -12,6 +12,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../../api';
 import CreateRecipeForm, { CreateRecipeButton } from './CreateRecipeForm';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
+import { filterValidUsedParameters } from '../../utils/providerUtils';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
@@ -133,6 +134,21 @@ export default function RecipesView() {
       setPreviewDeeplink('Error generating deeplink');
     }
   };
+
+  const filteredPreviewParameters = useMemo(() => {
+    if (!selectedRecipe?.recipe.parameters) {
+      return [];
+    }
+
+    return filterValidUsedParameters(selectedRecipe.recipe.parameters, {
+      instructions: selectedRecipe.recipe.instructions || undefined,
+      prompt: selectedRecipe.recipe.prompt || undefined,
+    });
+  }, [
+    selectedRecipe?.recipe.parameters,
+    selectedRecipe?.recipe.instructions,
+    selectedRecipe?.recipe.prompt,
+  ]);
 
   // Render a recipe item
   const RecipeItem = ({
@@ -410,11 +426,11 @@ export default function RecipesView() {
                 </div>
               )}
 
-              {selectedRecipe.recipe.parameters && selectedRecipe.recipe.parameters.length > 0 && (
+              {filteredPreviewParameters && filteredPreviewParameters.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-text-standard mb-2">Parameters</h4>
                   <div className="space-y-3">
-                    {selectedRecipe.recipe.parameters.map((param, index) => (
+                    {filteredPreviewParameters.map((param, index) => (
                       <div
                         key={index}
                         className="bg-background-muted border border-border-subtle p-3 rounded-lg"

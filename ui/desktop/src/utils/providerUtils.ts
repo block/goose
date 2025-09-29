@@ -46,6 +46,83 @@ You can also validate your output after you have generated it to ensure it meets
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
 
+// Helper function to extract template variables from text (matches backend logic)
+export const extractTemplateVariables = (content: string): string[] => {
+  const templateVarRegex = /\{\{(.*?)\}\}/g;
+  const variables: string[] = [];
+  let match;
+
+  while ((match = templateVarRegex.exec(content)) !== null) {
+    const variable = match[1].trim();
+
+    if (variable && !variables.includes(variable)) {
+      // Filter out complex variables that aren't valid parameter names
+      // This matches the backend logic in filter_complex_variables()
+      const isValid = isValidParameterName(variable);
+
+      if (isValid) {
+        variables.push(variable);
+      }
+    }
+  }
+
+  return variables;
+};
+
+// Helper function to check if a variable name is valid for parameters
+// Matches backend regex: r"^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$"
+const isValidParameterName = (variable: string): boolean => {
+  const validVarRegex = /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$/;
+  return validVarRegex.test(variable);
+};
+
+// Helper function to filter recipe parameters to only show valid ones that are actually used
+export const filterValidUsedParameters = (
+  parameters: RecipeParameter[] | undefined,
+  recipeContent: { prompt?: string; instructions?: string }
+): RecipeParameter[] => {
+  if (!parameters || !Array.isArray(parameters)) {
+    return [];
+  }
+
+  // Extract all template variables used in the recipe content
+  const promptVariables = recipeContent.prompt
+    ? extractTemplateVariables(recipeContent.prompt)
+    : [];
+  const instructionVariables = recipeContent.instructions
+    ? extractTemplateVariables(recipeContent.instructions)
+    : [];
+  const allUsedVariables = [...new Set([...promptVariables, ...instructionVariables])];
+
+  // Filter parameters to only include:
+  // 1. Parameters with valid names (no spaces, dots, pipes, etc.)
+  // 2. Parameters that are actually used in the recipe content
+  // 3. Remove duplicates (keep first occurrence)
+  const seenKeys = new Set<string>();
+
+  return parameters.filter((param) => {
+    // Check if parameter key is valid (no spaces, special characters)
+    const isValid = isValidParameterName(param.key);
+    if (!isValid) {
+      return false;
+    }
+
+    // Check if parameter is actually used in the recipe content
+    const isUsed = allUsedVariables.includes(param.key);
+    if (!isUsed) {
+      return false;
+    }
+
+    // Remove duplicates (keep first occurrence)
+    if (seenKeys.has(param.key)) {
+      return false;
+    }
+
+    seenKeys.add(param.key);
+    return true;
+  });
+};
+
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
@@ -204,6 +281,7 @@ export const initializeSystem = async (
           addToConfig: options.addExtension!,
           extensionConfig,
           toastOptions: { silent: false },
+          sessionId,
         });
       } catch (error) {
         console.error(`Failed to load extension ${extensionName}:`, error);

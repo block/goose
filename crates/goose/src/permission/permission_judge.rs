@@ -144,7 +144,11 @@ pub async fn detect_read_only_tools(
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
     let res = provider
-        .complete(&system_prompt, check_messages.messages(), &[tool.clone()])
+        .complete(
+            &system_prompt,
+            check_messages.messages(),
+            std::slice::from_ref(&tool),
+        )
         .await;
 
     // Process the response and return an empty vector if the response is invalid
@@ -333,7 +337,7 @@ mod tests {
         assert!(tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc.contains("read-only operation")));
+            .is_some_and(|desc| desc.contains("read-only operation")));
     }
 
     #[test]

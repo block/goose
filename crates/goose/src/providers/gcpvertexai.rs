@@ -260,7 +260,10 @@ impl GcpVertexAIProvider {
                     self.retry_config.max_retries
                 );
                 tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
+                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                    details: error_msg,
+                    retry_delay: None,
+                }));
             }
 
             // Get a fresh auth token for each attempt
@@ -292,9 +295,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Try to parse response for more detailed error info
@@ -319,7 +323,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(rate_limit_attempts);
@@ -335,9 +342,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Handle 529 Overloaded error (https://docs.anthropic.com/en/api/errors)
@@ -354,7 +362,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(overloaded_attempts);

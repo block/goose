@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install and Configure Goose
+      - name: Install and Configure goose
         run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
@@ -219,7 +219,7 @@ jobs:
               2. If approved, we'll run a security scan
               3. Once merged, you'll receive $10 in OpenRouter credits (if email provided)
               
-              Thanks for contributing to the Goose Recipe Cookbook! 🎉`;
+              Thanks for contributing to the goose Recipe Cookbook! 🎉`;
             } else {
               // Read validation details from file
               let validationDetails = '';

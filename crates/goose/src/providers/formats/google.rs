@@ -364,7 +364,7 @@ mod tests {
                 id.to_string(),
                 tool_call.name.clone(),
                 tool_call.arguments.clone(),
-                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                Some("goose would like to call the above tool. Allow? (y/n):".to_string()),
             )],
         )
     }

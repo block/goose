@@ -1,18 +1,20 @@
 import { Card } from '../ui/card';
-import { gsap } from 'gsap';
 import GooseLogo from '../GooseLogo';
 import MarkdownContent from '../MarkdownContent';
-
-// Register GSAP plugins
-gsap.registerPlugin();
+import { substituteParameters } from '../../utils/providerUtils';
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;
   activities: string[] | null;
   title?: string;
+  parameterValues?: Record<string, string>;
 }
 
-export default function RecipeActivities({ append, activities }: RecipeActivitiesProps) {
+export default function RecipeActivities({
+  append,
+  activities,
+  parameterValues = {},
+}: RecipeActivitiesProps) {
   const pills = activities || [];
 
   // Find any pill that starts with "message:"
@@ -37,23 +39,31 @@ export default function RecipeActivities({ append, activities }: RecipeActivitie
         {messagePill && (
           <div className="mb-4 p-3 rounded-lg border animate-[fadein_500ms_ease-in_forwards]">
             <MarkdownContent
-              content={messagePill.replace(/^message:/i, '').trim()}
+              content={substituteParameters(
+                messagePill.replace(/^message:/i, '').trim(),
+                parameterValues
+              )}
               className="text-sm"
             />
           </div>
         )}
 
         <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
-          {remainingPills.map((content, index) => (
-            <Card
-              key={index}
-              onClick={() => append(content)}
-              title={content.length > 60 ? content : undefined}
-              className="cursor-pointer px-3 py-1.5 text-sm hover:bg-bgSubtle transition-colors"
-            >
-              {content.length > 60 ? content.slice(0, 60) + '...' : content}
-            </Card>
-          ))}
+          {remainingPills.map((content, index) => {
+            const substitutedContent = substituteParameters(content, parameterValues);
+            return (
+              <Card
+                key={index}
+                onClick={() => append(substitutedContent)}
+                title={substitutedContent.length > 60 ? substitutedContent : undefined}
+                className="cursor-pointer px-3 py-1.5 text-sm hover:bg-bgSubtle transition-colors"
+              >
+                {substitutedContent.length > 60
+                  ? substitutedContent.slice(0, 60) + '...'
+                  : substitutedContent}
+              </Card>
+            );
+          })}
         </div>
       </div>
     );

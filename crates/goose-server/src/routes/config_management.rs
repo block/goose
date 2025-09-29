@@ -389,7 +389,7 @@ pub async fn get_provider_models(
                 ProviderError::UsageError(_) => StatusCode::BAD_REQUEST,
 
                 // Transient errors - client should retry later
-                ProviderError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
+                ProviderError::RateLimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
 
                 // All other errors - internal server error
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -822,8 +822,8 @@ mod tests {
         let status_code = result.unwrap_err();
 
         assert!(status_code == StatusCode::BAD_REQUEST,
-            "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
-            status_code
+                "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
+                status_code
         );
 
         std::env::remove_var("OPENAI_API_KEY");

@@ -112,7 +112,7 @@ fn add_template_in_env(
     content: &str,
     recipe_dir: String,
     undefined_behavior: UndefinedBehavior,
-) -> Result<Environment> {
+) -> Result<Environment<'_>> {
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(undefined_behavior);
     env.set_loader(move |name| {
@@ -136,7 +136,7 @@ fn get_env_with_template_variables(
     content: &str,
     recipe_dir: String,
     undefined_behavior: UndefinedBehavior,
-) -> Result<(Environment, HashSet<String>)> {
+) -> Result<(Environment<'_>, HashSet<String>)> {
     let env = add_template_in_env(content, recipe_dir, undefined_behavior)?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
     let state = template.eval_to_state(())?;

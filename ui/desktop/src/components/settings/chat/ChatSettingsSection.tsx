@@ -28,7 +28,6 @@ export default function ChatSettingsSection() {
         </CardContent>
       </Card>
 
-
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />

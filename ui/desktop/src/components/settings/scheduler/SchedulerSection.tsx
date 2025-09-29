@@ -11,12 +11,14 @@ const schedulingEngineOptions: SchedulingEngineOption[] = [
   {
     key: 'builtin-cron',
     label: 'Built-in Cron (Default)',
-    description: 'Uses Goose\'s built-in cron scheduler. Simple and reliable for basic scheduling needs.',
+    description:
+      "Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling needs.",
   },
   {
     key: 'temporal',
     label: 'Temporal',
-    description: 'Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.',
+    description:
+      'Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.',
   },
 ];
 
@@ -60,13 +62,13 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
     <div className="space-y-1">
       {schedulingEngineOptions.map((option) => {
         const isChecked = schedulingEngine === option.key;
-        
+
         return (
           <div key={option.key} className="group hover:cursor-pointer text-sm">
             <div
               className={`flex items-center justify-between text-text-default py-2 px-2 ${
-                isChecked 
-                  ? 'bg-background-muted' 
+                isChecked
+                  ? 'bg-background-muted'
                   : 'bg-background-default hover:bg-background-muted'
               } rounded-lg transition-all`}
               onClick={() => handleEngineChange(option.key)}

@@ -42,8 +42,6 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
-use crate::session;
-use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -55,7 +53,7 @@ use rmcp::model::{
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use super::final_output_tool::FinalOutputTool;
 use super::model_selector::autopilot::AutoPilot;
@@ -66,12 +64,14 @@ use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
+use crate::session::extension_data::ExtensionState;
+use crate::session::{extension_data, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
-    pub messages: Conversation,
+    pub conversation: Conversation,
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
@@ -268,7 +268,7 @@ impl Agent {
             .await;
 
         Ok(ReplyContext {
-            messages: conversation,
+            conversation,
             tools,
             toolshim_tools,
             system_prompt,
@@ -506,17 +506,12 @@ impl Agent {
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
-            let session_file_path = if let Some(session_config) = session {
-                session::storage::get_path(session_config.id.clone()).ok()
-            } else {
-                None
-            };
-
-            let todo_content = if let Some(path) = session_file_path {
-                session::storage::read_metadata(&path)
+            let todo_content = if let Some(session_config) = session {
+                SessionManager::get_session(&session_config.id, false)
+                    .await
                     .ok()
-                    .and_then(|m| {
-                        session::TodoState::from_extension_data(&m.extension_data)
+                    .and_then(|metadata| {
+                        extension_data::TodoState::from_extension_data(&metadata.extension_data)
                             .map(|state| state.content)
                     })
                     .unwrap_or_default()
@@ -551,43 +546,39 @@ impl Agent {
                     None,
                 )))
             } else if let Some(session_config) = session {
-                // Update session metadata with new TODO content
-                match session::storage::get_path(session_config.id.clone()) {
-                    Ok(path) => match session::storage::read_metadata(&path) {
-                        Ok(mut metadata) => {
-                            let todo_state = session::TodoState::new(content);
-                            todo_state
-                                .to_extension_data(&mut metadata.extension_data)
-                                .ok();
-
-                            let path_clone = path.clone();
-                            let metadata_clone = metadata.clone();
-                            let update_result = tokio::task::spawn(async move {
-                                session::storage::update_metadata(&path_clone, &metadata_clone)
-                                    .await
-                            })
-                            .await;
-
-                            match update_result {
-                                Ok(Ok(_)) => ToolCallResult::from(Ok(vec![Content::text(
-                                    format!("Updated ({} chars)", char_count),
-                                )])),
-                                _ => ToolCallResult::from(Err(ErrorData::new(
+                match SessionManager::get_session(&session_config.id, false).await {
+                    Ok(mut session) => {
+                        let todo_state = extension_data::TodoState::new(content);
+                        if todo_state
+                            .to_extension_data(&mut session.extension_data)
+                            .is_ok()
+                        {
+                            match SessionManager::update_session(&session_config.id)
+                                .extension_data(session.extension_data)
+                                .apply()
+                                .await
+                            {
+                                Ok(_) => ToolCallResult::from(Ok(vec![Content::text(format!(
+                                    "Updated ({} chars)",
+                                    char_count
+                                ))])),
+                                Err(_) => ToolCallResult::from(Err(ErrorData::new(
                                     ErrorCode::INTERNAL_ERROR,
                                     "Failed to update session metadata".to_string(),
                                     None,
                                 ))),
                             }
+                        } else {
+                            ToolCallResult::from(Err(ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                "Failed to serialize TODO state".to_string(),
+                                None,
+                            )))
                         }
-                        Err(_) => ToolCallResult::from(Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Failed to read session metadata".to_string(),
-                            None,
-                        ))),
-                    },
+                    }
                     Err(_) => ToolCallResult::from(Err(ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        "Failed to get session path".to_string(),
+                        "Failed to read session metadata".to_string(),
                         None,
                     ))),
                 }
@@ -911,10 +902,9 @@ impl Agent {
     > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
-            match session::storage::get_path(session_config.id.clone()) {
-                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
-                Err(_) => None,
-            }
+            SessionManager::get_session(&session_config.id, false)
+                .await
+                .ok()
         } else {
             None
         };
@@ -960,7 +950,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg, _summarization_usage) = match self
+        let (conversation, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
@@ -969,7 +959,7 @@ impl Agent {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None, None)
+                (context.conversation, None, None)
             }
         };
 
@@ -977,10 +967,13 @@ impl Agent {
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
-                yield AgentEvent::HistoryReplaced(messages.messages().clone());
+                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+                if let Some(session_to_store) = &session {
+                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                }
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -988,19 +981,20 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(messages, session, cancel_token).await
+        self.reply_internal(conversation, session, cancel_token)
+            .await
     }
 
     /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
-        messages: Conversation,
+        conversation: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(messages, &session).await?;
+        let context = self.prepare_reply_context(conversation, &session).await?;
         let ReplyContext {
-            mut messages,
+            mut conversation,
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
@@ -1011,12 +1005,52 @@ impl Agent {
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
-        if let Some(content) = messages
-            .last()
-            .and_then(|msg| msg.content.first())
-            .and_then(|c| c.as_text())
-        {
-            debug!("user_message" = &content);
+        // This will need further refactoring. In the ideal world we pass the new message into
+        // reply and load the existing conversation. Until we get to that point, fetch the conversation
+        // so far and append the last (user) message that the caller already added.
+        if let Some(session_config) = &session {
+            let stored_conversation = SessionManager::get_session(&session_config.id, true)
+                .await?
+                .conversation
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Session {} has no conversation", session_config.id)
+                })?;
+
+            match conversation.len().cmp(&stored_conversation.len()) {
+                std::cmp::Ordering::Equal => {
+                    if conversation != stored_conversation {
+                        warn!("Session messages mismatch - replacing with incoming");
+                        SessionManager::replace_conversation(&session_config.id, &conversation)
+                            .await?;
+                    }
+                }
+                std::cmp::Ordering::Greater
+                    if conversation.len() == stored_conversation.len() + 1 =>
+                {
+                    let last_message = conversation.last().unwrap();
+                    if let Some(content) = last_message.content.first().and_then(|c| c.as_text()) {
+                        debug!("user_message" = &content);
+                    }
+                    SessionManager::add_message(&session_config.id, last_message).await?;
+                }
+                _ => {
+                    warn!(
+                        "Unexpected session state: stored={}, incoming={}. Replacing.",
+                        stored_conversation.len(),
+                        conversation.len()
+                    );
+                    SessionManager::replace_conversation(&session_config.id, &conversation).await?;
+                }
+            }
+            let provider = self.provider().await?;
+            let session_id = session_config.id.clone();
+            tokio::spawn(async move {
+                if let Err(e) =
+                    SessionManager::maybe_update_description(&session_id, provider).await
+                {
+                    warn!("Failed to generate session description: {}", e);
+                }
+            });
         }
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -1054,7 +1088,7 @@ impl Agent {
 
                 {
                     let mut autopilot = self.autopilot.lock().await;
-                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
                         debug!("AutoPilot switching to {} role with model {}", role, model);
                         self.update_provider(new_provider).await?;
 
@@ -1065,17 +1099,16 @@ impl Agent {
                     }
                 }
 
-
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    messages.messages(),
+                    conversation.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
 
-                let mut added_message = false;
-                let mut messages_to_add = Vec::new();
+                let mut no_tools_called = true;
+                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
 
                 while let Some(next) = stream.next().await {
@@ -1109,12 +1142,12 @@ impl Agent {
                             // Record usage for the session
                             if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage, messages.len())
-                                        .await?;
+                                    Self::update_session_metrics(session_config, usage).await?;
                                 }
                             }
 
                             if let Some(response) = response {
+                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -1161,7 +1194,7 @@ impl Agent {
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &remaining_requests,
-                                            messages.messages(),
+                                            conversation.messages(),
                                         )
                                         .await?;
 
@@ -1260,25 +1293,26 @@ impl Agent {
                                 let final_message_tool_resp = message_tool_response.lock().await.clone();
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
-                                added_message = true;
-                                messages_to_add.push(response);
+                                no_tools_called = false;
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            match auto_compact::perform_compaction(self, messages.messages()).await {
+                            match auto_compact::perform_compaction(self, conversation.messages()).await {
                                 Ok(compact_result) => {
-                                    messages = compact_result.messages;
+                                    conversation = compact_result.messages;
 
                                     yield AgentEvent::Message(
                                         Message::assistant().with_summarization_requested(
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );
-                                    yield AgentEvent::HistoryReplaced(messages.messages().to_vec());
-
+                                    yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
+                                    if let Some(session_to_store) = &session {
+                                        SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                                    }
                                     continue;
                                 }
                                 Err(_) => {
@@ -1301,39 +1335,49 @@ impl Agent {
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                 }
-                if !added_message {
+                let mut exit_chat = false;
+                if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
-                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
-                            continue
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
+                            exit_chat = true;
                         }
-                    }
-
-                    match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
-                        Ok(should_retry) => {
-                            if should_retry {
-                                info!("Retry logic triggered, restarting agent loop");
-                                continue;
+                    } else {
+                        match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
+                            Ok(should_retry) => {
+                                if should_retry {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                } else {
+                                    exit_chat = true;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Retry logic failed: {}", e);
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Retry logic encountered an error: {}", e)
+                                ));
+                                exit_chat = true;
                             }
                         }
-                        Err(e) => {
-                            error!("Retry logic failed: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                format!("Retry logic encountered an error: {}", e)
-                            ));
-                        }
                     }
-                    break;
                 }
 
-                messages.extend(messages_to_add);
+                if let Some(session_config) = &session {
+                    for msg in &messages_to_add {
+                        SessionManager::add_message(&session_config.id, msg).await?;
+                    }
+                }
+                conversation.extend(messages_to_add);
+                if exit_chat {
+                    break;
+                }
 
                 tokio::task::yield_now().await;
             }

@@ -5,7 +5,7 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2 } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2 } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
@@ -75,18 +75,23 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 ## Name Session
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Within the Desktop app, sessions are automatically named based on the context of your initial prompt.
+        In the Desktop app, session tiles display auto-generated descriptions based on the context of your initial prompt.
 
-        You can rename sessions after they're created:
+        You can edit session descriptions after they're created:
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `History` in the sidebar
         3. Hover over the session you'd like to rename
         4. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
-        5. Enter the new session name
-        6. Click `Save`
+        5. In the "Edit Session Description" modal that opens:
+           - Enter your new session description (up to 200 characters)
+           - Press `Enter` to save or `Escape` to cancel
+           - Or click the `Save` or `Cancel` buttons
+        6. A success toast notification will confirm the change
 
-        Session names can also help you manage multiple Goose windows. When you're in the Goose chat interface, session names appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different Goose sessions.
+        :::tip
+        Session descriptions help you manage multiple Goose windows. When you're in the Goose chat interface, session descriptions appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different Goose sessions.
+        ::: 
 
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
@@ -295,11 +300,24 @@ You can resume a CLI session in Desktop.
     </TabItem>
 </Tabs>
 
-## Remove Sessions
+## Delete Sessions
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Removing sessions is only available through the CLI.
+        You can delete sessions directly from the Desktop app:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Find the session you want to delete
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Trash2 className="inline" size={16} /> button that appears
+        6. Confirm the deletion in the modal that appears
+
+        :::warning Permanent deletion
+        Deleting a session from Goose Desktop will also delete it from the CLI. This action cannot be undone.
+        :::
+
+        The session will be immediately removed from your session history and the underlying session file will be deleted from your local storage.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).

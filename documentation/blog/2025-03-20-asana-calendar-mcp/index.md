@@ -1,5 +1,5 @@
 ---
-title: "How I Use Goose to Plan My Week with Asana and Google Calendar MCPs"
+title: "How I Use goose to Plan My Week with Asana and Google Calendar MCPs"
 description: Use MCPs with Goose to automate task management and enhance productivity.
 authors: 
     - angie
@@ -7,11 +7,11 @@ authors:
 
 ![blog cover](mcp-planner.png)
 
-Mondays are overwhelming. A pile of unfinished tasks from last week, new priorities rolling in, and meetings scattered across the calendar. It’s a lot 😩. Instead of manually sorting through my todos and figuring out where everything fits, I use a couple of handy MCP servers with Goose and let it figure out my week.
+Mondays are overwhelming. A pile of unfinished tasks from last week, new priorities rolling in, and meetings scattered across the calendar. It’s a lot 😩. Instead of manually sorting through my todos and figuring out where everything fits, I use a couple of handy MCP servers with goose and let it figure out my week.
 
 <!--truncate-->
 
-There's so many amazing MCP servers out there to make my work life better, including [Asana](https://github.com/roychri/mcp-server-asana) and [Google Calendar](https://www.pulsemcp.com/servers?q=google+calendar). I added these as Goose extensions, which means Goose can now can pull in my tasks, analyze them, and schedule them, all with one simple prompt:
+There's so many amazing MCP servers out there to make my work life better, including [Asana](https://github.com/roychri/mcp-server-asana) and [Google Calendar](https://www.pulsemcp.com/servers?q=google+calendar). I added these as goose extensions, which means Goose can now can pull in my tasks, analyze them, and schedule them, all with one simple prompt:
 
 > _**Goose, pull all uncompleted tasks assigned to me in Asana. Group them by type of work to reduce context switching. Estimate how long each task will take. Then, schedule each task accordingly in my Google Calendar.  Make sure not to double book or overload any single day.**_
 

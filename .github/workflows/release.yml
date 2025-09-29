@@ -106,7 +106,6 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
-            Goose*.zip
             *.deb
             *.rpm
             download_cli.sh
@@ -124,7 +123,6 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
-            Goose*.zip
             *.deb
             *.rpm
             download_cli.sh

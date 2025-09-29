@@ -319,24 +319,23 @@ async fn sessions_handler(
         .await
     {
         Ok(session_tuples) => {
-            // Expecting Vec<(String, goose::session::storage::SessionMetadata)>
-            let display_infos: Vec<SessionDisplayInfo> = session_tuples
-                .into_iter()
-                .map(|(session_name, metadata)| SessionDisplayInfo {
+            let mut display_infos = Vec::new();
+            for (session_name, session) in session_tuples {
+                display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
-                    name: metadata.description, // Use description as name
+                    name: session.description,
                     created_at: parse_session_name_to_iso(&session_name),
-                    working_dir: metadata.working_dir.to_string_lossy().into_owned(),
-                    schedule_id: metadata.schedule_id, // This is the ID of the schedule itself
-                    message_count: metadata.message_count,
-                    total_tokens: metadata.total_tokens,
-                    input_tokens: metadata.input_tokens,
-                    output_tokens: metadata.output_tokens,
-                    accumulated_total_tokens: metadata.accumulated_total_tokens,
-                    accumulated_input_tokens: metadata.accumulated_input_tokens,
-                    accumulated_output_tokens: metadata.accumulated_output_tokens,
-                })
-                .collect();
+                    working_dir: session.working_dir.to_string_lossy().into_owned(),
+                    schedule_id: session.schedule_id,
+                    message_count: session.message_count,
+                    total_tokens: session.total_tokens,
+                    input_tokens: session.input_tokens,
+                    output_tokens: session.output_tokens,
+                    accumulated_total_tokens: session.accumulated_total_tokens,
+                    accumulated_input_tokens: session.accumulated_input_tokens,
+                    accumulated_output_tokens: session.accumulated_output_tokens,
+                });
+            }
             Ok(Json(display_infos))
         }
         Err(e) => {

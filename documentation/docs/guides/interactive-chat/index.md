@@ -57,5 +57,10 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Automatically render visual representations of data as you interact with it, powered by MCP-UI"
       link="/blog/2025/08/27/autovisualiser-with-mcp-ui"
     />
+    <Card      
+      title="How to Make An MCP Server MCP-UI Compatible"
+      description="Making an MCP server MCP-UI compatible requires just a few lines of code"
+      link="/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible"
+    />
   </div>
 </div>

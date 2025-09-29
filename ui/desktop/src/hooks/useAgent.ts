@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
 import { initializeSystem } from '../utils/providerUtils';
@@ -8,11 +8,11 @@ import {
   initConfig,
   Message as ApiMessage,
   readAllConfig,
+  Recipe,
   recoverConfig,
   resumeAgent,
   startAgent,
   validateConfig,
-  Recipe,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { convertApiMessageToFrontendMessage } from '../components/context_management';
@@ -72,19 +72,17 @@ export function useAgent(): UseAgentReturn {
           throwOnError: true,
         });
 
-        const agentSessionInfo = agentResponse.data;
-        const sessionMetadata = agentSessionInfo.metadata;
-        let chat: ChatType = {
-          sessionId: agentSessionInfo.session_id,
-          title: sessionMetadata.recipe?.title || sessionMetadata.description,
+        const agentSession = agentResponse.data;
+        const messages = agentSession.conversation || [];
+        return {
+          sessionId: agentSession.id,
+          title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
-          messages: agentSessionInfo.messages.map((message: ApiMessage) =>
+          messages: messages?.map((message: ApiMessage) =>
             convertApiMessageToFrontendMessage(message)
           ),
-          recipeConfig: sessionMetadata.recipe,
+          recipeConfig: agentSession.recipe,
         };
-
-        return chat;
       }
 
       if (initPromiseRef.current) {
@@ -121,11 +119,11 @@ export function useAgent(): UseAgentReturn {
                 throwOnError: true,
               });
 
-          const agentSessionInfo = agentResponse.data;
-          if (!agentSessionInfo) {
+          const agentSession = agentResponse.data;
+          if (!agentSession) {
             throw Error('Failed to get session info');
           }
-          setSessionId(agentSessionInfo.session_id);
+          setSessionId(agentSession.id);
 
           agentWaitingMessage('Agent is loading config');
 
@@ -139,7 +137,7 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
-          await initializeSystem(agentSessionInfo.session_id, provider as string, model as string, {
+          await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
@@ -153,15 +151,15 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const sessionMetadata = agentSessionInfo.metadata;
+          const messages = agentSession.conversation || [];
           let initChat: ChatType = {
-            sessionId: agentSessionInfo.session_id,
-            title: sessionMetadata.recipe?.title || sessionMetadata.description,
+            sessionId: agentSession.id,
+            title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
-            messages: agentSessionInfo.messages.map((message: ApiMessage) =>
+            messages: messages.map((message: ApiMessage) =>
               convertApiMessageToFrontendMessage(message)
             ),
-            recipeConfig: sessionMetadata.recipe,
+            recipeConfig: agentSession.recipe,
           };
 
           setAgentState(AgentState.INITIALIZED);

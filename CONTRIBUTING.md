@@ -1,15 +1,91 @@
 # Contribution Guide
 
-Goose is open source!
+goose is open source!
 
 We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
 
 > [!TIP]
 > Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
+--- 
+
+## 🎉 Hacktoberfest 2025 🎉
+
+`goose` is a participating in Hacktoberfest 2025! We’re so excited for your contributions, and have created a wide variety of issues so that anyone can contribute. Whether you're a seasoned developer or a first-time open source contributor, there's something for everyone.
+
+### Here's how you can get started:
+
+1. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
+2. Skim the quick AI contribution tips below (and see the [full Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md) for details).
+3. Choose a task from this project's Hacktoberfest issues in our [Project Hub](https://github.com/block/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
+4. Comment ".take" on the corresponding issue to get assigned the task.
+5. Fork the repository and create a new branch for your work.
+6. Make your changes and submit a pull request.
+7. Wait for review and address any feedback.
+
+---
+
+### 🤖 Quick Responsible AI Tips
+
+If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:  
+
+**✅ Good Uses** 
+
+- Boilerplate code and common patterns  
+- Test generation  
+- Docs and comments  
+- Refactoring for clarity  
+- Utility functions/helpers  
+
+**❌ Avoid AI For** 
+
+- Security-critical logic  
+- Complex business rules you don’t understand  
+- Large architectural or schema changes  
+
+**Quality Checklist**  
+
+- Understand every line of code you submit  
+- All tests pass locally  
+- Code follows Goose’s patterns  
+- Document your changes  
+- Ask for review if security or core code is involved  
+
+👉 Full guide here: [Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md)
+
+---
+
+### 🏆 Leaderboard & Prizes
+
+Every hacktoberfest PR and contribution will earn you points on our [leaderboard](https://github.com/block/goose/issues/4775). Those who end up in the top 20 participants with the most points by the end of October will earn exclusive swag and LLM credits! As you have issues merged, here is a brief explanation on how our automatic points system works.
+
+#### Point System
+
+| Weight | Points Awarded | Description |
+|---------|-------------|-------------|
+| 🐭 **Small** | 5 points | For smaller tasks that take limited time to complete and/or don't require any product knowledge. |
+| 🐰 **Medium** | 10 points | For average tasks that take additional time to complete and/or require some product knowledge. |
+| 🐂 **Large** | 15 points | For heavy tasks that takes lots of time to complete and/or possibly require deep product knowledge. |
+
+#### Prizes You Can Win
+
+- **Top 5**: $100 gift card to our [brand new goose swag shop](https://www.gooseswag.xyz/) and $100 of LLM credits!
+- **Top 6-10**: $50 gift cards for goose swag shop and $50 of LLM credits!
+- **Top 11-20**: $25 of LLM credits!
+
+Keep an eye on your progress via our [Leaderboard](https://github.com/block/goose/issues/4775).
+
+### 👩‍ Need help?
+
+Need help or have questions? Feel free to reach out by connecting with us in our [Discord community](https://discord.gg/block-opensource) to get direct help from our team in the `#hacktoberfest` project channel.
+
+Happy contributing!
+
+---
+
 ## Prerequisites
 
-Goose includes rust binaries alongside an electron app for the GUI. To work
+goose includes rust binaries alongside an electron app for the GUI. To work
 on the rust backend, you will need to [install rust and cargo][rustup]. To work
 on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
 
@@ -92,6 +168,28 @@ This command regenerates `ui/desktop/openapi.json` and then runs the UI's
 `generate-api` script to rebuild the TypeScript client from that spec.
 
 Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
+
+### Debugging
+
+To debug the Goose server, you can run it from your preferred IDE. How to configure the command
+to start the server will depend on your IDE. The command to run is:
+
+```
+export GOOSE_SERVER__SECRET_KEY=test
+cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+```
+
+The server will start listening on port `3000` by default, but this can be changed by setting the
+`GOOSE_PORT` environment variable.
+
+Once the server is running, you can start a UI and connect it to the server by running:
+
+```
+just debug-ui
+```
+
+The UI will now be connected to the server you started in your IDE, allowing you to set breakpoints
+and step through the server code as you interact with the UI.
 
 ## Creating a fork
 
@@ -198,10 +296,10 @@ reuse it. For things like automations or to test without doing official setup, y
 set the relevant env vars for that provider. For example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 or `DATABRICKS_HOST`. Refer to the provider details for more info on required keys.
 
-## Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
+## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
 - Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
-- Set the environment variables so that Goose can connect to the langfuse server:
+- Set the environment variables so that goose can connect to the langfuse server:
 
 ```
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=publickey-local
@@ -229,14 +327,14 @@ git commit --signoff ...
 
 ## Other Ways to Contribute
 
-There are numerous ways to be an open source contributor and contribute to Goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
+There are numerous ways to be an open source contributor and contribute to goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
 
-- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our Goose on GitHub! 🌟
+- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our goose on GitHub! 🌟
 - **Ask Questions:** Your questions not only help us improve but also benefit the community. If you have a question, don't hesitate to ask it on [Discord](https://discord.gg/block-opensource).
-- **Give Feedback:** Have a feature you want to see or encounter an issue with Goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
+- **Give Feedback:** Have a feature you want to see or encounter an issue with goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
 - **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/goose_oss) to stay in touch.
 - **Improve Documentation:** Good documentation is key to the success of any project. You can help improve the quality of our existing docs or add new pages.
 - **Help Other Members:** See another community member stuck? Or a contributor blocked by a question you know the answer to? Reply to community threads or do a code review for others to help.
 - **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.
 - **Give Shoutouts:** Is there a project you love or a community/staff who's been especially helpful? Feel free to give them a shoutout in our [#general](https://discord.com/channels/1287729918100246654/1287729920797179957) channel.
-- **Spread the Word:** Help us reach more people by sharing Goose's project, website, YouTube, and/or Twitter/X.
+- **Spread the Word:** Help us reach more people by sharing goose's project, website, YouTube, and/or Twitter/X.

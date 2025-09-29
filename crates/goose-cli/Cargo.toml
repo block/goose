@@ -19,10 +19,9 @@ goose = { path = "../goose" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
-mcp-server = { path = "../mcp-server" }
 mcp-core = { path = "../mcp-core" }
 rmcp = { workspace = true }
-agent-client-protocol = "0.1.1"
+agent-client-protocol = "0.4.0"
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"

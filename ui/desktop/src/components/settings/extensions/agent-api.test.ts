@@ -61,7 +61,12 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      const response = await extensionApiCall('/extensions/add', mockExtensionConfig);
+      const response = await extensionApiCall(
+        '/extensions/add',
+        mockExtensionConfig,
+        {},
+        'test-session'
+      );
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/add', {
         method: 'POST',
@@ -69,7 +74,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify(mockExtensionConfig),
+        body: JSON.stringify({ ...mockExtensionConfig, session_id: 'test-session' }),
       });
 
       expect(mockToastService.loading).toHaveBeenCalledWith({
@@ -92,7 +97,12 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      const response = await extensionApiCall('/extensions/remove', 'test-extension');
+      const response = await extensionApiCall(
+        '/extensions/remove',
+        'test-extension',
+        {},
+        'test-session'
+      );
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/remove', {
         method: 'POST',
@@ -100,7 +110,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify('test-extension'),
+        body: JSON.stringify({ name: 'test-extension', session_id: 'test-session' }),
       });
 
       expect(mockToastService.loading).not.toHaveBeenCalled(); // No loading toast for removal
@@ -120,9 +130,9 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(extensionApiCall('/extensions/add', mockExtensionConfig)).rejects.toThrow(
-        'Server returned 500: Internal Server Error'
-      );
+      await expect(
+        extensionApiCall('/extensions/add', mockExtensionConfig, {}, 'test-session')
+      ).rejects.toThrow('Server returned 500: Internal Server Error');
 
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
@@ -139,9 +149,9 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(extensionApiCall('/extensions/add', mockExtensionConfig)).rejects.toThrow(
-        'Agent is not initialized. Please initialize the agent first.'
-      );
+      await expect(
+        extensionApiCall('/extensions/add', mockExtensionConfig, {}, 'test-session')
+      ).rejects.toThrow('Agent is not initialized. Please initialize the agent first.');
 
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
@@ -157,9 +167,9 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(extensionApiCall('/extensions/remove', 'test-extension')).rejects.toThrow(
-        'Error deactivating extension: Extension not found'
-      );
+      await expect(
+        extensionApiCall('/extensions/remove', 'test-extension', {}, 'test-session')
+      ).rejects.toThrow('Error deactivating extension: Extension not found');
 
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
@@ -175,7 +185,12 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      const response = await extensionApiCall('/extensions/add', mockExtensionConfig);
+      const response = await extensionApiCall(
+        '/extensions/add',
+        mockExtensionConfig,
+        {},
+        'test-session'
+      );
 
       expect(mockToastService.success).toHaveBeenCalledWith({
         title: 'test-extension',
@@ -189,9 +204,9 @@ describe('Agent API', () => {
       const networkError = new Error('Network error');
       mockFetch.mockRejectedValue(networkError);
 
-      await expect(extensionApiCall('/extensions/add', mockExtensionConfig)).rejects.toThrow(
-        'Network error'
-      );
+      await expect(
+        extensionApiCall('/extensions/add', mockExtensionConfig, {}, 'test-session')
+      ).rejects.toThrow('Network error');
 
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
@@ -207,7 +222,12 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await extensionApiCall('/extensions/add', mockExtensionConfig, { silent: true });
+      await extensionApiCall(
+        '/extensions/add',
+        mockExtensionConfig,
+        { silent: true },
+        'test-session'
+      );
 
       expect(mockToastService.configure).toHaveBeenCalledWith({ silent: true });
     });
@@ -232,7 +252,7 @@ describe('Agent API', () => {
       const { replaceWithShims } = await import('./utils');
       vi.mocked(replaceWithShims).mockResolvedValue('/path/to/python');
 
-      await addToAgent(mockExtensionConfig);
+      await addToAgent(mockExtensionConfig, {}, 'test-session');
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/add', {
         method: 'POST',
@@ -244,6 +264,7 @@ describe('Agent API', () => {
           ...mockExtensionConfig,
           name: 'testextension',
           cmd: '/path/to/python',
+          session_id: 'test-session',
         }),
       });
     });
@@ -256,7 +277,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(addToAgent(mockExtensionConfig)).rejects.toThrow(
+      await expect(addToAgent(mockExtensionConfig, {}, 'test-session')).rejects.toThrow(
         'Agent is not initialized. Please initialize the agent first.'
       );
     });
@@ -274,7 +295,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await addToAgent(sseConfig);
+      await addToAgent(sseConfig, {}, 'test-session');
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/add', {
         method: 'POST',
@@ -285,6 +306,7 @@ describe('Agent API', () => {
         body: JSON.stringify({
           ...sseConfig,
           name: 'sseextension',
+          session_id: 'test-session',
         }),
       });
     });
@@ -298,7 +320,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await removeFromAgent('Test Extension');
+      await removeFromAgent('Test Extension', {}, 'test-session');
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/remove', {
         method: 'POST',
@@ -306,7 +328,7 @@ describe('Agent API', () => {
           'Content-Type': 'application/json',
           'X-Secret-Key': 'secret-key',
         },
-        body: JSON.stringify('testextension'),
+        body: JSON.stringify({ name: 'testextension', session_id: 'test-session' }),
       });
     });
 
@@ -318,7 +340,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(removeFromAgent('Test Extension')).rejects.toThrow();
+      await expect(removeFromAgent('Test Extension', {}, 'test-session')).rejects.toThrow();
 
       expect(mockToastService.error).toHaveBeenCalled();
     });

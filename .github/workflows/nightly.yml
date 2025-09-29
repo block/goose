@@ -5,6 +5,12 @@ on:
   schedule:
     # Run at midnight US Eastern (0500 UTC)
     - cron: '0 5 * * *'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: false
+        default: 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,13 +24,22 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
       - name: Generate a nightly version
         id: set-version
         run: |
-          # Extract the version from Cargo.toml and add nightly tag with date
           VERSION=$(grep '^version\s*=' Cargo.toml | head -n 1 | cut -d\" -f2)
           DATE=$(date -u +%Y%m%d)
           VERSION="${VERSION}-nightly.${DATE}"
+
+          # validate
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}$ ]]; then
+            echo "Error: Invalid version format: $VERSION"
+            exit 1
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   build-cli:
@@ -73,8 +88,24 @@ jobs:
     needs: [prepare-version, build-cli, install-script, bundle-desktop, bundle-desktop-linux, bundle-desktop-windows]
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0  # Fetch all history for proper tagging
+
+      - name: Create tag
+        run: |
+          TAG="${{ needs.prepare-version.outputs.version }}"
+
+          echo "Creating tag: $TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Nightly release $TAG - SHA: ${{ github.sha }} - Run: ${{ github.run_number }}"
+          git push origin "$TAG"
+          echo "Tag $TAG created successfully"
 
       - name: Download all artifacts
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
@@ -91,7 +122,6 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
-            Goose*.zip
             *.deb
             *.rpm
             download_cli.sh
@@ -99,3 +129,4 @@ jobs:
           omitBody: true
           prerelease: true
           makeLatest: false
+          omitPrereleaseDuringUpdate: true

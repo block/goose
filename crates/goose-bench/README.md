@@ -1,6 +1,6 @@
-# Goose Benchmarking Framework
+# goose Benchmarking Framework
 
-The `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the Goose framework. This tool helps quantify model performance across various tasks and generate structured reports.
+The `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the goose framework. This tool helps quantify model performance across various tasks and generate structured reports.
 
 ## Features
 

@@ -6,7 +6,7 @@ import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
@@ -1325,7 +1325,7 @@ export default function ChatInput({
         </div>
 
         {/* Inline action buttons on the right */}
-        <div className="flex items-center gap-1 px-2 relative">
+        <div className="flex items-center gap-1 px-2 relative self-center">
           {/* Microphone button - show only if dictation is enabled */}
           {dictationSettings?.enabled && (
             <>
@@ -1472,7 +1472,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">

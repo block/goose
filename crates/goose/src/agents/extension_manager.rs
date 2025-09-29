@@ -80,7 +80,7 @@ impl Extension {
     }
 }
 
-/// Manages Goose extensions / MCP clients and their interactions
+/// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
 }

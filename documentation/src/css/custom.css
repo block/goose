@@ -241,9 +241,10 @@ html {
   padding-top: 24px;
 }
 
-.hero--logo svg {
-  height: 220px;
-  width: 220px;
+.hero--logo {
+  display: 'flex';
+  justify-content: 'center';
+  margin-bottom: '1rem' 
 }
 
 .pill-button {

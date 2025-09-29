@@ -219,11 +219,10 @@ pub async fn handle_schedule_sessions(id: String, limit: Option<u32>) -> Result<
                 // sessions is now Vec<(String, SessionMetadata)>
                 for (session_name, metadata) in sessions {
                     println!(
-                        "  - Session ID: {}, Working Dir: {}, Description: \"{}\", Messages: {}, Schedule ID: {:?}",
+                        "  - Session ID: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}",
                         session_name, // Display the session_name as Session ID
                         metadata.working_dir.display(),
                         metadata.description,
-                        metadata.message_count,
                         metadata.schedule_id.as_deref().unwrap_or("N/A")
                     );
                 }
@@ -333,7 +332,7 @@ pub async fn handle_schedule_services_stop() -> Result<()> {
 }
 
 pub async fn handle_schedule_cron_help() -> Result<()> {
-    println!("📅 Cron Expression Guide for Goose Scheduler");
+    println!("📅 Cron Expression Guide for goose Scheduler");
     println!("===========================================\\n");
 
     println!("🕐 HOURLY SCHEDULES (Most Common Request):");

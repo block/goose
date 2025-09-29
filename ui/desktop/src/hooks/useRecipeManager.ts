@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { createRecipe, Recipe, scanRecipe } from '../recipe';
 import { Message, createUserMessage } from '../types/message';
-import { updateSystemPromptWithParameters, substituteParameters } from '../utils/providerUtils';
+import {
+  updateSystemPromptWithParameters,
+  substituteParameters,
+  filterValidUsedParameters,
+} from '../utils/providerUtils';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
 
@@ -69,7 +73,21 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     checkRecipeAcceptance();
   }, [finalRecipeConfig]);
 
-  const requiresParameters = !!finalRecipeConfig?.parameters?.length;
+  // Filter parameters to only show valid ones that are actually used in the recipe
+  const filteredParameters = useMemo(() => {
+    if (!finalRecipeConfig?.parameters) {
+      return [];
+    }
+    return filterValidUsedParameters(finalRecipeConfig.parameters, {
+      prompt: finalRecipeConfig.prompt || undefined,
+      instructions: finalRecipeConfig.instructions || undefined,
+    });
+  }, [finalRecipeConfig]);
+
+  // Check if template variables are actually used in the recipe content
+  const requiresParameters = useMemo(() => {
+    return filteredParameters.length > 0;
+  }, [filteredParameters]);
   const hasParameters = !!recipeParameters;
   const hasMessages = messages.length > 0;
   useEffect(() => {
@@ -89,15 +107,12 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
       return '';
     }
 
-    const hasRequiredParams =
-      finalRecipeConfig.parameters && finalRecipeConfig.parameters.length > 0;
-
-    if (hasRequiredParams && recipeParameters) {
+    if (requiresParameters && recipeParameters) {
       return substituteParameters(finalRecipeConfig.prompt, recipeParameters);
     }
 
     return finalRecipeConfig.prompt;
-  }, [finalRecipeConfig, recipeParameters, recipeAccepted]);
+  }, [finalRecipeConfig, recipeParameters, recipeAccepted, requiresParameters]);
 
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
     setRecipeParameters(inputValues);
@@ -138,13 +153,10 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     isLoading: boolean,
     onAutoExecute?: () => void
   ) => {
-    const hasRequiredParams =
-      finalRecipeConfig?.parameters && finalRecipeConfig.parameters.length > 0;
-
     if (
       finalRecipeConfig?.isScheduledExecution &&
       finalRecipeConfig?.prompt &&
-      (!hasRequiredParams || recipeParameters) &&
+      (!requiresParameters || recipeParameters) &&
       messages.length === 0 &&
       !isLoading &&
       readyForAutoUserPrompt &&
@@ -183,6 +195,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
           messages: messagesRef.current,
           title: '',
           description: '',
+          session_id: chat.sessionId,
         };
 
         const response = await createRecipe(createRecipeRequest);
@@ -231,10 +244,11 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     return () => {
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
-  }, []);
+  }, [chat.sessionId]);
 
   return {
     recipeConfig: finalRecipeConfig,
+    filteredParameters,
     initialPrompt,
     isGeneratingRecipe,
     isParameterModalOpen,

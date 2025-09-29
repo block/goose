@@ -1,5 +1,4 @@
 use crate::state::AppState;
-use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -7,13 +6,11 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
-use goose::conversation::message::Message;
-use goose::conversation::Conversation;
+
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
-use goose::session;
-use goose::session::SessionMetadata;
+use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -23,12 +20,10 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -40,7 +35,6 @@ pub struct ExtendPromptResponse {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
     sub_recipes: Vec<SubRecipe>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -53,27 +47,23 @@ pub struct AddSubRecipesResponse {
 pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct SessionConfigRequest {
     response: Option<Response>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
-    #[allow(dead_code)]
     session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    #[allow(dead_code)]
     session_id: String,
 }
 
@@ -88,14 +78,6 @@ pub struct ResumeAgentRequest {
     session_id: String,
 }
 
-// This is the same as SessionHistoryResponse
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct StartAgentResponse {
-    session_id: String,
-    metadata: SessionMetadata,
-    messages: Vec<Message>,
-}
-
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
     error: String,
@@ -106,7 +88,7 @@ pub struct ErrorResponse {
     path = "/agent/start",
     request_body = StartAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -115,41 +97,28 @@ pub struct ErrorResponse {
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
-    state.reset().await;
-
-    let session_id = session::generate_session_id();
+) -> Result<Json<Session>, StatusCode> {
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let description = format!("New session {}", counter);
 
-    let metadata = SessionMetadata {
-        working_dir: PathBuf::from(&payload.working_dir),
-        description: format!("New session {}", counter),
-        schedule_id: None,
-        message_count: 0,
-        total_tokens: Some(0),
-        input_tokens: Some(0),
-        output_tokens: Some(0),
-        accumulated_total_tokens: Some(0),
-        accumulated_input_tokens: Some(0),
-        accumulated_output_tokens: Some(0),
-        extension_data: Default::default(),
-        recipe: payload.recipe,
-    };
+    let mut session =
+        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
+    if let Some(recipe) = payload.recipe {
+        SessionManager::update_session(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let conversation = Conversation::empty();
-    session::storage::save_messages_with_metadata(&session_path, &metadata, &conversation)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        session = SessionManager::get_session(&session.id, false)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
 
-    Ok(Json(StartAgentResponse {
-        session_id,
-        metadata,
-        messages: conversation.messages().clone(),
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(
@@ -157,7 +126,7 @@ async fn start_agent(
     path = "/agent/resume",
     request_body = ResumeAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 200, description = "Agent started successfully", body = Session),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -165,28 +134,12 @@ async fn start_agent(
 )]
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
-) -> Result<Json<StartAgentResponse>, StatusCode> {
-    let session_path =
-        match session::get_path(session::Identifier::Name(payload.session_id.clone())) {
-            Ok(path) => path,
-            Err(_) => return Err(StatusCode::BAD_REQUEST),
-        };
+) -> Result<Json<Session>, StatusCode> {
+    let session = SessionManager::get_session(&payload.session_id, true)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let conversation = match session::read_messages(&session_path) {
-        Ok(messages) => messages,
-        Err(e) => {
-            error!("Failed to read session messages: {:?}", e);
-            return Err(StatusCode::NOT_FOUND);
-        }
-    };
-
-    Ok(Json(StartAgentResponse {
-        session_id: payload.session_id.clone(),
-        metadata,
-        messages: conversation.messages().clone(),
-    }))
+    Ok(Json(session))
 }
 
 #[utoipa::path(
@@ -203,7 +156,7 @@ async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AddSubRecipesRequest>,
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.add_sub_recipes(payload.sub_recipes.clone()).await;
     Ok(Json(AddSubRecipesResponse { success: true }))
 }
@@ -222,7 +175,7 @@ async fn extend_prompt(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.extend_system_prompt(payload.extension.clone()).await;
     Ok(Json(ExtendPromptResponse { success: true }))
 }
@@ -247,7 +200,7 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = state.get_agent().await;
+    let agent = state.get_agent_for_route(query.session_id).await?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
@@ -298,35 +251,37 @@ async fn get_tools(
 async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, impl IntoResponse> {
-    let agent = state.get_agent().await;
+) -> Result<StatusCode, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
     let config = Config::global();
     let model = match payload
         .model
         .or_else(|| config.get_param("GOOSE_MODEL").ok())
     {
         Some(m) => m,
-        None => return Err((StatusCode::BAD_REQUEST, "No model specified".to_string())),
+        None => {
+            tracing::error!("No model specified");
+            return Err(StatusCode::BAD_REQUEST);
+        }
     };
 
     let model_config = ModelConfig::new(&model).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid model config: {}", e),
-        )
+        tracing::error!("Invalid model config: {}", e);
+        StatusCode::BAD_REQUEST
     })?;
 
     let new_provider = create(&payload.provider, model_config).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create provider: {}", e),
-        )
+        tracing::error!("Failed to create provider: {}", e);
+        StatusCode::BAD_REQUEST
     })?;
 
-    agent
-        .update_provider(new_provider)
-        .await
-        .map_err(|_e| (StatusCode::INTERNAL_SERVER_ERROR, String::new()))?;
+    agent.update_provider(new_provider).await.map_err(|e| {
+        tracing::error!("Failed to update provider: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(StatusCode::OK)
 }
@@ -344,17 +299,15 @@ async fn update_agent_provider(
 )]
 async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
-    Json(_payload): Json<UpdateRouterToolSelectorRequest>,
-) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = state.get_agent().await;
+    Json(payload): Json<UpdateRouterToolSelectorRequest>,
+) -> Result<Json<String>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     agent
         .update_router_tool_selector(None, Some(true))
         .await
         .map_err(|e| {
             tracing::error!("Failed to update tool selection strategy: {}", e);
-            Json(ErrorResponse {
-                error: format!("Failed to update tool selection strategy: {}", e),
-            })
+            StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     Ok(Json(
@@ -376,8 +329,8 @@ async fn update_router_tool_selector(
 async fn update_session_config(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SessionConfigRequest>,
-) -> Result<Json<String>, Json<ErrorResponse>> {
-    let agent = state.get_agent().await;
+) -> Result<Json<String>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
     if let Some(response) = payload.response {
         agent.add_final_output_tool(response).await;
 
