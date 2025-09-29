@@ -114,7 +114,7 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
     remove_sessions(matched_sessions).await
 }
 
-pub async fn handle_session_list(verbose: bool, format: String, ascending: bool, path: Option<PathBuf>, limit: Option<u32>) -> Result<()> {
+pub async fn handle_session_list(verbose: bool, format: String, ascending: bool, path: Option<PathBuf>, limit: Option<usize>) -> Result<()> {
     let mut sessions = SessionManager::list_sessions().await?;
 
     if let Some(ref pat) = path {
@@ -134,7 +134,7 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool,
     }
 
     if let Some(n) = limit {
-        sessions.truncate(n as usize);
+        sessions.truncate(n);
     }
 
     match format.as_str() {

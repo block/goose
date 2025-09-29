@@ -128,7 +128,7 @@ enum SessionCommand {
             long = "limit",
             help = "Limit the number of results",
         )]
-        limit: Option<u32>,
+        limit: Option<usize>,
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
@@ -198,7 +198,7 @@ enum SchedulerCommand {
         id: String,
         /// Maximum number of sessions to return
         #[arg(long, help = "Maximum number of sessions to return")]
-        limit: Option<u32>,
+        limit: Option<usize>,
     },
     /// Run a scheduled job immediately
     #[command(about = "Run a scheduled job immediately")]
