@@ -269,6 +269,11 @@ impl TemporalScheduler {
         self.port_config.ui_port
     }
 
+    // Helper function to get the secret key from environment or use default
+    fn get_secret_key() -> String {
+        std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string())
+    }
+
     async fn start_go_service(&self) -> Result<(), SchedulerError> {
         info!(
             "Starting Temporal Go service on port {}...",
@@ -306,15 +311,11 @@ impl TemporalScheduler {
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
         let mut command = Command::new(&binary_path);
-        
-        // Get the secret key from environment or use default
-        let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
-            .unwrap_or_else(|_| "test".to_string());  // Use the same default as the Goose server
-        
+                
         command
             .current_dir(working_dir)
             .env("PORT", self.port_config.http_port.to_string())
-            .env("TEMPORAL_SECRET_KEY", &secret_key);  // Pass existing secret key to Go process
+            .env("TEMPORAL_SECRET_KEY", Self::get_secret_key());  // Pass existing secret key to Go process
 
         // Platform-specific process configuration based on Electron app approach
         #[cfg(windows)]
@@ -1029,10 +1030,6 @@ impl TemporalScheduler {
     async fn make_request(&self, request: JobRequest) -> Result<JobResponse, SchedulerError> {
         let url = format!("{}/jobs", self.service_url);
 
-        // Get the secret key from environment or use a default
-        let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
-            .unwrap_or_else(|_| "test".to_string());
-
         tracing::info!(
             "TemporalScheduler: Making HTTP request to {} with action '{}'",
             url,
@@ -1042,7 +1039,7 @@ impl TemporalScheduler {
         let response = self
             .http_client
             .post(&url)
-            .header("X-Secret-Key", secret_key)  // Add the secret key header
+            .header("X-Secret-Key", Self::get_secret_key())  // Add the secret key header
             .json(&request)
             .send()
             .await
@@ -1053,7 +1050,7 @@ impl TemporalScheduler {
         // Check specifically for 401 Unauthorized
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
             return Err(SchedulerError::SchedulerInternalError(
-                "Authentication failed: Invalid or missing X-Secret-Key".to_string()
+                "Authentication failed: Invalid or missing X-Secret-Key".to_string(),
             ));
         }
 
