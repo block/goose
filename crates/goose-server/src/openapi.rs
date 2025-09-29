@@ -3,10 +3,11 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
-use goose::session::info::SessionInfo;
-use goose::session::SessionMetadata;
+
+use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -46,8 +47,6 @@ macro_rules! derive_utoipa {
 }
 
 fn convert_schemars_to_utoipa(schema: rmcp::schemars::Schema) -> RefOr<Schema> {
-    // For schemars 1.0+, we need to work with the public API
-    // The schema is now a wrapper around a JSON Value that can be either an object or bool
     if let Some(true) = schema.as_bool() {
         return RefOr::T(Schema::Object(ObjectBuilder::new().build()));
     }
@@ -56,12 +55,10 @@ fn convert_schemars_to_utoipa(schema: rmcp::schemars::Schema) -> RefOr<Schema> {
         return RefOr::T(Schema::Object(ObjectBuilder::new().build()));
     }
 
-    // For object schemas, we'll need to work with the JSON Value directly
     if let Some(obj) = schema.as_object() {
         return convert_json_object_to_utoipa(obj);
     }
 
-    // Fallback
     RefOr::T(Schema::Object(ObjectBuilder::new().build()))
 }
 
@@ -70,12 +67,10 @@ fn convert_json_object_to_utoipa(
 ) -> RefOr<Schema> {
     use serde_json::Value;
 
-    // Handle $ref
     if let Some(Value::String(reference)) = obj.get("$ref") {
         return RefOr::Ref(Ref::new(reference.clone()));
     }
 
-    // Handle oneOf, allOf, anyOf
     if let Some(Value::Array(one_of)) = obj.get("oneOf") {
         let mut builder = OneOfBuilder::new();
         for item in one_of {
@@ -106,11 +101,9 @@ fn convert_json_object_to_utoipa(
         return RefOr::T(Schema::AnyOf(builder.build()));
     }
 
-    // Handle type-based schemas
     match obj.get("type") {
         Some(Value::String(type_str)) => convert_typed_schema(type_str, obj),
         Some(Value::Array(types)) => {
-            // Multiple types - use AnyOf
             let mut builder = AnyOfBuilder::new();
             for type_val in types {
                 if let Value::String(type_str) = type_val {
@@ -120,7 +113,7 @@ fn convert_json_object_to_utoipa(
             RefOr::T(Schema::AnyOf(builder.build()))
         }
         None => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-        _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())), // Handle other value types
+        _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
     }
 }
 
@@ -134,7 +127,6 @@ fn convert_typed_schema(
         "object" => {
             let mut object_builder = ObjectBuilder::new();
 
-            // Add properties
             if let Some(Value::Object(properties)) = obj.get("properties") {
                 for (name, prop_value) in properties {
                     if let Ok(prop_schema) = rmcp::schemars::Schema::try_from(prop_value.clone()) {
@@ -144,7 +136,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Add required fields
             if let Some(Value::Array(required)) = obj.get("required") {
                 for req in required {
                     if let Value::String(field_name) = req {
@@ -153,7 +144,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Handle additional properties
             if let Some(additional) = obj.get("additionalProperties") {
                 match additional {
                     Value::Bool(false) => {
@@ -179,7 +169,6 @@ fn convert_typed_schema(
         "array" => {
             let mut array_builder = ArrayBuilder::new();
 
-            // Add items schema
             if let Some(items) = obj.get("items") {
                 match items {
                     Value::Object(_) | Value::Bool(_) => {
@@ -189,7 +178,6 @@ fn convert_typed_schema(
                         }
                     }
                     Value::Array(item_schemas) => {
-                        // Multiple item types - use AnyOf
                         let mut any_of = AnyOfBuilder::new();
                         for item in item_schemas {
                             if let Ok(schema) = rmcp::schemars::Schema::try_from(item.clone()) {
@@ -203,7 +191,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Add constraints
             if let Some(Value::Number(min_items)) = obj.get("minItems") {
                 if let Some(min) = min_items.as_u64() {
                     array_builder = array_builder.min_items(Some(min as usize));
@@ -329,7 +316,6 @@ derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(Icon as IconSchema);
 
-#[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -361,7 +347,10 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
-        super::routes::session::get_session_history,
+        super::routes::session::get_session,
+        super::routes::session::get_session_insights,
+        super::routes::session::update_session_description,
+        super::routes::session::delete_session,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -396,7 +385,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
-        super::routes::session::SessionHistoryResponse,
+        super::routes::session::UpdateSessionDescriptionRequest,
         Message,
         MessageContent,
         MessageMetadata,
@@ -431,10 +420,11 @@ derive_utoipa!(Icon as IconSchema);
         PermissionLevel,
         PrincipalType,
         ModelInfo,
-        SessionInfo,
-        SessionMetadata,
+        Session,
+        SessionInsights,
+        Conversation,
         IconSchema,
-        goose::session::ExtensionData,
+        goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,
         super::routes::schedule::KillJobResponse,
@@ -476,7 +466,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::agent::StartAgentResponse,
         super::routes::agent::ErrorResponse,
         super::routes::setup::SetupResponse,
     ))

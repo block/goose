@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use goose::agents::Agent;
 use goose::scheduler::{ScheduledJob, SchedulerError};
 use goose::scheduler_trait::SchedulerTrait;
-use goose::session::storage::SessionMetadata;
+use goose::session::Session;
 
 #[derive(Debug, Clone)]
 pub enum MockBehavior {
@@ -30,7 +30,7 @@ pub struct ConfigurableMockScheduler {
     call_log: Arc<Mutex<Vec<String>>>,
     behaviors: Arc<Mutex<HashMap<String, MockBehavior>>>,
     #[allow(clippy::type_complexity)]
-    sessions_data: Arc<Mutex<HashMap<String, Vec<(String, SessionMetadata)>>>>,
+    sessions_data: Arc<Mutex<HashMap<String, Vec<(String, Session)>>>>,
 }
 
 #[allow(dead_code)]
@@ -184,7 +184,7 @@ impl SchedulerTrait for ConfigurableMockScheduler {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
         self.log_call("sessions").await;
 
         match self.get_behavior("sessions").await {
@@ -362,11 +362,7 @@ impl ScheduleToolTestBuilder {
         self
     }
 
-    pub async fn with_sessions_data(
-        self,
-        job_id: &str,
-        sessions: Vec<(String, SessionMetadata)>,
-    ) -> Self {
+    pub async fn with_sessions_data(self, job_id: &str, sessions: Vec<(String, Session)>) -> Self {
         {
             let mut sessions_data = self.scheduler.sessions_data.lock().await;
             sessions_data.insert(job_id.to_string(), sessions);
@@ -381,13 +377,14 @@ impl ScheduleToolTestBuilder {
     }
 }
 
-// Helper function to create test session metadata
-pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> SessionMetadata {
-    SessionMetadata {
-        message_count,
+pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> Session {
+    Session {
+        id: "".to_string(),
         working_dir: PathBuf::from(working_dir),
         description: "Test session".to_string(),
+        created_at: "".to_string(),
         schedule_id: Some("test_job".to_string()),
+        recipe: None,
         total_tokens: Some(100),
         input_tokens: Some(50),
         output_tokens: Some(50),
@@ -395,6 +392,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
         extension_data: Default::default(),
-        recipe: None,
+        updated_at: "".to_string(),
+        conversation: None,
+        message_count,
     }
 }

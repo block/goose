@@ -19,14 +19,14 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use url::Url;
 
-/// Represents a single Goose session for ACP
+/// Represents a single goose session for ACP
 struct GooseSession {
     messages: Conversation,
     tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
     cancel_token: Option<CancellationToken>, // Active cancellation token for prompt processing
 }
 
-/// Goose ACP Agent implementation that connects to real Goose agents
+/// goose ACP Agent implementation that connects to real goose agents
 struct GooseAcpAgent {
     session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     sessions: Arc<Mutex<HashMap<String, GooseSession>>>,

@@ -1,5 +1,5 @@
 ---
-title: "Automate Your Complex Workflows with Sub-Recipes in goose"
+title: "Automate Your Complex Workflows with Subrecipes in goose"
 description: Did you know you can call recipes from within other recipes? Learn how to orchestrate multiple AI tasks using goose subrecipes.
 authors: 
     - ian
@@ -30,8 +30,8 @@ version: 1.0.0
 title: "Complete Project Setup"
 description: "Creates a full project with README, image, and code using specialized models"
 instructions: |
-  You are a project orchestrator. Execute the sub-recipes to create a complete project setup.
-  Each sub-recipe is specialized for its task and uses the optimal model and instructions for that work.
+  You are a project orchestrator. Execute the subrecipes to create a complete project setup.
+  Each subrecipe is specialized for its task and uses the optimal model and instructions for that work.
   
   EXECUTION ORDER: 
   - Run image-creator and code-writer first, in parallel
@@ -388,14 +388,14 @@ Browse [existing recipes](https://github.com/block/goose/tree/main/documentation
 
 
 <head>
-  <meta property="og:title" content="Automate Your Complex Workflows with Sub-Recipes in goose" />
+  <meta property="og:title" content="Automate Your Complex Workflows with Subrecipes in goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025-09-15-subrecipes-in-goose" />
   <meta property="og:description" content="Did you know you can call recipes from within other recipes? Learn how to orchestrate multiple AI tasks using goose subrecipes." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-1ca4aa4dfeff06727aaaadd9b01141fb.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-8a009154ceca95aeb34bf22fcc45dcca.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Automate Your Complex Workflows with Sub-Recipes in goose" />
+  <meta name="twitter:title" content="Automate Your Complex Workflows with Subrecipes in goose" />
   <meta name="twitter:description" content="Did you know you can call recipes from within other recipes? Learn how to orchestrate multiple AI tasks using goose subrecipes." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-1ca4aa4dfeff06727aaaadd9b01141fb.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-subrecipes-8a009154ceca95aeb34bf22fcc45dcca.png" />
 </head>

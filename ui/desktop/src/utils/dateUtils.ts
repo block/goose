@@ -1,4 +1,4 @@
-import { Session } from '../sessions';
+import { Session } from '../api';
 
 export interface DateGroup {
   label: string;
@@ -16,7 +16,7 @@ export function groupSessionsByDate(sessions: Session[]): DateGroup[] {
   const groups: { [key: string]: DateGroup } = {};
 
   sessions.forEach((session) => {
-    const sessionDate = new Date(session.modified);
+    const sessionDate = new Date(session.updated_at);
     const sessionDateStart = new Date(sessionDate);
     sessionDateStart.setHours(0, 0, 0, 0);
 

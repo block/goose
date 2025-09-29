@@ -1,6 +1,6 @@
-# 🍳 Contributing Recipes to Goose Cookbook
+# 🍳 Contributing Recipes to goose Cookbook
 
-Thank you for your interest in contributing to the Goose Recipe Cookbook! This guide will walk you through the process of submitting your own recipe.
+Thank you for your interest in contributing to the goose Recipe Cookbook! This guide will walk you through the process of submitting your own recipe.
 
 ## 💰 Get Rewarded
 

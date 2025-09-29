@@ -236,6 +236,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_agent_with_anthropic() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Anthropic,
+            model: "claude-sonnet-4",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_agent_with_azure() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Azure,
@@ -354,10 +364,9 @@ mod schedule_tool_tests {
     use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
-    use goose::session::storage::SessionMetadata;
+    use goose::session::Session;
     use std::sync::Arc;
 
-    // Mock scheduler for testing
     struct MockScheduler {
         jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
     }
@@ -409,7 +418,7 @@ mod schedule_tool_tests {
             &self,
             _sched_id: &str,
             _limit: usize,
-        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+        ) -> Result<Vec<(String, Session)>, SchedulerError> {
             Ok(vec![])
         }
 
@@ -843,7 +852,7 @@ mod final_output_tool_tests {
 mod retry_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::agents::types::{RetryConfig, SuccessCheck};
     use goose::conversation::message::Message;
     use goose::conversation::Conversation;
     use goose::model::ModelConfig;
@@ -929,21 +938,10 @@ mod retry_tests {
             "Valid config should pass validation"
         );
 
-        let session_config = SessionConfig {
-            id: goose::session::Identifier::Name("test-retry".to_string()),
-            working_dir: std::env::current_dir()?,
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: Some(retry_config),
-        };
-
         let conversation =
             Conversation::new(vec![Message::user().with_text("Complete this task")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1041,10 +1039,8 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use goose::session::storage::Identifier;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Tool;
-    use std::path::PathBuf;
 
     struct MockToolProvider {}
 
@@ -1106,21 +1102,9 @@ mod max_turns_tests {
         let provider = Arc::new(MockToolProvider::new());
         agent.update_provider(provider).await?;
         // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
-
-        // Create session config with max_turns = 1
-        let session_config = goose::agents::SessionConfig {
-            id: Identifier::Name("test_session".to_string()),
-            working_dir: PathBuf::from("/tmp"),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: Some(1),
-            retry_config: None,
-        };
         let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();

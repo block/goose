@@ -15,7 +15,6 @@ import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
-import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
 
 import { ChatType } from './types/chat';
@@ -321,7 +320,7 @@ export function AppInner() {
   const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
-    sessionId: generateSessionId(),
+    sessionId: '',
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,

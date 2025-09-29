@@ -91,16 +91,16 @@ export class GitHubUpdater {
       if (platform === 'darwin') {
         // macOS
         if (arch === 'arm64') {
-          assetName = 'Goose.zip';
+          assetName = 'goose.zip';
         } else {
-          assetName = 'Goose_intel_mac.zip';
+          assetName = 'goose_intel_mac.zip';
         }
       } else if (platform === 'win32') {
         // Windows - for future support
-        assetName = 'Goose-win32-x64.zip';
+        assetName = 'goose-win32-x64.zip';
       } else {
         // Linux - for future support
-        assetName = `Goose-linux-${arch}.zip`;
+        assetName = `goose-linux-${arch}.zip`;
       }
 
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
@@ -185,7 +185,7 @@ export class GitHubUpdater {
 
       // Save to Downloads directory
       const downloadsDir = path.join(os.homedir(), 'Downloads');
-      const fileName = `Goose-${latestVersion}.zip`;
+      const fileName = `goose-${latestVersion}.zip`;
       const downloadPath = path.join(downloadsDir, fileName);
 
       await fs.writeFile(downloadPath, buffer);

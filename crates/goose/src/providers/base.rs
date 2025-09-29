@@ -31,6 +31,8 @@ pub fn get_current_model() -> Option<String> {
     CURRENT_MODEL.lock().ok().and_then(|model| model.clone())
 }
 
+pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -454,7 +456,7 @@ pub trait Provider: Send + Sync {
         messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
-            .take(3)
+            .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
             .map(|m| m.as_concat_text())
             .collect()
     }
@@ -476,7 +478,12 @@ pub trait Provider: Send + Sync {
             )
             .await?;
 
-        let description = result.0.as_concat_text();
+        let description = result
+            .0
+            .as_concat_text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
 
         Ok(safe_truncate(&description, 100))
     }

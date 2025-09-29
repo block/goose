@@ -1,7 +1,7 @@
 ---
 draft: false
-title: "Resolving CI Issues with Goose: A Practical Walkthrough"
-description: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
+title: "Resolving CI Issues with goose: A Practical Walkthrough"
+description: "Leverage goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
 date: 2024-12-11
 authors:
   - dalton
@@ -9,12 +9,12 @@ authors:
 
 ![CI](goose-github-ci.png)
 
-Running into Continuous Integration (CI) failures in pull requests can be quite frustrating but they happen very often. In this post, we leverage the GitHub CLI (`gh`) using Goose to simplify your CI debugging process, fetch detailed information about failed CI runs and annotations directly from GitHub, and even apply fixes directly.
+Running into Continuous Integration (CI) failures in pull requests can be quite frustrating but they happen very often. In this post, we leverage the GitHub CLI (`gh`) using goose to simplify your CI debugging process, fetch detailed information about failed CI runs and annotations directly from GitHub, and even apply fixes directly.
 
 <!-- truncate -->
 
-:::warning Goose Beta Version
-This post was written about a beta version of Goose and the commands and flow may have changed.
+:::warning goose Beta Version
+This post was written about a beta version of goose and the commands and flow may have changed.
 :::
 
 
@@ -24,7 +24,7 @@ Before diving in, ensure you have the necessary tools set up.
 
 ### 1. Install and Authenticate GitHub CLI (`gh`)
 
-You'll need the [GitHub CLI](https://cli.github.com/) `gh` to enable Goose's access to CI check run details.  
+You'll need the [GitHub CLI](https://cli.github.com/) `gh` to enable goose's access to CI check run details.  
 
 ```bash
 brew install gh
@@ -34,8 +34,8 @@ gh auth login
 Follow the prompts to authenticate your account.
 
 
-### 2. Configure Goose
-Ensure Goose is configured and ready to interact with your repository and local tools. Specifically, you will need to configure a goose profile with the GitHub toolkit.
+### 2. Configure goose
+Ensure goose is configured and ready to interact with your repository and local tools. Specifically, you will need to configure a goose profile with the GitHub toolkit.
 
 Update your `profiles.yaml` file in `~/.config/goose` with the necessary toolkits:
 
@@ -56,13 +56,13 @@ Start a session with the profile:
 ```bash
 goose session start --profile my-profile
 ```
-If the profile’s toolkits are not correctly configured, Goose might fail to access `gh` commands.
+If the profile’s toolkits are not correctly configured, goose might fail to access `gh` commands.
 
-## Resolving CI Failures with Goose
-Once everything is set up, we can now use Goose to tackle CI issues with the following steps:
+## Resolving CI Failures with goose
+Once everything is set up, we can now use goose to tackle CI issues with the following steps:
 
 ### Step 1: Fetch CI Failure Details
-Ask Goose to retrieve information about the CI failures for a specific PR.
+Ask goose to retrieve information about the CI failures for a specific PR.
 
 **Example Request:**
 
@@ -73,20 +73,20 @@ Can you tell me about the CI failures on PR #11111 in the organization/repo repo
 
 You can access a check run ID by clicking on a PR’s checks tab and selecting a failure. The ID will be available in the URL.
 
-**Goose's Workflow:**
+**goose's Workflow:**
 
-Goose will use the `gh` CLI to check run information and provide a detailed summary of the issues. Goose uses the GitHub CLI to:
+goose will use the `gh` CLI to check run information and provide a detailed summary of the issues. goose uses the GitHub CLI to:
 
 - Fetch details about failed CI runs, including logs and annotations.
 - Provide a clear and actionable summary of issues.
 
-**Example Command Goose Runs:**
+**Example Command goose Runs:**
 
 ```curl
 gh api -H "Accept: application/vnd.github+json" /repos/<owner>/<repo>/check-runs/<check-run-id>/annotations
 ```
 
-**Example Goose Output:**
+**Example goose Output:**
 ```mathematica
 Here are the details for Check Run ID 123456:
 
@@ -110,8 +110,8 @@ Here are the details for Check Run ID 123456:
    Line: 98  
    Error: Type mismatch in returned value. Expected 'String', found 'Int'.  
 ```
-### Step 2: Request Fixes from Goose
-Once Goose provides the failure details, ask it to resolve the issues directly.
+### Step 2: Request Fixes from goose
+Once goose provides the failure details, ask it to resolve the issues directly.
 
 Example Request:
 
@@ -119,13 +119,13 @@ Example Request:
 Can you fix these issues and stage the changes so I can review them? Do not add unnecessary code comments.
 ```
 
-**What Goose Does:**
+**What goose Does:**
 
 - Applies fixes based on error messages.
 - Stages changes for review.
 
 
-**Example Goose Response:**
+**Example goose Response:**
 ```markdown
 I have fixed the following files and staged them:
 
@@ -148,26 +148,26 @@ Carefully review the staged changes to ensure they address the issues correctly 
 
 If needed, clean up or re-stage the changes before committing.
 
-## Benefits of Using Goose
-Using Goose to resolve CI issues streamlines your workflow by:
+## Benefits of Using goose
+Using goose to resolve CI issues streamlines your workflow by:
 
 - identifying issues and applying fixes with minimal manual effort.
 - integrating with tools like the GitHub CLI to validate changes.
 - handling repetitive CI debugging tasks while you focus on code quality.
 
-Goose allows you to resolve CI failures efficiently, ensuring confidence in your workflow while reducing the effort required for debugging and testing.
+goose allows you to resolve CI failures efficiently, ensuring confidence in your workflow while reducing the effort required for debugging and testing.
 
-Try it out, and let Goose handle the heavy lifting of CI debugging for you!
+Try it out, and let goose handle the heavy lifting of CI debugging for you!
 
 <head>
-  <meta property="og:title" content="Resolving CI Issues with Goose: A Practical Walkthrough" />
+  <meta property="og:title" content="Resolving CI Issues with goose: A Practical Walkthrough" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/11/resolving-ci-issues-with-goose-a-practical-walkthrough" />
-  <meta property="og:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
+  <meta property="og:description" content="Leverage goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-github-ci-30930008ab57b0aebae15a03c73a12b5.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Resolving CI Issues with Goose: A Practical Walkthrough" />
-  <meta name="twitter:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
+  <meta name="twitter:title" content="Resolving CI Issues with goose: A Practical Walkthrough" />
+  <meta name="twitter:description" content="Leverage goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-github-ci-30930008ab57b0aebae15a03c73a12b5.png" />
 </head>

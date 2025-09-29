@@ -2,9 +2,9 @@
 
 ---
 
-We want everyone to use Goose safely and responsibly. You agree you will not use, or allow others to use, Goose to:
+We want everyone to use goose safely and responsibly. You agree you will not use, or allow others to use, goose to:
 
-### 1. Violate the law or others’ rights, including use of Goose to:
+### 1. Violate the law or others’ rights, including use of goose to:
 
 a. Engage in, promote, generate, contribute to, encourage, plan, incite, or further illegal or unlawful activity or content, such as:
    - Violence or terrorism
@@ -26,7 +26,7 @@ f. Infringe or misappropriate any third-party rights, including intellectual pro
 
 g. Create, generate, or facilitate the creation of malicious code, malware, computer viruses, or do anything else in an intentional or malicious way without third-party consent that could disable, overburden, interfere with, or impair the proper working, integrity, operation, or appearance of a website or computer system.
 
-### 2. Engage in, promote, incite, facilitate, or assist in the planning or development of activities that present a risk of death or bodily harm to individuals, including use of Goose related to the following:
+### 2. Engage in, promote, incite, facilitate, or assist in the planning or development of activities that present a risk of death or bodily harm to individuals, including use of goose related to the following:
 
 a. Guns and illegal weapons (including weapon development).
 
@@ -34,7 +34,7 @@ b. Illegal drugs and regulated/controlled substances.
 
 c. Any content intended to incite or promote violence, abuse, or any infliction of bodily harm to an individual.
 
-### 3. Intentionally deceive or mislead others or engage in other abusive or fraudulent activities, including use of Goose related to the following:
+### 3. Intentionally deceive or mislead others or engage in other abusive or fraudulent activities, including use of goose related to the following:
 
 a. Generating, promoting, or furthering fraud or fraudulent activities, scams, phishing, or malware.
 
@@ -50,7 +50,7 @@ f. Compromising security systems or gaining unauthorized access to computer syst
 
 ---
 
-You also agree that you will not use, or allow others to use, Goose in violation of any agreements that you have with, or commitments you have made to, third parties. This may include any licenses, agreements, and other terms that apply to the models you use with Goose.
+You also agree that you will not use, or allow others to use, goose in violation of any agreements that you have with, or commitments you have made to, third parties. This may include any licenses, agreements, and other terms that apply to the models you use with goose.
 
 ---
 
