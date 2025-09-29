@@ -74,7 +74,6 @@ enum TestMode {
     Playback,
 }
 
-#[ignore = "flaky"]
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
     vec![
