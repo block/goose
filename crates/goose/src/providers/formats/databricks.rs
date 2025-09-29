@@ -5,9 +5,9 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
+use mcp_core::ToolCall;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -109,7 +109,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 "type": "function",
                                 "function": {
                                     "name": sanitized_name,
-                                    "arguments": tool_call.arguments,
+                                    "arguments": tool_call.arguments.to_string(),
                                 }
                             }));
                         }
@@ -286,7 +286,6 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert Databricks' API response to internal Message format
-#[allow(clippy::too_many_lines)]
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
@@ -374,10 +373,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
+                                Ok(ToolCall::new(&function_name, params)),
                             ));
                         }
                         Err(e) => {
@@ -775,10 +771,7 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
-                    name: "example".into(),
-                    arguments: Some(object!({"param1": "value1"})),
-                }),
+                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
             ),
         ];
 
@@ -814,10 +807,7 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
-                name: "example".into(),
-                arguments: Some(object!({"param1": "value1"})),
-            }),
+            Ok(ToolCall::new("example", json!({"param1": "value1"}))),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -966,7 +956,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
+            assert_eq!(tool_call.arguments, json!({"param": "value"}));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1037,7 +1027,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, Some(object!({})));
+            assert_eq!(tool_call.arguments, json!({}));
         } else {
             panic!("Expected ToolRequest content");
         }

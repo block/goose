@@ -3,6 +3,8 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
+use mcp_core::handler::require_str_parameter;
+use mcp_core::ToolCall;
 use rmcp::service::ClientInitializeError;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{
@@ -25,13 +27,12 @@ use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, Extension
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use crate::config::{Config, ExtensionConfigManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
+use mcp_client::client::{McpClient, McpClientTrait};
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
-    ServerInfo, Tool,
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
@@ -132,24 +133,6 @@ fn normalize(input: String) -> String {
         });
     }
     result.to_lowercase()
-}
-
-fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a str, ErrorData> {
-    let v = v.get(name).ok_or_else(|| {
-        ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!("The parameter {name} is required"),
-            None,
-        )
-    })?;
-    match v.as_str() {
-        Some(r) => Ok(r),
-        None => Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!("The parameter {name} must be a string"),
-            None,
-        )),
-    }
 }
 
 pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
@@ -621,7 +604,6 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
         let uri = require_str_parameter(&params, "uri")?;
-
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up
@@ -823,7 +805,7 @@ impl ExtensionManager {
 
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: CallToolRequestParam,
+        tool_call: ToolCall,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Dispatch tool call based on the prefix naming convention
@@ -1060,9 +1042,10 @@ impl ExtensionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcp_client::client::Error;
+    use mcp_client::client::McpClientTrait;
     use rmcp::model::CallToolResult;
-    use rmcp::model::{InitializeResult, JsonObject};
-    use rmcp::{object, ServiceError as Error};
+    use rmcp::model::InitializeResult;
 
     use rmcp::model::ListPromptsResult;
     use rmcp::model::ListResourcesResult;
@@ -1163,7 +1146,7 @@ mod tests {
         async fn call_tool(
             &self,
             name: &str,
-            _arguments: Option<JsonObject>,
+            _arguments: Value,
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
@@ -1286,9 +1269,9 @@ mod tests {
             .await;
 
         // verify a normal tool call
-        let tool_call = CallToolRequestParam {
-            name: "test_client__tool".to_string().into(),
-            arguments: Some(object!({})),
+        let tool_call = ToolCall {
+            name: "test_client__tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1296,9 +1279,9 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
-            name: "test_client__test__tool".to_string().into(),
-            arguments: Some(object!({})),
+        let tool_call = ToolCall {
+            name: "test_client__test__tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1307,9 +1290,9 @@ mod tests {
         assert!(result.is_ok());
 
         // verify a multiple underscores dispatch
-        let tool_call = CallToolRequestParam {
-            name: "__cli__ent____tool".to_string().into(),
-            arguments: Some(object!({})),
+        let tool_call = ToolCall {
+            name: "__cli__ent____tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1318,9 +1301,9 @@ mod tests {
         assert!(result.is_ok());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
-        let tool_call = CallToolRequestParam {
-            name: "client___tool".to_string().into(),
-            arguments: Some(object!({})),
+        let tool_call = ToolCall {
+            name: "client___tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1328,9 +1311,9 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
-            name: "client___test__tool".to_string().into(),
-            arguments: Some(object!({})),
+        let tool_call = ToolCall {
+            name: "client___test__tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1339,9 +1322,9 @@ mod tests {
         assert!(result.is_ok());
 
         // this should error out, specifically for an ToolError::ExecutionError
-        let invalid_tool_call = CallToolRequestParam {
-            name: "client___tools".to_string().into(),
-            arguments: Some(object!({})),
+        let invalid_tool_call = ToolCall {
+            name: "client___tools".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1360,9 +1343,9 @@ mod tests {
 
         // this should error out, specifically with an ToolError::NotFound
         // this client doesn't exist
-        let invalid_tool_call = CallToolRequestParam {
-            name: "_client__tools".to_string().into(),
-            arguments: Some(object!({})),
+        let invalid_tool_call = ToolCall {
+            name: "_client__tools".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1444,9 +1427,9 @@ mod tests {
             .await;
 
         // Try to call an unavailable tool
-        let unavailable_tool_call = CallToolRequestParam {
-            name: "test_extension__tool".to_string().into(),
-            arguments: Some(object!({})),
+        let unavailable_tool_call = ToolCall {
+            name: "test_extension__tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager
@@ -1463,9 +1446,9 @@ mod tests {
         }
 
         // Try to call an available tool - should succeed
-        let available_tool_call = CallToolRequestParam {
-            name: "test_extension__available_tool".to_string().into(),
-            arguments: Some(object!({})),
+        let available_tool_call = ToolCall {
+            name: "test_extension__available_tool".to_string(),
+            arguments: json!({}),
         };
 
         let result = extension_manager

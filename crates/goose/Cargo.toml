@@ -16,8 +16,9 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], 
 
 [dependencies]
 lru = "0.12"
+mcp-client = { path = "../mcp-client" }
+mcp-core = { path = "../mcp-core" }
 rmcp = { workspace = true, features = [
-    "client",
     "reqwest",
     "transport-child-process",
     "transport-sse-client",

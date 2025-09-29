@@ -105,7 +105,7 @@ impl ToolPermissionStore {
         let key = format!("{}:{}", tool_call.name, context_hash);
 
         let record = ToolPermissionRecord {
-            tool_name: tool_call.name.to_string().clone(),
+            tool_name: tool_call.name.clone(),
             allowed,
             context_hash,
             readable_context: Some(tool_request.to_readable_string()),

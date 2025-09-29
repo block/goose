@@ -5,7 +5,6 @@ pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod final_output_tool;
 mod large_response_handler;
-pub mod mcp_client;
 pub mod model_selector;
 pub mod platform_tools;
 pub mod prompt_manager;

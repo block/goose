@@ -7,8 +7,8 @@ use goose::providers::{
     anthropic, azure, bedrock, databricks, google, groq, litellm, ollama, openai, openrouter,
     snowflake, xai,
 };
+use rmcp::model::Tool;
 use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParam, Tool};
 use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -320,10 +320,10 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
-            Ok(CallToolRequestParam {
-                name: "get_screenshot".into(),
-                arguments: Some(object!({})),
-            }),
+            Ok(mcp_core::tool::ToolCall::new(
+                "get_screenshot",
+                serde_json::json!({}),
+            )),
         );
         let tool_response = Message::user().with_tool_response(
             "test_id",

@@ -1,4 +1,4 @@
-use crate::mcp_utils::ToolResult;
+use mcp_core::ToolResult;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

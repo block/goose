@@ -1,7 +1,7 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use goose::agents::mcp_client::{Error, McpClientTrait};
+use mcp_client::client::{Error, McpClientTrait};
 use rmcp::{
     model::{
         CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
@@ -91,11 +91,11 @@ impl McpClientTrait for MockClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Option<serde_json::Map<String, Value>>,
+        arguments: Value,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
-            match handler(&Value::Object(arguments.unwrap_or_default())) {
+            match handler(&arguments) {
                 Ok(content) => Ok(CallToolResult {
                     content,
                     is_error: None,

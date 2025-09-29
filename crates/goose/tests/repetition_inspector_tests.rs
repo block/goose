@@ -1,6 +1,5 @@
-use goose::tool_monitor::RepetitionInspector;
-use rmcp::model::CallToolRequestParam;
-use rmcp::object;
+use goose::tool_monitor::{RepetitionInspector, ToolCall};
+use serde_json::json;
 
 // This test targets RepetitionInspector::check_tool_call
 // It verifies that:
@@ -13,10 +12,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     let mut inspector = RepetitionInspector::new(Some(2));
 
     // First identical call → allowed
-    let call_v1 = CallToolRequestParam {
-        name: "fetch_user".into(),
-        arguments: Some(object!({"id": 123})),
-    };
+    let call_v1 = ToolCall::new("fetch_user".to_string(), json!({"id": 123}));
     assert!(inspector.check_tool_call(call_v1.clone()));
 
     // Second identical call → still allowed (at limit)
@@ -26,11 +22,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     assert!(!inspector.check_tool_call(call_v1.clone()));
 
     // Change parameters; this should reset the consecutive counter
-    let call_v2 = CallToolRequestParam {
-        name: "fetch_user".into(),
-        arguments: Some(object!({"id": 456})),
-    };
-
+    let call_v2 = ToolCall::new("fetch_user".to_string(), json!({"id": 456}));
     assert!(inspector.check_tool_call(call_v2.clone()));
 
     // Another identical call with new params → allowed (second in a row for this variant)

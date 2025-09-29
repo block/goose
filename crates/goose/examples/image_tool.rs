@@ -5,8 +5,10 @@ use goose::conversation::message::Message;
 use goose::providers::{
     bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider,
 };
-use rmcp::model::{CallToolRequestParam, Content, Tool};
+use mcp_core::tool::ToolCall;
+use rmcp::model::{Content, Tool};
 use rmcp::object;
+use serde_json::json;
 use std::fs;
 
 #[tokio::main]
@@ -31,10 +33,10 @@ async fn main() -> Result<()> {
             Message::user().with_text("Read the image at ./test_image.png please"),
             Message::assistant().with_tool_request(
                 "000",
-                Ok(CallToolRequestParam {
-                    name: "view_image".into(),
-                    arguments: Some(object!({"path": "./test_image.png"})),
-                }),
+                Ok(ToolCall::new(
+                    "view_image",
+                    json!({"path": "./test_image.png"}),
+                )),
             ),
             Message::user()
                 .with_tool_response("000", Ok(vec![Content::image(base64_image, "image/png")])),

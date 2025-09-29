@@ -11,13 +11,13 @@ use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::execution::SessionExecutionMode;
-use goose::mcp_utils::ToolResult;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
 };
+use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -66,7 +66,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
                         }
                     })
                 })
-                .unwrap_or_else(|| "unknown".to_string().into());
+                .unwrap_or_else(|| "unknown".to_string());
 
             let success = tool_response.tool_result.is_ok();
             let result_status = if success { "success" } else { "error" };

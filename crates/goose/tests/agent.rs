@@ -554,8 +554,6 @@ mod final_output_tool_tests {
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
-    use rmcp::model::CallToolRequestParam;
-    use rmcp::object;
 
     #[tokio::test]
     async fn test_final_output_assistant_message_in_reply() -> Result<()> {
@@ -622,13 +620,12 @@ mod final_output_tool_tests {
         agent.add_final_output_tool(response).await;
 
         // Simulate a final output tool call occurring.
-        let tool_call = CallToolRequestParam {
-            name: FINAL_OUTPUT_TOOL_NAME.into(),
-            arguments: Some(object!({
+        let tool_call = mcp_core::tool::ToolCall::new(
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({
                 "result": "Test output"
-            })),
-        };
-
+            }),
+        );
         let (_, result) = agent
             .dispatch_tool_call(tool_call, "request_id".to_string(), None, &None)
             .await;
@@ -1042,8 +1039,8 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use rmcp::model::{CallToolRequestParam, Tool};
-    use rmcp::object;
+    use mcp_core::tool::ToolCall;
+    use rmcp::model::Tool;
 
     struct MockToolProvider {}
 
@@ -1061,10 +1058,7 @@ mod max_turns_tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
-            let tool_call = CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value"})),
-            };
+            let tool_call = ToolCall::new("test_tool", serde_json::json!({"param": "value"}));
             let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
 
             let usage = ProviderUsage::new(
