@@ -30,11 +30,11 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "o1",
     "o3-mini",
     "claude-3.7-sonnet",
-    "claude-sonnet-4-20250514",
+    "claude-sonnet-4",
 ];
 
 pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4-20250514"];
+    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
