@@ -119,9 +119,6 @@ export async function addExtensionFromDeepLink(
       | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
   ) => void
 ) {
-  console.log('=== addExtensionFromDeepLink Debug ===');
-  console.log('URL:', url);
-
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
@@ -186,24 +183,18 @@ export async function addExtensionFromDeepLink(
     return;
   }
 
-  try {
-    console.log('No env vars required, activating extension directly');
-    // Note: deeplink activation doesn't have access to sessionId
-    // The extension will be added to config but not activated in the current session
-    // It will be activated when the next session starts
-    console.warn('Extension will be added to config but requires a session to activate');
-    await addExtensionFn(config.name, config, true);
+  console.log('No env vars required, activating extension directly');
+  // Note: deeplink activation doesn't have access to sessionId
+  // The extension will be added to config but not activated in the current session
+  // It will be activated when the next session starts
+  await addExtensionFn(config.name, config, true);
 
-    // Show success toast and navigate to extensions page
-    toastService.success({
-      title: 'Extension Installed',
-      msg: `${config.name} extension has been installed successfully. Start a new chat session to use it.`,
-    });
+  // Show success toast and navigate to extensions page
+  toastService.success({
+    title: 'Extension Installed',
+    msg: `${config.name} extension has been installed successfully. Start a new chat session to use it.`,
+  });
 
-    // Navigate to extensions page to show the newly installed extension
-    setView('extensions', { deepLinkConfig: config, showEnvVars: false, extensionId: config.name });
-  } catch (error) {
-    console.error('Failed to activate extension from deeplink:', error);
-    throw error;
-  }
+  // Navigate to extensions page to show the newly installed extension
+  setView('extensions', { deepLinkConfig: config, showEnvVars: false, extensionId: config.name });
 }
