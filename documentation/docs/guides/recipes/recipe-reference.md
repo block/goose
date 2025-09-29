@@ -125,7 +125,7 @@ The `required` and `optional` parameters work best for recipes opened in Goose D
 ### Input Types
 
 - `string`: Default type. The parameter value is used as-is in template substitution
-- `file`: The parameter value should be a file path. Goose reads the file contents and substitutes the actual content (not the path) into the template
+- `file`: The parameter value should be a file path. goose reads the file contents and substitutes the actual content (not the path) into the template
 
 When using `input_type: file`, this is useful for including file contents directly in your prompts or instructions.
 
