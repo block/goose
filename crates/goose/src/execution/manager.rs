@@ -15,6 +15,8 @@ use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
 use tracing::{debug, info, warn};
 
+const DEFAULT_MAX_SESSION: usize = 100;
+
 static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 
 pub struct AgentManager {
@@ -24,14 +26,18 @@ pub struct AgentManager {
 }
 
 impl AgentManager {
-    // This new method is ONLY used for TEST.
-    pub async fn new_for_test(max_sessions: Option<usize>) -> Result<Self> {
-        // Same implementation as the private new() method
-        // This bypasses the singleton pattern for tests
-        Self::new(max_sessions).await
+    /// Reset the global singleton - ONLY for testing
+    pub fn reset_for_test() {
+        unsafe {
+            // Cast away the const to get mutable access
+            // This is safe in test context where we control execution with #[serial]
+            let cell_ptr = &AGENT_MANAGER as *const OnceCell<Arc<AgentManager>>
+                as *mut OnceCell<Arc<AgentManager>>;
+            let _ = (*cell_ptr).take();
+        }
     }
 
-    // Private constructor - prevents direct instantiation
+    // Private constructor - prevents direct instantiation in production
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
         // Construct scheduler with the standard goose-server path
         let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
@@ -40,7 +46,7 @@ impl AgentManager {
 
         let scheduler = SchedulerFactory::create(schedule_file_path).await?;
 
-        let capacity = NonZeroUsize::new(max_sessions.unwrap_or(100))
+        let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
 
         let manager = Self {
@@ -54,11 +60,11 @@ impl AgentManager {
         Ok(manager)
     }
 
-    // Public method to get or initialize the singleton instance
-    pub async fn instance(max_sessions: Option<usize>) -> Result<Arc<Self>> {
+    /// Get or initialize the singleton instance
+    pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let manager = Self::new(max_sessions).await?;
+                let manager = Self::new(Some(DEFAULT_MAX_SESSION)).await?;
                 Ok(Arc::new(manager))
             })
             .await
