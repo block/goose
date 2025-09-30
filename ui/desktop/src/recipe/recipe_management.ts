@@ -15,7 +15,6 @@ export async function saveRecipe(
       throwOnError: true,
     });
   } catch (error) {
-    console.log('=======error', error);
     let error_message = 'unknown error';
     if (typeof error === 'object' && error !== null && 'message' in error) {
       error_message = error.message as string;
