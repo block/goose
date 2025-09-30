@@ -173,7 +173,6 @@ describe('ContextManager', () => {
         messages: mockMessages,
         manageAction: 'summarize',
         sessionId: 'test-session-id',
-        sessionId: 'test-session-id',
       });
 
       // Verify conversion calls with correct parameters
@@ -371,7 +370,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend, 'test-session-id');
       });
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
@@ -484,7 +483,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend, 'test-session-id');
       });
 
       // Verify all three messages are set
