@@ -605,7 +605,6 @@ export type Recipe = {
 
 export type RecipeManifestResponse = {
     id: string;
-    isGlobal: boolean;
     lastModified: string;
     name: string;
     recipe: Recipe;

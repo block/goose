@@ -5,8 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use goose::recipe::read_recipe_file_content::read_recipe_file;
-use goose::recipe::recipe_library::get_recipe_library_dir;
+use goose::recipe::recipe_library::list_all_recipes_from_library;
 use goose::recipe::Recipe;
 
 use std::path::Path;
@@ -17,7 +16,6 @@ use utoipa::ToSchema;
 pub struct RecipeManifestWithPath {
     pub id: String,
     pub name: String,
-    pub is_global: bool,
     pub recipe: Recipe,
     pub file_path: PathBuf,
     pub last_modified: String,
@@ -30,52 +28,31 @@ fn short_id_from_path(path: &str) -> String {
     format!("{:016x}", h)
 }
 
-fn load_recipes_from_path(is_global: bool) -> Result<Vec<RecipeManifestWithPath>> {
-    let path = get_recipe_library_dir(is_global);
-    let mut recipe_manifests_with_path = Vec::new();
-    if path.exists() {
-        for entry in fs::read_dir(path)? {
-            let path = entry?.path();
-            if path.extension() == Some("yaml".as_ref()) {
-                let Ok(recipe_file) = read_recipe_file(path.clone()) else {
-                    continue;
-                };
-                let Ok(recipe) = Recipe::from_content(&recipe_file.content) else {
-                    continue;
-                };
-                let Ok(last_modified) = fs::metadata(path.clone()).map(|m| {
-                    chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339()
-                }) else {
-                    continue;
-                };
-                let recipe_metadata =
-                    RecipeManifestMetadata::from_yaml_file(&path).unwrap_or_else(|_| {
-                        RecipeManifestMetadata {
-                            name: recipe.title.clone(),
-                            is_global,
-                        }
-                    });
-
-                let manifest_with_path = RecipeManifestWithPath {
-                    id: short_id_from_path(recipe_file.file_path.to_string_lossy().as_ref()),
-                    name: recipe_metadata.name,
-                    is_global: recipe_metadata.is_global,
-                    recipe,
-                    file_path: recipe_file.file_path,
-                    last_modified,
-                };
-                recipe_manifests_with_path.push(manifest_with_path);
-            }
-        }
-    }
-    Ok(recipe_manifests_with_path)
-}
-
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
+    let recipes_with_path = list_all_recipes_from_library()?;
     let mut recipe_manifests_with_path = Vec::new();
+    for (file_path, recipe) in recipes_with_path {
+        let Ok(last_modified) = fs::metadata(file_path.clone())
+            .map(|m| chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339())
+        else {
+            continue;
+        };
+        let recipe_metadata =
+            RecipeManifestMetadata::from_yaml_file(&file_path).unwrap_or_else(|_| {
+                RecipeManifestMetadata {
+                    name: recipe.title.clone(),
+                }
+            });
 
-    recipe_manifests_with_path.extend(load_recipes_from_path(false)?);
-    recipe_manifests_with_path.extend(load_recipes_from_path(true)?);
+        let manifest_with_path = RecipeManifestWithPath {
+            id: short_id_from_path(file_path.to_string_lossy().as_ref()),
+            name: recipe_metadata.name,
+            recipe,
+            file_path,
+            last_modified,
+        };
+        recipe_manifests_with_path.push(manifest_with_path);
+    }
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
@@ -85,8 +62,6 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 struct RecipeManifestMetadata {
     pub name: String,
-    #[serde(rename = "isGlobal")]
-    pub is_global: bool,
 }
 
 impl RecipeManifestMetadata {
@@ -121,6 +96,5 @@ recipe: recipe_content
         let result = RecipeManifestMetadata::from_yaml_file(&file_path).unwrap();
 
         assert_eq!(result.name, "Test Recipe");
-        assert!(result.is_global);
     }
 }

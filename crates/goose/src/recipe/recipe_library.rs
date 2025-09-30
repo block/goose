@@ -1,4 +1,5 @@
 use crate::config::APP_STRATEGY;
+use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::Recipe;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -15,6 +16,33 @@ pub fn get_recipe_library_dir(is_global: bool) -> PathBuf {
     } else {
         std::env::current_dir().unwrap().join(".goose/recipes")
     }
+}
+
+pub fn list_recipes_from_library(is_global: bool) -> Result<Vec<(PathBuf, Recipe)>> {
+    let path = get_recipe_library_dir(is_global);
+    let mut recipes_with_path = Vec::new();
+    if path.exists() {
+        for entry in fs::read_dir(path)? {
+            let path = entry?.path();
+            if path.extension() == Some("yaml".as_ref()) {
+                let Ok(recipe_file) = read_recipe_file(path.clone()) else {
+                    continue;
+                };
+                let Ok(recipe) = Recipe::from_content(&recipe_file.content) else {
+                    continue;
+                };
+                recipes_with_path.push((path, recipe));
+            }
+        }
+    }
+    Ok(recipes_with_path)
+}
+
+pub fn list_all_recipes_from_library() -> Result<Vec<(PathBuf, Recipe)>> {
+    let mut recipes_with_path = Vec::new();
+    recipes_with_path.extend(list_recipes_from_library(true)?);
+    recipes_with_path.extend(list_recipes_from_library(false)?);
+    Ok(recipes_with_path)
 }
 
 fn generate_recipe_filename(title: &str) -> String {
@@ -41,12 +69,32 @@ pub fn save_recipe_to_file(
     file_path: Option<PathBuf>,
 ) -> Result<PathBuf> {
     let is_global_value = is_global.unwrap_or(true);
-    // TODO: Lifei
-    // check whether there is any existing file with same name, if return bad request
-    // check whether there is any existing recipe has same title?, if yes, return bad request
+
     let default_file_path =
         get_recipe_library_dir(is_global_value).join(generate_recipe_filename(&recipe.title));
-    let file_path_value = file_path.unwrap_or(default_file_path);
+
+    let file_path_value = match file_path {
+        Some(path) => path,
+        None => {
+            if default_file_path.exists() {
+                return Err(anyhow::anyhow!(
+                    "Recipe with same file name already exists at: {:?}",
+                    default_file_path
+                ));
+            }
+            default_file_path
+        }
+    };
+    let all_recipes = list_all_recipes_from_library()?;
+
+    for (existing_path, existing_recipe) in &all_recipes {
+        if existing_recipe.title == recipe.title && existing_path != &file_path_value {
+            return Err(anyhow::anyhow!(
+                "A recipe with the same title already exists"
+            ));
+        }
+    }
+
     let yaml_content = serde_yaml::to_string(&recipe)?;
     fs::write(&file_path_value, yaml_content)?;
     Ok(file_path_value)

@@ -83,8 +83,6 @@ pub struct SaveRecipeToFileRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeManifestResponse {
     name: String,
-    #[serde(rename = "isGlobal")]
-    is_global: bool,
     recipe: Recipe,
     #[serde(rename = "lastModified")]
     last_modified: String,
@@ -243,7 +241,6 @@ async fn list_recipes(
             recipe_file_hash_map.insert(id.clone(), file_path);
             RecipeManifestResponse {
                 name: recipe_manifest_with_path.name.clone(),
-                is_global: recipe_manifest_with_path.is_global,
                 recipe: recipe_manifest_with_path.recipe.clone(),
                 id: id.clone(),
                 last_modified: recipe_manifest_with_path.last_modified.clone(),
