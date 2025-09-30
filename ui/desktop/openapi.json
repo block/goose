@@ -2634,6 +2634,10 @@
           }
         }
       },
+      "JsonObject": {
+        "type": "object",
+        "additionalProperties": true
+      },
       "KillJobResponse": {
         "type": "object",
         "required": [
@@ -3982,7 +3986,9 @@
           "arguments"
         ],
         "properties": {
-          "arguments": {},
+          "arguments": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
           "id": {
             "type": "string"
           },

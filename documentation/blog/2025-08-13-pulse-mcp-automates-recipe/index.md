@@ -1,6 +1,6 @@
 ---
 title: "How PulseMCP Automated Their Newsletter Workflow with Goose"
-description: PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow
+description: PulseMCP used Goose recipes, subagents, and subrecipes to automate the boring parts of their newsletter workflow
 authors: 
     - rizel
 ---
@@ -21,7 +21,7 @@ Every week, the PulseMCP team faced the same time-consuming workflow: sourcing r
 
 ## The Solution: Why Sequential Beats Monolithic
 
-Instead of building one massive "do-everything" agent (which inevitably fails on complex tasks), PulseMCP broke their workflow into six distinct phases. Each phase gets handled by focused [recipes](/docs/guides/recipes/session-recipes), [sub-recipes](/docs/guides/recipes/sub-recipes) and [subagents](/docs/experimental/subagents) with clear inputs, outputs, and a single job.
+Instead of building one massive "do-everything" agent (which inevitably fails on complex tasks), PulseMCP broke their workflow into six distinct phases. Each phase gets handled by focused [recipes](/docs/guides/recipes/session-recipes), [subrecipes](/docs/guides/recipes/subrecipes) and [subagents](/docs/experimental/subagents) with clear inputs, outputs, and a single job.
 
 This approach has three main benefits: debugging becomes easier when agents have single responsibilities, results become more predictable with clear handoffs between stages, and humans stay in control of the editorial process while automating the tedious work.
 
@@ -81,11 +81,11 @@ The PulseMCP implementation proves we're past the demo phase of AI agents. Real 
   <meta property="og:title" content="How PulseMCP Automated Their Newsletter Workflow with Goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/13/pulse-mcp-automates-recipe" />
-  <meta property="og:description" content="PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow" />
+  <meta property="og:description" content="PulseMCP used Goose recipes, subagents, and subrecipes to automate the boring parts of their newsletter workflow" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/pulsemcp-65abe93bd65402c122b395ae6bdadf95.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="How PulseMCP Automated Their Newsletter Workflow with Goose" />
-  <meta name="twitter:description" content="PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow" />
+  <meta name="twitter:description" content="PulseMCP used Goose recipes, subagents, and subrecipes to automate the boring parts of their newsletter workflow" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/pulsemcp-65abe93bd65402c122b395ae6bdadf95.png" />
 </head>

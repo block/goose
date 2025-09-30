@@ -1,4 +1,4 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.1.0"}}}
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"1.9.0"}}}
 STDERR:   [2m2025-09-27T04:13:30.409389Z[0m [32m INFO[0m [1;32mgoose_mcp::mcp_server_runner[0m[32m: [32mStarting MCP server[0m
 STDERR:     [2;3mat[0m crates/goose-mcp/src/mcp_server_runner.rs:18
 STDERR: 
@@ -11,7 +11,7 @@ STDERR:   [2m2025-09-27T04:13:30.418172Z[0m [32m INFO[0m [1;32mrmcp::handle
 STDERR:     [2;3mat[0m /Users/angiej/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rmcp-0.6.2/src/handler/server.rs:218
 STDERR: 
 STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{"progressToken":0},"name":"text_editor","arguments":{"command":"view","path":"~/goose/crates/goose/tests/tmp/goose.txt"}}}
-STDERR:   [2m2025-09-27T04:13:30.418412Z[0m [32m INFO[0m [1;32mrmcp::service[0m[32m: [32mService initialized as server, [1;32mpeer_info[0m[32m: Some(InitializeRequestParam { protocol_version: ProtocolVersion("2025-03-26"), capabilities: ClientCapabilities { experimental: None, roots: None, sampling: None, elicitation: None }, client_info: Implementation { name: "goose", version: "0.1.0" } })[0m
+STDERR:   [2m2025-09-27T04:13:30.418412Z[0m [32m INFO[0m [1;32mrmcp::service[0m[32m: [32mService initialized as server, [1;32mpeer_info[0m[32m: Some(InitializeRequestParam { protocol_version: ProtocolVersion("2025-03-26"), capabilities: ClientCapabilities { experimental: None, roots: None, sampling: None, elicitation: None }, client_info: Implementation { name: "goose", version: "1.9.0" } })[0m
 STDERR:     [2;3mat[0m /Users/angiej/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rmcp-0.6.2/src/service.rs:561
 STDERR:     [2;3min[0m rmcp::service::[1mserve_inner[0m
 STDERR: 

@@ -285,24 +285,30 @@ impl GooseAcpAgent {
         // Extract tool name and parameters from the ToolCall if successful
         let (tool_name, locations) = match &tool_request.tool_call {
             Ok(tool_call) => {
-                let name = tool_call.name.clone();
-
                 // Extract file locations from certain tools for client tracking
                 let mut locs = Vec::new();
-                if name == "developer__text_editor" {
+                if tool_call.name == "developer__text_editor" {
                     // Try to extract the path from the arguments
-                    let args = &tool_call.arguments;
-                    if let Some(path_str) = args.get("path").and_then(|p| p.as_str()) {
-                        locs.push(acp::ToolCallLocation {
-                            path: path_str.into(),
-                            line: Some(1),
-                            meta: None,
-                        });
+                    if let Some(path_str) = tool_call
+                        .arguments
+                        .as_ref()
+                        .and_then(|args_map| args_map.get("path"))
+                        .and_then(|p| p.as_str())
+                    {
+                        let path = std::path::PathBuf::from(path_str);
+                        if path.exists() && path.is_file() {
+                            locs.push(acp::ToolCallLocation {
+                                path: path_str.into(),
+                                line: Some(1),
+                                meta: None,
+                            });
+                        }
                     }
                 }
-                (name, locs)
+
+                (tool_call.name.to_string(), locs)
             }
-            Err(_) => ("unknown".to_string(), Vec::new()),
+            Err(_) => ("error".to_string(), vec![]),
         };
 
         // Send tool call notification

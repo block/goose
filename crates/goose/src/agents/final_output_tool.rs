@@ -1,8 +1,7 @@
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
 use indoc::formatdoc;
-use mcp_core::ToolCall;
-use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
+use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -117,10 +116,10 @@ impl FinalOutputTool {
         }
     }
 
-    pub async fn execute_tool_call(&mut self, tool_call: ToolCall) -> ToolCallResult {
-        match tool_call.name.as_str() {
+    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParam) -> ToolCallResult {
+        match tool_call.name.to_string().as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
-                let result = self.validate_json_output(&tool_call.arguments).await;
+                let result = self.validate_json_output(&tool_call.arguments.into()).await;
                 match result {
                     Ok(parsed_value) => {
                         self.final_output = Some(Self::parsed_final_output_string(parsed_value));
@@ -153,6 +152,8 @@ impl FinalOutputTool {
 mod tests {
     use super::*;
     use crate::recipe::Response;
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
     use serde_json::json;
 
     fn create_complex_test_schema() -> Value {
@@ -226,11 +227,11 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
+        let tool_call = CallToolRequestParam {
+            name: FINAL_OUTPUT_TOOL_NAME.into(),
+            arguments: Some(object!({
                 "message": "Hello"  // Missing required "count" field
-            }),
+            })),
         };
 
         let result = tool.execute_tool_call(tool_call).await;
@@ -248,15 +249,15 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
+        let tool_call = CallToolRequestParam {
+            name: FINAL_OUTPUT_TOOL_NAME.into(),
+            arguments: Some(object!({
                 "user": {
                     "name": "John",
                     "age": 30
                 },
                 "tags": ["developer", "rust"]
-            }),
+            })),
         };
 
         let result = tool.execute_tool_call(tool_call).await;

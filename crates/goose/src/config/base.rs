@@ -186,17 +186,14 @@ impl Config {
         })
     }
 
-    /// Check if this config already exists
     pub fn exists(&self) -> bool {
         self.config_path.exists()
     }
 
-    /// Check if this config already exists
     pub fn clear(&self) -> Result<(), ConfigError> {
         Ok(std::fs::remove_file(&self.config_path)?)
     }
 
-    /// Get the path to the configuration file
     pub fn path(&self) -> String {
         self.config_path.to_string_lossy().to_string()
     }

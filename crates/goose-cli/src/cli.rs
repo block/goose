@@ -703,6 +703,10 @@ enum Command {
         /// Open browser automatically
         #[arg(long, help = "Open browser automatically when server starts")]
         open: bool,
+
+        /// Authentication token for both Basic Auth (password) and Bearer token
+        #[arg(long, help = "Authentication token to secure the web interface")]
+        auth_token: Option<String>,
     },
 }
 
@@ -1211,8 +1215,13 @@ pub async fn cli() -> Result<()> {
             }
             return Ok(());
         }
-        Some(Command::Web { port, host, open }) => {
-            crate::commands::web::handle_web(port, host, open).await?;
+        Some(Command::Web {
+            port,
+            host,
+            open,
+            auth_token,
+        }) => {
+            crate::commands::web::handle_web(port, host, open, auth_token).await?;
             return Ok(());
         }
         None => {
@@ -1247,6 +1256,7 @@ pub async fn cli() -> Result<()> {
                 .await;
                 if let Err(e) = session.interactive(None).await {
                     eprintln!("Session ended with error: {}", e);
+                    std::process::exit(1);
                 }
                 Ok(())
             };

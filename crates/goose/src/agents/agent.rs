@@ -34,6 +34,7 @@ use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
@@ -45,10 +46,10 @@ use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
-use mcp_core::ToolResult;
 use regex::Regex;
 use rmcp::model::{
-    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -389,14 +390,18 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: mcp_core::tool::ToolCall,
+        tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
+            let arguments = tool_call
+                .arguments
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             let result = self
-                .handle_schedule_management(tool_call.arguments, request_id.clone())
+                .handle_schedule_management(arguments, request_id.clone())
                 .await;
             return (request_id, Ok(ToolCallResult::from(result)));
         }
@@ -404,13 +409,15 @@ impl Agent {
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
-                .get("extension_name")
+                .as_ref()
+                .and_then(|args| args.get("extension_name"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             let action = tool_call
                 .arguments
-                .get("action")
+                .as_ref()
+                .and_then(|args| args.get("action"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
@@ -445,19 +452,25 @@ impl Agent {
             .is_sub_recipe_tool(&tool_call.name)
         {
             let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(
-                    &tool_call.name,
-                    tool_call.arguments.clone(),
-                    &self.tasks_manager,
-                )
+                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = self.provider().await.ok();
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
 
             let task_config = TaskConfig::new(provider);
             subagent_execute_task_tool::run_tasks(
-                tool_call.arguments.clone(),
+                arguments,
                 task_config,
                 &self.tasks_manager,
                 cancellation_token,
@@ -470,29 +483,33 @@ impl Agent {
                 .list_extensions()
                 .await
                 .unwrap_or_default();
-            create_dynamic_task(
-                tool_call.arguments.clone(),
-                &self.tasks_manager,
-                loaded_extensions,
-            )
-            .await
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
+            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             ToolCallResult::from(
                 self.extension_manager
-                    .read_resource(
-                        tool_call.arguments.clone(),
-                        cancellation_token.unwrap_or_default(),
-                    )
+                    .read_resource(arguments, cancellation_token.unwrap_or_default())
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             ToolCallResult::from(
                 self.extension_manager
-                    .list_resources(
-                        tool_call.arguments.clone(),
-                        cancellation_token.unwrap_or_default(),
-                    )
+                    .list_resources(arguments, cancellation_token.unwrap_or_default())
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -522,12 +539,14 @@ impl Agent {
             ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
             // Handle task planner write tool
-            let content = tool_call
-                .arguments
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            let content = match tool_call.arguments {
+                Some(args) => args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                None => "".to_string(),
+            };
 
             // Character limit validation
             let char_count = content.chars().count();
@@ -592,7 +611,7 @@ impl Agent {
         } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments)
+                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
                 .await
             {
                 Ok(tool_result) => tool_result,

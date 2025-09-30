@@ -90,7 +90,9 @@ impl AsyncTokenCounter {
                 let line = format!("{}:{}", name, description);
                 func_token_count += self.count_tokens(&line);
 
-                if let serde_json::Value::Object(properties) = &tool.input_schema["properties"] {
+                if let Some(serde_json::Value::Object(properties)) =
+                    tool.input_schema.get("properties")
+                {
                     if !properties.is_empty() {
                         func_token_count += prop_init;
                         for (key, value) in properties {
@@ -149,7 +151,7 @@ impl AsyncTokenCounter {
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
                     // Note: separators are tokenized with adjacent tokens, keep original for accuracy
                     let text = format!(
-                        "{}:{}:{}",
+                        "{}:{}:{:?}",
                         tool_request.id, tool_call.name, tool_call.arguments
                     );
                     num_tokens += self.count_tokens(&text);
@@ -297,7 +299,7 @@ impl TokenCounter {
                 } else if let Some(tool_request) = content.as_tool_request() {
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
                     let text = format!(
-                        "{}:{}:{}",
+                        "{}:{}:{:?}",
                         tool_request.id, tool_call.name, tool_call.arguments
                     );
                     num_tokens += self.count_tokens(&text);
