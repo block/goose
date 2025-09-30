@@ -8,7 +8,7 @@ Subagents are independent instances that execute tasks while keeping your main c
 
 ## How to Use Subagents
 
-To use subagents, ask goose to delegate tasks using natural language. goose automatically decides when to spawn subagents and handles their lifecycle. You can:
+To use subagents, ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
 
 1. **Request specialized help**: "Use a code reviewer to analyze this function for security issues"
 2. **Reference specific recipes**: "Use the 'security-auditor' recipe to scan this endpoint"  
