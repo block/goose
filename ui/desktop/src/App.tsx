@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import { SamplingApprovalModal } from './components/ui/SamplingApprovalModal';
+import { useSamplingApprovalSSE } from './hooks/useSamplingApprovalSSE';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -307,6 +309,9 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
+  
+  // Use the sampling approval SSE hook
+  const { currentRequest, approveRequest, denyRequest } = useSamplingApprovalSSE();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -612,6 +617,15 @@ export function AppInner() {
         <GoosehintsModal
           directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
+      {currentRequest && (
+        <SamplingApprovalModal
+          isOpen={!!currentRequest}
+          extensionName={currentRequest.extensionName}
+          messages={currentRequest.messages}
+          onApprove={approveRequest}
+          onDeny={denyRequest}
         />
       )}
     </>

@@ -641,6 +641,24 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SamplingMessageContent = {
+    content: string;
+    role: string;
+};
+
+export type SamplingRequest = {
+    extensionName: string;
+    maxTokens: number;
+    messages: Array<SamplingMessageContent>;
+    requestId: string;
+    systemPrompt?: string | null;
+};
+
+export type SamplingResponse = {
+    approved: boolean;
+    requestId: string;
+};
+
 export type SaveRecipeRequest = {
     id?: string | null;
     recipe: Recipe;
@@ -1854,6 +1872,52 @@ export type ReplyErrors = {
 export type ReplyResponses = {
     /**
      * Streaming response initiated
+     */
+    200: unknown;
+};
+
+export type SamplingApprovalStreamData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sampling-approval';
+};
+
+export type SamplingApprovalStreamErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type SamplingApprovalStreamResponses = {
+    /**
+     * SSE stream of sampling approval requests
+     */
+    200: unknown;
+};
+
+export type SubmitSamplingResponseData = {
+    body: SamplingResponse;
+    path?: never;
+    query?: never;
+    url: '/sampling-approval';
+};
+
+export type SubmitSamplingResponseErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type SubmitSamplingResponseResponses = {
+    /**
+     * Approval response submitted successfully
      */
     200: unknown;
 };

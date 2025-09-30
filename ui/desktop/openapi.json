@@ -1268,6 +1268,49 @@
         }
       }
     },
+    "/sampling-approval": {
+      "get": {
+        "tags": [
+          "super::routes::sampling_approval"
+        ],
+        "operationId": "sampling_approval_stream",
+        "responses": {
+          "200": {
+            "description": "SSE stream of sampling approval requests"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::sampling_approval"
+        ],
+        "operationId": "submit_sampling_response",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamplingResponse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Approval response submitted successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -3865,6 +3908,68 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SamplingMessageContent": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "SamplingRequest": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "extensionName",
+          "messages",
+          "maxTokens"
+        ],
+        "properties": {
+          "extensionName": {
+            "type": "string"
+          },
+          "maxTokens": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SamplingMessageContent"
+            }
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "systemPrompt": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SamplingResponse": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "approved"
+        ],
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "requestId": {
             "type": "string"
           }
         }

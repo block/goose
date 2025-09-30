@@ -1251,6 +1251,9 @@ impl Agent {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
+        // Also update the extension manager's provider
+        self.extension_manager.set_provider(provider.clone()).await;
+
         self.update_router_tool_selector(Some(provider), None)
             .await?;
         Ok(())
