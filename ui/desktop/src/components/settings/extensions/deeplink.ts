@@ -114,9 +114,7 @@ export async function addExtensionFromDeepLink(
   ) => Promise<void>,
   setView: (
     view: string,
-    options:
-      | { extensionId: string; showEnvVars: boolean }
-      | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
+    options: { showEnvVars: boolean; deepLinkConfig?: ExtensionConfig }
   ) => void
 ) {
   const parsedUrl = new URL(url);
@@ -177,8 +175,9 @@ export async function addExtensionFromDeepLink(
     config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
 
   if (hasEnvVars || hasHeaders) {
-    console.log('Environment variables or headers required, redirecting to extensions');
-    console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
+    console.log(
+      'Environment variables or headers required, redirecting to extensions with env variables modal showing'
+    );
     setView('extensions', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
@@ -196,5 +195,5 @@ export async function addExtensionFromDeepLink(
   });
 
   // Navigate to extensions page to show the newly installed extension
-  setView('extensions', { deepLinkConfig: config, showEnvVars: false, extensionId: config.name });
+  setView('extensions', { deepLinkConfig: config, showEnvVars: false });
 }
