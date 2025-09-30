@@ -98,9 +98,6 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
 enum SessionCommand {
     #[command(about = "List all available sessions")]
     List {
-        #[arg(short, long, help = "List all available sessions")]
-        verbose: bool,
-
         #[arg(
             short,
             long,
@@ -118,10 +115,10 @@ enum SessionCommand {
 
         #[arg(
             short = 'p',
-            long = "path",
+            long = "working_dir",
             help = "Filter sessions by working directory"
         )]
-        path: Option<PathBuf>,
+        working_dir: Option<PathBuf>,
 
         #[arg(short = 'l', long = "limit", help = "Limit the number of results")]
         limit: Option<usize>,
@@ -192,11 +189,9 @@ enum SchedulerCommand {
         /// ID of the schedule
         #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
         id: String,
-        /// Maximum number of sessions to return
         #[arg(long, help = "Maximum number of sessions to return")]
         limit: Option<usize>,
     },
-    /// Run a scheduled job immediately
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
         /// ID of the schedule to run
@@ -801,13 +796,12 @@ pub async fn cli() -> Result<()> {
         }) => {
             return match command {
                 Some(SessionCommand::List {
-                    verbose,
                     format,
                     ascending,
-                    path,
+                    working_dir,
                     limit,
                 }) => {
-                    handle_session_list(verbose, format, ascending, path, limit).await?;
+                    handle_session_list(format, ascending, working_dir, limit).await?;
                     Ok(())
                 }
                 Some(SessionCommand::Remove { id, regex }) => {
