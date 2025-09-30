@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 35
 title: CLI Commands
 sidebar_label: CLI Commands
 toc_max_heading_level: 4

@@ -81,7 +81,7 @@ The [Memory extension](https://block.github.io/goose/docs/mcp/memory-mcp) stores
 
 **5. Subagents**
 
-[Subagents](https://block.github.io/goose/docs/experimental/subagents) handle specific tasks in their own isolated sessions. This prevents your main conversation from getting cluttered with implementation details and tool outputs. You delegate work to subagents and only see the final results, keeping your primary context window clean and focused.
+[Subagents](https://block.github.io/goose/docs/guides/subagents) handle specific tasks in their own isolated sessions. This prevents your main conversation from getting cluttered with implementation details and tool outputs. You delegate work to subagents and only see the final results, keeping your primary context window clean and focused.
 
 **6. Short sessions**
 

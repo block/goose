@@ -1,5 +1,5 @@
 ---
-sidebar_position: 20
+sidebar_position: 95
 title: Environment Variables
 sidebar_label: Environment Variables
 ---
@@ -319,7 +319,7 @@ These variables enable experimental features that are in active development. The
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | "true", "1" (case insensitive) to enable | false |
+| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case insensitive) to enable | false |
 
 **Examples**
 
