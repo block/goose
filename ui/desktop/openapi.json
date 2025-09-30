@@ -261,6 +261,49 @@
         }
       }
     },
+    "/approval": {
+      "get": {
+        "tags": [
+          "super::routes::approval"
+        ],
+        "operationId": "approval_stream",
+        "responses": {
+          "200": {
+            "description": "SSE stream of approval requests"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::approval"
+        ],
+        "operationId": "submit_approval_response",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalResponse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Approval response submitted successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -2008,6 +2051,121 @@
           "priority": {
             "type": "number"
           }
+        }
+      },
+      "ApprovalAction": {
+        "type": "string",
+        "enum": [
+          "allow_once",
+          "always_allow",
+          "deny"
+        ]
+      },
+      "ApprovalRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApprovalType"
+          },
+          {
+            "type": "object",
+            "required": [
+              "requestId",
+              "sessionId"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "A request for user approval"
+      },
+      "ApprovalResponse": {
+        "type": "object",
+        "description": "A response to an approval request",
+        "required": [
+          "requestId",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ApprovalAction"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      },
+      "ApprovalType": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "toolName",
+              "principalType",
+              "type"
+            ],
+            "properties": {
+              "principalType": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "toolName": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "toolCall"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "extensionName",
+              "messages",
+              "maxTokens",
+              "type"
+            ],
+            "properties": {
+              "extensionName": {
+                "type": "string"
+              },
+              "maxTokens": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "systemPrompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "sampling"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "Author": {

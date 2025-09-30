@@ -9,7 +9,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
 use crate::mcp_utils::ToolResult;
-use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
@@ -74,52 +73,77 @@ impl Agent {
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
                         tool_call.arguments.clone().unwrap_or_default(),
-                        security_message,
+                        security_message.clone(),
                     );
                     yield confirmation;
 
-                    let mut rx = self.confirmation_rx.lock().await;
-                    while let Some((req_id, confirmation)) = rx.recv().await {
-                        if req_id == request.id {
-                            // Log user decision if this was a security alert
-                            if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
-                                tracing::info!(
-                                    "🔒 User security decision: {:?} for finding ID: {}",
-                                    confirmation.permission,
-                                    finding_id
-                                );
+                    // Use the unified approval handler system
+                    let approval_handler = self.extension_manager.get_approval_handler().await;
+                    let approval_action = if let Some(handler) = approval_handler {
+                        let session_id = session.as_ref()
+                            .map(|s| s.id.to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        match handler.request_approval(
+                            session_id,
+                            crate::agents::approval::ApprovalType::ToolCall {
+                                tool_name: tool_call.name.to_string(),
+                                prompt: security_message,
+                                principal_type: "Tool".to_string(),
                             }
-
-                            if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session.clone()).await;
-                                let mut futures = tool_futures.lock().await;
-
-                                futures.push((req_id, match tool_result {
-                                    Ok(result) => tool_stream(
-                                        result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
-                                        result.result,
-                                    ),
-                                    Err(e) => tool_stream(
-                                        Box::new(stream::empty()),
-                                        futures::future::ready(Err(e)),
-                                    ),
-                                }));
-
-                                // Update the shared permission manager when user selects "Always Allow"
-                                if confirmation.permission == Permission::AlwaysAllow {
-                                    self.tool_inspection_manager
-                                        .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
-                                        .await;
-                                }
-                            } else {
-                                // User declined - add declined response
-                                let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
-                                );
+                        ).await {
+                            Ok(action) => Some(action),
+                            Err(e) => {
+                                tracing::error!("Approval handler error: {}", e);
+                                None
                             }
-                            break; // Exit the loop once the matching `req_id` is found
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some(action) = approval_action {
+                        // Log user decision if this was a security alert
+                        if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
+                            tracing::info!(
+                                "🔒 User security decision: {:?} for finding ID: {}",
+                                action,
+                                finding_id
+                            );
+                        }
+
+                        if action.is_approved() {
+                            let (req_id, tool_result) = self.dispatch_tool_call(
+                                tool_call.clone(),
+                                request.id.clone(),
+                                cancellation_token.clone(),
+                                session.clone()
+                            ).await;
+                            let mut futures = tool_futures.lock().await;
+
+                            futures.push((req_id, match tool_result {
+                                Ok(result) => tool_stream(
+                                    result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                                    result.result,
+                                ),
+                                Err(e) => tool_stream(
+                                    Box::new(stream::empty()),
+                                    futures::future::ready(Err(e)),
+                                ),
+                            }));
+
+                            // Update the shared permission manager when user selects "Always Allow"
+                            if matches!(action, crate::agents::approval::ApprovalAction::AlwaysAllow) {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                    .await;
+                            }
+                        } else {
+                            // User declined - add declined response
+                            let mut response = message_tool_response.lock().await;
+                            *response = response.clone().with_tool_response(
+                                request.id.clone(),
+                                Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                            );
                         }
                     }
                 }

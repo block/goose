@@ -93,7 +93,6 @@ pub struct Agent {
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
-    pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
@@ -155,7 +154,7 @@ where
 impl Agent {
     pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
-        let (confirm_tx, confirm_rx) = mpsc::channel(32);
+        let (confirm_tx, _confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
         Self {
@@ -168,7 +167,6 @@ impl Agent {
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
             confirmation_tx: confirm_tx,
-            confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_route_manager: Arc::new(ToolRouteManager::new()),
@@ -1250,6 +1248,9 @@ impl Agent {
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
+
+        // Also update the extension manager's provider
+        self.extension_manager.set_provider(provider.clone()).await;
 
         self.update_router_tool_selector(Some(provider), None)
             .await?;

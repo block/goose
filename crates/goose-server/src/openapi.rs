@@ -378,6 +378,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
+        super::routes::approval::approval_stream,
+        super::routes::approval::submit_approval_response,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -485,6 +487,10 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::UpdateFromSessionRequest,
         super::routes::setup::SetupResponse,
+        super::routes::approval::ApprovalRequest,
+        super::routes::approval::ApprovalResponse,
+        goose::agents::approval::ApprovalType,
+        goose::agents::approval::ApprovalAction,
     ))
 )]
 pub struct ApiDoc;

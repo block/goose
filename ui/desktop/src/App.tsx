@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import { ApprovalModal } from './components/ui/ApprovalModal';
+import { useApprovalSSE } from './hooks/useApprovalSSE';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -307,6 +309,7 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
+  const { approvalRequest, approveOnce, approveAlways, deny } = useApprovalSSE();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -612,6 +615,15 @@ export function AppInner() {
         <GoosehintsModal
           directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
+      {approvalRequest && (
+        <ApprovalModal
+          isOpen={!!approvalRequest}
+          request={approvalRequest}
+          onApproveOnce={approveOnce}
+          onApproveAlways={approveAlways}
+          onDeny={deny}
         />
       )}
     </>

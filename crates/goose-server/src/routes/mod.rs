@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod approval;
 pub mod audio;
 pub mod config_management;
 pub mod context;
@@ -30,4 +31,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(approval::routes(state.approval_state.clone()))
 }

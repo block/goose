@@ -10,6 +10,39 @@ export type Annotations = {
     priority?: number;
 };
 
+export type ApprovalAction = 'allow_once' | 'always_allow' | 'deny';
+
+/**
+ * A request for user approval
+ */
+export type ApprovalRequest = ApprovalType & {
+    requestId: string;
+    sessionId: string;
+};
+
+/**
+ * A response to an approval request
+ */
+export type ApprovalResponse = {
+    action: ApprovalAction;
+    requestId: string;
+};
+
+export type ApprovalType = {
+    principalType: string;
+    prompt?: string | null;
+    toolName: string;
+    type: 'toolCall';
+} | {
+    extensionName: string;
+    maxTokens: number;
+    messages: Array<{
+        [key: string]: unknown;
+    }>;
+    systemPrompt?: string | null;
+    type: 'sampling';
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -1086,6 +1119,52 @@ export type UpdateRouterToolSelectorResponses = {
 };
 
 export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
+
+export type ApprovalStreamData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/approval';
+};
+
+export type ApprovalStreamErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type ApprovalStreamResponses = {
+    /**
+     * SSE stream of approval requests
+     */
+    200: unknown;
+};
+
+export type SubmitApprovalResponseData = {
+    body: ApprovalResponse;
+    path?: never;
+    query?: never;
+    url: '/approval';
+};
+
+export type SubmitApprovalResponseErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type SubmitApprovalResponseResponses = {
+    /**
+     * Approval response submitted successfully
+     */
+    200: unknown;
+};
 
 export type ReadAllConfigData = {
     body?: never;
