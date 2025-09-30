@@ -118,7 +118,7 @@ mod tests {
         let results = inspector.inspect(&tool_requests, &[]).await.unwrap();
 
         // Results depend on whether security is enabled in config
-        if inspector.is_prompt_injection_detection_enabled() {
+        if inspector.is_enabled() {
             // If security is enabled, should detect the dangerous command
             assert!(
                 results.len() >= 1,
