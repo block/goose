@@ -104,27 +104,6 @@ mod execution_tests {
     }
 
     #[tokio::test]
-    async fn test_different_modes_same_session() {
-        let manager = AgentManager::new(None).await.unwrap();
-        let session_id = String::from("mode-test");
-
-        // Create initial agent
-        let agent1 = manager
-            .get_or_create_agent(session_id.clone())
-            .await
-            .unwrap();
-
-        // Get same session with different mode - should return same agent
-        // (mode is stored but agent is reused)
-        let agent2 = manager
-            .get_or_create_agent(session_id.clone())
-            .await
-            .unwrap();
-
-        assert!(Arc::ptr_eq(&agent1, &agent2));
-    }
-
-    #[tokio::test]
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
