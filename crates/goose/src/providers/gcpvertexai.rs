@@ -260,7 +260,10 @@ impl GcpVertexAIProvider {
                     self.retry_config.max_retries
                 );
                 tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
+                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                    details: error_msg,
+                    retry_delay: None,
+                }));
             }
 
             // Get a fresh auth token for each attempt
@@ -292,9 +295,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Try to parse response for more detailed error info
@@ -319,7 +323,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(rate_limit_attempts);
@@ -335,9 +342,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Handle 529 Overloaded error (https://docs.anthropic.com/en/api/errors)
@@ -354,7 +362,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(overloaded_attempts);
@@ -444,10 +455,7 @@ impl Provider for GcpVertexAIProvider {
         Self: Sized,
     {
         let model_strings: Vec<String> = vec![
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35),
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35V2),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
-            GcpVertexAIModel::Claude(ClaudeVersion::Haiku35),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
@@ -597,7 +605,7 @@ mod tests {
     fn test_url_construction() {
         use url::Url;
 
-        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet-v2@20241022");
+        let model_config = ModelConfig::new_or_fail("claude-sonnet-4-20250514");
         let context = RequestContext::new(&model_config.model_name).unwrap();
         let api_model_id = context.model.to_string();
 
@@ -629,7 +637,8 @@ mod tests {
             .iter()
             .map(|m| m.name.clone())
             .collect();
-        assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
+        assert!(model_names.contains(&"claude-3-7-sonnet@20250219".to_string()));
+        assert!(model_names.contains(&"claude-sonnet-4@20250514".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
         // Should contain the original 2 config keys plus 4 new retry-related ones

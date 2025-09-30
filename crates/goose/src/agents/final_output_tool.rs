@@ -1,8 +1,7 @@
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
 use indoc::formatdoc;
-use mcp_core::ToolCall;
-use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
+use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -38,17 +37,17 @@ impl FinalOutputTool {
 
     pub fn tool(&self) -> Tool {
         let instructions = formatdoc! {r#"
-            This tool collects the final output for a user and provides validation for structured JSON final output against a predefined schema.
+            The final_output tool collects the final output for the user and provides validation for structured JSON final output against a predefined schema.
 
-            This tool MUST be used for the final output to the user.
+            This final_output tool MUST be called with the final output for the user.
             
             Purpose:
-            - Collects the final output for a user
+            - Collects the final output for the user
             - Ensures that final outputs conform to the expected JSON structure
             - Provides clear validation feedback when outputs don't match the schema
             
             Usage:
-            - Call the `final_output` tool with your JSON final output
+            - Call the `final_output` tool with your JSON final output passed as the argument.
             
             The expected JSON schema format is:
 
@@ -83,8 +82,8 @@ impl FinalOutputTool {
         formatdoc! {r#"
             # Final Output Instructions
 
-            You MUST use the `final_output` tool to collect the final output for a user.
-            The final output MUST be a valid JSON object that matches the following expected schema:
+            You MUST use the `final_output` tool to collect the final output for the user rather than providing the output directly in your response.
+            The final output MUST be a valid JSON object that is provided to the `final_output` tool when called and it must match the following schema:
 
             {}
 
@@ -117,10 +116,10 @@ impl FinalOutputTool {
         }
     }
 
-    pub async fn execute_tool_call(&mut self, tool_call: ToolCall) -> ToolCallResult {
-        match tool_call.name.as_str() {
+    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParam) -> ToolCallResult {
+        match tool_call.name.to_string().as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
-                let result = self.validate_json_output(&tool_call.arguments).await;
+                let result = self.validate_json_output(&tool_call.arguments.into()).await;
                 match result {
                     Ok(parsed_value) => {
                         self.final_output = Some(Self::parsed_final_output_string(parsed_value));
@@ -153,6 +152,8 @@ impl FinalOutputTool {
 mod tests {
     use super::*;
     use crate::recipe::Response;
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
     use serde_json::json;
 
     fn create_complex_test_schema() -> Value {
@@ -226,11 +227,11 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
+        let tool_call = CallToolRequestParam {
+            name: FINAL_OUTPUT_TOOL_NAME.into(),
+            arguments: Some(object!({
                 "message": "Hello"  // Missing required "count" field
-            }),
+            })),
         };
 
         let result = tool.execute_tool_call(tool_call).await;
@@ -248,15 +249,15 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
+        let tool_call = CallToolRequestParam {
+            name: FINAL_OUTPUT_TOOL_NAME.into(),
+            arguments: Some(object!({
                 "user": {
                     "name": "John",
                     "age": 30
                 },
                 "tags": ["developer", "rust"]
-            }),
+            })),
         };
 
         let result = tool.execute_tool_call(tool_call).await;

@@ -11,21 +11,21 @@ authors:
 
 I'm a developer at heart, so when I'm working on a personal project, the hardest part isn't writing code—it's making design decisions. I recently built a calendar user interface. I wanted to enhance its visual appeal, so I researched UI design trends like "glassmorphism" and "claymorphism."
 
-However, I didn't want to spend hours implementing the CSS for each design trend, so I developed a faster approach: screenshot-driven development. I used an open source developer agent called [Goose](https://github.com/block/goose) to transform my user interfaces quickly.
+However, I didn't want to spend hours implementing the CSS for each design trend, so I developed a faster approach: screenshot-driven development. I used an open source developer agent called [goose](https://github.com/block/goose) to transform my user interfaces quickly.
 
 <!-- truncate -->
 
-:::warning Goose Beta Version
-This post was written about a beta version of Goose and the commands and flow may have changed.
+:::warning goose Beta Version
+This post was written about a beta version of goose and the commands and flow may have changed.
 :::
 
 ### My original calendar:
 ![calendar](screenshot-calendar-og.png)
 
-### Goose prototyped the designs below: 
-![Goose prototypes](goose-prototypes-calendar.png)
+### goose prototyped the designs below: 
+![goose prototypes](goose-prototypes-calendar.png)
 
-In this blog post, I'll show you how to quickly prototype design styles by letting Goose handle the CSS for you.
+In this blog post, I'll show you how to quickly prototype design styles by letting goose handle the CSS for you.
 >💡 Note: Your results might look different from my examples - that's part of the fun of generative AI! Each run can produce unique variations of these design trends.
 
 ## Get Started with Screenshot-Driven Development
@@ -180,7 +180,7 @@ Let's create a basic UI to experiment with. Create an index.html file with the c
 
 Once saved, open the file in your browser. You should see a calendar!
 
-### Step 2: Install Goose
+### Step 2: Install goose
 
 ```bash
 brew install pipx
@@ -196,7 +196,7 @@ goose session start
 
 #### Bring your own LLM
 
->Goose will prompt you to set up your API key when you first run this command. You can use various LLM providers like OpenAI or Anthropic
+>goose will prompt you to set up your API key when you first run this command. You can use various LLM providers like OpenAI or Anthropic
 
 ```bash
 export OPENAI_API_KEY=your_api_key
@@ -205,9 +205,9 @@ export ANTHROPIC_API_KEY=your_api_key
 ```
 
 ### Step 4: Enable the Screen toolkit
-Goose uses [toolkits](https://block.github.io/goose/plugins/plugins.html) to extend its capabilities. The [screen](https://block.github.io/goose/plugins/available-toolkits.html#6-screen-toolkit) toolkit lets Goose take and analyze screenshots.
+goose uses [toolkits](https://block.github.io/goose/plugins/plugins.html) to extend its capabilities. The [screen](https://block.github.io/goose/plugins/available-toolkits.html#6-screen-toolkit) toolkit lets goose take and analyze screenshots.
 
-To enable the Screen toolkit, add it to your Goose profile at ~/.config/goose/profiles.yaml.
+To enable the Screen toolkit, add it to your goose profile at ~/.config/goose/profiles.yaml.
 
 > Your configuration might look slightly different depending on your LLM provider preferences.
 
@@ -225,8 +225,8 @@ default:
     requires: {}
 ```
 
-### Step 5: Prompt Goose to screenshot your UI
-Goose analyzes your UI through screenshots to understand its structure and elements. In your Gooses session, prompt Goose to take a screenshot by specifying which display your UI is on:
+### Step 5: Prompt goose to screenshot your UI
+goose analyzes your UI through screenshots to understand its structure and elements. In your gooses session, prompt goose to take a screenshot by specifying which display your UI is on:
 
 ```bash
 Take a screenshot of display(1)  
@@ -234,11 +234,11 @@ Take a screenshot of display(1)
 
 > The display number is required - use display(1) for your main monitor or display(2) for a secondary monitor.
 
-Upon success, Goose will run a `screencapture` command and save it as a temporary file.
+Upon success, goose will run a `screencapture` command and save it as a temporary file.
 
-### Step 6: Prompt Goose to transform your UI
+### Step 6: Prompt goose to transform your UI
 
-Now, you can ask Goose to apply different design styles. Here are some of the prompts I gave Goose and the results it produced:
+Now, you can ask goose to apply different design styles. Here are some of the prompts I gave goose and the results it produced:
 
 #### Glassmorphism
 
@@ -277,11 +277,11 @@ Apply a brutalist effect please
 
 ## Learn More
 
-Developing user interfaces is a blend of creativity and problem-solving. And I love that using Goose gives me more time to focus on creativity rather than wrestling with CSS for hours. 
+Developing user interfaces is a blend of creativity and problem-solving. And I love that using goose gives me more time to focus on creativity rather than wrestling with CSS for hours. 
 
-Beyond prototyping, Goose's ability to analyze screenshots can help developers identify and resolve UI bugs.
+Beyond prototyping, goose's ability to analyze screenshots can help developers identify and resolve UI bugs.
 
-If you're interested in learning more, check out the [Goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
+If you're interested in learning more, check out the [goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
 
 <head>
     <meta property="og:title" content="Screenshot-Driven Development" />

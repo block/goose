@@ -1,5 +1,5 @@
 ---
-title: Cloudflare MCP Server
+title: Cloudflare Extension
 description: Add Cloudflare MCP Servers as Goose Extensions
 unlisted: true
 ---
@@ -132,7 +132,7 @@ Choose one or more servers based on your needs. Here are the most popular config
 Let's use the Observability server to debug performance issues with a Workers application:
 
 :::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
+Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 #### Goose Prompt

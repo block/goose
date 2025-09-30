@@ -1,9 +1,6 @@
 // An example script to run an MCP server
 use anyhow::Result;
-use goose_mcp::MemoryRouter;
-use mcp_server::router::RouterService;
-use mcp_server::{ByteTransport, Server};
-use tokio::io::{stdin, stdout};
+use goose_mcp::MemoryServer;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
 
@@ -24,13 +21,16 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP server");
 
-    // Create an instance of our counter router
-    let router = RouterService(MemoryRouter::new());
+    // Create an instance of our memory server
+    let memory_server = MemoryServer::new();
 
-    // Create and run the server
-    let server = Server::new(router);
-    let transport = ByteTransport::new(stdin(), stdout());
+    // Run the server using rmcp
+    let transport = rmcp::transport::stdio();
 
     tracing::info!("Server initialized and ready to handle requests");
-    Ok(server.run(transport).await?)
+    let running_service = rmcp::service::serve_directly(memory_server, transport, None);
+
+    // Wait for the service to complete
+    running_service.waiting().await?;
+    Ok(())
 }

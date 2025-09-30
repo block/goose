@@ -2,13 +2,16 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::mcp_utils::ToolResult;
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolResult};
-use rmcp::model::{Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool};
+use rmcp::model::{
+    object, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
+    Role, Tool,
+};
 use serde_json::Value;
 
 use super::super::base::Usage;
@@ -57,7 +60,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&call.arguments))
+                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -72,7 +75,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&call.arguments))
+                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -123,6 +126,9 @@ pub fn to_bedrock_tool_result_content_block(
         RawContent::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
         RawContent::Image(image) => {
             bedrock::ToolResultContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
+        }
+        RawContent::ResourceLink(_link) => {
+            bedrock::ToolResultContentBlock::Text("[Resource link]".to_string())
         }
         RawContent::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
@@ -279,10 +285,10 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
         bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
             tool_use.tool_use_id.to_string(),
-            Ok(ToolCall::new(
-                tool_use.name.to_string(),
-                from_bedrock_json(&tool_use.input)?,
-            )),
+            Ok(CallToolRequestParam {
+                name: tool_use.name.clone().into(),
+                arguments: Some(object(from_bedrock_json(&tool_use.input.clone())?)),
+            }),
         ),
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
@@ -381,6 +387,7 @@ mod tests {
             let image = RawImageContent {
                 data: TEST_IMAGE_BASE64.to_string(),
                 mime_type: mime_type.to_string(),
+                meta: None,
             }
             .no_annotation();
 
@@ -396,6 +403,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/bmp".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -411,6 +419,7 @@ mod tests {
         let image = RawImageContent {
             data: "invalid_base64_data!!!".to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -425,6 +434,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 

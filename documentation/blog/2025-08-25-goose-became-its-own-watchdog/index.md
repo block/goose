@@ -39,7 +39,7 @@ The whole process takes minutes instead of days, and the submitter gets immediat
 
 ## Goose in Headless Mode
 
-We've covered headless mode in [tutorials](https://block.github.io/goose/docs/tutorials/headless-goose/) and [videos](https://www.youtube.com/@blockopensource/search?query=headless), but here's a quick recap: headless mode allows Goose to run without a graphical user interface, making it faster and more efficient for automated tasks. It excels in server environments as long as we're being _really_ clear about the instructions to follow, or a fallback if the instructions cannot be followed -- we don't want something half-finished or broken as a result if Goose gets stuck on what to do.
+We've covered headless mode in [tutorials](https://block.github.io/goose/docs/tutorials/headless-goose/) and [videos](https://www.youtube.com/@goose-oss/search?query=headless), but here's a quick recap: headless mode allows Goose to run without a graphical user interface, making it faster and more efficient for automated tasks. It excels in server environments as long as we're being _really_ clear about the instructions to follow, or a fallback if the instructions cannot be followed -- we don't want something half-finished or broken as a result if Goose gets stuck on what to do.
 
 We launch the Docker container with something like this:
 

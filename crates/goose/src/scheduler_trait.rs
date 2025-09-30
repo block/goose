@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::scheduler::{ScheduledJob, SchedulerError};
-use crate::session::storage::SessionMetadata;
+use crate::session::Session;
 
 /// Common trait for all scheduler implementations
 #[async_trait]
@@ -30,7 +30,7 @@ pub trait SchedulerTrait: Send + Sync {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError>;
+    ) -> Result<Vec<(String, Session)>, SchedulerError>;
 
     /// Update a schedule's cron expression
     async fn update_schedule(&self, sched_id: &str, new_cron: String)

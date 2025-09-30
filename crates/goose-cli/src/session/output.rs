@@ -1,19 +1,19 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{style, Color};
+use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
+use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use mcp_core::tool::ToolCall;
 use regex::Regex;
-use rmcp::model::PromptArgument;
+use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -247,7 +247,7 @@ pub fn goose_mode_message(text: &str) {
 
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
-        Ok(call) => match call.name.as_str() {
+        Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
@@ -389,49 +389,55 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &ToolCall, debug: bool) {
+fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
-    if let Some(Value::String(path)) = call.arguments.get("path") {
-        println!(
-            "{}: {}",
-            style("path").dim(),
-            style(shorten_path(path, debug)).green()
-        );
-    }
+    if let Some(args) = &call.arguments {
+        if let Some(Value::String(path)) = args.get("path") {
+            println!(
+                "{}: {}",
+                style("path").dim(),
+                style(shorten_path(path, debug)).green()
+            );
+        }
 
-    // Print other arguments normally, excluding path
-    if let Some(args) = call.arguments.as_object() {
-        let mut other_args = serde_json::Map::new();
-        for (k, v) in args {
-            if k != "path" {
-                other_args.insert(k.clone(), v.clone());
+        // Print other arguments normally, excluding path
+        if let Some(args) = &call.arguments {
+            let mut other_args = serde_json::Map::new();
+            for (k, v) in args {
+                if k != "path" {
+                    other_args.insert(k.clone(), v.clone());
+                }
+            }
+            if !other_args.is_empty() {
+                print_params(&Some(other_args), 0, debug);
             }
         }
-        print_params(&Value::Object(other_args), 0, debug);
     }
     println!();
 }
 
-fn render_shell_request(call: &ToolCall, debug: bool) {
+fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
-
-    match call.arguments.get("command") {
-        Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
-        }
-        _ => print_params(&call.arguments, 0, debug),
-    }
+    print_params(&call.arguments, 0, debug);
+    println!();
 }
 
-fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
+fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
 
     // Print task_parameters array
-    if let Some(Value::Array(task_parameters)) = call.arguments.get("task_parameters") {
+    if let Some(task_parameters) = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("task_parameters"))
+        .and_then(|v| match v {
+            Value::Array(arr) => Some(arr),
+            _ => None,
+        })
+    {
         println!("{}:", style("task_parameters").dim());
-
         for task_param in task_parameters.iter() {
             println!("    -");
 
@@ -442,10 +448,40 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
                             // For strings, print the full content without truncation
                             println!("        {}: {}", style(key).dim(), style(s).green());
                         }
+                        Value::Array(arr) => {
+                            // For arrays, print each item on its own line
+                            println!("        {}:", style(key).dim());
+                            for item in arr {
+                                if let Value::String(s) = item {
+                                    println!("            - {}", style(s).green());
+                                } else if let Value::Object(_) = item {
+                                    // For objects in arrays, print them with indentation
+                                    print!("            - ");
+                                    if let Value::Object(obj) = item {
+                                        print_params(&Some(obj.clone()), 3, debug);
+                                    }
+                                } else {
+                                    println!(
+                                        "            - {}",
+                                        style(format!("{}", item)).green()
+                                    );
+                                }
+                            }
+                        }
+                        Value::Object(_) => {
+                            // For objects, print them with proper indentation
+                            println!("        {}:", style(key).dim());
+                            if let Value::Object(obj) = value {
+                                print_params(&Some(obj.clone()), 2, debug);
+                            }
+                        }
                         _ => {
-                            // For everything else, use print_params
-                            print!("        ");
-                            print_params(value, 0, debug);
+                            // For other types (numbers, booleans, null)
+                            println!(
+                                "        {}: {}",
+                                style(key).dim(),
+                                style(format!("{}", value)).green()
+                            );
                         }
                     }
                 }
@@ -456,20 +492,22 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
     println!();
 }
 
-fn render_todo_request(call: &ToolCall, _debug: bool) {
+fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     print_tool_header(call);
 
     // For todo tools, always show the full content without redaction
-    if let Some(Value::String(content)) = call.arguments.get("content") {
-        println!("{}: {}", style("content").dim(), style(content).green());
-    } else {
-        // For todo__read, there are no arguments
-        // Just print an empty line for consistency
+    if let Some(args) = &call.arguments {
+        if let Some(Value::String(content)) = args.get("content") {
+            println!("{}: {}", style("content").dim(), style(content).green());
+        } else {
+            // For todo__read, there are no arguments
+            // Just print an empty line for consistency
+        }
     }
     println!();
 }
 
-fn render_default_request(call: &ToolCall, debug: bool) {
+fn render_default_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
@@ -477,7 +515,7 @@ fn render_default_request(call: &ToolCall, debug: bool) {
 
 // Helper functions
 
-fn print_tool_header(call: &ToolCall) {
+fn print_tool_header(call: &CallToolRequestParam) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
@@ -518,22 +556,22 @@ fn print_markdown(content: &str, theme: Theme) {
 
 const INDENT: &str = "    ";
 
-fn get_tool_params_max_length() -> usize {
-    Config::global()
-        .get_param::<usize>("GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH")
-        .ok()
-        .unwrap_or(40)
+fn print_value_with_prefix(prefix: &String, value: &Value, debug: bool) {
+    let prefix_width = measure_text_width(prefix.as_str());
+    print!("{}", prefix);
+    print_value(value, debug, prefix_width)
 }
 
-fn print_value(value: &Value, debug: bool) {
+fn print_value(value: &Value, debug: bool, reserve_width: usize) {
+    let max_width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| (w as usize).saturating_sub(reserve_width));
     let formatted = match value {
-        Value::String(s) => {
-            if !debug && s.len() > get_tool_params_max_length() {
-                style(format!("[REDACTED: {} chars]", s.len())).yellow()
-            } else {
-                style(s.to_string()).green()
-            }
+        Value::String(s) => match (max_width, debug) {
+            (Some(w), false) if s.len() > w => style(safe_truncate(s, w)),
+            _ => style(s.to_string()),
         }
+        .green(),
         Value::Number(n) => style(n.to_string()).yellow(),
         Value::Bool(b) => style(b.to_string()).yellow(),
         Value::Null => style("null".to_string()).dim(),
@@ -542,65 +580,65 @@ fn print_value(value: &Value, debug: bool) {
     println!("{}", formatted);
 }
 
-fn print_params(value: &Value, depth: usize, debug: bool) {
+fn print_params(value: &Option<JsonObject>, depth: usize, debug: bool) {
     let indent = INDENT.repeat(depth);
 
-    match value {
-        Value::Object(map) => {
-            for (key, val) in map {
-                match val {
-                    Value::Object(_) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        print_params(val, depth + 1, debug);
-                    }
-                    Value::Array(arr) => {
-                        // Check if all items are simple values (not objects or arrays)
-                        let all_simple = arr.iter().all(|item| {
-                            matches!(
-                                item,
-                                Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
-                            )
-                        });
+    if let Some(json_object) = value {
+        for (key, val) in json_object.iter() {
+            match val {
+                Value::Object(obj) => {
+                    println!("{}{}:", indent, style(key).dim());
+                    print_params(&Some(obj.clone()), depth + 1, debug);
+                }
+                Value::Array(arr) => {
+                    // Check if all items are simple values (not objects or arrays)
+                    let all_simple = arr.iter().all(|item| {
+                        matches!(
+                            item,
+                            Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
+                        )
+                    });
 
-                        if all_simple {
-                            // Render inline for simple arrays, truncation will be handled by print_value if needed
-                            let values: Vec<String> = arr
-                                .iter()
-                                .map(|item| match item {
-                                    Value::String(s) => s.clone(),
-                                    Value::Number(n) => n.to_string(),
-                                    Value::Bool(b) => b.to_string(),
-                                    Value::Null => "null".to_string(),
-                                    _ => unreachable!(),
-                                })
-                                .collect();
-                            let joined_values = values.join(", ");
-                            print!("{}{}: ", indent, style(key).dim());
-                            // Use print_value to handle truncation consistently
-                            print_value(&Value::String(joined_values), debug);
-                        } else {
-                            // Use the original multi-line format for complex arrays
-                            println!("{}{}:", indent, style(key).dim());
-                            for item in arr.iter() {
+                    if all_simple {
+                        // Render inline for simple arrays, truncation will be handled by print_value if needed
+                        let values: Vec<String> = arr
+                            .iter()
+                            .map(|item| match item {
+                                Value::String(s) => s.clone(),
+                                Value::Number(n) => n.to_string(),
+                                Value::Bool(b) => b.to_string(),
+                                Value::Null => "null".to_string(),
+                                _ => unreachable!(),
+                            })
+                            .collect();
+                        let joined_values = values.join(", ");
+                        print_value_with_prefix(
+                            &format!("{}{}: ", indent, style(key).dim()),
+                            &Value::String(joined_values),
+                            debug,
+                        );
+                    } else {
+                        // Use the original multi-line format for complex arrays
+                        println!("{}{}:", indent, style(key).dim());
+                        for item in arr.iter() {
+                            if let Value::Object(obj) = item {
                                 println!("{}{}- ", indent, INDENT);
-                                print_params(item, depth + 2, debug);
+                                print_params(&Some(obj.clone()), depth + 2, debug);
+                            } else {
+                                println!("{}{}- {}", indent, INDENT, item);
                             }
                         }
                     }
-                    _ => {
-                        print!("{}{}: ", indent, style(key).dim());
-                        print_value(val, debug);
-                    }
+                }
+                _ => {
+                    print_value_with_prefix(
+                        &format!("{}{}: ", indent, style(key).dim()),
+                        val,
+                        debug,
+                    );
                 }
             }
         }
-        Value::Array(arr) => {
-            for (i, item) in arr.iter().enumerate() {
-                println!("{}{}.", indent, i + 1);
-                print_params(item, depth + 1, debug);
-            }
-        }
-        _ => print_value(value, debug),
     }
 }
 
@@ -658,12 +696,12 @@ pub fn display_session_info(
     resume: bool,
     provider: &str,
     model: &str,
-    session_file: &Option<PathBuf>,
+    session_id: &Option<String>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     let start_session_msg = if resume {
         "resuming session |"
-    } else if session_file.is_none() {
+    } else if session_id.is_none() {
         "running without session |"
     } else {
         "starting session |"
@@ -705,14 +743,6 @@ pub fn display_session_info(
         );
     }
 
-    if let Some(session_file) = session_file {
-        println!(
-            "    {} {}",
-            style("logging to").dim(),
-            style(session_file.display()).dim().cyan(),
-        );
-    }
-
     println!(
         "    {} {}",
         style("working directory:").dim(),
@@ -723,7 +753,7 @@ pub fn display_session_info(
 }
 
 pub fn display_greeting() {
-    println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+    println!("\ngoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
 /// Display context window usage with both current and session totals
@@ -779,7 +809,7 @@ fn normalize_model_name(model: &str) -> String {
         result = re_date.replace(&result, "").to_string();
     }
 
-    // Convert version numbers like -3-5- to -3.5- (e.g., claude-3-5-haiku -> claude-3.5-haiku)
+    // Convert version numbers like -3-7- to -3.7- (e.g., claude-3-7-sonnet -> claude-3.7-sonnet)
     let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
     if re_version.is_match(&result) {
         result = re_version.replace(&result, "-$1.$2-").to_string();

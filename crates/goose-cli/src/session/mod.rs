@@ -21,7 +21,6 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
-pub use goose::session::Identifier;
 use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
@@ -39,6 +38,7 @@ use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::conversation::message::{Message, MessageContent};
+use goose::session::SessionManager;
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde_json::Value;
@@ -54,19 +54,17 @@ pub enum RunMode {
     Plan,
 }
 
-pub struct Session {
-    pub agent: Agent,
+pub struct CliSession {
+    agent: Agent,
     messages: Conversation,
-    session_file: Option<PathBuf>,
-    // Cache for completion data - using std::sync for thread safety without async
+    session_id: Option<String>,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
-    debug: bool, // New field for debug mode
+    debug: bool,
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
-    startup_metadata: Option<SessionMetadata>, // Metadata to write with first message
 }
 
 // Cache structure for completion data
@@ -112,8 +110,6 @@ pub async fn classify_planner_response(
         )
         .await?;
 
-    // println!("classify_planner_response: {result:?}\n"); // TODO: remove
-
     let predicted = result.as_concat_text();
     if predicted.to_lowercase().contains("plan") {
         Ok(PlannerResponseType::Plan)
@@ -122,31 +118,33 @@ pub async fn classify_planner_response(
     }
 }
 
-impl Session {
+impl CliSession {
     pub fn new(
         agent: Agent,
-        session_file: Option<PathBuf>,
+        session_id: Option<String>,
         debug: bool,
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
-        startup_metadata: Option<SessionMetadata>,
     ) -> Self {
-        let messages = if let Some(session_file) = &session_file {
-            session::read_messages(session_file).unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to load message history: {}", e);
-                Conversation::new_unvalidated(Vec::new())
+        let messages = if let Some(session_id) = &session_id {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    SessionManager::get_session(session_id, true)
+                        .await
+                        .map(|session| session.conversation.unwrap_or_default())
+                        .unwrap()
+                })
             })
         } else {
-            // Don't try to read messages if we're not saving sessions
             Conversation::new_unvalidated(Vec::new())
         };
 
-        Session {
+        CliSession {
             agent,
             messages,
-            session_file,
+            session_id,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
             run_mode: RunMode::Normal,
@@ -154,17 +152,18 @@ impl Session {
             max_turns,
             edit_mode,
             retry_config,
-            startup_metadata,
         }
     }
 
-    /// Helper function to summarize context messages
+    pub fn session_id(&self) -> Option<&String> {
+        self.session_id.as_ref()
+    }
+
     async fn summarize_context_messages(
         messages: &mut Conversation,
         agent: &Agent,
         message_suffix: &str,
     ) -> Result<()> {
-        // Summarize messages to fit within context length
         let (summarized_messages, _, _) = agent.summarize_context(messages.messages()).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
@@ -182,7 +181,6 @@ impl Session {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
         let mut envs = HashMap::new();
 
-        // Parse environment variables (format: KEY=value)
         while let Some(part) = parts.first() {
             if !part.contains('=') {
                 break;
@@ -197,7 +195,6 @@ impl Session {
         }
 
         let cmd = parts.remove(0).to_string();
-        // Generate a random name for the ephemeral extension
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(8)
@@ -378,67 +375,10 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
-        let message_text = message.as_concat_text();
+
+        // TODO(Douwe): Make sure we generate the description here still:
 
         self.push_message(message);
-        // Get the provider from the agent for description generation
-        let provider = self.agent.provider().await?;
-
-        // Persist messages with provider for automatic description generation
-        if let Some(session_file) = &self.session_file {
-            let working_dir = Some(
-                std::env::current_dir().expect("failed to get current session working directory"),
-            );
-
-            // First-write optimization: Save complete metadata (including extensions) only once
-            //
-            // - startup_metadata contains our metadata with extensions (set during session init)
-            // - .take() removes the value and returns it, leaving None behind
-            // - After .take(), startup_metadata is None forever
-            //
-            // Result: First message write uses cached metadata, all others use normal flow
-            // This avoids multiple file writes during startup without needing a "dirty" flag to track the cached metadata
-            if let Some(startup_metadata) = self.startup_metadata.take() {
-                // First write: Use cached metadata with extensions
-                let secure_path =
-                    session::get_path(session::Identifier::Path(session_file.to_path_buf()))?;
-                session::storage::save_messages_with_metadata(
-                    &secure_path,
-                    &startup_metadata,
-                    &self.messages,
-                )?;
-            } else {
-                // All other writes: Use normal persistence
-                // (startup_metadata is None after .take() was called above)
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    Some(provider),
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-        }
-
-        // Track the current directory and last instruction in projects.json
-        let session_id = self
-            .session_file
-            .as_ref()
-            .and_then(|p| p.file_stem())
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string());
-
-        if let Err(e) = crate::project_tracker::update_project_tracker(
-            Some(&message_text),
-            session_id.as_deref(),
-        ) {
-            eprintln!(
-                "Warning: Failed to update project tracker with instruction: {}",
-                e
-            );
-        }
-
         self.process_agent_response(false, cancel_token).await?;
         Ok(())
     }
@@ -518,40 +458,28 @@ impl Session {
                             self.push_message(Message::user().with_text(&content));
 
                             // Track the current directory and last instruction in projects.json
-                            let session_id = self
-                                .session_file
-                                .as_ref()
-                                .and_then(|p| p.file_stem())
-                                .and_then(|s| s.to_str())
-                                .map(|s| s.to_string());
-
                             if let Err(e) = crate::project_tracker::update_project_tracker(
                                 Some(&content),
-                                session_id.as_deref(),
+                                self.session_id.as_deref(),
                             ) {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
 
-                            let provider = self.agent.provider().await?;
-
-                            // Persist messages with provider for automatic description generation
-                            if let Some(session_file) = &self.session_file {
-                                let working_dir = Some(std::env::current_dir().unwrap_or_default());
-
-                                session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    Some(provider),
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                )
-                                .await?;
-                            }
+                            let _provider = self.agent.provider().await?;
 
                             output::show_thinking();
+                            let start_time = Instant::now();
                             self.process_agent_response(true, CancellationToken::default())
                                 .await?;
                             output::hide_thinking();
+
+                            // Display elapsed time
+                            let elapsed = start_time.elapsed();
+                            let elapsed_str = format_elapsed_time(elapsed);
+                            println!(
+                                "\n{}",
+                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                            );
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -675,16 +603,25 @@ impl Session {
                 input::InputResult::Clear => {
                     save_history(&mut editor);
 
+                    if let Some(session_id) = &self.session_id {
+                        if let Err(e) = SessionManager::replace_conversation(
+                            session_id,
+                            &Conversation::default(),
+                        )
+                        .await
+                        {
+                            output::render_error(&format!("Failed to clear session: {}", e));
+                            continue;
+                        }
+                    }
+
                     self.messages.clear();
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
                     );
-                    if let Some(file) = self.session_file.as_ref().filter(|f| f.exists()) {
-                        std::fs::remove_file(file)?;
-                        std::fs::File::create(file)?;
-                    }
+
                     continue;
                 }
                 input::InputResult::PromptCommand(opts) => {
@@ -745,44 +682,30 @@ impl Session {
                         output::show_thinking();
 
                         // Get the provider for summarization
-                        let provider = self.agent.provider().await?;
+                        let _provider = self.agent.provider().await?;
 
-                        // Call the summarize_context method which uses the summarize_messages function
+                        // Call the summarize_context method
                         let (summarized_messages, _token_counts, summarization_usage) = self
                             .agent
                             .summarize_context(self.messages.messages())
                             .await?;
 
                         // Update the session messages with the summarized ones
-                        self.messages = summarized_messages;
+                        self.messages = summarized_messages.clone();
 
-                        // Persist the summarized messages and update session metadata with new token counts
-                        if let Some(session_file) = &self.session_file {
-                            let working_dir = std::env::current_dir().ok();
-                            session::persist_messages_with_schedule_id(
-                                session_file,
-                                &self.messages,
-                                Some(provider),
-                                self.scheduled_job_id.clone(),
-                                working_dir,
-                            )
-                            .await?;
+                        // Persist the summarized messages and update session metadata
+                        if let Some(session_id) = &self.session_id {
+                            // Replace all messages with the summarized version
+                            SessionManager::replace_conversation(session_id, &summarized_messages)
+                                .await?;
 
                             // Update session metadata with the new token counts from summarization
                             if let Some(usage) = summarization_usage {
-                                let session_file_path = session::storage::get_path(
-                                    session::storage::Identifier::Path(session_file.to_path_buf()),
-                                )?;
-                                let mut metadata =
-                                    session::storage::read_metadata(&session_file_path)?;
+                                let session =
+                                    SessionManager::get_session(session_id, false).await?;
 
                                 // Update token counts with the summarization usage
-                                // Use output tokens as total since that's what's actually in the context going forward
                                 let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
-                                metadata.total_tokens = Some(summary_tokens);
-                                metadata.input_tokens = None; // Clear input tokens since we now have a summary
-                                metadata.output_tokens = Some(summary_tokens);
-                                metadata.message_count = self.messages.len();
 
                                 // Update accumulated tokens (add the summarization cost)
                                 let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
@@ -791,20 +714,28 @@ impl Session {
                                         _ => a.or(b),
                                     }
                                 };
-                                metadata.accumulated_total_tokens = accumulate(
-                                    metadata.accumulated_total_tokens,
+
+                                let accumulated_total = accumulate(
+                                    session.accumulated_total_tokens,
                                     usage.usage.total_tokens,
                                 );
-                                metadata.accumulated_input_tokens = accumulate(
-                                    metadata.accumulated_input_tokens,
+                                let accumulated_input = accumulate(
+                                    session.accumulated_input_tokens,
                                     usage.usage.input_tokens,
                                 );
-                                metadata.accumulated_output_tokens = accumulate(
-                                    metadata.accumulated_output_tokens,
+                                let accumulated_output = accumulate(
+                                    session.accumulated_output_tokens,
                                     usage.usage.output_tokens,
                                 );
 
-                                session::storage::update_metadata(&session_file_path, &metadata)
+                                SessionManager::update_session(session_id)
+                                    .total_tokens(Some(summary_tokens))
+                                    .input_tokens(None)
+                                    .output_tokens(Some(summary_tokens))
+                                    .accumulated_total_tokens(accumulated_total)
+                                    .accumulated_input_tokens(accumulated_input)
+                                    .accumulated_output_tokens(accumulated_output)
+                                    .apply()
                                     .await?;
                             }
                         }
@@ -824,19 +755,10 @@ impl Session {
                     } else {
                         println!("{}", console::style("Summarization cancelled.").yellow());
                     }
-
                     continue;
                 }
             }
         }
-
-        println!(
-            "\nClosing session.{}",
-            self.session_file
-                .as_ref()
-                .map(|p| format!(" Recorded to {}", p.display()))
-                .unwrap_or_default()
-        );
         Ok(())
     }
 
@@ -935,23 +857,20 @@ impl Session {
     ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
-        let session_config = self.session_file.as_ref().map(|s| {
-            let session_id = session::Identifier::Path(s.clone());
-            SessionConfig {
-                id: session_id.clone(),
-                working_dir: std::env::current_dir().unwrap_or_default(),
-                schedule_id: self.scheduled_job_id.clone(),
-                execution_mode: None,
-                max_turns: self.max_turns,
-                retry_config: self.retry_config.clone(),
-            }
+        let session_config = self.session_id.as_ref().map(|session_id| SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+            schedule_id: self.scheduled_job_id.clone(),
+            execution_mode: None,
+            max_turns: self.max_turns,
+            retry_config: self.retry_config.clone(),
         });
         let mut stream = self
             .agent
             .reply(
                 self.messages.clone(),
                 session_config.clone(),
-                Some(cancel_token),
+                Some(cancel_token.clone()),
             )
             .await?;
 
@@ -967,16 +886,31 @@ impl Session {
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
-                                // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
+                                // Format the confirmation prompt - use security message if present, otherwise use generic message
+                                let prompt = if let Some(security_message) = &confirmation.prompt {
+                                    println!("\n{}", security_message);
+                                    "Do you allow this tool call?".to_string()
+                                } else {
+                                    "Goose would like to call the above tool, do you allow?".to_string()
+                                };
 
                                 // Get confirmation from user
-                                let permission_result = cliclack::select(prompt)
-                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
-                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                    .interact();
+                                let permission_result = if confirmation.prompt.is_none() {
+                                    // No security message - show all options including "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                } else {
+                                    // Security message present - don't show "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                };
 
                                 let permission = match permission_result {
                                     Ok(p) => p, // If Ok, use the selected permission
@@ -999,17 +933,6 @@ impl Session {
                                         Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
                                     ));
                                     self.messages.push(response_message);
-                                    if let Some(session_file) = &self.session_file {
-                                        let working_dir = std::env::current_dir().ok();
-                                        session::persist_messages_with_schedule_id(
-                                            session_file,
-                                            &self.messages,
-                                            None,
-                                            self.scheduled_job_id.clone(),
-                                            working_dir,
-                                        )
-                                        .await?;
-                                    }
                                     cancel_token_clone.cancel();
                                     drop(stream);
                                     break;
@@ -1128,11 +1051,10 @@ impl Session {
                                                     }
                                                 })
                                             })
-                                            .unwrap_or_else(|| "unknown".to_string());
+                                            .unwrap_or_else(|| "unknown".to_string().into());
 
                                         let success = tool_response.tool_result.is_ok();
                                         let result_status = if success { "success" } else { "error" };
-
                                         tracing::info!(
                                             counter.goose.tool_completions = 1,
                                             tool_name = %tool_name,
@@ -1141,21 +1063,7 @@ impl Session {
                                         );
                                     }
                                 }
-
                                 self.messages.push(message.clone());
-
-                                // No need to update description on assistant messages
-                                if let Some(session_file) = &self.session_file {
-                                    let working_dir = std::env::current_dir().ok();
-                                    session::persist_messages_with_schedule_id(
-                                        session_file,
-                                        &self.messages,
-                                        None,
-                                        self.scheduled_job_id.clone(),
-                                        working_dir,
-                                    )
-                                    .await?;
-                                }
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
@@ -1268,26 +1176,10 @@ impl Session {
                                 _ => (),
                             }
                         }
-                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
-                            // Replace the session's message history with the compacted messages
-                            self.messages = Conversation::new_unvalidated(new_messages);
-
-                            // Persist the updated messages to the session file
-                            if let Some(session_file) = &self.session_file {
-                                let provider = self.agent.provider().await.ok();
-                                let working_dir = std::env::current_dir().ok();
-                                if let Err(e) = session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    provider,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                ).await {
-                                    eprintln!("Failed to persist compacted messages: {}", e);
-                                }
-                            }
-                        }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+            Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                self.messages = Conversation::new_unvalidated(new_messages.clone());
+            }
+            Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             // Log model change if in debug mode
                             if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
@@ -1295,18 +1187,102 @@ impl Session {
                         }
 
                         Some(Err(e)) => {
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+
+                                output::render_text(
+                                    "Context limit reached. Performing auto-compaction...",
+                                    Some(Color::Yellow),
+                                    true
+                                );
+
+                                // Try auto-compaction first - keep the stream alive!
+                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
+                                    self.messages = compact_result.messages;
+                                    if let Some(session_id) = &self.session_id {
+                                        SessionManager::replace_conversation(session_id, &self.messages).await?;
+                                    }
+
+                                    output::render_text(
+                                        "Compaction complete. Conversation has been automatically compacted to continue.",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+
+                                    // Restart the stream after successful compaction - keep the stream alive!
+                                    stream = self
+                                        .agent
+                                        .reply(
+                                            self.messages.clone(),
+                                            session_config.clone(),
+                                            Some(cancel_token.clone())
+                                        )
+                                        .await?;
+                                    continue;
+                                }
+                                // Auto-compaction failed, fall through to common error handling below
+                            }
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
                             }
-                            output::render_error(
-                                "The error above was an exception we were not able to handle.\n\
-                                These errors are often related to connection or authentication\n\
-                                We've removed the conversation up to the most recent user message\n\
-                                - depending on the error you may be able to continue",
-                            );
+
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+                                    output::render_error(&format!("Error: Context length exceeded: {}", e));
+
+                                    let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
+                                    let selected = match cliclack::select(prompt.to_string())
+                                        .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                        .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                        .interact()
+                                    {
+                                        Ok(choice) => Some(choice),
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                // If interrupted, do nothing and let user handle it manually
+                                                output::render_text("Operation cancelled. You can use /clear or /summarize to continue.", Some(Color::Yellow), true);
+                                                None
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
+
+                                    if let Some(choice) = selected {
+                                        match choice {
+                                            "clear" => {
+                                                self.messages.clear();
+                                                let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                                output::render_text(&msg, Some(Color::Yellow), true);
+                                            }
+                                            "summarize" => {
+                                                // Use the helper function to summarize context
+                                                let message_suffix = "Goose summarized messages for you.";
+                                                if let Err(e) = Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await {
+                                                    output::render_error(&format!("Failed to summarize: {}", e));
+                                                    output::render_text("Consider using /clear to start fresh.", Some(Color::Yellow), true);
+                                                }
+                                            }
+                                            _ => {
+                                                unreachable!()
+                                            }
+                                        }
+                                    }
+                            } else {
+                                output::render_error(
+                                    "The error above was an exception we were not able to handle.\n\
+                                    These errors are often related to connection or authentication\n\
+                                    We've removed the conversation up to the most recent user message\n\
+                                    - depending on the error you may be able to continue",
+                                );
+                            }
                             break;
                         }
                         None => break,
@@ -1352,7 +1328,12 @@ impl Session {
             let mut response_message = Message::user();
             let last_tool_name = tool_requests
                 .last()
-                .and_then(|(_, tool_call)| tool_call.as_ref().ok().map(|tool| tool.name.clone()))
+                .and_then(|(_, tool_call)| {
+                    tool_call
+                        .as_ref()
+                        .ok()
+                        .map(|tool| tool.name.to_string().clone())
+                })
                 .unwrap_or_else(|| "tool".to_string());
 
             let notification = if interrupt {
@@ -1370,40 +1351,13 @@ impl Session {
                     }),
                 ));
             }
+            // TODO(Douwe): update also db
             self.push_message(response_message);
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
             self.push_message(Message::assistant().with_text(&prompt));
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
             output::render_message(&Message::assistant().with_text(&prompt), self.debug);
         } else {
             // An interruption occurred outside of a tool request-response.
@@ -1414,20 +1368,6 @@ impl Session {
                             // Interruption occurred after a tool had completed but not assistant reply
                             let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
                             self.push_message(Message::assistant().with_text(prompt));
-
-                            // No need for description update here
-                            if let Some(session_file) = &self.session_file {
-                                let working_dir = std::env::current_dir().ok();
-                                session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    None,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                )
-                                .await?;
-                            }
-
                             output::render_message(
                                 &Message::assistant().with_text(prompt),
                                 self.debug,
@@ -1448,10 +1388,6 @@ impl Session {
             }
         }
         Ok(())
-    }
-
-    pub fn session_file(&self) -> Option<PathBuf> {
-        self.session_file.clone()
     }
 
     /// Update the completion cache with fresh data
@@ -1524,17 +1460,16 @@ impl Session {
         );
     }
 
-    pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
-        if !self.session_file.as_ref().is_some_and(|f| f.exists()) {
-            return Err(anyhow::anyhow!("Session file does not exist"));
+    pub async fn get_metadata(&self) -> Result<session::Session> {
+        match &self.session_id {
+            Some(id) => SessionManager::get_session(id, false).await,
+            None => Err(anyhow::anyhow!("No session available")),
         }
-
-        session::read_metadata(self.session_file.as_ref().unwrap())
     }
 
     // Get the session's total token usage
-    pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
-        let metadata = self.get_metadata()?;
+    pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
+        let metadata = self.get_metadata().await?;
         Ok(metadata.total_tokens)
     }
 
@@ -1566,7 +1501,7 @@ impl Session {
             }
         }
 
-        match self.get_metadata() {
+        match self.get_metadata().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
 
@@ -1733,4 +1668,89 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_elapsed_time_under_60_seconds() {
+        // Test sub-second duration
+        let duration = Duration::from_millis(500);
+        assert_eq!(format_elapsed_time(duration), "0.50s");
+
+        // Test exactly 1 second
+        let duration = Duration::from_secs(1);
+        assert_eq!(format_elapsed_time(duration), "1.00s");
+
+        // Test 45.75 seconds
+        let duration = Duration::from_millis(45750);
+        assert_eq!(format_elapsed_time(duration), "45.75s");
+
+        // Test 59.99 seconds
+        let duration = Duration::from_millis(59990);
+        assert_eq!(format_elapsed_time(duration), "59.99s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes() {
+        // Test exactly 60 seconds (1 minute)
+        let duration = Duration::from_secs(60);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+
+        // Test 61 seconds (1 minute 1 second)
+        let duration = Duration::from_secs(61);
+        assert_eq!(format_elapsed_time(duration), "1m 01s");
+
+        // Test 90 seconds (1 minute 30 seconds)
+        let duration = Duration::from_secs(90);
+        assert_eq!(format_elapsed_time(duration), "1m 30s");
+
+        // Test 119 seconds (1 minute 59 seconds)
+        let duration = Duration::from_secs(119);
+        assert_eq!(format_elapsed_time(duration), "1m 59s");
+
+        // Test 120 seconds (2 minutes)
+        let duration = Duration::from_secs(120);
+        assert_eq!(format_elapsed_time(duration), "2m 00s");
+
+        // Test 605 seconds (10 minutes 5 seconds)
+        let duration = Duration::from_secs(605);
+        assert_eq!(format_elapsed_time(duration), "10m 05s");
+
+        // Test 3661 seconds (61 minutes 1 second)
+        let duration = Duration::from_secs(3661);
+        assert_eq!(format_elapsed_time(duration), "61m 01s");
+    }
+
+    #[test]
+    fn test_format_elapsed_time_edge_cases() {
+        // Test zero duration
+        let duration = Duration::from_secs(0);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test very small duration (1 millisecond)
+        let duration = Duration::from_millis(1);
+        assert_eq!(format_elapsed_time(duration), "0.00s");
+
+        // Test fractional seconds are truncated for minute display
+        // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
+        let duration = Duration::from_millis(60500);
+        assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
 }

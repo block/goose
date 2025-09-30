@@ -1,11 +1,11 @@
+use crate::mcp_utils::ToolResult;
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolResult};
 use rmcp::model::{
-    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
-    RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
+    AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
+    PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
+    ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
@@ -46,7 +46,7 @@ pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<ToolCall>,
+    pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
 impl ToolRequest {
@@ -81,7 +81,7 @@ pub struct ToolResponse {
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
-    pub arguments: Value,
+    pub arguments: JsonObject,
     pub prompt: Option<String>,
 }
 
@@ -102,7 +102,7 @@ pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<ToolCall>,
+    pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -168,7 +168,13 @@ impl fmt::Display for MessageContent {
 
 impl MessageContent {
     pub fn text<S: Into<String>>(text: S) -> Self {
-        MessageContent::Text(RawTextContent { text: text.into() }.no_annotation())
+        MessageContent::Text(
+            RawTextContent {
+                text: text.into(),
+                meta: None,
+            }
+            .no_annotation(),
+        )
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
@@ -176,12 +182,16 @@ impl MessageContent {
             RawImageContent {
                 data: data.into(),
                 mime_type: mime_type.into(),
+                meta: None,
             }
             .no_annotation(),
         )
     }
 
-    pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
+    pub fn tool_request<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+    ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
@@ -198,7 +208,7 @@ impl MessageContent {
     pub fn tool_confirmation_request<S: Into<String>>(
         id: S,
         tool_name: String,
-        arguments: Value,
+        arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
         MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
@@ -220,7 +230,10 @@ impl MessageContent {
         MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
     }
 
-    pub fn frontend_tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
+    pub fn frontend_tool_request<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+    ) -> Self {
         MessageContent::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
             tool_call,
@@ -317,6 +330,7 @@ impl From<Content> for MessageContent {
             RawContent::Image(image) => {
                 MessageContent::Image(image.optional_annotate(content.annotations))
             }
+            RawContent::ResourceLink(_link) => MessageContent::text("[Resource link]"),
             RawContent::Resource(resource) => {
                 let text = match &resource.resource {
                     ResourceContents::TextResourceContents { text, .. } => text.clone(),
@@ -347,6 +361,7 @@ impl From<PromptMessage> for Message {
             PromptMessageContent::Image { image } => {
                 MessageContent::image(image.data.clone(), image.mime_type.clone())
             }
+            PromptMessageContent::ResourceLink { .. } => MessageContent::text("[Resource link]"),
             PromptMessageContent::Resource { resource } => {
                 // For resources, convert to text content with the resource text
                 match &resource.resource {
@@ -364,6 +379,89 @@ impl From<PromptMessage> for Message {
     }
 }
 
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Metadata for message visibility
+#[serde(rename_all = "camelCase")]
+pub struct MessageMetadata {
+    /// Whether the message should be visible to the user in the UI
+    #[serde(default = "default_true")]
+    pub user_visible: bool,
+    /// Whether the message should be included in the agent's context window
+    #[serde(default = "default_true")]
+    pub agent_visible: bool,
+}
+
+impl Default for MessageMetadata {
+    fn default() -> Self {
+        MessageMetadata {
+            user_visible: true,
+            agent_visible: true,
+        }
+    }
+}
+
+impl MessageMetadata {
+    /// Create metadata for messages visible only to the agent
+    pub fn agent_only() -> Self {
+        MessageMetadata {
+            user_visible: false,
+            agent_visible: true,
+        }
+    }
+
+    /// Create metadata for messages visible only to the user
+    pub fn user_only() -> Self {
+        MessageMetadata {
+            user_visible: true,
+            agent_visible: false,
+        }
+    }
+
+    /// Create metadata for messages visible to neither user nor agent (archived)
+    pub fn invisible() -> Self {
+        MessageMetadata {
+            user_visible: false,
+            agent_visible: false,
+        }
+    }
+
+    /// Return a copy with agent_visible set to false
+    pub fn with_agent_invisible(self) -> Self {
+        Self {
+            agent_visible: false,
+            ..self
+        }
+    }
+
+    /// Return a copy with user_visible set to false
+    pub fn with_user_invisible(self) -> Self {
+        Self {
+            user_visible: false,
+            ..self
+        }
+    }
+
+    /// Return a copy with agent_visible set to true
+    pub fn with_agent_visible(self) -> Self {
+        Self {
+            agent_visible: true,
+            ..self
+        }
+    }
+
+    /// Return a copy with user_visible set to true
+    pub fn with_user_visible(self) -> Self {
+        Self {
+            user_visible: true,
+            ..self
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
@@ -374,6 +472,8 @@ pub struct Message {
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
+    #[serde(default)]
+    pub metadata: MessageMetadata,
 }
 
 impl fmt::Debug for Message {
@@ -400,6 +500,7 @@ impl Message {
             role,
             created,
             content,
+            metadata: MessageMetadata::default(),
         }
     }
     pub fn debug(&self) -> String {
@@ -413,6 +514,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            metadata: MessageMetadata::default(),
         }
     }
 
@@ -423,6 +525,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            metadata: MessageMetadata::default(),
         }
     }
 
@@ -445,6 +548,7 @@ impl Message {
         self.with_content(MessageContent::Text(
             RawTextContent {
                 text: sanitized_text,
+                meta: None,
             }
             .no_annotation(),
         ))
@@ -459,7 +563,7 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<ToolCall>,
+        tool_call: ToolResult<CallToolRequestParam>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
@@ -478,7 +582,7 @@ impl Message {
         self,
         id: S,
         tool_name: String,
-        arguments: Value,
+        arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
         self.with_content(MessageContent::tool_confirmation_request(
@@ -489,7 +593,7 @@ impl Message {
     pub fn with_frontend_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<ToolCall>,
+        tool_call: ToolResult<CallToolRequestParam>,
     ) -> Self {
         self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
@@ -587,19 +691,56 @@ impl Message {
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
     }
+
+    /// Set the visibility metadata for the message
+    pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
+        self.metadata.user_visible = user_visible;
+        self.metadata.agent_visible = agent_visible;
+        self
+    }
+
+    /// Set the entire metadata for the message
+    pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Mark the message as only visible to the user (not the agent)
+    pub fn user_only(mut self) -> Self {
+        self.metadata.user_visible = true;
+        self.metadata.agent_visible = false;
+        self
+    }
+
+    /// Mark the message as only visible to the agent (not the user)
+    pub fn agent_only(mut self) -> Self {
+        self.metadata.user_visible = false;
+        self.metadata.agent_visible = true;
+        self
+    }
+
+    /// Check if the message is visible to the user
+    pub fn is_user_visible(&self) -> bool {
+        self.metadata.user_visible
+    }
+
+    /// Check if the message is visible to the agent
+    pub fn is_agent_visible(&self) -> bool {
+        self.metadata.agent_visible
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
-    use mcp_core::ToolCall;
     use rmcp::model::{
-        AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
-        RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
+        RawEmbeddedResource, RawImageContent, ResourceContents,
     };
     use rmcp::model::{ErrorCode, ErrorData};
-    use serde_json::{json, Value};
+    use rmcp::object;
+    use serde_json::Value;
 
     #[test]
     fn test_sanitize_with_text() {
@@ -621,7 +762,10 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
+                Ok(CallToolRequestParam {
+                    name: "test_tool".into(),
+                    arguments: Some(object!({"param": "value"})),
+                }),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -721,7 +865,7 @@ mod tests {
             assert_eq!(req.id, "tool123");
             if let Ok(tool_call) = &req.tool_call {
                 assert_eq!(tool_call.name, "test_tool");
-                assert_eq!(tool_call.arguments, json!({"param": "value"}));
+                assert_eq!(tool_call.arguments, Some(object!({"param": "value"})))
             } else {
                 panic!("Expected successful tool call");
             }
@@ -756,6 +900,7 @@ mod tests {
             image: RawImageContent {
                 data: "base64data".to_string(),
                 mime_type: "image/jpeg".to_string(),
+                meta: None,
             }
             .no_annotation(),
         };
@@ -781,10 +926,15 @@ mod tests {
             uri: "file:///test.txt".to_string(),
             mime_type: Some("text/plain".to_string()),
             text: "Resource content".to_string(),
+            meta: None,
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource { resource }.no_annotation(),
+            resource: RawEmbeddedResource {
+                resource,
+                meta: None,
+            }
+            .no_annotation(),
         };
 
         let prompt_message = PromptMessage {
@@ -807,10 +957,15 @@ mod tests {
             uri: "file:///test.bin".to_string(),
             mime_type: Some("application/octet-stream".to_string()),
             blob: "binary_data".to_string(),
+            meta: None,
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource { resource }.no_annotation(),
+            resource: RawEmbeddedResource {
+                resource,
+                meta: None,
+            }
+            .no_annotation(),
         };
 
         let prompt_message = PromptMessage {
@@ -864,9 +1019,9 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(ToolCall {
-            name: "test_tool".to_string(),
-            arguments: serde_json::json!({}),
+        let tool_call = Ok(CallToolRequestParam {
+            name: "test_tool".into(),
+            arguments: Some(object!({})),
         });
 
         let message = Message::assistant().with_tool_request("req1", tool_call);
@@ -931,5 +1086,149 @@ mod tests {
         let message: Message = serde_json::from_str(clean_json).unwrap();
 
         assert_eq!(message.as_concat_text(), "Hello world 世界 🌍");
+    }
+
+    #[test]
+    fn test_message_metadata_defaults() {
+        let message = Message::user().with_text("Test");
+
+        // By default, messages should be both user and agent visible
+        assert!(message.is_user_visible());
+        assert!(message.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_visibility_methods() {
+        // Test user_only
+        let user_only_msg = Message::user().with_text("User only").user_only();
+        assert!(user_only_msg.is_user_visible());
+        assert!(!user_only_msg.is_agent_visible());
+
+        // Test agent_only
+        let agent_only_msg = Message::assistant().with_text("Agent only").agent_only();
+        assert!(!agent_only_msg.is_user_visible());
+        assert!(agent_only_msg.is_agent_visible());
+
+        // Test with_visibility
+        let custom_msg = Message::user()
+            .with_text("Custom visibility")
+            .with_visibility(false, true);
+        assert!(!custom_msg.is_user_visible());
+        assert!(custom_msg.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_serialization() {
+        let message = Message::user()
+            .with_text("Test message")
+            .with_visibility(false, true);
+
+        let json_str = serde_json::to_string(&message).unwrap();
+        let value: Value = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(value["metadata"]["userVisible"], false);
+        assert_eq!(value["metadata"]["agentVisible"], true);
+    }
+
+    #[test]
+    fn test_message_metadata_deserialization() {
+        // Test with explicit metadata
+        let json_with_metadata = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "text",
+                "text": "Test"
+            }],
+            "metadata": {
+                "userVisible": false,
+                "agentVisible": true
+            }
+        }"#;
+
+        let message: Message = serde_json::from_str(json_with_metadata).unwrap();
+        assert!(!message.is_user_visible());
+        assert!(message.is_agent_visible());
+
+        // Test without metadata (should use defaults)
+        let json_without_metadata = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "text",
+                "text": "Test"
+            }]
+        }"#;
+
+        let message: Message = serde_json::from_str(json_without_metadata).unwrap();
+        assert!(message.is_user_visible());
+        assert!(message.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_static_methods() {
+        // Test MessageMetadata::agent_only()
+        let agent_only_metadata = MessageMetadata::agent_only();
+        assert!(!agent_only_metadata.user_visible);
+        assert!(agent_only_metadata.agent_visible);
+
+        // Test MessageMetadata::user_only()
+        let user_only_metadata = MessageMetadata::user_only();
+        assert!(user_only_metadata.user_visible);
+        assert!(!user_only_metadata.agent_visible);
+
+        // Test MessageMetadata::invisible()
+        let invisible_metadata = MessageMetadata::invisible();
+        assert!(!invisible_metadata.user_visible);
+        assert!(!invisible_metadata.agent_visible);
+
+        // Test using them with messages
+        let agent_msg = Message::assistant()
+            .with_text("Agent only message")
+            .with_metadata(MessageMetadata::agent_only());
+        assert!(!agent_msg.is_user_visible());
+        assert!(agent_msg.is_agent_visible());
+
+        let user_msg = Message::user()
+            .with_text("User only message")
+            .with_metadata(MessageMetadata::user_only());
+        assert!(user_msg.is_user_visible());
+        assert!(!user_msg.is_agent_visible());
+
+        let invisible_msg = Message::user()
+            .with_text("Invisible message")
+            .with_metadata(MessageMetadata::invisible());
+        assert!(!invisible_msg.is_user_visible());
+        assert!(!invisible_msg.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_builder_methods() {
+        // Test with_agent_invisible
+        let metadata = MessageMetadata::default().with_agent_invisible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test with_user_invisible
+        let metadata = MessageMetadata::default().with_user_invisible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_agent_visible
+        let metadata = MessageMetadata::invisible().with_agent_visible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_user_visible
+        let metadata = MessageMetadata::invisible().with_user_visible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test chaining
+        let metadata = MessageMetadata::invisible()
+            .with_user_visible()
+            .with_agent_visible();
+        assert!(metadata.user_visible);
+        assert!(metadata.agent_visible);
     }
 }

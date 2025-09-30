@@ -1,7 +1,7 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use mcp_client::client::{Error, McpClientTrait};
+use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
     model::{
         CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
@@ -14,9 +14,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio_util::sync::CancellationToken;
 
+type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
+
 pub struct MockClient {
     tools: HashMap<String, Tool>,
-    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>>,
+    handlers: HashMap<String, Handler>,
 }
 
 impl MockClient {
@@ -89,15 +91,16 @@ impl McpClientTrait for MockClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Value,
+        arguments: Option<serde_json::Map<String, Value>>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
-            match handler(&arguments) {
+            match handler(&Value::Object(arguments.unwrap_or_default())) {
                 Ok(content) => Ok(CallToolResult {
-                    content: content,
+                    content,
                     is_error: None,
                     structured_content: None,
+                    meta: None,
                 }),
                 Err(_e) => Err(Error::UnexpectedResponse),
             }

@@ -55,18 +55,9 @@ If you're already using a recipe and want to save a modified version:
 3. Make any desired edits to the description, instructions, or initial prompts
 5. Click **Save Recipe**
 
-:::note
+:::info
 When you modify and save a recipe with a new name, a new recipe and new link are generated. You can still run the original recipe from the recipe library, or using the original link. If you edit a recipe without changing its name, the version in the recipe library is updated, but you can still run the original recipe via link.
 :::
-
-**Import Recipe:**
-
-You can import a [shared recipe](/docs/guides/recipes/session-recipes#share-recipe) into your Recipe Library:
-1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-2. Click `Recipes`
-3. Click **Import Recipe** and paste in the recipe URL
-4. Add a name and choose the [storage location](#recipe-storage-locations)
-5. Click **Import Recipe**
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -80,6 +71,35 @@ You can import a [shared recipe](/docs/guides/recipes/session-recipes#share-reci
   </TabItem>
 </Tabs>
 
+### Importing Recipes
+
+<Tabs groupId="interface">
+  <TabItem value="desktop" label="Goose Desktop" default>
+    Import a recipe using its deeplink or YAML file:
+
+    **Import via Recipe Link:**
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Recipes` in the sidebar
+    3. Click **Import Recipe**
+    4. Under **Recipe Deeplink**, paste in the [recipe link](/docs/guides/recipes/session-recipes#share-via-recipe-link)
+    5. Add a name and choose the [storage location](#recipe-storage-locations)
+    6. Click **Import Recipe**
+
+    **Import via Recipe File:**
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Recipes` in the sidebar
+    3. Click **Import Recipe**
+    4. Under **Recipe YAML File**, click **Choose File**, select the YAML recipe file, and click `Open`
+    5. Add a name and choose the [storage location](#recipe-storage-locations)
+    6. Click **Import Recipe**
+
+    Importing JSON recipe files isn't currently supported.
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+    Recipe import is only available in Goose Desktop.
+  </TabItem>
+</Tabs>
 
 ## Finding Your Recipes
 

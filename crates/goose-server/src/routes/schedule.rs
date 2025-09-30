@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use chrono::NaiveDateTime;
 
-use crate::routes::utils::verify_secret_key;
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
 
@@ -104,10 +103,8 @@ fn parse_session_name_to_iso(session_name: &str) -> String {
 #[axum::debug_handler]
 async fn create_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -156,9 +153,7 @@ async fn create_schedule(
 #[axum::debug_handler]
 async fn list_schedules(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
 ) -> Result<Json<ListSchedulesResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -188,10 +183,8 @@ async fn list_schedules(
 #[axum::debug_handler]
 async fn delete_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -222,35 +215,24 @@ async fn delete_schedule(
 #[axum::debug_handler]
 async fn run_now_handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RunNowResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let recipe_display_name = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::path::Path::new(&job.source)
+    let (recipe_display_name, recipe_version_opt) = match scheduler.list_scheduled_jobs().await {
+        Ok(jobs) => {
+            if let Some(job) = jobs.into_iter().find(|job| job.id == id) {
+                let recipe_display_name = std::path::Path::new(&job.source)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .map(|s| s.to_string())
-            })
-            .unwrap_or_else(|| id.clone()),
-        Err(_) => id.clone(),
-    };
+                    .unwrap_or_else(|| id.clone());
 
-    let recipe_version = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::fs::read_to_string(&job.source)
+                let recipe_version_opt = tokio::fs::read_to_string(&job.source)
+                    .await
                     .ok()
                     .and_then(|content| {
                         goose::recipe::template_recipe::parse_recipe_content(
@@ -263,16 +245,21 @@ async fn run_now_handler(
                         )
                         .ok()
                         .map(|(r, _)| r.version)
-                    })
-            })
-            .unwrap_or_else(|| "unknown".to_string()),
-        Err(_) => "unknown".to_string(),
+                    });
+
+                (recipe_display_name, recipe_version_opt)
+            } else {
+                (id.clone(), None)
+            }
+        }
+        Err(_) => (id.clone(), None),
     };
 
+    let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
     tracing::info!(
         counter.goose.recipe_runs = 1,
         recipe_name = %recipe_display_name,
-        recipe_version = %recipe_version,
+        recipe_version = %recipe_version_tag,
         session_type = "schedule",
         interface = "server",
         "Recipe execution started"
@@ -319,11 +306,9 @@ async fn run_now_handler(
 #[axum::debug_handler]
 async fn sessions_handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,                    // Added this line
     Path(schedule_id_param): Path<String>, // Renamed to avoid confusion with session_id
     Query(query_params): Query<SessionsQuery>,
 ) -> Result<Json<Vec<SessionDisplayInfo>>, StatusCode> {
-    verify_secret_key(&headers, &state)?; // Added this line
     let scheduler = state
         .scheduler()
         .await
@@ -334,24 +319,23 @@ async fn sessions_handler(
         .await
     {
         Ok(session_tuples) => {
-            // Expecting Vec<(String, goose::session::storage::SessionMetadata)>
-            let display_infos: Vec<SessionDisplayInfo> = session_tuples
-                .into_iter()
-                .map(|(session_name, metadata)| SessionDisplayInfo {
+            let mut display_infos = Vec::new();
+            for (session_name, session) in session_tuples {
+                display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
-                    name: metadata.description, // Use description as name
+                    name: session.description,
                     created_at: parse_session_name_to_iso(&session_name),
-                    working_dir: metadata.working_dir.to_string_lossy().into_owned(),
-                    schedule_id: metadata.schedule_id, // This is the ID of the schedule itself
-                    message_count: metadata.message_count,
-                    total_tokens: metadata.total_tokens,
-                    input_tokens: metadata.input_tokens,
-                    output_tokens: metadata.output_tokens,
-                    accumulated_total_tokens: metadata.accumulated_total_tokens,
-                    accumulated_input_tokens: metadata.accumulated_input_tokens,
-                    accumulated_output_tokens: metadata.accumulated_output_tokens,
-                })
-                .collect();
+                    working_dir: session.working_dir.to_string_lossy().into_owned(),
+                    schedule_id: session.schedule_id,
+                    message_count: session.message_count,
+                    total_tokens: session.total_tokens,
+                    input_tokens: session.input_tokens,
+                    output_tokens: session.output_tokens,
+                    accumulated_total_tokens: session.accumulated_total_tokens,
+                    accumulated_input_tokens: session.accumulated_input_tokens,
+                    accumulated_output_tokens: session.accumulated_output_tokens,
+                });
+            }
             Ok(Json(display_infos))
         }
         Err(e) => {
@@ -381,10 +365,8 @@ async fn sessions_handler(
 #[axum::debug_handler]
 async fn pause_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -417,10 +399,8 @@ async fn pause_schedule(
 #[axum::debug_handler]
 async fn unpause_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -454,11 +434,9 @@ async fn unpause_schedule(
 #[axum::debug_handler]
 async fn update_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -501,10 +479,8 @@ async fn update_schedule(
 #[axum::debug_handler]
 pub async fn kill_running_job(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<KillJobResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -540,10 +516,8 @@ pub async fn kill_running_job(
 #[axum::debug_handler]
 pub async fn inspect_running_job(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<InspectJobResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await

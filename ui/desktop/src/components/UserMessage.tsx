@@ -1,7 +1,5 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import LinkPreview from './LinkPreview';
 import ImagePreview from './ImagePreview';
-import { extractUrls } from '../utils/urlUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
@@ -37,9 +35,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
-
-  // Extract URLs which explicitly contain the http:// or https:// protocol
-  const urls = useMemo(() => extractUrls(displayText, []), [displayText]);
 
   // Effect to handle message content changes and ensure persistence
   useEffect(() => {
@@ -251,16 +246,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         {hasBeenEdited && !isEditing && (
           <div className="text-xs text-text-subtle mt-1 text-right transition-opacity duration-200">
             Edited
-          </div>
-        )}
-
-        {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-        {/* eslint-disable-next-line no-constant-binary-expression */}
-        {false && urls.length > 0 && (
-          <div className="flex flex-wrap mt-2">
-            {urls.map((url, index) => (
-              <LinkPreview key={index} url={url} />
-            ))}
           </div>
         )}
       </div>

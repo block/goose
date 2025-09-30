@@ -1,5 +1,4 @@
-use crate::session;
-use mcp_core::ToolResult;
+use crate::mcp_utils::ToolResult;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -82,7 +81,7 @@ pub struct FrontendTool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfig {
     /// Unique identifier for the session
-    pub id: session::Identifier,
+    pub id: String,
     /// Working directory for the session
     pub working_dir: PathBuf,
     /// ID of the schedule that triggered this session, if any

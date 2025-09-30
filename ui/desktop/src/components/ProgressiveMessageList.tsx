@@ -14,7 +14,7 @@
  * - Configurable batch size and delay
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Message } from '../types/message';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
@@ -22,10 +22,11 @@ import { CompactionMarker } from './context_management/CompactionMarker';
 import { useContextManager } from './context_management/ContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
+import { ChatType } from '../types/chat';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
-  chat?: { id: string; messageHistoryIndex: number }; // Make optional for session history
+  chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
   appendMessage?: (message: Message) => void; // Make optional
@@ -37,6 +38,7 @@ interface ProgressiveMessageListProps {
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  onRenderingComplete?: () => void; // Callback when all messages are rendered
 }
 
 export default function ProgressiveMessageList({
@@ -52,6 +54,7 @@ export default function ProgressiveMessageList({
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
+  onRenderingComplete,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -82,6 +85,10 @@ export default function ProgressiveMessageList({
     if (messages.length <= showLoadingThreshold) {
       setRenderedCount(messages.length);
       setIsLoading(false);
+      // For small lists, call completion callback immediately
+      if (onRenderingComplete) {
+        setTimeout(() => onRenderingComplete(), 50);
+      }
       return;
     }
 
@@ -92,6 +99,10 @@ export default function ProgressiveMessageList({
 
         if (nextCount >= messages.length) {
           setIsLoading(false);
+          // Call the completion callback after a brief delay to ensure DOM is updated
+          if (onRenderingComplete) {
+            setTimeout(() => onRenderingComplete(), 50);
+          }
         } else {
           // Schedule next batch
           timeoutRef.current = window.setTimeout(loadNextBatch, batchDelay);
@@ -110,7 +121,14 @@ export default function ProgressiveMessageList({
         timeoutRef.current = null;
       }
     };
-  }, [messages.length, batchSize, batchDelay, showLoadingThreshold, renderedCount]);
+  }, [
+    messages.length,
+    batchSize,
+    batchDelay,
+    showLoadingThreshold,
+    renderedCount,
+    onRenderingComplete,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -152,8 +170,7 @@ export default function ProgressiveMessageList({
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
-
-    const renderedMessages = messagesToRender
+    return messagesToRender
       .map((message, index) => {
         // Use custom render function if provided
         if (renderMessage) {
@@ -170,7 +187,7 @@ export default function ProgressiveMessageList({
 
         const isUser = isUserMessage(message);
 
-        const result = (
+        return (
           <div
             key={message.id && `${message.id}-${message.content.length}`}
             className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
@@ -192,6 +209,7 @@ export default function ProgressiveMessageList({
                   <CompactionMarker message={message} />
                 ) : (
                   <GooseMessage
+                    sessionId={chat.sessionId}
                     messageHistoryIndex={chat.messageHistoryIndex}
                     message={message}
                     messages={messages}
@@ -210,12 +228,8 @@ export default function ProgressiveMessageList({
             )}
           </div>
         );
-
-        return result;
       })
-      .filter(Boolean); // Filter out null values
-
-    return renderedMessages;
+      .filter(Boolean);
   }, [
     messages,
     renderedCount,
@@ -227,7 +241,7 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
-    hasCompactionMarker
+    hasCompactionMarker,
   ]);
 
   return (

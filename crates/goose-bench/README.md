@@ -1,6 +1,6 @@
-# Goose Benchmarking Framework
+# goose Benchmarking Framework
 
-The `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the Goose framework. This tool helps quantify model performance across various tasks and generate structured reports.
+The `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the goose framework. This tool helps quantify model performance across various tasks and generate structured reports.
 
 ## Features
 
@@ -61,7 +61,7 @@ Benchmark configuration is provided through a JSON file. Here's a sample configu
     },
     {
       "provider": "databricks",
-      "name": "claude-3-5-sonnet",
+      "name": "claude-sonnet-4",
       "parallel_safe": true,
       "tool_shim": null
     },
@@ -232,7 +232,7 @@ Example of creating a config to re-run failed evaluations:
   "models": [
     {
       "provider": "databricks",
-      "name": "claude-3-5-sonnet",
+      "name": "claude-sonnet-4",
       "parallel_safe": false
     }
   ],

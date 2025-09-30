@@ -333,7 +333,7 @@ pub async fn get_all_pricing() -> HashMap<String, HashMap<String, PricingInfo>> 
 }
 
 /// Convert OpenRouter model ID to provider/model format
-/// e.g., "anthropic/claude-3.5-sonnet" -> ("anthropic", "claude-3.5-sonnet")
+/// e.g., "anthropic/claude-sonnet-4-20250514" -> ("anthropic", "claude-sonnet-4-20250514")
 pub fn parse_model_id(model_id: &str) -> Option<(String, String)> {
     let parts: Vec<&str> = model_id.splitn(2, '/').collect();
     if parts.len() == 2 {
@@ -373,8 +373,11 @@ mod tests {
     #[test]
     fn test_parse_model_id() {
         assert_eq!(
-            parse_model_id("anthropic/claude-3.5-sonnet"),
-            Some(("anthropic".to_string(), "claude-3.5-sonnet".to_string()))
+            parse_model_id("anthropic/claude-sonnet-4-20250514"),
+            Some((
+                "anthropic".to_string(),
+                "claude-sonnet-4-20250514".to_string()
+            ))
         );
         assert_eq!(
             parse_model_id("openai/gpt-4"),
@@ -384,8 +387,11 @@ mod tests {
 
         // Test the specific model causing issues
         assert_eq!(
-            parse_model_id("anthropic/claude-sonnet-4"),
-            Some(("anthropic".to_string(), "claude-sonnet-4".to_string()))
+            parse_model_id("anthropic/claude-sonnet-4-20250514"),
+            Some((
+                "anthropic".to_string(),
+                "claude-sonnet-4-20250514".to_string()
+            ))
         );
     }
 
@@ -404,7 +410,7 @@ mod tests {
             return;
         }
 
-        // Test lookup for the specific model
+        // Test lookup for the specific model (use the name that actually exists in cache)
         let pricing = get_model_pricing("anthropic", "claude-sonnet-4").await;
 
         println!(

@@ -1,5 +1,5 @@
 {
-  description = "Goose - An AI agent CLI";
+  description = "goose - An AI agent CLI";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -93,13 +93,19 @@
             cargo-watch
             cargo-edit
             clippy
+            gemini-cli # potentially useful during dev/testing
+            go_1_25 # 'just' run-ui (temporal-service)
+            just # used in dev/test
+            nodejs_24 # 'just' run-ui
+            ripgrep
             rustfmt
             xorg.libxcb
             dbus
+            yarn # 'just' install-deps
           ]);
           
           shellHook = ''
-            echo "Goose development environment"
+            echo "goose development environment"
             echo "Rust version: $(rustc --version)"
             echo ""
             echo "Commands:"

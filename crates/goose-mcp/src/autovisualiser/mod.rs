@@ -1,20 +1,17 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use etcetera::{choose_app_strategy, AppStrategy};
-use indoc::{formatdoc, indoc};
+use indoc::formatdoc;
+use rmcp::{
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, ResourceContents, Role,
+        ServerCapabilities, ServerInfo,
+    },
+    tool, tool_handler, tool_router, ServerHandler,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex};
-use tokio::sync::mpsc;
-
-use mcp_core::{
-    handler::{PromptError, ResourceError},
-    protocol::ServerCapabilities,
-};
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::{
-    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, ResourceContents, Role, Tool,
-};
-use rmcp::object;
+use std::path::PathBuf;
 
 /// Validates that the data parameter is a proper JSON value and not a string
 fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, ErrorData> {
@@ -53,13 +50,349 @@ fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, Error
     Ok(data_value.clone())
 }
 
+/// Sankey node structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct SankeyNode {
+    /// The name of the node
+    pub name: String,
+    /// Optional category for the node
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+}
+
+/// Sankey link structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct SankeyLink {
+    /// Source node name
+    pub source: String,
+    /// Target node name
+    pub target: String,
+    /// Flow value
+    pub value: f64,
+}
+
+/// Sankey data structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct SankeyData {
+    /// Array of nodes
+    pub nodes: Vec<SankeyNode>,
+    /// Array of links between nodes
+    pub links: Vec<SankeyLink>,
+}
+
+/// Parameters for render_sankey tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderSankeyParams {
+    /// The data for the Sankey diagram
+    pub data: SankeyData,
+}
+
+/// Radar dataset structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RadarDataset {
+    /// Label for this dataset
+    pub label: String,
+    /// Data values for each category
+    pub data: Vec<f64>,
+}
+
+/// Radar chart data structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RadarData {
+    /// Category labels
+    pub labels: Vec<String>,
+    /// Datasets to compare
+    pub datasets: Vec<RadarDataset>,
+}
+
+/// Parameters for render_radar tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderRadarParams {
+    /// The data for the radar chart
+    pub data: RadarData,
+}
+
+/// Data item for donut/pie charts - can be a number or labeled value
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(untagged)]
+pub enum DonutDataItem {
+    /// Simple numeric value
+    Number(f64),
+    /// Labeled value with explicit label
+    LabeledValue {
+        /// Label for this data point
+        label: String,
+        /// Numeric value
+        value: f64,
+    },
+}
+
+/// Chart type for donut/pie charts
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DonutChartType {
+    /// Doughnut chart (with hole in center)
+    Doughnut,
+    /// Pie chart (no hole)
+    Pie,
+}
+
+/// Single donut/pie chart data
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct SingleDonutChart {
+    /// Data values - can be numbers or objects with label and value
+    pub data: Vec<DonutDataItem>,
+    /// Optional chart title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Optional chart type (doughnut or pie)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "type")]
+    pub chart_type: Option<DonutChartType>,
+    /// Optional labels array (used when data is just numbers)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<Vec<String>>,
+}
+
+/// Donut chart data wrapper - matches the old schema structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(untagged)]
+pub enum DonutChartData {
+    /// Single donut chart
+    Single(SingleDonutChart),
+    /// Multiple donut charts
+    Multiple(Vec<SingleDonutChart>),
+}
+
+/// Root structure for donut chart data - matches old schema
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct DonutData {
+    /// The chart data (single or multiple charts)
+    pub data: DonutChartData,
+}
+
+/// Parameters for render_donut tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderDonutParams {
+    /// The data for the donut/pie chart(s) - wrapped in data property
+    #[serde(flatten)]
+    pub data: DonutData,
+}
+
+/// Treemap node structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct TreemapNode {
+    /// Name of the node
+    pub name: String,
+    /// Value for leaf nodes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<f64>,
+    /// Category for coloring
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Children nodes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<TreemapNode>>,
+}
+
+/// Parameters for render_treemap tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderTreemapParams {
+    /// The hierarchical data for the treemap
+    pub data: TreemapNode,
+}
+
+/// Chord diagram data structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct ChordData {
+    /// Labels for each entity
+    pub labels: Vec<String>,
+    /// 2D matrix of flows (matrix[i][j] = flow from i to j)
+    pub matrix: Vec<Vec<f64>>,
+}
+
+/// Parameters for render_chord tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderChordParams {
+    /// The data for the chord diagram
+    pub data: ChordData,
+}
+
+/// Map marker structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct MapMarker {
+    /// Latitude (required)
+    pub lat: f64,
+    /// Longitude (required)
+    pub lng: f64,
+    /// Location name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Numeric value for sizing/coloring
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<f64>,
+    /// Description text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Custom popup HTML
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popup: Option<String>,
+    /// Custom marker color
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// Custom marker label
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Use default Leaflet icon
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "useDefaultIcon")]
+    pub use_default_icon: Option<bool>,
+}
+
+/// Map center point
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct MapCenter {
+    /// Latitude
+    pub lat: f64,
+    /// Longitude
+    pub lng: f64,
+}
+
+/// Map data structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct MapData {
+    /// Array of markers
+    pub markers: Vec<MapMarker>,
+    /// Optional title for the map
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Optional subtitle
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
+    /// Optional center point
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub center: Option<MapCenter>,
+    /// Optional initial zoom level
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zoom: Option<f64>,
+    /// Optional boolean to enable/disable clustering
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clustering: Option<bool>,
+    /// Optional cluster radius
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "clusterRadius")]
+    pub cluster_radius: Option<f64>,
+    /// Optional boolean to auto-fit map to markers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "autoFit")]
+    pub auto_fit: Option<bool>,
+}
+
+/// Parameters for render_map tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct RenderMapParams {
+    /// The data for the map visualization
+    pub data: MapData,
+}
+
+/// Chart data point for scatter charts
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct ChartPoint {
+    /// X coordinate
+    pub x: f64,
+    /// Y coordinate
+    pub y: f64,
+}
+
+/// Chart dataset structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct ChartDataset {
+    /// Label for this dataset
+    pub label: String,
+    /// Data points - can be numbers or x/y points
+    pub data: ChartDataValues,
+    /// Optional background color for the dataset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "backgroundColor")]
+    pub background_color: Option<String>,
+    /// Optional border color for the dataset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "borderColor")]
+    pub border_color: Option<String>,
+    /// Optional border width for the dataset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "borderWidth")]
+    pub border_width: Option<f64>,
+    /// Optional tension for line curves (0 = straight lines, higher = more curved)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tension: Option<f64>,
+    /// Optional fill setting for area under the line
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill: Option<bool>,
+}
+
+/// Chart data values - can be simple numbers or x/y points
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(untagged)]
+pub enum ChartDataValues {
+    /// Simple numeric values (for line/bar charts with labels)
+    Numbers(Vec<f64>),
+    /// X/Y points (for scatter charts or line charts without labels)
+    Points(Vec<ChartPoint>),
+}
+
+/// Chart type enumeration
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ChartType {
+    /// Line chart
+    Line,
+    /// Scatter chart
+    Scatter,
+    /// Bar chart
+    Bar,
+}
+
+/// Chart data structure
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct ChartData {
+    /// Chart type
+    #[serde(rename = "type")]
+    pub chart_type: ChartType,
+    /// Datasets to display
+    pub datasets: Vec<ChartDataset>,
+    /// Optional labels for x-axis (for line/bar charts)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<Vec<String>>,
+    /// Optional chart title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Optional subtitle
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
+    /// Optional x-axis label
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "xAxisLabel")]
+    pub x_axis_label: Option<String>,
+    /// Optional y-axis label
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "yAxisLabel")]
+    pub y_axis_label: Option<String>,
+}
+
+/// Parameters for show_chart tool
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+pub struct ShowChartParams {
+    /// The data for the chart
+    pub data: ChartData,
+}
+
 /// An extension for automatic data visualization and UI generation
 #[derive(Clone)]
 pub struct AutoVisualiserRouter {
-    tools: Vec<Tool>,
+    tool_router: ToolRouter<Self>,
     #[allow(dead_code)]
     cache_dir: PathBuf,
-    active_resources: Arc<Mutex<HashMap<String, Resource>>>,
     instructions: String,
 }
 
@@ -69,496 +402,24 @@ impl Default for AutoVisualiserRouter {
     }
 }
 
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for AutoVisualiserRouter {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            server_info: Implementation {
+                name: "goose-autovisualiser".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            instructions: Some(self.instructions.clone()),
+            ..Default::default()
+        }
+    }
+}
+
+#[tool_router(router = tool_router)]
 impl AutoVisualiserRouter {
-    fn create_sankey_tool() -> Tool {
-        Tool::new(
-            "render_sankey",
-            indoc! {r#"
-                show a Sankey diagram from flow data               
-                The data must contain:
-                - nodes: Array of objects with 'name' and optional 'category' properties
-                - links: Array of objects with 'source', 'target', and 'value' properties
-                
-                Example:
-                {
-                  "nodes": [
-                    {"name": "Source A", "category": "source"},
-                    {"name": "Target B", "category": "target"}
-                  ],
-                  "links": [
-                    {"source": "Source A", "target": "Target B", "value": 100}
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["nodes", "links"],
-                        "properties": {
-                            "nodes": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "required": ["name"],
-                                    "properties": {
-                                        "name": {"type": "string"},
-                                        "category": {"type": "string"}
-                                    }
-                                }
-                            },
-                            "links": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "required": ["source", "target", "value"],
-                                    "properties": {
-                                        "source": {"type": "string"},
-                                        "target": {"type": "string"},
-                                        "value": {"type": "number"}
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_radar_tool() -> Tool {
-        Tool::new(
-            "render_radar",
-            indoc! {r#"
-                show a radar chart (spider chart) for multi-dimensional data comparison             
-                
-                The data must contain:
-                - labels: Array of strings representing the dimensions/axes
-                - datasets: Array of dataset objects with 'label' and 'data' properties
-                
-                Example:
-                {
-                  "labels": ["Speed", "Strength", "Endurance", "Agility", "Intelligence"],
-                  "datasets": [
-                    {
-                      "label": "Player 1",
-                      "data": [85, 70, 90, 75, 80]
-                    },
-                    {
-                      "label": "Player 2", 
-                      "data": [75, 85, 80, 90, 70]
-                    }
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["labels", "datasets"],
-                        "properties": {
-                            "labels": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
-                            "datasets": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "required": ["label", "data"],
-                                    "properties": {
-                                        "label": {"type": "string"},
-                                        "data": {
-                                            "type": "array",
-                                            "items": {"type": "number"}
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_donut_tool() -> Tool {
-        Tool::new(
-            "render_donut",
-            indoc! {r#"
-                show pie or donut charts for categorical data visualization
-                Supports single or multiple charts in a grid layout.
-                
-                Each chart should contain:
-                - data: Array of values or objects with 'label' and 'value'
-                - type: Optional 'doughnut' (default) or 'pie'
-                - title: Optional chart title
-                - labels: Optional array of labels (if data is just numbers)
-                
-                Example single chart:
-                {
-                  "title": "Budget",
-                  "type": "doughnut",
-                  "data": [
-                    {"label": "Marketing", "value": 25000},
-                    {"label": "Development", "value": 35000}
-                  ]
-                }
-                
-                Example multiple charts:
-                [{
-                  "title": "Q1 Sales",
-                  "labels": ["Product A", "Product B"],
-                  "data": [45000, 38000]
-                }]
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "oneOf": [
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "title": {"type": "string"},
-                                    "type": {"type": "string", "enum": ["doughnut", "pie"]},
-                                    "labels": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    },
-                                    "data": {
-                                        "type": "array",
-                                        "items": {
-                                            "oneOf": [
-                                                {"type": "number"},
-                                                {
-                                                    "type": "object",
-                                                    "required": ["label", "value"],
-                                                    "properties": {
-                                                        "label": {"type": "string"},
-                                                        "value": {"type": "number"}
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    }
-                                },
-                                "required": ["data"]
-                            },
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "title": {"type": "string"},
-                                        "type": {"type": "string", "enum": ["doughnut", "pie"]},
-                                        "labels": {
-                                            "type": "array",
-                                            "items": {"type": "string"}
-                                        },
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "oneOf": [
-                                                    {"type": "number"},
-                                                    {
-                                                        "type": "object",
-                                                        "required": ["label", "value"],
-                                                        "properties": {
-                                                            "label": {"type": "string"},
-                                                            "value": {"type": "number"}
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        }
-                                    },
-                                    "required": ["data"]
-                                }
-                            }
-                        ]
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_treemap_tool() -> Tool {
-        Tool::new(
-            "render_treemap",
-            indoc! {r#"
-                show a treemap visualization for hierarchical data with proportional area representation as boxes
-                
-                The data should be a hierarchical structure with:
-                - name: Name of the node (required)
-                - value: Numeric value for leaf nodes (optional for parent nodes)
-                - children: Array of child nodes (optional)
-                - category: Category for coloring (optional)
-                
-                Example:
-                {
-                  "name": "Root",
-                  "children": [
-                    {
-                      "name": "Group A",
-                      "children": [
-                        {"name": "Item 1", "value": 100, "category": "Type1"},
-                        {"name": "Item 2", "value": 200, "category": "Type2"}
-                      ]
-                    },
-                    {"name": "Item 3", "value": 150, "category": "Type1"}
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["name"],
-                        "properties": {
-                            "name": {"type": "string"},
-                            "value": {"type": "number"},
-                            "category": {"type": "string"},
-                            "children": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/properties/data"
-                                }
-                            }
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_chord_tool() -> Tool {
-        Tool::new(
-            "render_chord",
-            indoc! {r#"
-                Show a chord diagram visualization for showing relationships and flows between entities.
-                
-                The data must contain:
-                - labels: Array of strings representing the entities
-                - matrix: 2D array of numbers representing flows (matrix[i][j] = flow from i to j)
-                
-                Example:
-                {
-                  "labels": ["North America", "Europe", "Asia", "Africa"],
-                  "matrix": [
-                    [0, 15, 25, 8],
-                    [18, 0, 20, 12],
-                    [22, 18, 0, 15],
-                    [5, 10, 18, 0]
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["labels", "matrix"],
-                        "properties": {
-                            "labels": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "matrix": {
-                                "type": "array",
-                                "items": {
-                                    "type": "array",
-                                    "items": {"type": "number"}
-                                }
-                            }
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_map_tool() -> Tool {
-        Tool::new(
-            "render_map",
-            indoc! {r#"
-                show an interactive map visualization with location markers using Leaflet.
-                
-                The data must contain:
-                - markers: Array of objects with 'lat', 'lng', and optional properties
-                - title: Optional title for the map (default: "Interactive Map")
-                - subtitle: Optional subtitle (default: "Geographic data visualization")
-                - center: Optional center point {lat, lng} (default: USA center)
-                - zoom: Optional initial zoom level (default: 4)
-                - clustering: Optional boolean to enable/disable clustering (default: true)
-                - autoFit: Optional boolean to auto-fit map to markers (default: true)
-                
-                Marker properties:
-                - lat: Latitude (required)
-                - lng: Longitude (required)
-                - name: Location name
-                - value: Numeric value for sizing/coloring
-                - description: Description text
-                - popup: Custom popup HTML
-                - color: Custom marker color
-                - label: Custom marker label
-                - useDefaultIcon: Use default Leaflet icon
-                
-                Example:
-                {
-                  "title": "Store Locations",
-                  "markers": [
-                    {"lat": 37.7749, "lng": -122.4194, "name": "SF Store", "value": 150000},
-                    {"lat": 40.7128, "lng": -74.0060, "name": "NYC Store", "value": 200000}
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["markers"],
-                        "properties": {
-                            "markers": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "required": ["lat", "lng"],
-                                    "properties": {
-                                        "lat": {"type": "number"},
-                                        "lng": {"type": "number"},
-                                        "name": {"type": "string"},
-                                        "value": {"type": "number"},
-                                        "description": {"type": "string"},
-                                        "popup": {"type": "string"},
-                                        "color": {"type": "string"},
-                                        "label": {"type": "string"},
-                                        "useDefaultIcon": {"type": "boolean"}
-                                    }
-                                }
-                            },
-                            "title": {"type": "string"},
-                            "subtitle": {"type": "string"},
-                            "center": {
-                                "type": "object",
-                                "properties": {
-                                    "lat": {"type": "number"},
-                                    "lng": {"type": "number"}
-                                }
-                            },
-                            "zoom": {"type": "number"},
-                            "clustering": {"type": "boolean"},
-                            "clusterRadius": {"type": "number"},
-                            "autoFit": {"type": "boolean"}
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
-    fn create_show_chart_tool() -> Tool {
-        Tool::new(
-            "show_chart",
-            indoc! {r#"
-                show interactive line, scatter, or bar charts
-                
-                Required: type ('line', 'scatter', or 'bar'), datasets array
-                Optional: labels, title, subtitle, xAxisLabel, yAxisLabel, options
-                
-                Example:
-                {
-                  "type": "line",
-                  "title": "Monthly Sales",
-                  "labels": ["Jan", "Feb", "Mar"],
-                  "datasets": [
-                    {"label": "Product A", "data": [65, 59, 80]}
-                  ]
-                }
-            "#},
-            object!({
-                "type": "object",
-                "required": ["data"],
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "required": ["type", "datasets"],
-                        "properties": {
-                            "type": {
-                                "type": "string",
-                                "enum": ["line", "scatter", "bar"]
-                            },
-                            "title": {"type": "string"},
-                            "subtitle": {"type": "string"},
-                            "xAxisLabel": {"type": "string"},
-                            "yAxisLabel": {"type": "string"},
-                            "labels": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "datasets": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "required": ["data"],
-                                    "properties": {
-                                        "label": {"type": "string"},
-                                        "data": {
-                                            "oneOf": [
-                                                {
-                                                    "type": "array",
-                                                    "items": {"type": "number"}
-                                                },
-                                                {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "required": ["x", "y"],
-                                                        "properties": {
-                                                            "x": {"type": "number"},
-                                                            "y": {"type": "number"}
-                                                        }
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        "backgroundColor": {"type": "string"},
-                                        "borderColor": {"type": "string"},
-                                        "borderWidth": {"type": "number"},
-                                        "tension": {"type": "number"},
-                                        "fill": {"type": "boolean"}
-                                    }
-                                }
-                            },
-                            "options": {"type": "object"}
-                        }
-                    }
-                }
-            }),
-        )
-    }
-
     pub fn new() -> Self {
-        let render_sankey_tool = Self::create_sankey_tool();
-        let render_radar_tool = Self::create_radar_tool();
-        let render_donut_tool = Self::create_donut_tool();
-        let render_treemap_tool = Self::create_treemap_tool();
-        let render_chord_tool = Self::create_chord_tool();
-        let render_map_tool = Self::create_map_tool();
-        let show_chart_tool = Self::create_show_chart_tool();
-
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
         // - Windows:     ~\AppData\Local\Block\goose\cache\autovisualiser\
@@ -588,23 +449,45 @@ impl AutoVisualiserRouter {
         "#};
 
         Self {
-            tools: vec![
-                render_sankey_tool,
-                render_radar_tool,
-                render_donut_tool,
-                render_treemap_tool,
-                render_chord_tool,
-                render_map_tool,
-                show_chart_tool,
-            ],
+            tool_router: Self::tool_router(),
             cache_dir,
-            active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
         }
     }
 
-    async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
+    /// show a Sankey diagram from flow data
+    #[tool(
+        name = "render_sankey",
+        description = r#"show a Sankey diagram from flow data               
+The data must contain:
+- nodes: Array of objects with 'name' and optional 'category' properties
+- links: Array of objects with 'source', 'target', and 'value' properties
+
+Example:
+{
+  "nodes": [
+    {"name": "Source A", "category": "source"},
+    {"name": "Target B", "category": "target"}
+  ],
+  "links": [
+    {"source": "Source A", "target": "Target B", "value": 100}
+  ]
+}"#
+    )]
+    pub async fn render_sankey(
+        &self,
+        params: Parameters<RenderSankeyParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -642,15 +525,53 @@ impl AutoVisualiserRouter {
             uri: "ui://sankey/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
     }
 
-    async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
+    /// show a radar chart (spider chart) for multi-dimensional data comparison
+    #[tool(
+        name = "render_radar",
+        description = r#"show a radar chart (spider chart) for multi-dimensional data comparison             
+
+The data must contain:
+- labels: Array of strings representing the dimensions/axes
+- datasets: Array of dataset objects with 'label' and 'data' properties
+
+Example:
+{
+  "labels": ["Speed", "Strength", "Endurance", "Agility", "Intelligence"],
+  "datasets": [
+    {
+      "label": "Player 1",
+      "data": [85, 70, 90, 75, 80]
+    },
+    {
+      "label": "Player 2", 
+      "data": [75, 85, 80, 90, 70]
+    }
+  ]
+}"#
+    )]
+    pub async fn render_radar(
+        &self,
+        params: Parameters<RenderRadarParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -686,103 +607,58 @@ impl AutoVisualiserRouter {
             uri: "ui://radar/chart".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
     }
 
-    async fn render_treemap(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
+    /// show pie or donut charts for categorical data visualization
+    #[tool(
+        name = "render_donut",
+        description = r#"show pie or donut charts for categorical data visualization
+Supports single or multiple charts in a grid layout.
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+Each chart should contain:
+- data: Array of values or objects with 'label' and 'value'
+- type: Optional 'doughnut' (default) or 'pie'
+- title: Optional chart title
+- labels: Optional array of labels (if data is just numbers)
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/treemap_template.html");
-        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+Example single chart:
+{
+  "title": "Budget",
+  "type": "doughnut",
+  "data": [
+    {"label": "Marketing", "value": 25000},
+    {"label": "Development", "value": 35000}
+  ]
+}
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{D3_MIN}}", D3_MIN)
-            .replace("{{TREEMAP_DATA}}", &data_json);
-
-        // Save to /tmp/treemap.html for debugging
-        let debug_path = std::path::Path::new("/tmp/treemap.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/treemap.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/treemap.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://treemap/visualization".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-        };
-
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
-    }
-
-    async fn render_chord(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
-
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/chord_template.html");
-        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
-
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{D3_MIN}}", D3_MIN)
-            .replace("{{CHORD_DATA}}", &data_json);
-
-        // Save to /tmp/chord.html for debugging
-        let debug_path = std::path::Path::new("/tmp/chord.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/chord.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/chord.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://chord/diagram".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-        };
-
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
-    }
-
-    async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, true)?; // true because donut accepts arrays
+Example multiple charts:
+[{
+  "title": "Q1 Sales",
+  "labels": ["Product A", "Product B"],
+  "data": [45000, 38000]
+}]"#
+    )]
+    pub async fn render_donut(
+        &self,
+        params: Parameters<RenderDonutParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            true,
+        )?; // true because donut accepts arrays
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -818,15 +694,225 @@ impl AutoVisualiserRouter {
             uri: "ui://donut/chart".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
     }
 
-    async fn render_map(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
+    /// show a treemap visualization for hierarchical data
+    #[tool(
+        name = "render_treemap",
+        description = r#"show a treemap visualization for hierarchical data with proportional area representation as boxes
+
+The data should be a hierarchical structure with:
+- name: Name of the node (required)
+- value: Numeric value for leaf nodes (optional for parent nodes)
+- children: Array of child nodes (optional)
+- category: Category for coloring (optional)
+
+Example:
+{
+  "name": "Root",
+  "children": [
+    {
+      "name": "Group A",
+      "children": [
+        {"name": "Item 1", "value": 100, "category": "Type1"},
+        {"name": "Item 2", "value": 200, "category": "Type2"}
+      ]
+    },
+    {"name": "Item 3", "value": 150, "category": "Type1"}
+  ]
+}"#
+    )]
+    pub async fn render_treemap(
+        &self,
+        params: Parameters<RenderTreemapParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("templates/treemap_template.html");
+        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{D3_MIN}}", D3_MIN)
+            .replace("{{TREEMAP_DATA}}", &data_json);
+
+        // Save to /tmp/treemap.html for debugging
+        let debug_path = std::path::Path::new("/tmp/treemap.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/treemap.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/treemap.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://treemap/visualization".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+            meta: None,
+        };
+
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
+    }
+
+    /// Show a chord diagram visualization for relationships and flows
+    #[tool(
+        name = "render_chord",
+        description = r#"Show a chord diagram visualization for showing relationships and flows between entities.
+
+The data must contain:
+- labels: Array of strings representing the entities
+- matrix: 2D array of numbers representing flows (matrix[i][j] = flow from i to j)
+
+Example:
+{
+  "labels": ["North America", "Europe", "Asia", "Africa"],
+  "matrix": [
+    [0, 15, 25, 8],
+    [18, 0, 20, 12],
+    [22, 18, 0, 15],
+    [5, 10, 18, 0]
+  ]
+}"#
+    )]
+    pub async fn render_chord(
+        &self,
+        params: Parameters<RenderChordParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("templates/chord_template.html");
+        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{D3_MIN}}", D3_MIN)
+            .replace("{{CHORD_DATA}}", &data_json);
+
+        // Save to /tmp/chord.html for debugging
+        let debug_path = std::path::Path::new("/tmp/chord.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/chord.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/chord.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://chord/diagram".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+            meta: None,
+        };
+
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
+    }
+
+    /// show an interactive map visualization with location markers
+    #[tool(
+        name = "render_map",
+        description = r#"show an interactive map visualization with location markers using Leaflet.
+
+The data must contain:
+- markers: Array of objects with 'lat', 'lng', and optional properties
+- title: Optional title for the map (default: "Interactive Map")
+- subtitle: Optional subtitle (default: "Geographic data visualization")
+- center: Optional center point {lat, lng} (default: USA center)
+- zoom: Optional initial zoom level (default: 4)
+- clustering: Optional boolean to enable/disable clustering (default: true)
+- autoFit: Optional boolean to auto-fit map to markers (default: true)
+
+Marker properties:
+- lat: Latitude (required)
+- lng: Longitude (required)
+- name: Location name
+- value: Numeric value for sizing/coloring
+- description: Description text
+- popup: Custom popup HTML
+- color: Custom marker color
+- label: Custom marker label
+- useDefaultIcon: Use default Leaflet icon
+
+Example:
+{
+  "title": "Store Locations",
+  "markers": [
+    {"lat": 37.7749, "lng": -122.4194, "name": "SF Store", "value": 150000},
+    {"lat": 40.7128, "lng": -74.0060, "name": "NYC Store", "value": 200000}
+  ]
+}"#
+    )]
+    pub async fn render_map(
+        &self,
+        params: Parameters<RenderMapParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
 
         // Extract title and subtitle from data if provided
         let title = data
@@ -879,15 +965,47 @@ impl AutoVisualiserRouter {
             uri: "ui://map/visualization".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
     }
 
-    async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        let data = validate_data_param(&params, false)?;
+    /// show interactive line, scatter, or bar charts
+    #[tool(
+        name = "show_chart",
+        description = r#"show interactive line, scatter, or bar charts
+
+Required: type ('line', 'scatter', or 'bar'), datasets array
+Optional: labels, title, subtitle, xAxisLabel, yAxisLabel, options
+
+Example:
+{
+  "type": "line",
+  "title": "Monthly Sales",
+  "labels": ["Jan", "Feb", "Mar"],
+  "datasets": [
+    {"label": "Product A", "data": [65, 59, 80]}
+  ]
+}"#
+    )]
+    pub async fn show_chart(
+        &self,
+        params: Parameters<ShowChartParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let data = validate_data_param(
+            &serde_json::to_value(params.0).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Invalid parameters: {}", e),
+                    None,
+                )
+            })?,
+            false,
+        )?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -923,101 +1041,20 @@ impl AutoVisualiserRouter {
             uri: "ui://chart/interactive".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
-        Ok(vec![
-            Content::resource(resource_contents).with_audience(vec![Role::User])
-        ])
-    }
-}
-
-impl Router for AutoVisualiserRouter {
-    fn name(&self) -> String {
-        "AutoVisualiserExtension".to_string()
-    }
-
-    fn instructions(&self) -> String {
-        self.instructions.clone()
-    }
-
-    fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new()
-            .with_tools(false)
-            .with_resources(false, false)
-            .build()
-    }
-
-    fn list_tools(&self) -> Vec<Tool> {
-        self.tools.clone()
-    }
-
-    fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Value,
-        _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
-        let this = self.clone();
-        let tool_name = tool_name.to_string();
-        Box::pin(async move {
-            match tool_name.as_str() {
-                "render_sankey" => this.render_sankey(arguments).await,
-                "render_radar" => this.render_radar(arguments).await,
-                "render_donut" => this.render_donut(arguments).await,
-                "render_treemap" => this.render_treemap(arguments).await,
-                "render_chord" => this.render_chord(arguments).await,
-                "render_map" => this.render_map(arguments).await,
-                "show_chart" => this.show_chart(arguments).await,
-                _ => Err(ErrorData::new(
-                    ErrorCode::INVALID_REQUEST,
-                    format!("Tool {} not found", tool_name),
-                    None,
-                )),
-            }
-        })
-    }
-
-    fn list_resources(&self) -> Vec<Resource> {
-        let active_resources = self.active_resources.lock().unwrap();
-        let resources = active_resources.values().cloned().collect();
-        tracing::info!("Listing resources: {:?}", resources);
-        resources
-    }
-
-    fn read_resource(
-        &self,
-        uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        let uri = uri.to_string();
-        Box::pin(async move {
-            Err(ResourceError::NotFound(format!(
-                "Resource not found: {}",
-                uri
-            )))
-        })
-    }
-
-    fn list_prompts(&self) -> Vec<Prompt> {
-        vec![]
-    }
-
-    fn get_prompt(
-        &self,
-        prompt_name: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
-        let prompt_name = prompt_name.to_string();
-        Box::pin(async move {
-            Err(PromptError::NotFound(format!(
-                "Prompt {} not found",
-                prompt_name
-            )))
-        })
+        Ok(CallToolResult::success(vec![Content::resource(
+            resource_contents,
+        )
+        .with_audience(vec![Role::User])]))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::handler::server::wrapper::Parameters;
     use rmcp::model::RawContent;
     use serde_json::json;
 
@@ -1158,25 +1195,41 @@ mod tests {
     #[tokio::test]
     async fn test_render_sankey() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "nodes": [{"name": "A"}, {"name": "B"}],
-                "links": [{"source": "A", "target": "B", "value": 10}]
-            }
+        let params = Parameters(RenderSankeyParams {
+            data: SankeyData {
+                nodes: vec![
+                    SankeyNode {
+                        name: "A".to_string(),
+                        category: None,
+                    },
+                    SankeyNode {
+                        name: "B".to_string(),
+                        category: None,
+                    },
+                ],
+                links: vec![SankeyLink {
+                    source: "A".to_string(),
+                    target: "B".to_string(),
+                    value: 10.0,
+                }],
+            },
         });
 
         let result = router.render_sankey(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
 
         // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, deref to get RawContent
-        if let RawContent::Resource(resource) = &**&content[0] {
+        // Content is Annotated<RawContent>, access underlying RawContent via *
+        if let RawContent::Resource(resource) = &*tool_result.content[0] {
             if let ResourceContents::BlobResourceContents { uri, mime_type, .. } =
                 &resource.resource
             {
@@ -1193,31 +1246,40 @@ mod tests {
     #[tokio::test]
     async fn test_render_radar() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "categories": ["Speed", "Power", "Agility"],
-                "series": [
-                    {"label": "Player 1", "data": [80, 90, 85]}
-                ]
-            }
+        let params = Parameters(RenderRadarParams {
+            data: RadarData {
+                labels: vec![
+                    "Speed".to_string(),
+                    "Power".to_string(),
+                    "Agility".to_string(),
+                ],
+                datasets: vec![RadarDataset {
+                    label: "Player 1".to_string(),
+                    data: vec![80.0, 90.0, 85.0],
+                }],
+            },
         });
 
         let result = router.render_radar(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
 
         // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, deref to get RawContent
-        if let RawContent::Resource(resource) = &**&content[0] {
+        // Content is Annotated<RawContent>, access underlying RawContent via *
+        if let RawContent::Resource(resource) = &*tool_result.content[0] {
             if let ResourceContents::BlobResourceContents {
                 uri,
                 mime_type,
                 blob,
+                ..
             } = &resource.resource
             {
                 assert_eq!(uri, "ui://radar/chart");
@@ -1234,107 +1296,162 @@ mod tests {
     #[tokio::test]
     async fn test_render_donut() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "labels": ["A", "B", "C"],
-                "values": [30, 40, 30]
-            }
+        let params = Parameters(RenderDonutParams {
+            data: DonutData {
+                data: DonutChartData::Single(SingleDonutChart {
+                    data: vec![
+                        DonutDataItem::Number(30.0),
+                        DonutDataItem::Number(40.0),
+                        DonutDataItem::Number(30.0),
+                    ],
+                    labels: Some(vec!["A".to_string(), "B".to_string(), "C".to_string()]),
+                    title: None,
+                    chart_type: None,
+                }),
+            },
         });
 
         let result = router.render_donut(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
     }
 
     #[tokio::test]
     async fn test_render_treemap() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "name": "root",
-                "children": [
-                    {"name": "A", "value": 100},
-                    {"name": "B", "value": 200}
-                ]
-            }
+        let params = Parameters(RenderTreemapParams {
+            data: TreemapNode {
+                name: "root".to_string(),
+                value: None,
+                category: None,
+                children: Some(vec![
+                    TreemapNode {
+                        name: "A".to_string(),
+                        value: Some(100.0),
+                        category: Some("Type1".to_string()),
+                        children: None,
+                    },
+                    TreemapNode {
+                        name: "B".to_string(),
+                        value: Some(200.0),
+                        category: Some("Type2".to_string()),
+                        children: None,
+                    },
+                ]),
+            },
         });
 
         let result = router.render_treemap(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
     }
 
     #[tokio::test]
     async fn test_render_chord() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "labels": ["A", "B", "C"],
-                "matrix": [[0, 10, 5], [10, 0, 15], [5, 15, 0]]
-            }
+        let params = Parameters(RenderChordParams {
+            data: ChordData {
+                labels: vec!["A".to_string(), "B".to_string(), "C".to_string()],
+                matrix: vec![
+                    vec![0.0, 10.0, 5.0],
+                    vec![10.0, 0.0, 15.0],
+                    vec![5.0, 15.0, 0.0],
+                ],
+            },
         });
 
         let result = router.render_chord(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
     }
 
     #[tokio::test]
     async fn test_render_map() {
         let router = AutoVisualiserRouter::new();
-        let params = json!({
-            "data": {
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {"type": "Point", "coordinates": [0, 0]},
-                        "properties": {"name": "Origin"}
-                    }
-                ]
-            }
+        let params = Parameters(RenderMapParams {
+            data: MapData {
+                markers: vec![MapMarker {
+                    lat: 0.0,
+                    lng: 0.0,
+                    name: Some("Origin".to_string()),
+                    value: None,
+                    description: None,
+                    popup: None,
+                    color: None,
+                    label: None,
+                    use_default_icon: None,
+                }],
+                title: None,
+                subtitle: None,
+                center: None,
+                zoom: None,
+                clustering: None,
+                cluster_radius: None,
+                auto_fit: None,
+            },
         });
 
         let result = router.render_map(params).await;
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
     }
 
     #[tokio::test]
     async fn test_show_chart() {
         let router = AutoVisualiserRouter::new();
-        // show_chart expects data to be an object, not an array
-        let params = json!({
-            "data": {
-                "datasets": [
-                    {
-                        "label": "Test Data",
-                        "data": [
-                            {"x": 1, "y": 2},
-                            {"x": 2, "y": 4}
-                        ]
-                    }
-                ]
-            }
+        let params = Parameters(ShowChartParams {
+            data: ChartData {
+                chart_type: ChartType::Scatter,
+                datasets: vec![ChartDataset {
+                    label: "Test Data".to_string(),
+                    data: ChartDataValues::Points(vec![
+                        ChartPoint { x: 1.0, y: 2.0 },
+                        ChartPoint { x: 2.0, y: 4.0 },
+                    ]),
+                    background_color: None,
+                    border_color: None,
+                    border_width: None,
+                    tension: None,
+                    fill: None,
+                }],
+                labels: None,
+                title: None,
+                subtitle: None,
+                x_axis_label: None,
+                y_axis_label: None,
+            },
         });
 
         let result = router.show_chart(params).await;
@@ -1342,11 +1459,14 @@ mod tests {
             eprintln!("Error in test_show_chart: {:?}", e);
         }
         assert!(result.is_ok());
-        let content = result.unwrap();
-        assert_eq!(content.len(), 1);
+        let tool_result = result.unwrap();
+        assert_eq!(tool_result.content.len(), 1);
 
         // Check the audience is set to User
-        assert!(content[0].audience().is_some());
-        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+        assert!(tool_result.content[0].audience().is_some());
+        assert_eq!(
+            tool_result.content[0].audience().unwrap(),
+            &vec![Role::User]
+        );
     }
 }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../config';
 import { useMessageStream } from './useMessageStream';
-import { fetchSessionDetails } from '../sessions';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
@@ -16,16 +15,14 @@ import {
 } from '../types/message';
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
+import { getSession } from '../api';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
   }
-  if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-    return false;
-  }
-  return true;
+  return !message.content.every((c) => c.type === 'toolConfirmationRequest');
 };
 
 interface UseChatEngineProps {
@@ -33,7 +30,6 @@ interface UseChatEngineProps {
   setChat: (chat: ChatType) => void;
   onMessageStreamFinish?: () => void;
   onMessageSent?: () => void; // Add callback for when message is sent
-  enableLocalStorage?: boolean;
 }
 
 export const useChatEngine = ({
@@ -41,11 +37,9 @@ export const useChatEngine = ({
   setChat,
   onMessageStreamFinish,
   onMessageSent,
-  enableLocalStorage = false,
 }: UseChatEngineProps) => {
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
-  const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
   const [localInputTokens, setLocalInputTokens] = useState<number>(0);
@@ -55,18 +49,15 @@ export const useChatEngine = ({
   // Track pending edited message
   const [pendingEdit, setPendingEdit] = useState<{ id: string; content: string } | null>(null);
 
-  // Store message in global history when it's added (if enabled)
-  const storeMessageInHistory = useCallback(
-    (message: Message) => {
-      if (enableLocalStorage && isUserMessage(message)) {
-        const text = getTextContent(message);
-        if (text) {
-          LocalMessageStorage.addMessage(text);
-        }
+  // Store message in global history when it's added
+  const storeMessageInHistory = useCallback((message: Message) => {
+    if (isUserMessage(message)) {
+      const text = getTextContent(message);
+      if (text) {
+        LocalMessageStorage.addMessage(text);
       }
-    },
-    [enableLocalStorage]
-  );
+    }
+  }, []);
 
   const stopPowerSaveBlocker = useCallback(() => {
     try {
@@ -92,17 +83,16 @@ export const useChatEngine = ({
     input: _input,
     setInput: _setInput,
     handleInputChange: _handleInputChange,
-    handleSubmit: _submitMessage,
     updateMessageStreamBody,
     notifications,
-    sessionMetadata,
+    session,
     setError,
   } = useMessageStream({
     api: getApiUrl('/reply'),
-    id: chat.id,
+    id: chat.sessionId,
     initialMessages: chat.messages,
     body: {
-      session_id: chat.id,
+      session_id: chat.sessionId,
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
       ...(chat.recipeConfig?.title
         ? {
@@ -126,7 +116,7 @@ export const useChatEngine = ({
 
       // Always emit refresh event when message stream finishes for new sessions
       // Check if this is a new session by looking at the current session ID format
-      const isNewSession = chat.id && chat.id.match(/^\d{8}_\d{6}$/);
+      const isNewSession = chat.sessionId && chat.sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
         console.log(
           'ChatEngine: Message stream finished for new session, emitting message-stream-finished event'
@@ -149,7 +139,7 @@ export const useChatEngine = ({
             isTokenLimitError: (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError,
             errorStack: error.stack,
             timestamp: new Date().toISOString(),
-            chatId: chat.id,
+            sessionId: chat.sessionId,
           },
           null,
           2
@@ -158,7 +148,7 @@ export const useChatEngine = ({
     },
   });
 
-  // Wrap append to store messages in global history (if enabled)
+  // Wrap append to store messages in global history
   const append = useCallback(
     (messageOrString: Message | string) => {
       const message =
@@ -209,33 +199,36 @@ export const useChatEngine = ({
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
 
-  // Fetch session metadata to get token count
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
-        const sessionDetails = await fetchSessionDetails(chat.id);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
-        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
-        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
+        const response = await getSession<true>({
+          path: { session_id: chat.sessionId },
+          throwOnError: true,
+        });
+        const sessionDetails = response.data;
+        setSessionTokenCount(sessionDetails.total_tokens || 0);
+        setSessionInputTokens(sessionDetails.accumulated_input_tokens || 0);
+        setSessionOutputTokens(sessionDetails.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
     };
     // Only fetch session tokens when chat state is idle to avoid resetting during streaming
-    if (chat.id && chatState === ChatState.Idle) {
+    if (chat.sessionId && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
-  }, [chat.id, messages, chatState]);
+  }, [chat.sessionId, messages, chatState]);
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
-    console.log('Session metadata received:', sessionMetadata);
-    if (sessionMetadata) {
-      setSessionTokenCount(sessionMetadata.totalTokens || 0);
-      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
-      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
+    console.log('Session metadata received:', session);
+    if (session) {
+      setSessionTokenCount(session.total_tokens || 0);
+      setSessionInputTokens(session.accumulated_input_tokens || 0);
+      setSessionOutputTokens(session.accumulated_output_tokens || 0);
     }
-  }, [sessionMetadata]);
+  }, [session]);
 
   useEffect(() => {
     return () => {
@@ -323,7 +316,7 @@ export const useChatEngine = ({
       _setInput(textValue);
 
       // Also add to local storage history as a backup so cmd+up can retrieve it
-      if (enableLocalStorage && textValue.trim()) {
+      if (textValue.trim()) {
         LocalMessageStorage.addMessage(textValue.trim());
       }
 
@@ -362,8 +355,6 @@ export const useChatEngine = ({
         // Create tool responses for all interrupted tool requests
 
         let responseMessage: Message = {
-          display: true,
-          sendToLLM: true,
           role: 'user',
           created: Date.now(),
           content: [],
@@ -388,13 +379,14 @@ export const useChatEngine = ({
         setMessages([...messages, responseMessage]);
       }
     }
-  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker, enableLocalStorage]);
+  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker]);
 
+  // Since server now handles all filtering, we just use messages directly
   const filteredMessages = useMemo(() => {
-    return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);
-  }, [ancestorMessages, messages]);
+    return messages;
+  }, [messages]);
 
-  // Generate command history from filtered messages
+  // Generate command history from messages
   const commandHistory = useMemo(() => {
     return filteredMessages
       .reduce<string[]>((history, message) => {
@@ -454,8 +446,6 @@ export const useChatEngine = ({
     // Core message data
     messages,
     filteredMessages,
-    ancestorMessages,
-    setAncestorMessages,
 
     // Message stream controls
     append,
@@ -486,7 +476,7 @@ export const useChatEngine = ({
 
     // Stream utilities
     updateMessageStreamBody,
-    sessionMetadata,
+    sessionMetadata: session,
 
     // Utilities
     isUserMessage,

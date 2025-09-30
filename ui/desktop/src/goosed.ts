@@ -8,6 +8,9 @@ import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
 
+import { status } from './api';
+import { Client } from './api/client';
+
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {
@@ -23,35 +26,18 @@ export const findAvailablePort = (): Promise<number> => {
   });
 };
 
-// Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (
-  port: number,
-  maxAttempts?: number,
-  interval: number = 100
-): Promise<boolean> => {
-  if (maxAttempts === undefined) {
-    const isTemporalEnabled = process.env.GOOSE_SCHEDULER_TYPE === 'temporal';
-    maxAttempts = isTemporalEnabled ? 200 : 80;
-    log.info(
-      `Using ${maxAttempts} max attempts (temporal scheduling: ${isTemporalEnabled ? 'enabled' : 'disabled'})`
-    );
-  }
-
-  const statusUrl = `http://127.0.0.1:${port}/status`;
-  log.info(`Checking server status at ${statusUrl}`);
-
+export const checkServerStatus = async (client: Client): Promise<boolean> => {
+  const interval = 100;
+  const maxAttempts = 200;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetch(statusUrl);
-      if (response.ok) {
-        log.info(`Server is ready after ${attempt} attempts`);
-        return true;
-      }
-    } catch {
-      // Expected error when server isn't ready yet
+      await status({ client, throwOnError: true });
+      return true;
+    } catch (error) {
+      log.error('failure to connect, will retry', error);
       if (attempt === maxAttempts) {
-        log.error(`Server failed to respond after ${maxAttempts} attempts`);
+        log.error(`Server failed to respond after ${(interval * maxAttempts) / 1000} seconds`);
       }
     }
     await new Promise((resolve) => setTimeout(resolve, interval));
@@ -64,11 +50,6 @@ const connectToExternalBackend = async (
   port: number = 3000
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
-
-  const isReady = await checkServerStatus(port);
-  if (!isReady) {
-    throw new Error(`External goosed server not accessible on port ${port}`);
-  }
 
   const mockProcess = {
     pid: undefined,
@@ -266,10 +247,6 @@ export const startGoosed = async (
     throw err; // Propagate the error
   });
 
-  // Wait for the server to be ready
-  const isReady = await checkServerStatus(port);
-  log.info(`Goosed isReady ${isReady}`);
-
   const try_kill_goose = () => {
     try {
       if (isWindows) {
@@ -283,14 +260,7 @@ export const startGoosed = async (
     }
   };
 
-  if (!isReady) {
-    log.error(`Goosed server failed to start on port ${port}`);
-    try_kill_goose();
-    throw new Error(`Goosed server failed to start on port ${port}`);
-  }
-
   // Ensure goosed is terminated when the app quits
-  // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
     try_kill_goose();

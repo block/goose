@@ -142,7 +142,7 @@ impl Provider for LiteLLMProvider {
             vec![],
             LITELLM_DOC_URL,
             vec![
-                ConfigKey::new("LITELLM_API_KEY", false, true, None),
+                ConfigKey::new("LITELLM_API_KEY", true, true, None),
                 ConfigKey::new("LITELLM_HOST", true, false, Some("http://localhost:4000")),
                 ConfigKey::new(
                     "LITELLM_BASE_PATH",

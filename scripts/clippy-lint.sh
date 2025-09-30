@@ -14,7 +14,7 @@ echo "🔍 Running all clippy checks..."
 
 # Run standard clippy with strict warnings
 echo "  → Standard clippy rules (strict)"
-cargo clippy --jobs 2 -- -D warnings
+cargo clippy --all-targets --jobs 2 -- -D warnings
 
 # Run baseline rules check
 echo ""

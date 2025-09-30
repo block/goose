@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
+import { isEqual } from 'lodash';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
@@ -104,10 +105,10 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       return;
     }
 
-    // Find new or changed alerts
+    // Find new or changed alerts using deep comparison
     const changedAlerts = alerts.filter((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
-      return !prevAlert || prevAlert.type !== alert.type || prevAlert.message !== alert.message;
+      return !prevAlert || !isEqual(prevAlert, alert);
     });
 
     previousAlertsRef.current = alerts;
@@ -132,21 +133,34 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     }
   }, [isHovered, isOpen, startHideTimer, wasAutoShown]);
 
-  // Handle click outside
+  // Handle click outside - but not when editing threshold
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      // Check if we're clicking on an input or button inside the popover
+      const target = event.target as HTMLElement;
+      const isInteractiveElement =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('button') !== null ||
+        target.closest('input') !== null;
+
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        !isInteractiveElement
+      ) {
         setIsOpen(false);
         setWasAutoShown(false);
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Use mouseup instead of mousedown to allow button clicks to complete
+      document.addEventListener('mouseup', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mouseup', handleClickOutside);
     };
   }, [isOpen]);
 

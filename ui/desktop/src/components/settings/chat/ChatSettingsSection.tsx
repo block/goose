@@ -29,10 +29,6 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Voice Dictation</CardTitle>
-          <CardDescription>Configure voice input for messages</CardDescription>
-        </CardHeader>
         <CardContent className="px-2">
           <DictationSection />
         </CardContent>

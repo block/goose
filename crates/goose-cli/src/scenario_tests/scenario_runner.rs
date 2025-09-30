@@ -4,7 +4,7 @@ use goose::conversation::Conversation;
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
-use crate::session::Session;
+use crate::session::CliSession;
 use anyhow::Result;
 use goose::agents::Agent;
 use goose::model::ModelConfig;
@@ -180,7 +180,7 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(&factory_name, ModelConfig::new(&config.model_name)?)?;
+        let inner_provider = create(&factory_name, ModelConfig::new(config.model_name)?)?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
@@ -218,7 +218,7 @@ where
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
         .await?;
 
-    let mut session = Session::new(agent, None, false, None, None, None, None, None);
+    let mut session = CliSession::new(agent, None, false, None, None, None, None);
 
     let mut error = None;
     for message in &messages {

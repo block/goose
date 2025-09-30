@@ -1,7 +1,7 @@
 name: Send API Key on PR Merge
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     paths:
       - 'documentation/src/pages/recipes/data/recipes/**'
@@ -15,13 +15,46 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check if recipe files were added or modified in merged PR
+        id: recipe_changes
+        run: |
+          set -e
+          echo "🔍 Checking if recipe files were added or modified in merged PR..."
+          
+          # Get the current commit (merge commit) and the previous commit on the base branch
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+          
+          echo "Current commit: $CURRENT_COMMIT"
+          echo "Previous commit: $PREVIOUS_COMMIT"
+          
+          # Get the list of files that were added or modified in this merge (not deleted)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $PREVIOUS_COMMIT..$CURRENT_COMMIT)
+          
+          echo "Files added/modified in merged PR:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Check if any recipe files were added or modified
+          if echo "$CHANGED_FILES" | grep -q "^documentation/src/pages/recipes/data/recipes/"; then
+            echo "recipe_files_changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Recipe files were added/modified in merged PR - proceeding with API key sending"
+          else
+            echo "recipe_files_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No recipe files were added/modified in merged PR - skipping API key sending"
+          fi
 
       - name: Set up Python
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Install dependencies and run email script
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}

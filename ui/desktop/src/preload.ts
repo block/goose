@@ -78,6 +78,7 @@ type ElectronAPI = {
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
   getSecretKey: () => Promise<string>;
+  getGoosedHostPort: () => Promise<string | null>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
@@ -124,18 +125,10 @@ const electronAPI: ElectronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => {
-    // Add fallback to localStorage if config from preload is empty or missing
     if (!config || Object.keys(config).length === 0) {
-      try {
-        if (window.localStorage) {
-          const storedConfig = localStorage.getItem('gooseConfig');
-          if (storedConfig) {
-            return JSON.parse(storedConfig);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse stored config from localStorage:', e);
-      }
+      console.warn(
+        'No config provided by main process. This may indicate an initialization issue.'
+      );
     }
     return config;
   },
@@ -176,6 +169,7 @@ const electronAPI: ElectronAPI = {
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
+  getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),

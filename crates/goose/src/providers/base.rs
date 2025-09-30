@@ -31,6 +31,8 @@ pub fn get_current_model() -> Option<String> {
     CURRENT_MODEL.lock().ok().and_then(|model| model.clone())
 }
 
+pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -437,7 +439,7 @@ pub trait Provider: Send + Sync {
         messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
-            .take(3)
+            .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
             .map(|m| m.as_concat_text())
             .collect()
     }
@@ -459,7 +461,12 @@ pub trait Provider: Send + Sync {
             )
             .await?;
 
-        let description = result.0.as_concat_text();
+        let description = result
+            .0
+            .as_concat_text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
 
         Ok(safe_truncate(&description, 100))
     }
@@ -552,17 +559,17 @@ mod tests {
         assert_eq!(model, Some("gpt-4o".to_string()));
 
         // Change the model
-        set_current_model("claude-3.5-sonnet");
+        set_current_model("claude-sonnet-4-20250514");
 
         // Get the updated model and verify
         let model = get_current_model();
-        assert_eq!(model, Some("claude-3.5-sonnet".to_string()));
+        assert_eq!(model, Some("claude-sonnet-4-20250514".to_string()));
     }
 
     #[test]
     fn test_provider_metadata_context_limits() {
         // Test that ProviderMetadata::new correctly sets context limits
-        let test_models = vec!["gpt-4o", "claude-3-5-sonnet-latest", "unknown-model"];
+        let test_models = vec!["gpt-4o", "claude-sonnet-4-20250514", "unknown-model"];
         let metadata = ProviderMetadata::new(
             "test",
             "Test Provider",
@@ -582,9 +589,9 @@ mod tests {
         // gpt-4o should have 128k limit
         assert_eq!(*model_info.get("gpt-4o").unwrap(), 128_000);
 
-        // claude-3-5-sonnet-latest should have 200k limit
+        // claude-sonnet-4-20250514 should have 200k limit
         assert_eq!(
-            *model_info.get("claude-3-5-sonnet-latest").unwrap(),
+            *model_info.get("claude-sonnet-4-20250514").unwrap(),
             200_000
         );
 

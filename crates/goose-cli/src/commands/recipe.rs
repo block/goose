@@ -192,7 +192,7 @@ response:
         let url = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
         let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
-        assert!(encoded_part.len() > 0);
+        assert!(!encoded_part.is_empty());
     }
 
     #[test]

@@ -36,7 +36,8 @@ async fn main() -> anyhow::Result<()> {
             commands::agent::run().await?;
         }
         Commands::Mcp { name } => {
-            commands::mcp::run(name).await?;
+            logging::setup_logging(Some(&format!("mcp-{name}")))?;
+            goose_mcp::mcp_server_runner::run_mcp_server(name).await?;
         }
     }
 

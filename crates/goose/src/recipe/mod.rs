@@ -21,7 +21,7 @@ fn default_version() -> String {
 }
 
 /// A Recipe represents a personalized, user-generated agent configuration that defines
-/// specific behaviors and capabilities within the Goose system.
+/// specific behaviors and capabilities within the goose system.
 ///
 /// # Fields
 ///
@@ -206,6 +206,8 @@ pub enum RecipeParameterInputType {
     Number,
     Boolean,
     Date,
+    /// File parameter that imports content from a file path.
+    /// Cannot have default values to prevent importing sensitive user files.
     File,
     Select,
 }

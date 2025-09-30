@@ -13,7 +13,7 @@ use crate::agents::types::{
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::tool_monitor::ToolMonitor;
+use crate::tool_monitor::RepetitionInspector;
 
 /// Result of a retry logic evaluation
 #[derive(Debug, Clone, PartialEq)]
@@ -39,8 +39,8 @@ const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_T
 pub struct RetryManager {
     /// Current number of retry attempts
     attempts: Arc<Mutex<u32>>,
-    /// Optional tool monitor for reset operations
-    tool_monitor: Option<Arc<Mutex<Option<ToolMonitor>>>>,
+    /// Optional repetition inspector for reset operations
+    repetition_inspector: Option<Arc<Mutex<Option<RepetitionInspector>>>>,
 }
 
 impl Default for RetryManager {
@@ -54,15 +54,17 @@ impl RetryManager {
     pub fn new() -> Self {
         Self {
             attempts: Arc::new(Mutex::new(0)),
-            tool_monitor: None,
+            repetition_inspector: None,
         }
     }
 
-    /// Create a new retry manager with tool monitor
-    pub fn with_tool_monitor(tool_monitor: Arc<Mutex<Option<ToolMonitor>>>) -> Self {
+    /// Create a new retry manager with repetition inspector
+    pub fn with_repetition_inspector(
+        repetition_inspector: Arc<Mutex<Option<RepetitionInspector>>>,
+    ) -> Self {
         Self {
             attempts: Arc::new(Mutex::new(0)),
-            tool_monitor: Some(tool_monitor),
+            repetition_inspector: Some(repetition_inspector),
         }
     }
 
@@ -71,10 +73,10 @@ impl RetryManager {
         let mut attempts = self.attempts.lock().await;
         *attempts = 0;
 
-        // Reset tool monitor if available
-        if let Some(monitor) = &self.tool_monitor {
-            if let Some(monitor) = monitor.lock().await.as_mut() {
-                monitor.reset();
+        // Reset repetition inspector if available
+        if let Some(inspector) = &self.repetition_inspector {
+            if let Some(inspector) = inspector.lock().await.as_mut() {
+                inspector.reset();
             }
         }
     }

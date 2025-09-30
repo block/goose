@@ -20,12 +20,12 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 
 ### CLI and Desktop Formats
 
-The Goose CLI supports CLI and Desktop recipe formats:
+Goose recipes use two formats:
 
-- **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file
-- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level
+- **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file. This format is used when recipes are created via the CLI `/recipe` command and [Recipe Generator](/recipe-generator) YAML option.
+- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level. This format is used when recipes are created from Goose Desktop.
 
-The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands.
+The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands. The Desktop can [import](/docs/guides/recipes/storing-recipes#importing-recipes) and use YAML recipes (or deeplinks) in either CLI or Desktop format.
 
 <details>
 <summary>Format Examples</summary>
@@ -80,7 +80,7 @@ Goose automatically adds metadata fields to recipes saved from the Desktop app.
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
 | `settings` | Object | Configuration for model provider, model name, and other settings |
-| `sub_recipes` | Array | List of sub-recipes |
+| `sub_recipes` | Array | List of subrecipes |
 | `response` | Object | Configuration for structured output validation |
 | `retry` | Object | Configuration for automated retry logic with success validation |
 
@@ -104,7 +104,7 @@ Each parameter in the `parameters` array has the following structure:
 | Field | Type | Description |
 |-------|------|-------------|
 | `key` | String | Unique identifier for the parameter |
-| `input_type` | String | Type of input (e.g., "string") |
+| `input_type` | String | Type of input: `"string"` (default) or `"file"` (reads file contents) |
 | `requirement` | String | One of: "required", "optional", or "user_prompt" |
 | `description` | String | Human-readable description of the parameter |
 
@@ -122,9 +122,30 @@ Each parameter in the `parameters` array has the following structure:
 
 The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
 
+### Input Types
+
+- `string`: Default type. The parameter value is used as-is in template substitution
+- `file`: The parameter value should be a file path. goose reads the file contents and substitutes the actual content (not the path) into the template
+
+When using `input_type: file`, this is useful for including file contents directly in your prompts or instructions.
+
+**Example:**
+```yaml
+parameters:
+  - key: source_code
+    input_type: file
+    requirement: required
+    description: "Path to the source code file to analyze"
+
+prompt: "Please review this code:\n\n{{ source_code }}"
+```
+
+When you run this recipe with `source_code: /path/to/app.py`, Goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
+
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
+- File parameters cannot have default values regardless of requirement type to prevent unintended importing of sensitive files
 - Parameter keys must match any template variables used in instructions or prompt
 :::
 
@@ -184,7 +205,7 @@ This feature is only available through the CLI.
 
 If a recipe uses an extension that requires a secret, Goose can prompt users to provide the secret when running the recipe:
 
-1. When a recipe is loaded, Goose scans all extensions (including those in sub-recipes) for `env_keys` fields
+1. When a recipe is loaded, Goose scans all extensions (including those in subrecipes) for `env_keys` fields
 2. If any required environment variables are missing from the secure keyring, Goose prompts the user to enter them
 3. Values are stored securely in the system keyring and reused for subsequent runs
 
@@ -213,7 +234,7 @@ The `settings` field allows you to configure the AI model and provider settings 
 ```yaml
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 ```
 
@@ -228,31 +249,31 @@ settings:
 Settings specified in a recipe will override your default Goose configuration when that recipe is executed. If no settings are specified, Goose will use your configured defaults.
 :::
 
-## Sub-Recipes
+## Subrecipes
 
-The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-recipes) that the main recipe calls to perform specific tasks. Each sub-recipe in the array has the following structure:
+The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecipes) that the main recipe calls to perform specific tasks. Each subrecipe in the array has the following structure:
 
-### Sub-Recipe Fields
+### Subrecipe Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | String | Unique identifier for the sub-recipe |
-| `path` | String | Relative or absolute path to the sub-recipe file |
-| `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
-| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple sub-recipe instances. See [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) for details |
+| `name` | String | Unique identifier for the subrecipe |
+| `path` | String | Relative or absolute path to the subrecipe file |
+| `values` | Object | (Optional) Pre-configured parameter values that are passed to the subrecipe |
+| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple subrecipe instances. See [Running Subrecipes In Parallel](/docs/tutorials/subrecipes-in-parallel) for details |
 
-### Example Sub-Recipe Configuration
+### Example Subrecipe Configuration
 
 ```yaml
 sub_recipes:
   - name: "security_scan"
-    path: "./sub-recipes/security-analysis.yaml"
+    path: "./subrecipes/security-analysis.yaml"
     values:  # in key-value format: {parameter_name}: {parameter_value}
       scan_level: "comprehensive"
       include_dependencies: "true"
   
   - name: "quality_check"
-    path: "./sub-recipes/quality-analysis.yaml"
+    path: "./subrecipes/quality-analysis.yaml"
 ```
 
 ## Automated Retry with Success Validation
@@ -405,7 +426,7 @@ Advanced template features include:
 
 ### indent() Filter For Multi-Line Values
 
-Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a sub-recipe:
+Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a subrecipe:
 
 ```yaml
 sub_recipes:
@@ -459,7 +480,7 @@ extensions:
 
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 
 retry:

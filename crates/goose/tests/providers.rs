@@ -7,8 +7,8 @@ use goose::providers::{
     anthropic, azure, bedrock, databricks, google, groq, litellm, ollama, openai, openrouter,
     snowflake, xai,
 };
-use rmcp::model::Tool;
 use rmcp::model::{AnnotateAble, Content, RawImageContent};
+use rmcp::model::{CallToolRequestParam, Tool};
 use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -137,8 +137,8 @@ impl ProviderTester {
             .provider
             .complete(
                 "You are a helpful weather assistant.",
-                &[message.clone()],
-                &[weather_tool.clone()],
+                std::slice::from_ref(&message),
+                std::slice::from_ref(&weather_tool),
             )
             .await?;
 
@@ -277,6 +277,7 @@ impl ProviderTester {
         let image_content = RawImageContent {
             data: base64_image,
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -319,10 +320,10 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
-            Ok(mcp_core::tool::ToolCall::new(
-                "get_screenshot",
-                serde_json::json!({}),
-            )),
+            Ok(CallToolRequestParam {
+                name: "get_screenshot".into(),
+                arguments: Some(object!({})),
+            }),
         );
         let tool_response = Message::user().with_tool_response(
             "test_id",

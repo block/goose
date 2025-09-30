@@ -7,7 +7,7 @@ authors:
 
 ![blog cover](bestcodes.png)
 
-The only way to discover how much of an impact your contributions can make is to submit them and hope for the best. Sometimes, what feels like "just a small fix" can end up reshaping an open source project or inspiring a brand new feature. Here's how one of our top contributors turned a small build fix into important improvements for the Goose experience.
+The only way to discover how much of an impact your contributions can make is to submit them and hope for the best. Sometimes, what feels like "just a small fix" can end up reshaping an open source project or inspiring a brand new feature. Here's how one of our top contributors turned a small build fix into important improvements for the goose experience.
 
 <!--truncate-->
 

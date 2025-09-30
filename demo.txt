@@ -1,6 +1,6 @@
 Hello, World!
 
-This is a demonstration of file operations in Goose.
+This is a demonstration of file operations in goose.
 
 Here are some key points:
 - Files can be created and edited

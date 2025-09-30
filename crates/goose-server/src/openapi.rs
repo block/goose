@@ -3,19 +3,22 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
-use goose::session::info::SessionInfo;
-use goose::session::SessionMetadata;
+
+use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
-    RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
+    Annotations, Content, EmbeddedResource, ImageContent, JsonObject, RawEmbeddedResource,
+    RawImageContent, RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool,
+    ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
+    ToolRequest, ToolResponse,
 };
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -44,8 +47,6 @@ macro_rules! derive_utoipa {
 }
 
 fn convert_schemars_to_utoipa(schema: rmcp::schemars::Schema) -> RefOr<Schema> {
-    // For schemars 1.0+, we need to work with the public API
-    // The schema is now a wrapper around a JSON Value that can be either an object or bool
     if let Some(true) = schema.as_bool() {
         return RefOr::T(Schema::Object(ObjectBuilder::new().build()));
     }
@@ -54,12 +55,10 @@ fn convert_schemars_to_utoipa(schema: rmcp::schemars::Schema) -> RefOr<Schema> {
         return RefOr::T(Schema::Object(ObjectBuilder::new().build()));
     }
 
-    // For object schemas, we'll need to work with the JSON Value directly
     if let Some(obj) = schema.as_object() {
         return convert_json_object_to_utoipa(obj);
     }
 
-    // Fallback
     RefOr::T(Schema::Object(ObjectBuilder::new().build()))
 }
 
@@ -68,12 +67,10 @@ fn convert_json_object_to_utoipa(
 ) -> RefOr<Schema> {
     use serde_json::Value;
 
-    // Handle $ref
     if let Some(Value::String(reference)) = obj.get("$ref") {
         return RefOr::Ref(Ref::new(reference.clone()));
     }
 
-    // Handle oneOf, allOf, anyOf
     if let Some(Value::Array(one_of)) = obj.get("oneOf") {
         let mut builder = OneOfBuilder::new();
         for item in one_of {
@@ -104,11 +101,9 @@ fn convert_json_object_to_utoipa(
         return RefOr::T(Schema::AnyOf(builder.build()));
     }
 
-    // Handle type-based schemas
     match obj.get("type") {
         Some(Value::String(type_str)) => convert_typed_schema(type_str, obj),
         Some(Value::Array(types)) => {
-            // Multiple types - use AnyOf
             let mut builder = AnyOfBuilder::new();
             for type_val in types {
                 if let Value::String(type_str) = type_val {
@@ -118,7 +113,7 @@ fn convert_json_object_to_utoipa(
             RefOr::T(Schema::AnyOf(builder.build()))
         }
         None => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-        _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())), // Handle other value types
+        _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
     }
 }
 
@@ -132,7 +127,6 @@ fn convert_typed_schema(
         "object" => {
             let mut object_builder = ObjectBuilder::new();
 
-            // Add properties
             if let Some(Value::Object(properties)) = obj.get("properties") {
                 for (name, prop_value) in properties {
                     if let Ok(prop_schema) = rmcp::schemars::Schema::try_from(prop_value.clone()) {
@@ -142,7 +136,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Add required fields
             if let Some(Value::Array(required)) = obj.get("required") {
                 for req in required {
                     if let Value::String(field_name) = req {
@@ -151,7 +144,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Handle additional properties
             if let Some(additional) = obj.get("additionalProperties") {
                 match additional {
                     Value::Bool(false) => {
@@ -177,7 +169,6 @@ fn convert_typed_schema(
         "array" => {
             let mut array_builder = ArrayBuilder::new();
 
-            // Add items schema
             if let Some(items) = obj.get("items") {
                 match items {
                     Value::Object(_) | Value::Bool(_) => {
@@ -187,7 +178,6 @@ fn convert_typed_schema(
                         }
                     }
                     Value::Array(item_schemas) => {
-                        // Multiple item types - use AnyOf
                         let mut any_of = AnyOfBuilder::new();
                         for item in item_schemas {
                             if let Ok(schema) = rmcp::schemars::Schema::try_from(item.clone()) {
@@ -201,7 +191,6 @@ fn convert_typed_schema(
                 }
             }
 
-            // Add constraints
             if let Some(Value::Number(min_items)) = obj.get("minItems") {
                 if let Some(min) = min_items.as_u64() {
                     array_builder = array_builder.min_items(Some(min as usize));
@@ -319,10 +308,12 @@ derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
+derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
+derive_utoipa!(JsonObject as JsonObjectSchema);
 
 // Create a manual schema for the generic Annotated type
 // We manually define this to avoid circular references from RawContent::Audio(AudioContent)
@@ -331,8 +322,6 @@ struct AnnotatedSchema {}
 
 impl<'__s> ToSchema<'__s> for AnnotatedSchema {
     fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
-        // Create a oneOf schema with only the variants we actually use in the API
-        // This avoids the circular reference from RawContent::Audio(AudioContent)
         let schema = Schema::OneOf(
             OneOfBuilder::new()
                 .item(RefOr::Ref(Ref::new("#/components/schemas/RawTextContent")))
@@ -350,10 +339,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
     }
 }
 
-#[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        super::routes::health::status,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
@@ -370,6 +359,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::remove_custom_provider,
+        super::routes::agent::start_agent,
+        super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
         super::routes::agent::extend_prompt,
@@ -379,7 +370,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
-        super::routes::session::get_session_history,
+        super::routes::session::get_session,
+        super::routes::session::get_session_insights,
+        super::routes::session::update_session_description,
+        super::routes::session::delete_session,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -393,7 +387,11 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
-        super::routes::recipe::scan_recipe
+        super::routes::recipe::scan_recipe,
+        super::routes::recipe::list_recipes,
+        super::routes::recipe::delete_recipe,
+        super::routes::setup::start_openrouter_setup,
+        super::routes::setup::start_tetrate_setup,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -410,9 +408,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
-        super::routes::session::SessionHistoryResponse,
+        super::routes::session::UpdateSessionDescriptionRequest,
         Message,
         MessageContent,
+        MessageMetadata,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -421,6 +420,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         RawTextContentSchema,
         RawImageContentSchema,
         RawEmbeddedResourceSchema,
+        RawResourceSchema,
         AnnotatedSchema,
         ToolResponse,
         ToolRequest,
@@ -431,6 +431,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         ResourceContentsSchema,
         ContextLengthExceeded,
         SummarizationRequested,
+        JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
         ExtensionEntry,
@@ -443,9 +444,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         PermissionLevel,
         PrincipalType,
         ModelInfo,
-        SessionInfo,
-        SessionMetadata,
-        goose::session::ExtensionData,
+        Session,
+        SessionInsights,
+        Conversation,
+        goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,
         super::routes::schedule::KillJobResponse,
@@ -464,6 +466,9 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
+        super::routes::recipe::RecipeManifestResponse,
+        super::routes::recipe::ListRecipeResponse,
+        super::routes::recipe::DeleteRecipeRequest,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,
@@ -481,7 +486,11 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::agent::UpdateProviderRequest,
         super::routes::agent::SessionConfigRequest,
         super::routes::agent::GetToolsQuery,
+        super::routes::agent::UpdateRouterToolSelectorRequest,
+        super::routes::agent::StartAgentRequest,
+        super::routes::agent::ResumeAgentRequest,
         super::routes::agent::ErrorResponse,
+        super::routes::setup::SetupResponse,
     ))
 )]
 pub struct ApiDoc;

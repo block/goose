@@ -1,8 +1,11 @@
+import { listRecipes, RecipeManifestResponse } from '../api';
 import { Recipe } from './index';
 import * as yaml from 'yaml';
+import { validateRecipe, getValidationErrorMessages } from './validation';
 
 export interface SaveRecipeOptions {
   name: string;
+  title?: string;
   global?: boolean; // true for global (~/.config/goose/recipes/), false for project-specific (.goose/recipes/)
 }
 
@@ -33,7 +36,13 @@ function parseLastModified(val: string | Date): Date {
  * Get the storage directory path for recipes
  */
 export function getStorageDirectory(isGlobal: boolean): string {
-  return isGlobal ? '~/.config/goose/recipes' : '.goose/recipes';
+  if (isGlobal) {
+    return '~/.config/goose/recipes';
+  } else {
+    // For directory recipes, build absolute path using working directory
+    const workingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+    return `${workingDir}/.goose/recipes`;
+  }
 }
 
 /**
@@ -42,37 +51,6 @@ export function getStorageDirectory(isGlobal: boolean): string {
 function getRecipeFilePath(recipeName: string, isGlobal: boolean): string {
   const dir = getStorageDirectory(isGlobal);
   return `${dir}/${recipeName}.yaml`;
-}
-
-/**
- * Load recipe from file
- */
-async function loadRecipeFromFile(
-  recipeName: string,
-  isGlobal: boolean
-): Promise<SavedRecipe | null> {
-  const filePath = getRecipeFilePath(recipeName, isGlobal);
-
-  try {
-    const result = await window.electron.readFile(filePath);
-    if (!result.found || result.error) {
-      return null;
-    }
-
-    const recipeData = yaml.parse(result.file) as SavedRecipe;
-
-    // Convert lastModified string to Date if needed
-    recipeData.lastModified = parseLastModified(recipeData.lastModified);
-
-    return {
-      ...recipeData,
-      isGlobal: isGlobal,
-      filename: recipeName,
-    };
-  } catch (error) {
-    console.warn(`Failed to load recipe from ${filePath}:`, error);
-    return null;
-  }
 }
 
 /**
@@ -93,21 +71,29 @@ async function saveRecipeToFile(recipe: SavedRecipe): Promise<boolean> {
  * Save a recipe to a file using IPC.
  */
 export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Promise<string> {
-  const { name, global = true } = options;
+  const { name, title, global = true } = options;
 
-  // Sanitize name
-  const sanitizedName = sanitizeRecipeName(name);
-  if (!sanitizedName) {
-    throw new Error('Invalid recipe name');
+  let sanitizedName: string;
+
+  if (title) {
+    recipe.title = title.trim();
+    sanitizedName = generateRecipeFilename(recipe);
+    if (!sanitizedName) {
+      throw new Error('Invalid recipe title - cannot generate filename');
+    }
+  } else {
+    // This branch should now be considered deprecated and will be removed once the same functionality
+    // is incorporated in CreateRecipeForm
+    sanitizedName = sanitizeRecipeName(name);
+    if (!sanitizedName) {
+      throw new Error('Invalid recipe name');
+    }
   }
 
-  // Validate recipe has required fields
-  if (!recipe.title || !recipe.description) {
-    throw new Error('Recipe is missing required fields (title, description)');
-  }
-
-  if (!recipe.instructions && !recipe.prompt) {
-    throw new Error('Recipe must have either instructions or prompt');
+  const validationResult = validateRecipe(recipe);
+  if (!validationResult.success) {
+    const errorMessages = getValidationErrorMessages(validationResult.errors);
+    throw new Error(`Recipe validation failed: ${errorMessages.join(', ')}`);
   }
 
   try {
@@ -137,209 +123,21 @@ export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Pr
   }
 }
 
-/**
- * Load a recipe by name from file.
- */
-export async function loadRecipe(recipeName: string, isGlobal: boolean): Promise<Recipe> {
+export async function listSavedRecipes(): Promise<RecipeManifestResponse[]> {
   try {
-    const savedRecipe = await loadRecipeFromFile(recipeName, isGlobal);
-
-    if (!savedRecipe) {
-      throw new Error('Recipe not found');
-    }
-
-    // Validate the loaded recipe has required fields
-    if (!savedRecipe.recipe.title || !savedRecipe.recipe.description) {
-      throw new Error('Loaded recipe is missing required fields');
-    }
-
-    if (!savedRecipe.recipe.instructions && !savedRecipe.recipe.prompt) {
-      throw new Error('Loaded recipe must have either instructions or prompt');
-    }
-
-    return savedRecipe.recipe;
-  } catch (error) {
-    throw new Error(
-      `Failed to load recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
-/**
- * List all saved recipes from the recipes directories.
- *
- * Uses the listFiles API to find available recipe files.
- */
-export async function listSavedRecipes(includeArchived: boolean = false): Promise<SavedRecipe[]> {
-  try {
-    // Check for global and local recipe directories
-    const globalDir = getStorageDirectory(true);
-    const localDir = getStorageDirectory(false);
-
-    // Ensure directories exist
-    await window.electron.ensureDirectory(globalDir);
-    await window.electron.ensureDirectory(localDir);
-
-    // Get list of recipe files with .yaml extension
-    const globalFiles = await window.electron.listFiles(globalDir, 'yaml');
-    const localFiles = await window.electron.listFiles(localDir, 'yaml');
-
-    // Process global recipes in parallel
-    const globalRecipePromises = globalFiles.map(async (file) => {
-      const recipeName = file.replace(/\.yaml$/, '');
-      return await loadRecipeFromFile(recipeName, true);
-    });
-
-    // Process local recipes in parallel
-    const localRecipePromises = localFiles.map(async (file) => {
-      const recipeName = file.replace(/\.yaml$/, '');
-      return await loadRecipeFromFile(recipeName, false);
-    });
-
-    // Wait for all recipes to load in parallel
-    const [globalRecipes, localRecipes] = await Promise.all([
-      Promise.all(globalRecipePromises),
-      Promise.all(localRecipePromises),
-    ]);
-
-    // Filter out null results and apply archived filter
-    const recipes: SavedRecipe[] = [];
-
-    for (const recipe of globalRecipes) {
-      if (recipe && (includeArchived || !recipe.isArchived)) {
-        recipes.push(recipe);
-      }
-    }
-
-    for (const recipe of localRecipes) {
-      if (recipe && (includeArchived || !recipe.isArchived)) {
-        recipes.push(recipe);
-      }
-    }
-
-    // Sort by last modified (newest first)
-    return recipes.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    const listRecipeResponse = await listRecipes();
+    return listRecipeResponse?.data?.recipe_manifest_responses ?? [];
   } catch (error) {
     console.warn('Failed to list saved recipes:', error);
     return [];
   }
 }
 
-/**
- * Restore an archived recipe.
- *
- * @param recipeName The name of the recipe to restore
- * @param isGlobal Whether the recipe is in global or local storage
- */
-export async function restoreRecipe(recipeName: string, isGlobal: boolean): Promise<void> {
-  try {
-    const savedRecipe = await loadRecipeFromFile(recipeName, isGlobal);
-
-    if (!savedRecipe) {
-      throw new Error('Archived recipe not found');
-    }
-
-    if (!savedRecipe.isArchived) {
-      throw new Error('Recipe is not archived');
-    }
-
-    // Mark as not archived
-    savedRecipe.isArchived = false;
-    savedRecipe.lastModified = new Date();
-
-    // Save back to file
-    const success = await saveRecipeToFile(savedRecipe);
-
-    if (!success) {
-      throw new Error('Failed to save updated recipe');
-    }
-  } catch (error) {
-    throw new Error(
-      `Failed to restore recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+export function convertToLocaleDateString(lastModified: string): string {
+  if (lastModified) {
+    return parseLastModified(lastModified).toLocaleDateString();
   }
-}
-
-/**
- * Archive a recipe.
- *
- * @param recipeName The name of the recipe to archive
- * @param isGlobal Whether the recipe is in global or local storage
- */
-export async function archiveRecipe(recipeName: string, isGlobal: boolean): Promise<void> {
-  try {
-    const savedRecipe = await loadRecipeFromFile(recipeName, isGlobal);
-
-    if (!savedRecipe) {
-      throw new Error('Recipe not found');
-    }
-
-    if (savedRecipe.isArchived) {
-      throw new Error('Recipe is already archived');
-    }
-
-    // Mark as archived
-    savedRecipe.isArchived = true;
-    savedRecipe.lastModified = new Date();
-
-    // Save back to file
-    const success = await saveRecipeToFile(savedRecipe);
-
-    if (!success) {
-      throw new Error('Failed to save updated recipe');
-    }
-  } catch (error) {
-    throw new Error(
-      `Failed to archive recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
-/**
- * Permanently delete a recipe file.
- *
- * @param recipeName The name of the recipe to permanently delete
- * @param isGlobal Whether the recipe is in global or local storage
- */
-export async function permanentlyDeleteRecipe(
-  recipeName: string,
-  isGlobal: boolean
-): Promise<void> {
-  try {
-    // TODO: Implement file deletion when available in the API
-    // For now, we'll just mark it as archived as a fallback
-    const savedRecipe = await loadRecipeFromFile(recipeName, isGlobal);
-
-    if (!savedRecipe) {
-      throw new Error('Recipe not found');
-    }
-
-    // Mark as archived with special flag
-    savedRecipe.isArchived = true;
-    savedRecipe.lastModified = new Date();
-
-    // Save back to file
-    const success = await saveRecipeToFile(savedRecipe);
-
-    if (!success) {
-      throw new Error('Failed to mark recipe as deleted');
-    }
-  } catch (error) {
-    throw new Error(
-      `Failed to delete recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
-/**
- * Delete a recipe (archives it by default for backward compatibility).
- *
- * @deprecated Use archiveRecipe instead
- * @param recipeName The name of the recipe to delete/archive
- * @param isGlobal Whether the recipe is in global or local storage
- */
-export async function deleteRecipe(recipeName: string, isGlobal: boolean): Promise<void> {
-  return archiveRecipe(recipeName, isGlobal);
+  return '';
 }
 
 /**

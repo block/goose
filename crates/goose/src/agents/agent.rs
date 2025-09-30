@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -31,30 +31,33 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, get_extension_by_name, Config, PermissionManager};
+use crate::config::{Config, ExtensionConfigManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
+use crate::mcp_utils::ToolResult;
+use crate::permission::permission_inspector::PermissionInspector;
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session;
-use crate::session::extension_data::ExtensionState;
-use crate::tool_monitor::{ToolCall, ToolMonitor};
+use crate::security::security_inspector::SecurityInspector;
+use crate::tool_inspection::ToolInspectionManager;
+use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
-use mcp_core::ToolResult;
 use regex::Regex;
 use rmcp::model::{
-    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use super::final_output_tool::FinalOutputTool;
+use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
@@ -62,12 +65,14 @@ use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::{extension_data, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
-    pub messages: Conversation,
+    pub conversation: Conversation,
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
@@ -80,8 +85,6 @@ pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
-    pub readonly_tools: HashSet<String>,
-    pub regular_tools: HashSet<String>,
 }
 
 /// The main goose Agent
@@ -98,10 +101,12 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
-    pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
+
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -158,9 +163,6 @@ impl Agent {
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
-        let tool_monitor = Arc::new(Mutex::new(None));
-        let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
-
         Self {
             provider: Mutex::new(None),
             extension_manager: ExtensionManager::new(),
@@ -174,16 +176,33 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor,
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
-            retry_manager,
+            retry_manager: RetryManager::new(),
+            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
-    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
-        let mut tool_monitor = self.tool_monitor.lock().await;
-        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    /// Create a tool inspection manager with default inspectors
+    fn create_default_tool_inspection_manager() -> ToolInspectionManager {
+        let mut tool_inspection_manager = ToolInspectionManager::new();
+
+        // Add security inspector (highest priority - runs first)
+        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+
+        // Add permission inspector (medium-high priority)
+        // Note: mode will be updated dynamically based on session config
+        tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
+            "smart_approve".to_string(),
+            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
+            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
+        )));
+
+        // Add repetition inspector (lower priority - basic repetition checking)
+        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
+
+        tool_inspection_manager
     }
 
     /// Reset the retry attempts counter to 0
@@ -244,8 +263,13 @@ impl Agent {
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
         let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
+        // Update permission inspector mode to match the session mode
+        self.tool_inspection_manager
+            .update_permission_inspector_mode(goose_mode.clone())
+            .await;
+
         Ok(ReplyContext {
-            messages: conversation,
+            conversation,
             tools,
             toolshim_tools,
             system_prompt,
@@ -258,10 +282,8 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        tools: &[rmcp::model::Tool],
+        _tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
-        let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
-
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
@@ -270,8 +292,6 @@ impl Agent {
             frontend_requests,
             remaining_requests,
             filtered_response,
-            readonly_tools,
-            regular_tools,
         }
     }
 
@@ -370,30 +390,18 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: mcp_core::tool::ToolCall,
+        tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Check if this tool call should be allowed based on repetition monitoring
-        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
-            let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
-
-            if !monitor.check_tool_call(tool_call_info) {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
-                        None,
-                    )),
-                );
-            }
-        }
-
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
+            let arguments = tool_call
+                .arguments
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             let result = self
-                .handle_schedule_management(tool_call.arguments, request_id.clone())
+                .handle_schedule_management(arguments, request_id.clone())
                 .await;
             return (request_id, Ok(ToolCallResult::from(result)));
         }
@@ -401,18 +409,20 @@ impl Agent {
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
-                .get("extension_name")
+                .as_ref()
+                .and_then(|args| args.get("extension_name"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             let action = tool_call
                 .arguments
-                .get("action")
+                .as_ref()
+                .and_then(|args| args.get("action"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             let (request_id, result) = self
-                .manage_extensions(action, extension_name, request_id)
+                .manage_extensions(action, extension_name, request_id, session)
                 .await;
 
             return (request_id, Ok(ToolCallResult::from(result)));
@@ -434,45 +444,72 @@ impl Agent {
             };
         }
 
-        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+        debug!("WAITING_TOOL_START: {}", tool_call.name);
+        let result: ToolCallResult = if self
+            .sub_recipe_manager
+            .lock()
+            .await
+            .is_sub_recipe_tool(&tool_call.name)
+        {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(
-                    &tool_call.name,
-                    tool_call.arguments.clone(),
-                    &self.tasks_manager,
-                )
+                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = self.provider().await.ok();
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
 
             let task_config = TaskConfig::new(provider);
             subagent_execute_task_tool::run_tasks(
-                tool_call.arguments.clone(),
+                arguments,
                 task_config,
                 &self.tasks_manager,
                 cancellation_token,
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
+            // Get loaded extensions for shortname resolution
+            let loaded_extensions = self
+                .extension_manager
+                .list_extensions()
+                .await
+                .unwrap_or_default();
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
+            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             ToolCallResult::from(
                 self.extension_manager
-                    .read_resource(
-                        tool_call.arguments.clone(),
-                        cancellation_token.unwrap_or_default(),
-                    )
+                    .read_resource(arguments, cancellation_token.unwrap_or_default())
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
             ToolCallResult::from(
                 self.extension_manager
-                    .list_resources(
-                        tool_call.arguments.clone(),
-                        cancellation_token.unwrap_or_default(),
-                    )
+                    .list_resources(arguments, cancellation_token.unwrap_or_default())
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -486,17 +523,12 @@ impl Agent {
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
-            let session_file_path = if let Some(session_config) = session {
-                session::storage::get_path(session_config.id.clone()).ok()
-            } else {
-                None
-            };
-
-            let todo_content = if let Some(path) = session_file_path {
-                session::storage::read_metadata(&path)
+            let todo_content = if let Some(session_config) = session {
+                SessionManager::get_session(&session_config.id, false)
+                    .await
                     .ok()
-                    .and_then(|m| {
-                        session::TodoState::from_extension_data(&m.extension_data)
+                    .and_then(|metadata| {
+                        extension_data::TodoState::from_extension_data(&metadata.extension_data)
                             .map(|state| state.content)
                     })
                     .unwrap_or_default()
@@ -507,12 +539,14 @@ impl Agent {
             ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
             // Handle task planner write tool
-            let content = tool_call
-                .arguments
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            let content = match tool_call.arguments {
+                Some(args) => args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                None => "".to_string(),
+            };
 
             // Character limit validation
             let char_count = content.chars().count();
@@ -531,43 +565,39 @@ impl Agent {
                     None,
                 )))
             } else if let Some(session_config) = session {
-                // Update session metadata with new TODO content
-                match session::storage::get_path(session_config.id.clone()) {
-                    Ok(path) => match session::storage::read_metadata(&path) {
-                        Ok(mut metadata) => {
-                            let todo_state = session::TodoState::new(content);
-                            todo_state
-                                .to_extension_data(&mut metadata.extension_data)
-                                .ok();
-
-                            let path_clone = path.clone();
-                            let metadata_clone = metadata.clone();
-                            let update_result = tokio::task::spawn(async move {
-                                session::storage::update_metadata(&path_clone, &metadata_clone)
-                                    .await
-                            })
-                            .await;
-
-                            match update_result {
-                                Ok(Ok(_)) => ToolCallResult::from(Ok(vec![Content::text(
-                                    format!("Updated ({} chars)", char_count),
-                                )])),
-                                _ => ToolCallResult::from(Err(ErrorData::new(
+                match SessionManager::get_session(&session_config.id, false).await {
+                    Ok(mut session) => {
+                        let todo_state = extension_data::TodoState::new(content);
+                        if todo_state
+                            .to_extension_data(&mut session.extension_data)
+                            .is_ok()
+                        {
+                            match SessionManager::update_session(&session_config.id)
+                                .extension_data(session.extension_data)
+                                .apply()
+                                .await
+                            {
+                                Ok(_) => ToolCallResult::from(Ok(vec![Content::text(format!(
+                                    "Updated ({} chars)",
+                                    char_count
+                                ))])),
+                                Err(_) => ToolCallResult::from(Err(ErrorData::new(
                                     ErrorCode::INTERNAL_ERROR,
                                     "Failed to update session metadata".to_string(),
                                     None,
                                 ))),
                             }
+                        } else {
+                            ToolCallResult::from(Err(ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                "Failed to serialize TODO state".to_string(),
+                                None,
+                            )))
                         }
-                        Err(_) => ToolCallResult::from(Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Failed to read session metadata".to_string(),
-                            None,
-                        ))),
-                    },
+                    }
                     Err(_) => ToolCallResult::from(Err(ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        "Failed to get session path".to_string(),
+                        "Failed to read session metadata".to_string(),
                         None,
                     ))),
                 }
@@ -581,7 +611,7 @@ impl Agent {
         } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments)
+                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
                 .await
             {
                 Ok(tool_result) => tool_result,
@@ -602,6 +632,8 @@ impl Agent {
             })
         };
 
+        debug!("WAITING_TOOL_END: {}", tool_call.name);
+
         (
             request_id,
             Ok(ToolCallResult {
@@ -615,12 +647,38 @@ impl Agent {
         )
     }
 
+    /// Save current extension state to session metadata
+    /// Should be called after any extension add/remove operation
+    async fn save_extension_state(&self, session: &Option<SessionConfig>) -> Result<()> {
+        if let Some(session_config) = session {
+            let extension_configs = self.extension_manager
+                .get_extension_configs()
+                .await;
+
+            let extensions_state = EnabledExtensionsState::new(extension_configs);
+
+            // Load current session
+            if let Ok(mut session_data) = SessionManager::get_session(&session_config.id, false).await {
+                // Update extension data
+                if extensions_state.to_extension_data(&mut session_data.extension_data).is_ok() {
+                    // Save back to database
+                    SessionManager::update_session(&session_config.id)
+                        .extension_data(session_data.extension_data)
+                        .apply()
+                        .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_lines)]
     pub(super) async fn manage_extensions(
         &self,
         action: String,
         extension_name: String,
         request_id: String,
+        session: &Option<SessionConfig>,
     ) -> (String, Result<Vec<Content>, ErrorData>) {
         if self.tool_route_manager.is_router_functional().await {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
@@ -714,6 +772,14 @@ impl Agent {
                 }
             }
         }
+
+        // Save extension state after successful operation
+        if result.is_ok() {
+            if let Err(e) = self.save_extension_state(session).await {
+                warn!("Failed to save extension state after manage_extensions: {}", e);
+            }
+        }
+
         (request_id, result)
     }
 
@@ -883,10 +949,9 @@ impl Agent {
     > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
-            match session::storage::get_path(session_config.id.clone()) {
-                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
-                Err(_) => None,
-            }
+            SessionManager::get_session(&session_config.id, false)
+                .await
+                .ok()
         } else {
             None
         };
@@ -932,7 +997,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg, _summarization_usage) = match self
+        let (conversation, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
@@ -941,7 +1006,7 @@ impl Agent {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None, None)
+                (context.conversation, None, None)
             }
         };
 
@@ -949,10 +1014,13 @@ impl Agent {
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
-                yield AgentEvent::HistoryReplaced(messages.messages().clone());
+                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+                if let Some(session_to_store) = &session {
+                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                }
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -960,19 +1028,20 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(messages, session, cancel_token).await
+        self.reply_internal(conversation, session, cancel_token)
+            .await
     }
 
     /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
-        messages: Conversation,
+        conversation: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(messages, &session).await?;
+        let context = self.prepare_reply_context(conversation, &session).await?;
         let ReplyContext {
-            mut messages,
+            mut conversation,
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
@@ -983,12 +1052,52 @@ impl Agent {
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
-        if let Some(content) = messages
-            .last()
-            .and_then(|msg| msg.content.first())
-            .and_then(|c| c.as_text())
-        {
-            debug!("user_message" = &content);
+        // This will need further refactoring. In the ideal world we pass the new message into
+        // reply and load the existing conversation. Until we get to that point, fetch the conversation
+        // so far and append the last (user) message that the caller already added.
+        if let Some(session_config) = &session {
+            let stored_conversation = SessionManager::get_session(&session_config.id, true)
+                .await?
+                .conversation
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Session {} has no conversation", session_config.id)
+                })?;
+
+            match conversation.len().cmp(&stored_conversation.len()) {
+                std::cmp::Ordering::Equal => {
+                    if conversation != stored_conversation {
+                        warn!("Session messages mismatch - replacing with incoming");
+                        SessionManager::replace_conversation(&session_config.id, &conversation)
+                            .await?;
+                    }
+                }
+                std::cmp::Ordering::Greater
+                    if conversation.len() == stored_conversation.len() + 1 =>
+                {
+                    let last_message = conversation.last().unwrap();
+                    if let Some(content) = last_message.content.first().and_then(|c| c.as_text()) {
+                        debug!("user_message" = &content);
+                    }
+                    SessionManager::add_message(&session_config.id, last_message).await?;
+                }
+                _ => {
+                    warn!(
+                        "Unexpected session state: stored={}, incoming={}. Replacing.",
+                        stored_conversation.len(),
+                        conversation.len()
+                    );
+                    SessionManager::replace_conversation(&session_config.id, &conversation).await?;
+                }
+            }
+            let provider = self.provider().await?;
+            let session_id = session_config.id.clone();
+            tokio::spawn(async move {
+                if let Err(e) =
+                    SessionManager::maybe_update_description(&session_id, provider).await
+                {
+                    warn!("Failed to generate session description: {}", e);
+                }
+            });
         }
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -1024,16 +1133,29 @@ impl Agent {
                     break;
                 }
 
+                {
+                    let mut autopilot = self.autopilot.lock().await;
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
+                        debug!("AutoPilot switching to {} role with model {}", role, model);
+                        self.update_provider(new_provider).await?;
+
+                        yield AgentEvent::ModelChange {
+                            model: model.clone(),
+                            mode: format!("autopilot:{}", role),
+                        };
+                    }
+                }
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    messages.messages(),
+                    conversation.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
 
-                let mut added_message = false;
-                let mut messages_to_add = Vec::new();
+                let mut no_tools_called = true;
+                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
 
                 while let Some(next) = stream.next().await {
@@ -1067,18 +1189,16 @@ impl Agent {
                             // Record usage for the session
                             if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage, messages.len())
-                                        .await?;
+                                    Self::update_session_metrics(session_config, usage).await?;
                                 }
                             }
 
                             if let Some(response) = response {
+                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
-                                    readonly_tools,
-                                    regular_tools,
                                 } = self.categorize_tools(&response, &tools).await;
                                 let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
                                 self.tool_route_manager
@@ -1117,16 +1237,40 @@ impl Agent {
                                         );
                                     }
                                 } else {
-                                    let mut permission_manager = PermissionManager::default();
-                                    let (permission_check_result, enable_extension_request_ids) =
-                                        check_tool_permissions(
+                                    // Run all tool inspectors (security, repetition, permission, etc.)
+                                    let inspection_results = self.tool_inspection_manager
+                                        .inspect_tools(
                                             &remaining_requests,
-                                            &mode,
-                                            readonly_tools.clone(),
-                                            regular_tools.clone(),
-                                            &mut permission_manager,
-                                            self.provider().await?,
-                                        ).await;
+                                            conversation.messages(),
+                                        )
+                                        .await?;
+
+                                    // Process inspection results into permission decisions using the permission inspector
+                                    let permission_check_result = self.tool_inspection_manager
+                                        .process_inspection_results_with_permission_inspector(
+                                            &remaining_requests,
+                                            &inspection_results,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            // Fallback if permission inspector not found - default to needs approval
+                                            let mut result = PermissionCheckResult {
+                                                approved: vec![],
+                                                needs_approval: vec![],
+                                                denied: vec![],
+                                            };
+                                            result.needs_approval.extend(remaining_requests.iter().cloned());
+                                            result
+                                        });
+
+                                    // Track extension requests for special handling
+                                    let mut enable_extension_request_ids = vec![];
+                                    for request in &remaining_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                                                enable_extension_request_ids.push(request.id.clone());
+                                            }
+                                        }
+                                    }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
@@ -1141,9 +1285,9 @@ impl Agent {
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        &inspection_results,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
@@ -1196,16 +1340,35 @@ impl Agent {
                                 let final_message_tool_resp = message_tool_response.lock().await.clone();
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
-                                added_message = true;
-                                messages_to_add.push(response);
+                                no_tools_called = false;
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
-                                ));
-                            break;
+                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                            info!("Context length exceeded, attempting compaction");
+
+                            match auto_compact::perform_compaction(self, conversation.messages()).await {
+                                Ok(compact_result) => {
+                                    conversation = compact_result.messages;
+
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_summarization_requested(
+                                            "Context limit reached. Conversation has been automatically compacted to continue."
+                                        )
+                                    );
+                                    yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
+                                    if let Some(session_to_store) = &session {
+                                        SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                                    }
+                                    continue;
+                                }
+                                Err(_) => {
+                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
+                                    ));
+                                    break;
+                                }
+                            }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
@@ -1219,39 +1382,49 @@ impl Agent {
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                 }
-                if !added_message {
+                let mut exit_chat = false;
+                if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
-                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
-                            continue
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
+                            exit_chat = true;
                         }
-                    }
-
-                    match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
-                        Ok(should_retry) => {
-                            if should_retry {
-                                info!("Retry logic triggered, restarting agent loop");
-                                continue;
+                    } else {
+                        match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
+                            Ok(should_retry) => {
+                                if should_retry {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                } else {
+                                    exit_chat = true;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Retry logic failed: {}", e);
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Retry logic encountered an error: {}", e)
+                                ));
+                                exit_chat = true;
                             }
                         }
-                        Err(e) => {
-                            error!("Retry logic failed: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                format!("Retry logic encountered an error: {}", e)
-                            ));
-                        }
                     }
-                    break;
                 }
 
-                messages.extend(messages_to_add);
+                if let Some(session_config) = &session {
+                    for msg in &messages_to_add {
+                        SessionManager::add_message(&session_config.id, msg).await?;
+                    }
+                }
+                conversation.extend(messages_to_add);
+                if exit_chat {
+                    break;
+                }
 
                 tokio::task::yield_now().await;
             }
@@ -1407,6 +1580,14 @@ impl Agent {
         tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
+
+        let (messages, issues) = fix_conversation(messages);
+        if !issues.is_empty() {
+            issues
+                .iter()
+                .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
+        }
+
         tracing::debug!(
             "Added recipe prompt to messages, total messages: {}",
             messages.len()
@@ -1610,6 +1791,28 @@ mod tests {
 
         assert!(todo_read.is_some(), "TODO read tool should be present");
         assert!(todo_write.is_some(), "TODO write tool should be present");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
+        let agent = Agent::new();
+
+        // Verify that the tool inspection manager has all expected inspectors
+        let inspector_names = agent.tool_inspection_manager.inspector_names();
+
+        assert!(
+            inspector_names.contains(&"repetition"),
+            "Tool inspection manager should contain repetition inspector"
+        );
+        assert!(
+            inspector_names.contains(&"permission"),
+            "Tool inspection manager should contain permission inspector"
+        );
+        assert!(
+            inspector_names.contains(&"security"),
+            "Tool inspection manager should contain security inspector"
+        );
 
         Ok(())
     }

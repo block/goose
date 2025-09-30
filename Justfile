@@ -63,7 +63,7 @@ copy-binary BUILD_MODE="release":
         echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
         cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
     else \
-        echo "Goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
     @if [ -f ./temporal-service/temporal-service ]; then \
@@ -148,7 +148,7 @@ run-ui-only:
     cd ui/desktop && npm install && npm run start-gui
 
 debug-ui:
-	@echo "🚀 Starting Goose frontend in external backend mode"
+	@echo "🚀 Starting goose frontend in external backend mode"
 	cd ui/desktop && \
 	export GOOSE_EXTERNAL_BACKEND=true && \
 	export GOOSE_EXTERNAL_PORT=3000 && \
@@ -163,7 +163,7 @@ debug-ui:
 # 4. If not auto-detected, click "Configure" and add: localhost:9229
 
 debug-ui-main-process:
-	@echo "🔍 Starting Goose UI with main process debugging enabled"
+	@echo "🔍 Starting goose UI with main process debugging enabled"
 	@just release-binary
 	cd ui/desktop && \
 	npm install && \
@@ -196,7 +196,7 @@ run-docs:
 # Run server
 run-server:
     @echo "Running server..."
-    cargo run -p goose-server
+    cargo run -p goose-server --bin goosed agent
 
 # Check if OpenAPI schema is up-to-date
 check-openapi-schema: generate-openapi

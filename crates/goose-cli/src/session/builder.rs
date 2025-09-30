@@ -1,11 +1,13 @@
+use super::output;
+use super::CliSession;
 use console::style;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{get_all_extensions, get_enabled_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
-use goose::session::Identifier;
-use goose::session::{self, EnabledExtensionsState, ExtensionState, SessionMetadata};
+use goose::session::SessionManager;
+use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -13,17 +15,14 @@ use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 
-use super::output;
-use super::Session;
-
 /// Configuration for building a new Goose session
 ///
 /// This struct contains all the parameters needed to create a new session,
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional identifier for the session (name or path)
-    pub identifier: Option<Identifier>,
+    /// Optional identifier for the session
+    pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
     /// Whether to run without a session file
@@ -129,21 +128,8 @@ async fn offer_extension_debugging_help(
         }
     }
 
-    // Create a temporary session file for this debugging session
-    let temp_session_file =
-        std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
-
     // Create the debugging session
-    let mut debug_session = Session::new(
-        debug_agent,
-        Some(temp_session_file.clone()),
-        false,
-        None,
-        None,
-        None,
-        None,
-        None, // No startup metadata for debug sessions
-    );
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -161,10 +147,6 @@ async fn offer_extension_debugging_help(
             );
         }
     }
-
-    // Clean up the temporary session file
-    let _ = std::fs::remove_file(temp_session_file);
-
     Ok(())
 }
 
@@ -175,7 +157,7 @@ pub struct SessionSettings {
     pub temperature: Option<f32>,
 }
 
-pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
+pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Load config and get provider/model
     let config = Config::global();
 
@@ -257,74 +239,65 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             process::exit(1);
         });
 
-    // Configure tool monitoring if max_tool_repetitions is set
-    if let Some(max_repetitions) = session_config.max_tool_repetitions {
-        agent.configure_tool_monitor(Some(max_repetitions)).await;
-    }
-
     // Handle session file resolution and resuming
-    let session_file: Option<std::path::PathBuf> = if session_config.no_session {
+    let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        if let Some(identifier) = session_config.identifier {
-            let session_file = match session::get_path(identifier) {
-                Err(e) => {
-                    output::render_error(&format!("Invalid session identifier: {}", e));
+        if let Some(session_id) = session_config.session_id {
+            match SessionManager::get_session(&session_id, false).await {
+                Ok(_) => Some(session_id),
+                Err(_) => {
+                    output::render_error(&format!(
+                        "Cannot resume session {} - no such session exists",
+                        style(&session_id).cyan()
+                    ));
                     process::exit(1);
                 }
-                Ok(path) => path,
-            };
-            if !session_file.exists() {
-                output::render_error(&format!(
-                    "Cannot resume session {} - no such session exists",
-                    style(session_file.display()).cyan()
-                ));
-                process::exit(1);
             }
-
-            Some(session_file)
         } else {
-            // Try to resume most recent session
-            match session::get_most_recent_session() {
-                Ok(file) => Some(file),
+            match SessionManager::list_sessions().await {
+                Ok(sessions) => {
+                    if sessions.is_empty() {
+                        output::render_error("Cannot resume - no previous sessions found");
+                        process::exit(1);
+                    }
+                    Some(sessions[0].id.clone())
+                }
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
                 }
             }
         }
+    } else if let Some(session_id) = session_config.session_id {
+        Some(session_id)
     } else {
-        // Create new session with provided name/path or generated name
-        let id = match session_config.identifier {
-            Some(identifier) => identifier,
-            None => Identifier::Name(session::generate_session_id()),
-        };
-
-        // Just get the path - file will be created when needed
-        match session::get_path(id) {
-            Ok(path) => Some(path),
-            Err(e) => {
-                output::render_error(&format!("Failed to create session path: {}", e));
-                process::exit(1);
-            }
-        }
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "CLI Session".to_string(),
+        )
+        .await
+        .unwrap();
+        Some(session.id)
     };
 
     if session_config.resume {
-        if let Some(session_file) = session_file.as_ref() {
-            // Read the session metadata
-            let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read session metadata: {}", e));
-                process::exit(1);
-            });
+        if let Some(session_id) = session_id.as_ref() {
+            // Read the session metadata from database
+            let metadata = SessionManager::get_session(session_id, false)
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to read session metadata: {}", e));
+                    process::exit(1);
+                });
 
             let current_workdir =
                 std::env::current_dir().expect("Failed to get current working directory");
             if current_workdir != metadata.working_dir {
                 // Ask user if they want to change the working directory
                 let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-            .initial_value(true)
-            .interact().expect("Failed to get user input");
+                    .initial_value(true)
+                    .interact().expect("Failed to get user input");
 
                 if change_workdir {
                     if !metadata.working_dir.exists() {
@@ -350,12 +323,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else if session_config.resume {
-        if let Some(session_file) = session_file.as_ref() {
-            match session::read_metadata(session_file) {
-                Ok(metadata) => {
-                    EnabledExtensionsState::from_extension_data(&metadata.extension_data)
-                        .map(|state| state.extensions.into_iter().collect())
-                        .unwrap_or_else(|| get_enabled_extensions())
+        if let Some(session_id) = session_id.as_ref() {
+            match SessionManager::get_session(session_id, false).await {
+                Ok(session_data) => {
+                    // Try to load saved extension configs directly
+                    if let Some(saved_state) = EnabledExtensionsState::from_extension_data(&session_data.extension_data) {
+                        // Use the saved configs as-is (no lookup needed!)
+                        saved_state.extensions
+                    } else {
+                        // Fallback to currently enabled extensions
+                        get_enabled_extensions()
+                    }
                 }
                 _ => get_enabled_extensions(),
             }
@@ -417,6 +395,33 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     }
 
+    // Save extension state after loading all extensions
+    if let Some(session_id) = session_id.as_ref() {
+        let loaded_extension_configs = agent_ptr
+            .extension_manager
+            .get_extension_configs()
+            .await;
+
+        if !loaded_extension_configs.is_empty() {
+            let extensions_state = EnabledExtensionsState::new(loaded_extension_configs);
+
+            // Load current session
+            if let Ok(mut session_data) = SessionManager::get_session(session_id, false).await {
+                // Update extension data
+                if extensions_state.to_extension_data(&mut session_data.extension_data).is_ok() {
+                    // Save back to database
+                    if let Err(e) = SessionManager::update_session(session_id)
+                        .extension_data(session_data.extension_data)
+                        .apply()
+                        .await
+                    {
+                        tracing::warn!("Failed to save initial extension state: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
     // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
@@ -430,16 +435,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             }
         });
 
-    // Create new session (initially without metadata)
-    let mut session = Session::new(
+    // Create new session
+    let mut session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
-        session_file.clone(),
+        session_id.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
-        None, // Will be set after extensions are loaded
     );
 
     // Add stdio extensions if provided
@@ -600,7 +604,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             session_config.resume,
             &provider_name,
             &model_name,
-            &session_file,
+            &session_id,
             Some(&provider_for_display),
         );
     }
@@ -614,7 +618,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_creation() {
         let config = SessionBuilderConfig {
-            identifier: Some(Identifier::Name("test".to_string())),
+            session_id: Some("test".to_string()),
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
@@ -653,7 +657,7 @@ mod tests {
     fn test_session_builder_config_default() {
         let config = SessionBuilderConfig::default();
 
-        assert!(config.identifier.is_none());
+        assert!(config.session_id.is_none());
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());

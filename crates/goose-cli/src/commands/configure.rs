@@ -257,8 +257,8 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item("remove", "Remove Extension", "Remove an extension")
             .item(
                 "settings",
-                "Goose Settings",
-                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more",
+                "goose settings",
+                "Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more",
             )
             .interact()?;
 
@@ -645,7 +645,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 
     let result = provider
         .complete(
-            "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
+            "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,
             &tools.into_iter().collect::<Vec<_>>()
         ).await;
@@ -725,7 +725,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "built-in",
             "Built-in Extension",
-            "Use an extension that comes with Goose",
+            "Use an extension that comes with goose",
         )
         .item(
             "stdio",
@@ -750,8 +750,8 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
                     "autovisualiser",
-                    "Auto Visualizer",
-                    "Data visualization and UI generation tools",
+                    "Auto Visualiser",
+                    "Data visualisation and UI generation tools",
                 )
                 .item(
                     "computercontroller",
@@ -1203,7 +1203,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
 
 pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     let setting_type = cliclack::select("What setting would you like to configure?")
-        .item("goose_mode", "Goose Mode", "Configure Goose mode")
+        .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
             "goose_router_strategy",
             "Router Tool Selection Strategy",
@@ -1231,8 +1231,8 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         )
         .item(
             "recipe",
-            "Goose recipe github repo",
-            "Goose will pull recipes from this repo if not found locally.",
+            "goose recipe github repo",
+            "goose will pull recipes from this repo if not found locally.",
         )
         .item(
             "scheduler",
@@ -1280,7 +1280,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
     }
 
-    let mode = cliclack::select("Which Goose mode would you like to configure?")
+    let mode = cliclack::select("Which goose mode would you like to configure?")
         .item(
             "auto",
             "Auto Mode",
@@ -1589,7 +1589,7 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+        "Enter your goose recipe Github repo (owner/repo): eg: my_org/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {
@@ -1624,7 +1624,7 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
 
     let scheduler_type = cliclack::select("Which scheduler type would you like to use?")
         .items(&[
-            ("legacy", "Built-in Cron (Default)", "Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling needs."),
+            ("legacy", "Built-in Cron (Default)", "Uses goose's built-in cron scheduler. Simple and reliable for basic scheduling needs."),
             ("temporal", "Temporal", "Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.")
         ])
         .interact()?;
@@ -1649,7 +1649,7 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
             println!("  • Temporal scheduler requires Temporal CLI to be installed");
             println!("  • macOS: brew install temporal");
             println!("  • Linux/Windows: https://github.com/temporalio/cli/releases");
-            println!("  • If Temporal is unavailable, Goose will automatically fall back to the built-in scheduler");
+            println!("  • If Temporal is unavailable, goose will automatically fall back to the built-in scheduler");
             println!("  • The scheduling engines do not share the list of schedules");
         }
         _ => unreachable!(),
@@ -1683,7 +1683,7 @@ pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
     config.set_param("GOOSE_MAX_TURNS", Value::from(max_turns))?;
 
     cliclack::outro(format!(
-        "Set maximum turns to {} - Goose will ask for input after {} consecutive actions",
+        "Set maximum turns to {} - goose will ask for input after {} consecutive actions",
         max_turns, max_turns
     ))?;
 
@@ -1734,7 +1734,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                     // Simple test request
                     let test_result = provider
                         .complete(
-                            "You are Goose, an AI assistant.",
+                            "You are goose, an AI assistant.",
                             &[Message::user().with_text("Say 'Configuration test successful!'")],
                             &[],
                         )
@@ -1767,7 +1767,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                 println!("✓ Developer extension enabled");
                             }
 
-                            cliclack::outro("OpenRouter setup complete! You can now use Goose.")?;
+                            cliclack::outro("OpenRouter setup complete! You can now use goose.")?;
                         }
                         Err(e) => {
                             eprintln!("⚠️  Configuration test failed: {}", e);
@@ -1833,7 +1833,7 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                     // Simple test request
                     let test_result = provider
                         .complete(
-                            "You are Goose, an AI assistant.",
+                            "You are goose, an AI assistant.",
                             &[Message::user().with_text("Say 'Configuration test successful!'")],
                             &[],
                         )
@@ -1866,7 +1866,7 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                                 println!("✓ Developer extension enabled");
                             }
 
-                            cliclack::outro("Tetrate Agent Router Service setup complete! You can now use Goose.")?;
+                            cliclack::outro("Tetrate Agent Router Service setup complete! You can now use goose.")?;
                         }
                         Err(e) => {
                             eprintln!("⚠️  Configuration test failed: {}", e);

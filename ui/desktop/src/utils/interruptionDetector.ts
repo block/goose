@@ -2,7 +2,7 @@
  * Utility for detecting interruption keywords in user input
  */
 
-export interface InterruptionKeyword {
+interface InterruptionKeyword {
   keyword: string;
   variations: string[];
   priority: 'high' | 'medium' | 'low';

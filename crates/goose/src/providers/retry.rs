@@ -89,7 +89,7 @@ pub trait ProviderRetry {
                 Err(error) => {
                     let should_retry = matches!(
                         error,
-                        ProviderError::RateLimitExceeded(_) | ProviderError::ServerError(_)
+                        ProviderError::RateLimitExceeded { .. } | ProviderError::ServerError(_)
                     );
 
                     if should_retry && attempts < config.max_retries {
@@ -101,7 +101,14 @@ pub trait ProviderRetry {
                             error
                         );
 
-                        let delay = config.delay_for_attempt(attempts);
+                        let delay = match &error {
+                            ProviderError::RateLimitExceeded {
+                                retry_delay: Some(provider_delay),
+                                ..
+                            } => *provider_delay,
+                            _ => config.delay_for_attempt(attempts),
+                        };
+
                         tracing::info!("Backing off for {:?} before retry", delay);
                         sleep(delay).await;
                         continue;
@@ -114,4 +121,9 @@ pub trait ProviderRetry {
     }
 }
 
-impl<P: Provider> ProviderRetry for P {}
+// Let specific providers define their retry config if desired
+impl<P: Provider> ProviderRetry for P {
+    fn retry_config(&self) -> RetryConfig {
+        Provider::retry_config(self)
+    }
+}

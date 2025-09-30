@@ -7,7 +7,7 @@ pub mod signup_openrouter;
 pub mod signup_tetrate;
 
 pub use crate::agents::ExtensionConfig;
-pub use base::{Config, ConfigError, APP_STRATEGY};
+pub use base::{get_config_dir, Config, ConfigError, APP_STRATEGY};
 pub use custom_providers::CustomProviderConfig;
 pub use experiments::ExperimentManager;
 pub use extensions::{

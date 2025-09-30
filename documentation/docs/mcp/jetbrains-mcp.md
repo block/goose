@@ -131,7 +131,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 In this example, I'm going to upgrade a Java project to the latest LTS version.
 
 :::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
+Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 

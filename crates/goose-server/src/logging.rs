@@ -1,6 +1,4 @@
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy};
-use std::fs;
 use std::path::PathBuf;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
@@ -8,31 +6,12 @@ use tracing_subscriber::{
     Registry,
 };
 
-use goose::config::APP_STRATEGY;
 use goose::tracing::{langfuse_layer, otlp_layer};
 
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    // choose_app_strategy().state_dir()
-    // - macOS/Linux: ~/.local/state/goose/logs/server
-    // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\server
-    // - Windows has no convention for state_dir, use data_dir instead
-    let home_dir =
-        choose_app_strategy(APP_STRATEGY.clone()).context("HOME environment variable not set")?;
-
-    let base_log_dir = home_dir
-        .in_state_dir("logs/server")
-        .unwrap_or_else(|| home_dir.in_data_dir("logs/server"));
-
-    // Create date-based subdirectory
-    let now = chrono::Local::now();
-    let date_dir = base_log_dir.join(now.format("%Y-%m-%d").to_string());
-
-    // Ensure log directory exists
-    fs::create_dir_all(&date_dir).context("Failed to create log directory")?;
-
-    Ok(date_dir)
+    goose::logging::get_log_directory("server", true)
 }
 
 /// Sets up the logging infrastructure for the application.
@@ -78,8 +57,6 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         // Set default levels for different modules
         EnvFilter::new("")
-            // Set mcp-server module to DEBUG
-            .add_directive("mcp_server=debug".parse().unwrap())
             // Set mcp-client to DEBUG
             .add_directive("mcp_client=debug".parse().unwrap())
             // Set goose module to DEBUG

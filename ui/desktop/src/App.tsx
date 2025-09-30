@@ -1,25 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
+import {
+  HashRouter,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  useSearchParams,
+} from 'react-router-dom';
+import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
-import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
-import Pair from './components/pair';
+import Pair, { PairRouteState } from './components/pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
-import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
@@ -29,39 +34,36 @@ import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
-import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-import { Recipe } from './recipe';
-import RecipesView from './components/RecipesView';
-import RecipeEditor from './components/RecipeEditor';
-
-// Import the new modules
+import RecipesView from './components/recipes/RecipesView';
+import RecipeEditor from './components/recipes/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
-import { initializeApp } from './utils/appInitialization';
+import {
+  AgentState,
+  InitializationContext,
+  NoProviderOrModelError,
+  useAgent,
+} from './hooks/useAgent';
 
 // Route Components
 const HubRouteWrapper = ({
-  chat,
-  setChat,
-  setPairChat,
   setIsGoosehintsModalOpen,
+  isExtensionsLoading,
+  resetChat,
 }: {
-  chat: ChatType;
-  setChat: (chat: ChatType) => void;
-  setPairChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isExtensionsLoading: boolean;
+  resetChat: () => void;
 }) => {
   const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   return (
     <Hub
-      readyForAutoUserPrompt={true}
-      chat={chat}
-      setChat={setChat}
-      setPairChat={setPairChat}
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      isExtensionsLoading={isExtensionsLoading}
+      resetChat={resetChat}
     />
   );
 };
@@ -69,119 +71,42 @@ const HubRouteWrapper = ({
 const PairRouteWrapper = ({
   chat,
   setChat,
-  setPairChat,
   setIsGoosehintsModalOpen,
+  setAgentWaitingMessage,
+  setFatalError,
+  agentState,
+  loadCurrentChat,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setPairChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  setAgentWaitingMessage: (msg: string | null) => void;
+  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
+  agentState: AgentState;
+  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
 }) => {
-  const navigate = useNavigate();
   const location = useLocation();
-  const chatRef = useRef(chat);
-  const setView = createNavigationHandler(navigate);
+  const navigate = useNavigate();
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const routeState =
+    (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
+  const [searchParams] = useSearchParams();
+  const [initialMessage] = useState(routeState.initialMessage);
 
-  // Keep the ref updated with the current chat state
-  useEffect(() => {
-    chatRef.current = chat;
-  }, [chat]);
-
-  // Check if we have a resumed session or recipe config from navigation state
-  useEffect(() => {
-    const appConfig = window.appConfig?.get('recipe');
-    if (appConfig && !chatRef.current.recipeConfig) {
-      const recipe = appConfig as Recipe;
-
-      const updatedChat: ChatType = {
-        ...chatRef.current,
-        recipeConfig: recipe,
-        title: recipe.title || chatRef.current.title,
-        messages: [], // Start fresh for recipe from deeplink
-        messageHistoryIndex: 0,
-      };
-      setChat(updatedChat);
-      setPairChat(updatedChat);
-      return;
-    }
-
-    // Only process navigation state if we actually have it
-    if (!location.state) {
-      console.log('No navigation state, preserving existing chat state');
-      return;
-    }
-
-    const resumedSession = location.state?.resumedSession as SessionDetails | undefined;
-    const recipeConfig = location.state?.recipeConfig as Recipe | undefined;
-    const resetChat = location.state?.resetChat as boolean | undefined;
-
-    if (resumedSession) {
-      console.log('Loading resumed session in pair view:', resumedSession.session_id);
-      console.log('Current chat before resume:', chatRef.current);
-
-      // Convert session to chat format - this clears any existing recipe config
-      const sessionChat: ChatType = {
-        id: resumedSession.session_id,
-        title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
-        messages: resumedSession.messages,
-        messageHistoryIndex: resumedSession.messages.length,
-        recipeConfig: null, // Clear recipe config when resuming a session
-      };
-
-      // Update both the local chat state and the app-level pairChat state
-      setChat(sessionChat);
-      setPairChat(sessionChat);
-
-      // Clear the navigation state to prevent reloading on navigation
-      window.history.replaceState({}, document.title);
-    } else if (recipeConfig && resetChat) {
-      console.log('Loading new recipe config in pair view:', recipeConfig.title);
-
-      const updatedChat: ChatType = {
-        id: chatRef.current.id, // Keep the same ID
-        title: recipeConfig.title || 'Recipe Chat',
-        messages: [], // Clear messages to start fresh
-        messageHistoryIndex: 0,
-        recipeConfig: recipeConfig,
-        recipeParameters: null, // Clear parameters for new recipe
-      };
-
-      // Update both the local chat state and the app-level pairChat state
-      setChat(updatedChat);
-      setPairChat(updatedChat);
-
-      // Clear the navigation state to prevent reloading on navigation
-      window.history.replaceState({}, document.title);
-    } else if (recipeConfig && !chatRef.current.recipeConfig) {
-      const updatedChat: ChatType = {
-        ...chatRef.current,
-        recipeConfig: recipeConfig,
-        title: recipeConfig.title || chatRef.current.title,
-      };
-
-      // Update both the local chat state and the app-level pairChat state
-      setChat(updatedChat);
-      setPairChat(updatedChat);
-
-      // Clear the navigation state to prevent reloading on navigation
-      window.history.replaceState({}, document.title);
-    } else if (location.state) {
-      // We have navigation state but it doesn't match our conditions
-      // Clear it to prevent future processing, but don't modify chat state
-      console.log('Clearing unprocessed navigation state');
-      window.history.replaceState({}, document.title);
-    }
-    // If we have a recipe config but resetChat is false and we already have a recipe,
-    // do nothing - just continue with the existing chat state
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
+  const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   return (
     <Pair
       chat={chat}
       setChat={setChat}
       setView={setView}
+      agentState={agentState}
+      loadCurrentChat={loadCurrentChat}
+      setFatalError={setFatalError}
+      setAgentWaitingMessage={setAgentWaitingMessage}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      resumeSessionId={resumeSessionId}
+      initialMessage={initialMessage}
     />
   );
 };
@@ -189,7 +114,7 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   // Get viewOptions from location.state or history.state
   const viewOptions =
@@ -199,7 +124,7 @@ const SettingsRoute = () => {
 
 const SessionsRoute = () => {
   const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   return <SessionsView setView={setView} />;
 };
@@ -210,43 +135,22 @@ const SchedulesRoute = () => {
 };
 
 const RecipesRoute = () => {
-  const navigate = useNavigate();
-
-  return (
-    <RecipesView
-      onLoadRecipe={(recipe) => {
-        // Navigate to pair view with the recipe configuration in state
-        navigate('/pair', {
-          state: {
-            recipeConfig: recipe,
-            // Reset the pair chat to start fresh with the recipe
-            resetChat: true,
-          },
-        });
-      }}
-    />
-  );
+  return <RecipesView />;
 };
 
 const RecipeEditorRoute = () => {
-  const location = useLocation();
-
   // Check for config from multiple sources:
-  // 1. Location state (from navigation)
-  // 2. localStorage (from "View Recipe" button)
-  // 3. Window electron config (from deeplinks)
-  let config = location.state?.config;
-
-  if (!config) {
-    const storedConfig = localStorage.getItem('viewRecipeConfig');
-    if (storedConfig) {
-      try {
-        config = JSON.parse(storedConfig);
-        // Clear the stored config after using it
-        localStorage.removeItem('viewRecipeConfig');
-      } catch (error) {
-        console.error('Failed to parse stored recipe config:', error);
-      }
+  // 1. localStorage (from "View Recipe" button)
+  // 2. Window electron config (from deeplinks)
+  let config;
+  const storedConfig = localStorage.getItem('viewRecipeConfig');
+  if (storedConfig) {
+    try {
+      config = JSON.parse(storedConfig);
+      // Clear the stored config after using it
+      localStorage.removeItem('viewRecipeConfig');
+    } catch (error) {
+      console.error('Failed to parse stored recipe config:', error);
     }
   }
 
@@ -308,12 +212,20 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-const WelcomeRoute = () => {
+interface WelcomeRouteProps {
+  onSelectProvider: () => void;
+}
+
+const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
+  const onClose = useCallback(() => {
+    onSelectProvider();
+    navigate('/');
+  }, [navigate, onSelectProvider]);
 
   return (
     <div className="w-screen h-screen bg-background-default">
-      <ProviderSettings onClose={() => navigate('/')} isOnboarding={true} />
+      <ProviderSettings onClose={onClose} isOnboarding={true} />
     </div>
   );
 };
@@ -393,107 +305,39 @@ const ExtensionsRoute = () => {
   );
 };
 
-export default function App() {
+export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
+  const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
+  const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
-  // Add separate state for pair chat to maintain its own conversation
-  const [pairChat, setPairChat] = useState<ChatType>({
-    id: generateSessionId(),
+  const navigate = useNavigate();
+
+  const location = useLocation();
+  const [_searchParams, setSearchParams] = useSearchParams();
+
+  const [chat, setChat] = useState<ChatType>({
+    sessionId: '',
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
     recipeConfig: null,
   });
 
-  const { getExtensions, addExtension, read } = useConfig();
-  const initAttemptedRef = useRef(false);
-
-  // Create a setView function for useChat hook - we'll use window.history instead of navigate
-  const setView = (view: View, viewOptions: ViewOptions = {}) => {
-    console.log(`Setting view to: ${view}`, viewOptions);
-    console.trace('setView called from:'); // This will show the call stack
-    // Convert view to route navigation using hash routing
-    switch (view) {
-      case 'chat':
-        window.location.hash = '#/';
-        break;
-      case 'pair':
-        window.location.hash = '#/pair';
-        break;
-      case 'settings':
-        window.location.hash = '#/settings';
-        break;
-      case 'extensions':
-        window.location.hash = '#/extensions';
-        break;
-      case 'sessions':
-        window.location.hash = '#/sessions';
-        break;
-      case 'schedules':
-        window.location.hash = '#/schedules';
-        break;
-      case 'recipes':
-        window.location.hash = '#/recipes';
-        break;
-      case 'permission':
-        window.location.hash = '#/permission';
-        break;
-      case 'ConfigureProviders':
-        window.location.hash = '#/configure-providers';
-        break;
-      case 'sharedSession':
-        window.location.hash = '#/shared-session';
-        break;
-      case 'recipeEditor':
-        window.location.hash = '#/recipe-editor';
-        break;
-      case 'welcome':
-        window.location.hash = '#/welcome';
-        break;
-      default:
-        console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
-        console.trace('Invalid setView call stack:');
-        // Don't navigate anywhere for unknown views to avoid unexpected redirects
-        break;
-    }
-  };
-
-  const { chat, setChat } = useChat({ setIsLoadingSession, setView, setPairChat });
-
-  useEffect(() => {
-    if (initAttemptedRef.current) {
-      console.log('Initialization already attempted, skipping...');
-      return;
-    }
-    initAttemptedRef.current = true;
-
-    const initialize = async () => {
-      const config = window.electron.getConfig();
-      const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-      const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-      await initializeApp({
-        getExtensions,
-        addExtension,
-        setPairChat,
-        setMessage: setAgentWaitingMessage,
-        provider: provider as string,
-        model: model as string,
+  const { addExtension } = useConfig();
+  const { agentState, loadCurrentChat, resetChat } = useAgent();
+  const resetChatIfNecessary = useCallback(() => {
+    if (chat.messages.length > 0) {
+      setSearchParams((prev) => {
+        prev.delete('resumeSessionId');
+        return prev;
       });
-    };
-
-    initialize()
-      .then(() => setAgentWaitingMessage(null))
-      .catch((error) => {
-        console.error('Fatal error during initialization:', error);
-        setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
-      });
-  }, [getExtensions, addExtension, read, setPairChat, setAgentWaitingMessage]);
+      resetChat();
+    }
+  }, [chat.messages.length, setSearchParams, resetChat]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -507,24 +351,26 @@ export default function App() {
     }
   }, []);
 
-  // Handle navigation to pair view for recipe deeplinks after router is ready
+  // Handle URL parameters and deeplinks on app startup
+  const loadingHub = location.pathname === '/';
   useEffect(() => {
-    const recipeConfig = window.appConfig?.get('recipe');
-    if (
-      recipeConfig &&
-      typeof recipeConfig === 'object' &&
-      window.location.hash === '#/' &&
-      !window.sessionStorage.getItem('ignoreRecipeConfigChanges')
-    ) {
-      console.log('Router ready - navigating to pair view for recipe deeplink:', recipeConfig);
-      // Small delay to ensure router is fully initialized
-      setTimeout(() => {
-        window.location.hash = '#/pair';
-      }, 100);
-    } else if (window.sessionStorage.getItem('ignoreRecipeConfigChanges')) {
-      console.log('Router ready - ignoring recipe config navigation due to new window creation');
+    if (loadingHub) {
+      (async () => {
+        try {
+          await loadCurrentChat({
+            setAgentWaitingMessage,
+            setIsExtensionsLoading,
+          });
+        } catch (e) {
+          if (e instanceof NoProviderOrModelError) {
+            // the onboarding flow will trigger
+          } else {
+            throw e;
+          }
+        }
+      })();
     }
-  }, []);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -533,27 +379,19 @@ export default function App() {
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
-        await openSharedSessionFromDeepLink(
-          link,
-          (_view: View, _options?: SessionLinksViewOptions) => {
-            // Navigate to shared session view with the session data
-            window.location.hash = '#/shared-session';
-            if (_options) {
-              window.history.replaceState(_options, '', '#/shared-session');
-            }
-          }
-        );
+        await openSharedSessionFromDeepLink(link, (_view: View, options?: ViewOptions) => {
+          navigate('/shared-session', { state: options });
+        });
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
         // Navigate to shared session view with error
-        window.location.hash = '#/shared-session';
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
           sessionDetails: null,
           error: error instanceof Error ? error.message : 'Unknown error',
           shareToken,
         };
-        window.history.replaceState(options, '', '#/shared-session');
+        navigate('/shared-session', { state: options });
       } finally {
         setIsLoadingSharedSession(false);
       }
@@ -562,64 +400,7 @@ export default function App() {
     return () => {
       window.electron.off('open-shared-session', handleOpenSharedSession);
     };
-  }, []);
-
-  // Handle recipe decode events from main process
-  useEffect(() => {
-    const handleLoadRecipeDeeplink = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const recipeDeeplink = args[0] as string;
-      const scheduledJobId = args[1] as string | undefined;
-
-      // Store the deeplink info in app config for processing
-      const config = window.electron.getConfig();
-      config.recipeDeeplink = recipeDeeplink;
-      if (scheduledJobId) {
-        config.scheduledJobId = scheduledJobId;
-      }
-
-      // Navigate to pair view to handle the recipe loading
-      if (window.location.hash !== '#/pair') {
-        window.location.hash = '#/pair';
-      }
-    };
-
-    const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const decodedRecipe = args[0] as Recipe;
-
-      // Update the pair chat with the decoded recipe
-      setPairChat((prevChat) => ({
-        ...prevChat,
-        recipeConfig: decodedRecipe,
-        title: decodedRecipe.title || 'Recipe Chat',
-        messages: [], // Start fresh for recipe
-        messageHistoryIndex: 0,
-      }));
-
-      // Navigate to pair view if not already there
-      if (window.location.hash !== '#/pair') {
-        window.location.hash = '#/pair';
-      }
-    };
-
-    const handleRecipeDecodeError = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const errorMessage = args[0] as string;
-      console.error('[App] Recipe decode error:', errorMessage);
-
-      // Show error to user - you could add a toast notification here
-      // For now, just log the error and navigate to recipes page
-      window.location.hash = '#/recipes';
-    };
-
-    window.electron.on('load-recipe-deeplink', handleLoadRecipeDeeplink);
-    window.electron.on('recipe-decoded', handleRecipeDecoded);
-    window.electron.on('recipe-decode-error', handleRecipeDecodeError);
-
-    return () => {
-      window.electron.off('load-recipe-deeplink', handleLoadRecipeDeeplink);
-      window.electron.off('recipe-decoded', handleRecipeDecoded);
-      window.electron.off('recipe-decode-error', handleRecipeDecodeError);
-    };
-  }, [setPairChat, pairChat.id]);
+  }, [navigate]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -691,14 +472,13 @@ export default function App() {
     const handleFatalError = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const errorMessage = args[0] as string;
       console.error('Encountered a fatal error:', errorMessage);
-      console.error('Is loading session:', isLoadingSession);
       setFatalError(errorMessage);
     };
     window.electron.on('fatal-error', handleFatalError);
     return () => {
       window.electron.off('fatal-error', handleFatalError);
     };
-  }, [isLoadingSession]);
+  }, []);
 
   useEffect(() => {
     const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -709,32 +489,15 @@ export default function App() {
       );
 
       if (section && newView === 'settings') {
-        window.location.hash = `#/settings?section=${section}`;
+        navigate(`/settings?section=${section}`);
       } else {
-        window.location.hash = `#/${newView}`;
+        navigate(`/${newView}`);
       }
     };
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewFromUrl = urlParams.get('view');
-    if (viewFromUrl) {
-      const windowConfig = window.electron.getConfig();
-      if (viewFromUrl === 'recipeEditor') {
-        const initialViewOptions = {
-          recipeConfig: JSON.stringify(windowConfig?.recipeConfig),
-          view: viewFromUrl,
-        };
-        window.history.replaceState(
-          {},
-          '',
-          `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
-        );
-      } else {
-        window.history.replaceState({}, '', `/${viewFromUrl}`);
-      }
-    }
+
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
@@ -753,163 +516,107 @@ export default function App() {
     return <ErrorUI error={new Error(fatalError)} />;
   }
 
-  if (isLoadingSession) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+  return (
+    <>
+      <ToastContainer
+        aria-label="Toast notifications"
+        toastClassName={() =>
+          `relative min-h-16 mb-4 p-2 rounded-lg
+               flex justify-between overflow-hidden cursor-pointer
+               text-text-on-accent bg-background-inverse
+              `
+        }
+        style={{ width: '380px' }}
+        className="mt-6"
+        position="top-right"
+        autoClose={3000}
+        closeOnClick
+        pauseOnHover
+      />
+      <ExtensionInstallModal addExtension={addExtension} />
+      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
+        <div className="titlebar-drag-region" />
+        <Routes>
+          <Route
+            path="welcome"
+            element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
+          />
+          <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+          <Route
+            path="/"
+            element={
+              <ProviderGuard didSelectProvider={didSelectProvider}>
+                <ChatProvider
+                  chat={chat}
+                  setChat={setChat}
+                  contextKey="hub"
+                  agentWaitingMessage={agentWaitingMessage}
+                >
+                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                </ChatProvider>
+              </ProviderGuard>
+            }
+          >
+            <Route
+              index
+              element={
+                <HubRouteWrapper
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  isExtensionsLoading={isExtensionsLoading}
+                  resetChat={resetChatIfNecessary}
+                />
+              }
+            />
+            <Route
+              path="pair"
+              element={
+                <PairRouteWrapper
+                  chat={chat}
+                  setChat={setChat}
+                  agentState={agentState}
+                  loadCurrentChat={loadCurrentChat}
+                  setFatalError={setFatalError}
+                  setAgentWaitingMessage={setAgentWaitingMessage}
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                />
+              }
+            />
+            <Route path="settings" element={<SettingsRoute />} />
+            <Route path="extensions" element={<ExtensionsRoute />} />
+            <Route path="sessions" element={<SessionsRoute />} />
+            <Route path="schedules" element={<SchedulesRoute />} />
+            <Route path="recipes" element={<RecipesRoute />} />
+            <Route path="recipe-editor" element={<RecipeEditorRoute />} />
+            <Route
+              path="shared-session"
+              element={
+                <SharedSessionRouteWrapper
+                  isLoadingSharedSession={isLoadingSharedSession}
+                  setIsLoadingSharedSession={setIsLoadingSharedSession}
+                  sharedSessionError={sharedSessionError}
+                />
+              }
+            />
+            <Route path="permission" element={<PermissionRoute />} />
+          </Route>
+        </Routes>
       </div>
-    );
-  }
+      {isGoosehintsModalOpen && (
+        <GoosehintsModal
+          directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
+    </>
+  );
+}
 
+export default function App() {
   return (
     <DraftProvider>
       <ModelAndProviderProvider>
         <HashRouter>
-          <ToastContainer
-            aria-label="Toast notifications"
-            toastClassName={() =>
-              `relative min-h-16 mb-4 p-2 rounded-lg
-               flex justify-between overflow-hidden cursor-pointer
-               text-text-on-accent bg-background-inverse
-              `
-            }
-            style={{ width: '380px' }}
-            className="mt-6"
-            position="top-right"
-            autoClose={3000}
-            closeOnClick
-            pauseOnHover
-          />
-          <ExtensionInstallModal addExtension={addExtension} />
-          <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
-            <div className="titlebar-drag-region" />
-            <Routes>
-              <Route path="welcome" element={<WelcomeRoute />} />
-              <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-              <Route
-                path="/"
-                element={
-                  <ChatProvider
-                    chat={chat}
-                    setChat={setChat}
-                    contextKey="hub"
-                    agentWaitingMessage={agentWaitingMessage}
-                  >
-                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                  </ChatProvider>
-                }
-              >
-                <Route
-                  index
-                  element={
-                    <ProviderGuard>
-                      <HubRouteWrapper
-                        chat={chat}
-                        setChat={setChat}
-                        setPairChat={setPairChat}
-                        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                      />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="pair"
-                  element={
-                    <ProviderGuard>
-                      <ChatProvider
-                        chat={pairChat}
-                        setChat={setPairChat}
-                        contextKey={`pair-${pairChat.id}`}
-                        agentWaitingMessage={agentWaitingMessage}
-                        key={pairChat.id}
-                      >
-                        <PairRouteWrapper
-                          chat={pairChat}
-                          setChat={setPairChat}
-                          setPairChat={setPairChat}
-                          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                        />
-                      </ChatProvider>
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="settings"
-                  element={
-                    <ProviderGuard>
-                      <SettingsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="extensions"
-                  element={
-                    <ProviderGuard>
-                      <ExtensionsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="sessions"
-                  element={
-                    <ProviderGuard>
-                      <SessionsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="schedules"
-                  element={
-                    <ProviderGuard>
-                      <SchedulesRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="recipes"
-                  element={
-                    <ProviderGuard>
-                      <RecipesRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="recipe-editor"
-                  element={
-                    <ProviderGuard>
-                      <RecipeEditorRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="shared-session"
-                  element={
-                    <ProviderGuard>
-                      <SharedSessionRouteWrapper
-                        isLoadingSharedSession={isLoadingSharedSession}
-                        setIsLoadingSharedSession={setIsLoadingSharedSession}
-                        sharedSessionError={sharedSessionError}
-                      />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="permission"
-                  element={
-                    <ProviderGuard>
-                      <PermissionRoute />
-                    </ProviderGuard>
-                  }
-                />
-              </Route>
-            </Routes>
-          </div>
-          {isGoosehintsModalOpen && (
-            <GoosehintsModal
-              directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
-              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            />
-          )}
+          <AppInner />
         </HashRouter>
         <AnnouncementModal />
       </ModelAndProviderProvider>

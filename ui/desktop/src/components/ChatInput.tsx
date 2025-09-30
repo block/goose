@@ -6,14 +6,13 @@ import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { AlertType, useAlerts } from './alerts';
-import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
@@ -29,6 +28,7 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
+import { getApiUrl } from '../config';
 
 interface QueuedMessage {
   id: string;
@@ -58,6 +58,7 @@ interface ModelLimit {
 }
 
 interface ChatInputProps {
+  sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
   onStop?: () => void;
@@ -83,12 +84,14 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  toolCount: number;
   autoSubmit: boolean;
-  setAncestorMessages?: (messages: Message[]) => void;
   append?: (message: Message) => void;
+  isExtensionsLoading?: boolean;
 }
 
 export default function ChatInput({
+  sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
   onStop,
@@ -108,9 +111,10 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  toolCount,
   autoSubmit = false,
   append,
-  setAncestorMessages,
+  isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -131,12 +135,12 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const toolCount = useToolCount();
   const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
+  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
 
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
@@ -294,32 +298,15 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
-  // Track if we've already set the recipe prompt to avoid re-setting it
-  const hasSetRecipePromptRef = useRef(false);
-
   // Handle recipe prompt updates
   useEffect(() => {
     // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
-    if (
-      recipeAccepted &&
-      initialPrompt &&
-      messages.length === 0 &&
-      !hasSetRecipePromptRef.current
-    ) {
+    if (recipeAccepted && initialPrompt && messages.length === 0) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
-      hasSetRecipePromptRef.current = true;
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
-    }
-    // we don't need hasSetRecipePromptRef in the dependency array because it is a ref that persists across renders
-  }, [recipeAccepted, initialPrompt, messages.length]);
-
-  // Reset the recipe prompt flag when the recipe changes or messages are added
-  useEffect(() => {
-    if (messages.length > 0 || !recipeAccepted || !initialPrompt) {
-      hasSetRecipePromptRef.current = false;
     }
   }, [recipeAccepted, initialPrompt, messages.length]);
 
@@ -510,6 +497,55 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
+  // Load auto-compact threshold
+  const loadAutoCompactThreshold = useCallback(async () => {
+    try {
+      const secretKey = await window.electron.getSecretKey();
+      const response = await fetch(getApiUrl('/config/read'), {
+        method: 'POST',
+        headers: {
+          'X-Secret-Key': secretKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
+          is_secret: false,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded auto-compact threshold from config:', data);
+        if (data !== undefined && data !== null) {
+          setAutoCompactThreshold(data);
+          console.log('Set auto-compact threshold to:', data);
+        }
+      } else {
+        console.error('Failed to fetch auto-compact threshold, status:', response.status);
+      }
+    } catch (err) {
+      console.error('Error fetching auto-compact threshold:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAutoCompactThreshold();
+  }, [loadAutoCompactThreshold]);
+
+  // Listen for threshold change events from AlertBox
+  useEffect(() => {
+    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
+      setAutoCompactThreshold(event.detail.threshold);
+    };
+
+    // Type assertion to handle the mismatch between CustomEvent and EventListener
+    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
+    window.addEventListener('autoCompactThresholdChanged', eventListener);
+
+    return () => {
+      window.removeEventListener('autoCompactThresholdChanged', eventListener);
+    };
+  }, []);
+
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
@@ -532,9 +568,10 @@ export default function ChatInput({
           // Hide the alert popup by dispatching a custom event that the popover can listen to
           // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append, setAncestorMessages);
+          handleManualCompaction(messages, setMessages, append);
         },
         compactIcon: <ScrollText size={12} />,
+        autoCompactThreshold: autoCompactThreshold,
       });
     }
 
@@ -552,7 +589,16 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, isCompacting, clearAlerts]);
+  }, [
+    numTokens,
+    toolCount,
+    tokenLimit,
+    isTokenLimitLoaded,
+    addAlert,
+    isCompacting,
+    clearAlerts,
+    autoCompactThreshold,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -918,6 +964,14 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
+  const canSubmit =
+    !isLoading &&
+    !isCompacting &&
+    agentIsReady &&
+    (displayValue.trim() ||
+      pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+      allDroppedFiles.some((file) => !file.error && !file.isLoading));
+
   const performSubmit = useCallback(
     (text?: string) => {
       const validPastedImageFilesPaths = pastedImages
@@ -1059,13 +1113,6 @@ export default function ChatInput({
         return;
       }
 
-      const canSubmit =
-        !isLoading &&
-        !isCompacting &&
-        agentIsReady &&
-        (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-          allDroppedFiles.some((file) => !file.error && !file.isLoading));
       if (canSubmit) {
         performSubmit();
       }
@@ -1124,6 +1171,25 @@ export default function ChatInput({
     allDroppedFiles.some((file) => !file.error && !file.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
+
+  const isSubmitButtonDisabled =
+    !hasSubmittableContent ||
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
+
+  const isUserInputDisabled =
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1239,6 +1305,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1258,7 +1325,7 @@ export default function ChatInput({
         </div>
 
         {/* Inline action buttons on the right */}
-        <div className="flex items-center gap-1 px-2 relative">
+        <div className="flex items-center gap-1 px-2 relative self-center">
           {/* Microphone button - show only if dictation is enabled */}
           {dictationSettings?.enabled && (
             <>
@@ -1349,23 +1416,9 @@ export default function ChatInput({
                     size="sm"
                     shape="round"
                     variant="outline"
-                    disabled={
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady
-                    }
+                    disabled={isSubmitButtonDisabled}
                     className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady
+                      isSubmitButtonDisabled
                         ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                         : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                     }`}
@@ -1377,17 +1430,19 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isCompacting
-                    ? 'Compacting conversation...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                  {isExtensionsLoading
+                    ? 'Loading extensions...'
+                    : isCompacting
+                      ? 'Compacting conversation...'
+                      : isAnyImageLoading
+                        ? 'Waiting for images to save...'
+                        : isAnyDroppedFileLoading
+                          ? 'Processing dropped files...'
+                          : isRecording
+                            ? 'Recording...'
+                            : isTranscribing
+                              ? 'Transcribing...'
+                              : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1417,7 +1472,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">
@@ -1565,6 +1620,7 @@ export default function ChatInput({
           <Tooltip>
             <div>
               <ModelsBottomBar
+                sessionId={sessionId}
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}

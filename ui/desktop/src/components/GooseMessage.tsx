@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import LinkPreview from './LinkPreview';
 import ImagePreview from './ImagePreview';
-import GooseResponseForm from './GooseResponseForm';
-import { extractUrls } from '../utils/urlUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
@@ -29,6 +26,7 @@ import { cn } from '../utils';
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
   // anything before this index should not render any buttons, but anything after should
+  sessionId: string;
   messageHistoryIndex: number;
   message: Message;
   messages: Message[];
@@ -40,9 +38,9 @@ interface GooseMessageProps {
 }
 
 export default function GooseMessage({
+  sessionId,
   messageHistoryIndex,
   message,
-  metadata,
   messages,
   toolCallNotifications,
   append,
@@ -133,15 +131,6 @@ export default function GooseMessage({
 
   // Get the chain this message belongs to
   const messageChain = getChainForMessage(messageIndex, toolCallChains);
-
-  // Extract URLs under a few conditions
-  // 1. The message is purely text
-  // 2. The link wasn't also present in the previous message
-  // 3. The message contains the explicit http:// or https:// protocol at the beginning
-  const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
-  const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
-  const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
-
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
 
@@ -293,31 +282,13 @@ export default function GooseMessage({
 
         {hasToolConfirmation && (
           <ToolCallConfirmation
+            sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationId={toolConfirmationContent.id}
-            toolName={toolConfirmationContent.toolName}
+            toolConfirmationContent={toolConfirmationContent}
           />
         )}
       </div>
-
-      {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-      {urls.length > 0 && (
-        <div className="mt-4">
-          {urls.map((url, index) => (
-            <LinkPreview key={index} url={url} />
-          ))}
-        </div>
-      )}
-
-      {/* enable or disable prompts here */}
-      {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
-      {/* eslint-disable-next-line no-constant-binary-expression */}
-      {false && metadata && (
-        <div className="flex mt-[16px]">
-          <GooseResponseForm message={displayText} metadata={metadata || null} append={append} />
-        </div>
-      )}
     </div>
   );
 }
