@@ -25,7 +25,7 @@ fn get_log_directory() -> Result<PathBuf> {
 /// Sets up the logging infrastructure for the application.
 /// This includes:
 /// - File-based logging with JSON formatting (DEBUG level)
-/// - Console output for development (INFO level)
+/// - No console output (all logs go to files only)
 /// - Optional Langfuse integration (DEBUG level)
 /// - Optional error capture layer for benchmarking
 pub fn setup_logging(
@@ -76,16 +76,6 @@ fn setup_logging_internal(
                 .with_ansi(false)
                 .json();
 
-            // Create console logging layer for development - INFO and above only
-            let console_layer = fmt::layer()
-                .with_writer(std::io::stderr)
-                .with_target(true)
-                .with_level(true)
-                .with_ansi(true)
-                .with_file(true)
-                .with_line_number(true)
-                .pretty();
-
             // Base filter
             let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 // Set default levels for different modules
@@ -103,7 +93,7 @@ fn setup_logging_internal(
             // Start building the subscriber
             let mut layers = vec![
                 file_layer.with_filter(env_filter).boxed(),
-                console_layer.with_filter(LevelFilter::ERROR).boxed(),
+                // Console logging disabled for CLI - all logs go to files only
             ];
 
             // Only add ErrorCaptureLayer if not in test mode
