@@ -4,7 +4,8 @@ use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
         CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
+        ClientRequest, CreateMessageRequestMethod, CreateMessageRequestParam, CreateMessageResult,
+        ErrorData, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
         InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
         ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
         LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
@@ -12,7 +13,8 @@ use rmcp::{
         ReadResourceResult, RequestId, ServerNotification, ServerResult,
     },
     service::{
-        ClientInitializeError, PeerRequestOptions, RequestHandle, RunningService, ServiceRole,
+        ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
+        ServiceRole,
     },
     transport::IntoTransport,
     ClientHandler, Peer, RoleClient, ServiceError, ServiceExt,
@@ -28,6 +30,17 @@ use tokio_util::sync::CancellationToken;
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;
+
+/// Handler for sampling requests from MCP servers
+#[async_trait::async_trait]
+pub trait SamplingHandler: Send + Sync {
+    /// Handle a CreateMessage request from an MCP server
+    async fn handle_create_message(
+        &self,
+        params: CreateMessageRequestParam,
+        extension_name: String,
+    ) -> Result<CreateMessageResult, ServiceError>;
+}
 
 #[async_trait::async_trait]
 pub trait McpClientTrait: Send + Sync {
@@ -76,13 +89,29 @@ pub trait McpClientTrait: Send + Sync {
 
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    sampling_handler: Arc<Mutex<Option<Box<dyn SamplingHandler>>>>,
 }
 
 impl GooseClient {
     pub fn new(handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>) -> Self {
         GooseClient {
             notification_handlers: handlers,
+            sampling_handler: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub fn with_sampling_handler(
+        handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+        sampling_handler: Box<dyn SamplingHandler>,
+    ) -> Self {
+        GooseClient {
+            notification_handlers: handlers,
+            sampling_handler: Arc::new(Mutex::new(Some(sampling_handler))),
+        }
+    }
+
+    pub async fn set_sampling_handler(&self, handler: Box<dyn SamplingHandler>) {
+        *self.sampling_handler.lock().await = Some(handler);
     }
 }
 
@@ -127,10 +156,34 @@ impl ClientHandler for GooseClient {
             });
     }
 
+    async fn create_message(
+        &self,
+        params: CreateMessageRequestParam,
+        context: RequestContext<RoleClient>,
+    ) -> Result<CreateMessageResult, ErrorData> {
+        // Handle sampling request
+        let handler = self.sampling_handler.lock().await;
+        if let Some(ref handler) = *handler {
+            // Extract extension name from context if available
+            let extension_name = context
+                .extensions
+                .get::<String>()
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            handler
+                .handle_create_message(params, extension_name)
+                .await
+                .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+        } else {
+            Err(ErrorData::method_not_found::<CreateMessageRequestMethod>())
+        }
+    }
+
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().build(),
+            capabilities: ClientCapabilities::builder().enable_sampling().build(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -159,10 +212,27 @@ impl McpClient {
         T: IntoTransport<RoleClient, E, A>,
         E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
     {
+        Self::connect_with_handler(transport, timeout, None).await
+    }
+
+    pub async fn connect_with_handler<T, E, A>(
+        transport: T,
+        timeout: std::time::Duration,
+        sampling_handler: Option<Box<dyn SamplingHandler>>,
+    ) -> Result<Self, ClientInitializeError>
+    where
+        T: IntoTransport<RoleClient, E, A>,
+        E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
+    {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(notification_subscribers.clone());
+        let client = if let Some(handler) = sampling_handler {
+            GooseClient::with_sampling_handler(notification_subscribers.clone(), handler)
+        } else {
+            GooseClient::new(notification_subscribers.clone())
+        };
+
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
         let server_info = client.peer_info().cloned();

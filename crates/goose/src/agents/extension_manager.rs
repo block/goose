@@ -31,15 +31,17 @@ use super::extension::{
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{McpClient, McpClientTrait, SamplingHandler};
 use crate::config::{Config, ExtensionConfigManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
+use crate::providers::base::Provider;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
-    ServerInfo, Tool,
+    CallToolRequestParam, Content, CreateMessageRequestParam, CreateMessageResult, ErrorCode,
+    ErrorData, GetPromptResult, Prompt, ResourceContents, Role, SamplingMessage, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
+use rmcp::ServiceError;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
@@ -89,6 +91,7 @@ impl Extension {
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: Mutex<PlatformExtensionContext>,
+    provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -176,6 +179,7 @@ impl Default for ExtensionManager {
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
+    sampling_handler: Option<Box<dyn SamplingHandler>>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -194,11 +198,20 @@ async fn child_process_client(
         Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
     });
 
-    let client_result = McpClient::connect(
-        transport,
-        Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
-    )
-    .await;
+    let client_result = if let Some(handler) = sampling_handler {
+        McpClient::connect_with_handler(
+            transport,
+            Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+            Some(handler),
+        )
+        .await
+    } else {
+        McpClient::connect(
+            transport,
+            Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+        )
+        .await
+    };
 
     match client_result {
         Ok(client) => Ok(client),
@@ -239,6 +252,7 @@ impl ExtensionManager {
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: Mutex::new(PlatformExtensionContext { session_id: None }),
+            provider: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -248,6 +262,16 @@ impl ExtensionManager {
 
     pub async fn get_context(&self) -> PlatformExtensionContext {
         self.context.lock().await.clone()
+    }
+
+    /// Set the provider for handling sampling requests
+    pub async fn set_provider(&self, provider: Arc<dyn Provider>) {
+        *self.provider.lock().await = Some(provider);
+    }
+
+    /// Get the provider for handling sampling requests
+    pub async fn get_provider(&self) -> Option<Arc<dyn Provider>> {
+        self.provider.lock().await.clone()
     }
 
     pub async fn supports_resources(&self) -> bool {
@@ -320,6 +344,12 @@ impl ExtensionManager {
             Ok(all_envs)
         }
 
+        // Create sampling handler for this extension
+        let sampling_handler = Box::new(ExtensionSamplingHandler::new(
+            self.provider.clone(),
+            sanitized_name.clone(),
+        ));
+
         let client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse { uri, timeout, .. } => {
                 let transport = SseClientTransport::start(uri.to_string()).await.map_err(
@@ -330,15 +360,15 @@ impl ExtensionManager {
                         )
                     },
                 )?;
-                Box::new(
-                    McpClient::connect(
-                        transport,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
+                let client = McpClient::connect_with_handler(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                    Some(sampling_handler.clone()),
                 )
+                .await?;
+                Box::new(client)
             }
             ExtensionConfig::StreamableHttp {
                 uri,
@@ -418,7 +448,8 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let client = child_process_client(command, timeout).await?;
+                let client =
+                    child_process_client(command, timeout, Some(sampling_handler.clone())).await?;
                 Box::new(client)
             }
             ExtensionConfig::Builtin {
@@ -447,7 +478,8 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
-                let client = child_process_client(command, timeout).await?;
+                let client =
+                    child_process_client(command, timeout, Some(sampling_handler.clone())).await?;
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
@@ -479,7 +511,8 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                let client = child_process_client(command, timeout).await?;
+                let client =
+                    child_process_client(command, timeout, Some(sampling_handler.clone())).await?;
 
                 Box::new(client)
             }
@@ -1097,6 +1130,104 @@ impl ExtensionManager {
             .await
             .get(&name.into())
             .map(|ext| ext.get_client())
+    }
+}
+
+/// Wrapper struct to implement SamplingHandler for ExtensionManager
+#[derive(Clone)]
+pub struct ExtensionSamplingHandler {
+    provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
+    _extension_name: String,
+}
+
+impl ExtensionSamplingHandler {
+    pub fn new(provider: Arc<Mutex<Option<Arc<dyn Provider>>>>, extension_name: String) -> Self {
+        Self {
+            provider,
+            _extension_name: extension_name,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl SamplingHandler for ExtensionSamplingHandler {
+    async fn handle_create_message(
+        &self,
+        params: CreateMessageRequestParam,
+        _extension_name: String,
+    ) -> Result<CreateMessageResult, ServiceError> {
+        // Get the provider from the shared reference
+        let provider_lock = self.provider.lock().await;
+        let provider = provider_lock
+            .as_ref()
+            .ok_or_else(|| {
+                // ServiceError doesn't have a good variant for this, so we use a generic error
+                ServiceError::UnexpectedResponse
+            })?
+            .clone();
+        drop(provider_lock); // Release lock early
+
+        // Convert SamplingMessage to Message for the provider
+        let messages: Vec<crate::conversation::message::Message> = params
+            .messages
+            .iter()
+            .map(|msg| {
+                let mut message = match msg.role {
+                    Role::User => crate::conversation::message::Message::user(),
+                    Role::Assistant => crate::conversation::message::Message::assistant(),
+                };
+                // Add content - convert Content to MessageContent
+                if let Some(text) = msg.content.as_text() {
+                    message = message.with_text(&text.text);
+                } else {
+                    // Handle other content types if needed
+                    message = message.with_content(msg.content.clone().into());
+                }
+                message
+            })
+            .collect();
+
+        // Use system prompt from params or default
+        let system_prompt = params
+            .system_prompt
+            .as_deref()
+            .unwrap_or("You are a helpful assistant");
+
+        // Call the provider's complete method
+        let (response, usage) = provider
+            .complete(system_prompt, &messages, &[])
+            .await
+            .map_err(|_e| {
+                // ServiceError doesn't have a good variant for provider errors, so we use a generic error
+                ServiceError::UnexpectedResponse
+            })?;
+
+        // Extract the response content - convert MessageContent to Content
+        let response_content = if let Some(content) = response.content.first() {
+            match content {
+                crate::conversation::message::MessageContent::Text(text) => {
+                    Content::text(&text.text)
+                }
+                crate::conversation::message::MessageContent::Image(img) => {
+                    Content::image(&img.data, &img.mime_type)
+                }
+                _ => Content::text(""),
+            }
+        } else {
+            Content::text("")
+        };
+
+        // Create the result
+        let result = CreateMessageResult {
+            model: usage.model,
+            stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
+            message: SamplingMessage {
+                role: Role::Assistant,
+                content: response_content,
+            },
+        };
+
+        Ok(result)
     }
 }
 
