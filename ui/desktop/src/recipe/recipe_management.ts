@@ -1,4 +1,4 @@
-import { Recipe, saveRecipeToFile } from '../api';
+import { parseRecipe, Recipe, saveRecipeToFile } from '../api';
 
 export async function saveRecipe(
   recipe: Recipe,
@@ -23,4 +23,14 @@ export async function saveRecipe(
       `Failed to save recipe: ${error_message}`
     );
   }
+}
+
+export async function parseRecipeFromFile(fileContent: string): Promise<Recipe> {
+    let response = await parseRecipe({
+        body: {
+            content: fileContent
+        },
+        throwOnError: true
+    })
+    return response.data.recipe;
 }

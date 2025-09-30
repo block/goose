@@ -13,7 +13,7 @@ import { listSavedRecipes } from '../../recipe/recipeStorage';
 import {
   getRecipeJsonSchema,
 } from '../../recipe/validation';
-import { saveRecipe } from '../../recipe/recipe_management';
+import { parseRecipeFromFile, saveRecipe } from '../../recipe/recipe_management';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -266,7 +266,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     if (file) {
       try {
         const fileContent = await file.text();
-        const recipe = await parseRecipeUploadFile(fileContent, file.name);
+        console.log('=======fileContent', fileContent);
+        const recipe = await parseRecipeFromFile(fileContent);
         if (recipe.title) {
           // Use the recipe title field's handleChange method if available
           if (recipeTitleFieldRef) {

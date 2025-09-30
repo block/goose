@@ -444,6 +444,14 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type ParseRecipeRequest = {
+    content: string;
+};
+
+export type ParseRecipeResponse = {
+    recipe: Recipe;
+};
+
 export type PermissionConfirmationRequest = {
     action: string;
     id: string;
@@ -1779,6 +1787,35 @@ export type ListRecipesResponses = {
 };
 
 export type ListRecipesResponse = ListRecipesResponses[keyof ListRecipesResponses];
+
+export type ParseRecipeData = {
+    body: ParseRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/parse';
+};
+
+export type ParseRecipeErrors = {
+    /**
+     * Bad request - Invalid recipe format
+     */
+    400: SaveRecipeToFileErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: SaveRecipeToFileErrorResponse;
+};
+
+export type ParseRecipeError = ParseRecipeErrors[keyof ParseRecipeErrors];
+
+export type ParseRecipeResponses = {
+    /**
+     * Recipe parsed successfully
+     */
+    200: ParseRecipeResponse;
+};
+
+export type ParseRecipeResponse2 = ParseRecipeResponses[keyof ParseRecipeResponses];
 
 export type SaveRecipeToFileData = {
     body: SaveRecipeToFileRequest;

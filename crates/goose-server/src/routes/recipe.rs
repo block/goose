@@ -81,8 +81,23 @@ pub struct SaveRecipeToFileRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct SaveRecipeToFileResponse {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SaveRecipeToFileErrorResponse {
     pub message: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ParseRecipeRequest {
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ParseRecipeResponse {
+    pub recipe: Recipe,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -319,6 +334,32 @@ async fn save_recipe_to_file(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/parse",
+    request_body = ParseRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe parsed successfully", body = ParseRecipeResponse),
+        (status = 400, description = "Bad request - Invalid recipe format", body = SaveRecipeToFileErrorResponse),
+        (status = 500, description = "Internal server error", body = SaveRecipeToFileErrorResponse)
+    ),
+    tag = "Recipe Management"
+)]
+async fn parse_recipe(
+    Json(request): Json<ParseRecipeRequest>,
+) -> Result<Json<ParseRecipeResponse>, (StatusCode, Json<SaveRecipeToFileErrorResponse>)> {
+    let recipe = Recipe::from_content(&request.content).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(SaveRecipeToFileErrorResponse {
+                message: format!("Invalid recipe format: {}", e),
+            }),
+        )
+    })?;
+
+    Ok(Json(ParseRecipeResponse { recipe }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
@@ -328,6 +369,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
         .route("/recipes/save_to_file", post(save_recipe_to_file))
+        .route("/recipes/parse", post(parse_recipe))
         .with_state(state)
 }
 

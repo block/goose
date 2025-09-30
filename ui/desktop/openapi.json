@@ -1090,6 +1090,56 @@
         }
       }
     },
+    "/recipes/parse": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "parse_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe parsed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseRecipeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid recipe format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeToFileErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeToFileErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/recipes/save_to_file": {
       "post": {
         "tags": [
@@ -3013,6 +3063,28 @@
             "type": "boolean",
             "description": "Whether this model supports cache control",
             "nullable": true
+          }
+        }
+      },
+      "ParseRecipeRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "ParseRecipeResponse": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
