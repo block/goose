@@ -12,12 +12,14 @@ interface ContextManagerActions {
   handleAutoCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append: (message: Message) => void
+    append: (message: Message) => void,
+    sessionId: string
   ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append?: (message: Message) => void
+    append?: (message: Message) => void,
+    sessionId?: string
   ) => Promise<void>;
   hasCompactionMarker: (message: Message) => boolean;
 }
@@ -37,6 +39,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append: (message: Message) => void,
+      sessionId: string,
       isManual: boolean = false
     ) => {
       setIsCompacting(true);
@@ -47,6 +50,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
         const summaryResponse = await manageContextFromBackend({
           messages: messages,
           manageAction: 'summarize',
+          sessionId: sessionId,
         });
 
         // Convert API messages to frontend messages
@@ -100,9 +104,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append: (message: Message) => void
+      append: (message: Message) => void,
+      sessionId: string
     ) => {
-      await performCompaction(messages, setMessages, append, false);
+      await performCompaction(messages, setMessages, append, sessionId, false);
     },
     [performCompaction]
   );
@@ -111,9 +116,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append?: (message: Message) => void
+      append?: (message: Message) => void,
+      sessionId?: string
     ) => {
-      await performCompaction(messages, setMessages, append || (() => {}), true);
+      await performCompaction(messages, setMessages, append || (() => {}), sessionId || '', true);
     },
     [performCompaction]
   );

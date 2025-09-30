@@ -166,12 +166,14 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend, 'test-session-id');
       });
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
         messages: mockMessages,
         manageAction: 'summarize',
+        sessionId: 'test-session-id',
+        sessionId: 'test-session-id',
       });
 
       // Verify conversion calls with correct parameters
@@ -225,7 +227,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend, "test-session-id");
       });
 
       expect(result.current.compactionError).toBe('Backend error');
@@ -256,7 +258,7 @@ describe('ContextManager', () => {
 
       // Start compaction
       act(() => {
-        result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
+        result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend, "test-session-id");
       });
 
       // Should be compacting
@@ -306,7 +308,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(messages, mockSetMessages, mockAppend);
+        await result.current.handleAutoCompaction(messages, mockSetMessages, mockAppend, "test-session-id");
       });
 
       // No server messages -> setMessages called with empty list
@@ -375,6 +377,7 @@ describe('ContextManager', () => {
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
         messages: mockMessages,
         manageAction: 'summarize',
+        sessionId: 'test-session-id',
       });
 
       // Verify all three messages are set
@@ -508,7 +511,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend, "test-session-id");
       });
 
       expect(result.current.compactionError).toBe('Unknown error during compaction');
@@ -539,7 +542,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend, "test-session-id");
       });
 
       // Should complete without error even if content is not text

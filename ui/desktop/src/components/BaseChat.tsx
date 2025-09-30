@@ -441,7 +441,7 @@ function BaseChatContent({
                             onClick={async () => {
                               clearError();
 
-                              await handleManualCompaction(messages, setMessages, append);
+                              await handleManualCompaction(messages, setMessages, append, chat.sessionId);
                             }}
                           >
                             Summarize Conversation

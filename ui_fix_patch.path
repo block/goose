@@ -1,0 +1,136 @@
+diff --git a/ui/desktop/src/App.tsx b/ui/desktop/src/App.tsx
+index 12aa2fe37e..dcc5c02508 100644
+--- a/ui/desktop/src/App.tsx
++++ b/ui/desktop/src/App.tsx
+@@ -357,10 +357,12 @@ export function AppInner() {
+     if (loadingHub) {
+       (async () => {
+         try {
+-          await loadCurrentChat({
++          const loadedChat = await loadCurrentChat({
+             setAgentWaitingMessage,
+             setIsExtensionsLoading,
+           });
++          // Update the chat state with the loaded session to ensure sessionId is available globally
++          setChat(loadedChat);
+         } catch (e) {
+           if (e instanceof NoProviderOrModelError) {
+             // the onboarding flow will trigger
+@@ -370,7 +372,7 @@ export function AppInner() {
+         }
+       })();
+     }
+-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
++  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
+ 
+   useEffect(() => {
+     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+diff --git a/ui/desktop/src/components/BaseChat.tsx b/ui/desktop/src/components/BaseChat.tsx
+index 66aeb5cfe7..e267ffab26 100644
+--- a/ui/desktop/src/components/BaseChat.tsx
++++ b/ui/desktop/src/components/BaseChat.tsx
+@@ -441,7 +441,7 @@ function BaseChatContent({
+                             onClick={async () => {
+                               clearError();
+ 
+-                              await handleManualCompaction(messages, setMessages, append);
++                              await handleManualCompaction(messages, setMessages, append, chat.sessionId);
+                             }}
+                           >
+                             Summarize Conversation
+diff --git a/ui/desktop/src/components/ChatInput.tsx b/ui/desktop/src/components/ChatInput.tsx
+index aff49368f1..2ed48b1d09 100644
+--- a/ui/desktop/src/components/ChatInput.tsx
++++ b/ui/desktop/src/components/ChatInput.tsx
+@@ -568,7 +568,7 @@ export default function ChatInput({
+           // Hide the alert popup by dispatching a custom event that the popover can listen to
+           // Importantly, this leaves the alert so the dot still shows up, but hides the popover
+           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+-          handleManualCompaction(messages, setMessages, append);
++          handleManualCompaction(messages, setMessages, append, sessionId || '');
+         },
+         compactIcon: <ScrollText size={12} />,
+         autoCompactThreshold: autoCompactThreshold,
+diff --git a/ui/desktop/src/components/context_management/ContextManager.tsx b/ui/desktop/src/components/context_management/ContextManager.tsx
+index f95e396cb3..5906a361e3 100644
+--- a/ui/desktop/src/components/context_management/ContextManager.tsx
++++ b/ui/desktop/src/components/context_management/ContextManager.tsx
+@@ -12,12 +12,14 @@ interface ContextManagerActions {
+   handleAutoCompaction: (
+     messages: Message[],
+     setMessages: (messages: Message[]) => void,
+-    append: (message: Message) => void
++    append: (message: Message) => void,
++    sessionId: string
+   ) => Promise<void>;
+   handleManualCompaction: (
+     messages: Message[],
+     setMessages: (messages: Message[]) => void,
+-    append?: (message: Message) => void
++    append: (message: Message) => void | undefined,
++    sessionId: string
+   ) => Promise<void>;
+   hasCompactionMarker: (message: Message) => boolean;
+ }
+@@ -37,6 +39,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
+       messages: Message[],
+       setMessages: (messages: Message[]) => void,
+       append: (message: Message) => void,
++      sessionId: string,
+       isManual: boolean = false
+     ) => {
+       setIsCompacting(true);
+@@ -47,6 +50,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
+         const summaryResponse = await manageContextFromBackend({
+           messages: messages,
+           manageAction: 'summarize',
++          sessionId: sessionId,
+         });
+ 
+         // Convert API messages to frontend messages
+@@ -100,9 +104,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
+     async (
+       messages: Message[],
+       setMessages: (messages: Message[]) => void,
+-      append: (message: Message) => void
++      append: (message: Message) => void,
++      sessionId: string
+     ) => {
+-      await performCompaction(messages, setMessages, append, false);
++      await performCompaction(messages, setMessages, append, sessionId, false);
+     },
+     [performCompaction]
+   );
+@@ -111,9 +116,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
+     async (
+       messages: Message[],
+       setMessages: (messages: Message[]) => void,
+-      append?: (message: Message) => void
++      append: (message: Message) => void | undefined,
++      sessionId: string
+     ) => {
+-      await performCompaction(messages, setMessages, append || (() => {}), true);
++      await performCompaction(messages, setMessages, append || (() => {}), sessionId, true);
+     },
+     [performCompaction]
+   );
+diff --git a/ui/desktop/src/components/context_management/index.ts b/ui/desktop/src/components/context_management/index.ts
+index 68ddbb8cf0..c54d95eb0f 100644
+--- a/ui/desktop/src/components/context_management/index.ts
++++ b/ui/desktop/src/components/context_management/index.ts
+@@ -18,12 +18,14 @@ import { generateId } from 'ai';
+ export async function manageContextFromBackend({
+   messages,
+   manageAction,
++  sessionId,
+ }: {
+   messages: FrontendMessage[];
+   manageAction: 'truncation' | 'summarize';
++  sessionId: string;
+ }): Promise<ContextManageResponse> {
+   try {
+-    const contextManagementRequest = { manageAction, messages };
++    const contextManagementRequest = { manageAction, messages, sessionId };
+ 
+     // Cast to the API-expected type
+     const result = await manageContext({
