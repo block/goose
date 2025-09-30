@@ -1,5 +1,6 @@
 pub mod acp;
 pub mod bench;
+pub mod commit;
 pub mod configure;
 pub mod info;
 pub mod project;

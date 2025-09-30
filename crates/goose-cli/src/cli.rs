@@ -5,6 +5,7 @@ use goose::config::{Config, ExtensionConfig};
 
 use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
+use crate::commands::commit::{handle_commit, CommitConfig};
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
@@ -708,6 +709,101 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Review changes and create a commit with an AI-generated message
+    #[command(about = "Review changes and create a commit with an AI-generated message")]
+    Commit {
+        /// Only review and commit staged changes
+        #[arg(
+            long = "staged-only",
+            help = "Only review and commit staged changes (ignore unstaged changes)"
+        )]
+        staged_only: bool,
+
+        /// Enable debug output mode
+        #[arg(
+            long,
+            help = "Enable debug output mode with full content and no truncation",
+            long_help = "When enabled, shows complete tool responses without truncation and full paths."
+        )]
+        debug: bool,
+
+        /// Maximum number of consecutive identical tool calls allowed
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Maximum number of consecutive identical tool calls allowed",
+            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+        )]
+        max_tool_repetitions: Option<u32>,
+
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
+        /// Add stdio extensions with environment variables and commands
+        #[arg(
+            long = "with-extension",
+            value_name = "COMMAND",
+            help = "Add stdio extensions (can be specified multiple times)",
+            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+            action = clap::ArgAction::Append
+        )]
+        extensions: Vec<String>,
+
+        /// Add remote extensions with a URL
+        #[arg(
+            long = "with-remote-extension",
+            value_name = "URL",
+            help = "Add remote extensions (can be specified multiple times)",
+            long_help = "Add remote extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        remote_extensions: Vec<String>,
+
+        /// Add streamable HTTP extensions with a URL
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
+
+        /// Add builtin extensions by name
+        #[arg(
+            long = "with-builtin",
+            value_name = "NAME",
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
+        )]
+        builtins: Vec<String>,
+
+        /// Provider to use for this commit (overrides environment variable)
+        #[arg(
+            long = "provider",
+            value_name = "PROVIDER",
+            help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
+            long_help = "Override the GOOSE_PROVIDER environment variable for this commit. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
+        )]
+        provider: Option<String>,
+
+        /// Model to use for this commit (overrides environment variable)
+        #[arg(
+            long = "model",
+            value_name = "MODEL",
+            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
+            long_help = "Override the GOOSE_MODEL environment variable for this commit. The model must be supported by the specified provider."
+        )]
+        model: Option<String>,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -754,6 +850,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Commit { .. }) => "commit",
         None => "default_session",
     };
 
@@ -1222,6 +1319,33 @@ pub async fn cli() -> Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Commit {
+            staged_only,
+            debug,
+            max_tool_repetitions,
+            max_turns,
+            extensions,
+            remote_extensions,
+            streamable_http_extensions,
+            builtins,
+            provider,
+            model,
+        }) => {
+            handle_commit(CommitConfig {
+                staged_only,
+                debug,
+                max_tool_repetitions,
+                max_turns,
+                extensions,
+                remote_extensions,
+                streamable_http_extensions,
+                builtins,
+                provider,
+                model,
+            })
+            .await?;
             return Ok(());
         }
         None => {
