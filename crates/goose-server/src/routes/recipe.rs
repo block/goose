@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
+use goose::recipe::recipe_library;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 
@@ -70,6 +71,13 @@ pub struct ScanRecipeRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ScanRecipeResponse {
     has_security_warnings: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SaveRecipeToFileRequest {
+    recipe: Recipe,
+    id: Option<String>,
+    is_global: Option<bool>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -278,6 +286,31 @@ async fn delete_recipe(
     StatusCode::NO_CONTENT
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/save_to_file",
+    request_body = SaveRecipeToFileRequest,
+    responses(
+        (status = 204, description = "Recipe saved to file successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn save_recipe_to_file(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SaveRecipeToFileRequest>,
+) -> StatusCode {
+    let file_path = match request.id {
+        Some(id) => state.recipe_file_hash_map.lock().await.get(&id).cloned(),
+        None => None,
+    };
+    if recipe_library::save_recipe_to_file(request.recipe, request.is_global, file_path).is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    StatusCode::NO_CONTENT
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
@@ -286,6 +319,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
+        .route("/recipes/save_to_file", post(save_recipe_to_file))
         .with_state(state)
 }
 

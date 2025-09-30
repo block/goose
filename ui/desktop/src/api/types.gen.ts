@@ -684,6 +684,12 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SaveRecipeToFileRequest = {
+    id?: string | null;
+    is_global?: boolean | null;
+    recipe: Recipe;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -1770,6 +1776,33 @@ export type ListRecipesResponses = {
 };
 
 export type ListRecipesResponse = ListRecipesResponses[keyof ListRecipesResponses];
+
+export type SaveRecipeToFileData = {
+    body: SaveRecipeToFileRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/save_to_file';
+};
+
+export type SaveRecipeToFileErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SaveRecipeToFileResponses = {
+    /**
+     * Recipe saved to file successfully
+     */
+    204: void;
+};
+
+export type SaveRecipeToFileResponse = SaveRecipeToFileResponses[keyof SaveRecipeToFileResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;

@@ -1090,6 +1090,35 @@
         }
       }
     },
+    "/recipes/save_to_file": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "save_recipe_to_file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRecipeToFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recipe saved to file successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/recipes/scan": {
       "post": {
         "tags": [
@@ -3486,6 +3515,25 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "SaveRecipeToFileRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_global": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },

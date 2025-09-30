@@ -4,10 +4,9 @@ use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 
-use goose::config::APP_STRATEGY;
 use goose::recipe::read_recipe_file_content::read_recipe_file;
+use goose::recipe::recipe_library::get_recipe_library_dir;
 use goose::recipe::Recipe;
 
 use std::path::Path;
@@ -31,7 +30,8 @@ fn short_id_from_path(path: &str) -> String {
     format!("{:016x}", h)
 }
 
-fn load_recipes_from_path(path: &PathBuf, is_global: bool) -> Result<Vec<RecipeManifestWithPath>> {
+fn load_recipes_from_path(is_global: bool) -> Result<Vec<RecipeManifestWithPath>> {
+    let path = get_recipe_library_dir(is_global);
     let mut recipe_manifests_with_path = Vec::new();
     if path.exists() {
         for entry in fs::read_dir(path)? {
@@ -72,18 +72,10 @@ fn load_recipes_from_path(path: &PathBuf, is_global: bool) -> Result<Vec<RecipeM
 }
 
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
-    let current_dir = std::env::current_dir()?;
-    let local_recipe_path = current_dir.join(".goose/recipes");
-
-    let global_recipe_path = choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir()
-        .join("recipes");
-
     let mut recipe_manifests_with_path = Vec::new();
 
-    recipe_manifests_with_path.extend(load_recipes_from_path(&local_recipe_path, false)?);
-    recipe_manifests_with_path.extend(load_recipes_from_path(&global_recipe_path, true)?);
+    recipe_manifests_with_path.extend(load_recipes_from_path(false)?);
+    recipe_manifests_with_path.extend(load_recipes_from_path(true)?);
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
