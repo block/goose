@@ -211,7 +211,11 @@ fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) 
     let filtered_messages = messages
         .into_iter()
         .filter(|msg| {
-            if msg.content.is_empty() {
+            if msg
+                .content
+                .iter()
+                .all(|c| c.as_text().is_some_and(str::is_empty))
+            {
                 issues.push("Removed empty message".to_string());
                 false
             } else {
