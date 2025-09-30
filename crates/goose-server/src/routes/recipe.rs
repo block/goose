@@ -12,6 +12,7 @@ use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::get_all_recipes_manifests;
 use crate::state::AppState;
 
@@ -79,17 +80,6 @@ pub struct SaveRecipeToFileRequest {
     id: Option<String>,
     is_global: Option<bool>,
 }
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct SaveRecipeToFileResponse {
-    pub message: String,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct SaveRecipeToFileErrorResponse {
-    pub message: String,
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ParseRecipeRequest {
     pub content: String,
@@ -310,14 +300,14 @@ async fn delete_recipe(
     responses(
         (status = 204, description = "Recipe saved to file successfully"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 500, description = "Internal server error", body = SaveRecipeToFileErrorResponse)
+        (status = 500, description = "Internal server error", body = ErrorResponse)
     ),
     tag = "Recipe Management"
 )]
 async fn save_recipe_to_file(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SaveRecipeToFileRequest>,
-) -> Result<StatusCode, (StatusCode, Json<SaveRecipeToFileErrorResponse>)> {
+) -> Result<StatusCode, ErrorResponse> {
     let file_path = match request.id {
         Some(id) => state.recipe_file_hash_map.lock().await.get(&id).cloned(),
         None => None,
@@ -325,12 +315,10 @@ async fn save_recipe_to_file(
 
     match recipe_library::save_recipe_to_file(request.recipe, request.is_global, file_path) {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SaveRecipeToFileErrorResponse {
-                message: e.to_string(),
-            }),
-        )),
+        Err(e) => Err(ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }),
     }
 }
 
@@ -340,21 +328,17 @@ async fn save_recipe_to_file(
     request_body = ParseRecipeRequest,
     responses(
         (status = 200, description = "Recipe parsed successfully", body = ParseRecipeResponse),
-        (status = 400, description = "Bad request - Invalid recipe format", body = SaveRecipeToFileErrorResponse),
-        (status = 500, description = "Internal server error", body = SaveRecipeToFileErrorResponse)
+        (status = 400, description = "Bad request - Invalid recipe format", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
     ),
     tag = "Recipe Management"
 )]
 async fn parse_recipe(
     Json(request): Json<ParseRecipeRequest>,
-) -> Result<Json<ParseRecipeResponse>, (StatusCode, Json<SaveRecipeToFileErrorResponse>)> {
-    let recipe = Recipe::from_content(&request.content).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(SaveRecipeToFileErrorResponse {
-                message: format!("Invalid recipe format: {}", e),
-            }),
-        )
+) -> Result<Json<ParseRecipeResponse>, ErrorResponse> {
+    let recipe = Recipe::from_content(&request.content).map_err(|e| ErrorResponse {
+        message: format!("Invalid recipe format: {}", e),
+        status: StatusCode::BAD_REQUEST,
     })?;
 
     Ok(Json(ParseRecipeResponse { recipe }))

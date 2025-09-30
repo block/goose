@@ -691,10 +691,6 @@ export type RunNowResponse = {
     session_id: string;
 };
 
-export type SaveRecipeToFileErrorResponse = {
-    message: string;
-};
-
 export type SaveRecipeToFileRequest = {
     id?: string | null;
     is_global?: boolean | null;
@@ -1799,11 +1795,11 @@ export type ParseRecipeErrors = {
     /**
      * Bad request - Invalid recipe format
      */
-    400: SaveRecipeToFileErrorResponse;
+    400: ErrorResponse;
     /**
      * Internal server error
      */
-    500: SaveRecipeToFileErrorResponse;
+    500: ErrorResponse;
 };
 
 export type ParseRecipeError = ParseRecipeErrors[keyof ParseRecipeErrors];
@@ -1832,7 +1828,7 @@ export type SaveRecipeToFileErrors = {
     /**
      * Internal server error
      */
-    500: SaveRecipeToFileErrorResponse;
+    500: ErrorResponse;
 };
 
 export type SaveRecipeToFileError = SaveRecipeToFileErrors[keyof SaveRecipeToFileErrors];

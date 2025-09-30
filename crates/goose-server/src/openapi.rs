@@ -472,7 +472,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeToFileRequest,
-        super::routes::recipe::SaveRecipeToFileErrorResponse,
+        super::routes::errors::ErrorResponse,
         super::routes::recipe::ParseRecipeRequest,
         super::routes::recipe::ParseRecipeResponse,
         goose::recipe::Recipe,

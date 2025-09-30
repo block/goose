@@ -9,10 +9,7 @@ import * as yaml from 'yaml';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeTitleField } from './shared/RecipeTitleField';
-import { listSavedRecipes } from '../../recipe/recipeStorage';
-import {
-  getRecipeJsonSchema,
-} from '../../recipe/validation';
+import { getRecipeJsonSchema } from '../../recipe/validation';
 import { parseRecipeFromFile, saveRecipe } from '../../recipe/recipe_management';
 
 interface ImportRecipeFormProps {
@@ -115,25 +112,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     const recipe = parsed.recipe || parsed;
 
     return recipe as Recipe;
-  };
-
-  const validateTitleUniqueness = async (title: string): Promise<string | undefined> => {
-    if (!title.trim()) return undefined;
-
-    try {
-      const existingRecipes = await listSavedRecipes();
-      const titleExists = existingRecipes.some(
-        (recipe) => recipe.recipe.title?.toLowerCase() === title.toLowerCase()
-      );
-
-      if (titleExists) {
-        return `A recipe with the same title already exists`;
-      }
-    } catch (error) {
-      console.warn('Failed to validate title uniqueness:', error);
-    }
-
-    return undefined;
   };
 
   const importRecipeForm = useForm({
@@ -266,7 +244,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     if (file) {
       try {
         const fileContent = await file.text();
-        console.log('=======fileContent', fileContent);
         const recipe = await parseRecipeFromFile(fileContent);
         if (recipe.title) {
           // Use the recipe title field's handleChange method if available

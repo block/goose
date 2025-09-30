@@ -12,25 +12,24 @@ export async function saveRecipe(
         id: recipeId,
         is_global: isGlobal,
       },
-      throwOnError: true
+      throwOnError: true,
     });
   } catch (error) {
-    let error_message = "unknown error";
+    console.log('=======error', error);
+    let error_message = 'unknown error';
     if (typeof error === 'object' && error !== null && 'message' in error) {
       error_message = error.message as string;
     }
-    throw new Error(
-      `Failed to save recipe: ${error_message}`
-    );
+    throw new Error(`Failed to save recipe: ${error_message}`);
   }
 }
 
 export async function parseRecipeFromFile(fileContent: string): Promise<Recipe> {
-    let response = await parseRecipe({
-        body: {
-            content: fileContent
-        },
-        throwOnError: true
-    })
-    return response.data.recipe;
+  let response = await parseRecipe({
+    body: {
+      content: fileContent,
+    },
+    throwOnError: true,
+  });
+  return response.data.recipe;
 }
