@@ -67,7 +67,7 @@ pub fn save_recipe_to_file(
     recipe: Recipe,
     is_global: Option<bool>,
     file_path: Option<PathBuf>,
-) -> Result<PathBuf> {
+) -> anyhow::Result<PathBuf> {
     let is_global_value = is_global.unwrap_or(true);
 
     let default_file_path =
@@ -78,7 +78,7 @@ pub fn save_recipe_to_file(
         None => {
             if default_file_path.exists() {
                 return Err(anyhow::anyhow!(
-                    "Recipe with same file name already exists at: {:?}",
+                    "Recipe file already exists at: {:?}",
                     default_file_path
                 ));
             }
@@ -90,7 +90,8 @@ pub fn save_recipe_to_file(
     for (existing_path, existing_recipe) in &all_recipes {
         if existing_recipe.title == recipe.title && existing_path != &file_path_value {
             return Err(anyhow::anyhow!(
-                "A recipe with the same title already exists"
+                "Recipe with title '{}' already exists",
+                recipe.title
             ));
         }
     }

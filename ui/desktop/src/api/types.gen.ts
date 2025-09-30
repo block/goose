@@ -683,6 +683,10 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SaveRecipeToFileErrorResponse = {
+    message: string;
+};
+
 export type SaveRecipeToFileRequest = {
     id?: string | null;
     is_global?: boolean | null;
@@ -1791,8 +1795,10 @@ export type SaveRecipeToFileErrors = {
     /**
      * Internal server error
      */
-    500: unknown;
+    500: SaveRecipeToFileErrorResponse;
 };
+
+export type SaveRecipeToFileError = SaveRecipeToFileErrors[keyof SaveRecipeToFileErrors];
 
 export type SaveRecipeToFileResponses = {
     /**

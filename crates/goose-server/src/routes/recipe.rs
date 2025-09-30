@@ -81,6 +81,11 @@ pub struct SaveRecipeToFileRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct SaveRecipeToFileErrorResponse {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeManifestResponse {
     name: String,
     recipe: Recipe,
@@ -290,22 +295,28 @@ async fn delete_recipe(
     responses(
         (status = 204, description = "Recipe saved to file successfully"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 500, description = "Internal server error")
+        (status = 500, description = "Internal server error", body = SaveRecipeToFileErrorResponse)
     ),
     tag = "Recipe Management"
 )]
 async fn save_recipe_to_file(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SaveRecipeToFileRequest>,
-) -> StatusCode {
+) -> Result<StatusCode, (StatusCode, Json<SaveRecipeToFileErrorResponse>)> {
     let file_path = match request.id {
         Some(id) => state.recipe_file_hash_map.lock().await.get(&id).cloned(),
         None => None,
     };
-    if recipe_library::save_recipe_to_file(request.recipe, request.is_global, file_path).is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR;
+
+    match recipe_library::save_recipe_to_file(request.recipe, request.is_global, file_path) {
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SaveRecipeToFileErrorResponse {
+                message: e.to_string(),
+            }),
+        )),
     }
-    StatusCode::NO_CONTENT
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

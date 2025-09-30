@@ -12,10 +12,15 @@ export async function saveRecipe(
         id: recipeId,
         is_global: isGlobal,
       },
+      throwOnError: true
     });
   } catch (error) {
+    let error_message = "unknown error";
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      error_message = error.message as string;
+    }
     throw new Error(
-      `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to save recipe: ${error_message}`
     );
   }
 }

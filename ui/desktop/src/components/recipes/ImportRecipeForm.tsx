@@ -5,17 +5,15 @@ import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Recipe, decodeRecipe } from '../../recipe';
-import { saveRecipe } from '../../recipe/recipeStorage';
 import * as yaml from 'yaml';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeTitleField } from './shared/RecipeTitleField';
 import { listSavedRecipes } from '../../recipe/recipeStorage';
 import {
-  validateRecipe,
-  getValidationErrorMessages,
   getRecipeJsonSchema,
 } from '../../recipe/validation';
+import { saveRecipe } from '../../recipe/recipe_management';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -167,22 +165,24 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
         recipe.title = value.recipeTitle.trim();
 
-        const titleValidationError = await validateTitleUniqueness(value.recipeTitle.trim());
-        if (titleValidationError) {
-          throw new Error(titleValidationError);
-        }
+        // const titleValidationError = await validateTitleUniqueness(value.recipeTitle.trim());
+        // if (titleValidationError) {
+        //   throw new Error(titleValidationError);
+        // }
 
-        const validationResult = validateRecipe(recipe);
-        if (!validationResult.success) {
-          const errorMessages = getValidationErrorMessages(validationResult.errors);
-          throw new Error(`Recipe validation failed: ${errorMessages.join(', ')}`);
-        }
+        // const validationResult = validateRecipe(recipe);
+        // if (!validationResult.success) {
+        //   const errorMessages = getValidationErrorMessages(validationResult.errors);
+        //   throw new Error(`Recipe validation failed: ${errorMessages.join(', ')}`);
+        // }
 
-        await saveRecipe(recipe, {
-          name: '',
-          title: value.recipeTitle.trim(),
-          global: value.global,
-        });
+        // await saveRecipe(recipe, {
+        //   name: '',
+        //   title: value.recipeTitle.trim(),
+        //   global: value.global,
+        // });
+
+        await saveRecipe(recipe, value.global, null);
 
         // Reset dialog state
         importRecipeForm.reset({

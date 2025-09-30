@@ -1114,7 +1114,14 @@
             "description": "Unauthorized - Invalid or missing API key"
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeToFileErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3510,6 +3517,17 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SaveRecipeToFileErrorResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
             "type": "string"
           }
         }
