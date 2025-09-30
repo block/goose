@@ -187,40 +187,30 @@ function openApiSchemaToZod(schema: Record<string, unknown>): z.ZodTypeAny {
           shape[propName] = openApiSchemaToZod(propSchema as Record<string, unknown>);
         }
 
-        // Make optional properties optional
-        if (schema.required && Array.isArray(schema.required)) {
-          const optionalShape: Record<string, z.ZodTypeAny> = {};
-          for (const [propName, zodSchema] of Object.entries(shape)) {
-            if (schema.required.includes(propName)) {
-              optionalShape[propName] = zodSchema;
-            } else {
-              optionalShape[propName] = zodSchema.optional();
-            }
+        // Make optional properties optional based on required array
+        const optionalShape: Record<string, z.ZodTypeAny> = {};
+        const requiredFields =
+          schema.required && Array.isArray(schema.required) ? schema.required : [];
+
+        for (const [propName, zodSchema] of Object.entries(shape)) {
+          if (requiredFields.includes(propName)) {
+            optionalShape[propName] = zodSchema;
+          } else {
+            optionalShape[propName] = zodSchema.optional();
           }
-          let objectSchema = z.object(optionalShape);
-
-          if (schema.additionalProperties === true) {
-            return schema.nullable
-              ? objectSchema.passthrough().nullable()
-              : objectSchema.passthrough();
-          } else if (schema.additionalProperties === false) {
-            return schema.nullable ? objectSchema.strict().nullable() : objectSchema.strict();
-          }
-
-          return schema.nullable ? objectSchema.nullable() : objectSchema;
-        } else {
-          let objectSchema = z.object(shape);
-
-          if (schema.additionalProperties === true) {
-            return schema.nullable
-              ? objectSchema.passthrough().nullable()
-              : objectSchema.passthrough();
-          } else if (schema.additionalProperties === false) {
-            return schema.nullable ? objectSchema.strict().nullable() : objectSchema.strict();
-          }
-
-          return schema.nullable ? objectSchema.nullable() : objectSchema;
         }
+
+        let objectSchema = z.object(optionalShape);
+
+        if (schema.additionalProperties === true) {
+          return schema.nullable
+            ? objectSchema.passthrough().nullable()
+            : objectSchema.passthrough();
+        } else if (schema.additionalProperties === false) {
+          return schema.nullable ? objectSchema.strict().nullable() : objectSchema.strict();
+        }
+
+        return schema.nullable ? objectSchema.nullable() : objectSchema;
       }
       return schema.nullable ? z.record(z.any()).nullable() : z.record(z.any());
 
