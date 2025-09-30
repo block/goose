@@ -103,7 +103,7 @@ fn setup_logging_internal(
             // Start building the subscriber
             let mut layers = vec![
                 file_layer.with_filter(env_filter).boxed(),
-                console_layer.with_filter(LevelFilter::WARN).boxed(),
+                console_layer.with_filter(LevelFilter::ERROR).boxed(),
             ];
 
             // Only add ErrorCaptureLayer if not in test mode
