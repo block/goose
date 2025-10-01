@@ -5,6 +5,7 @@ use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use etcetera::{choose_app_strategy, AppStrategy};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
@@ -27,8 +28,10 @@ pub struct Session {
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
     pub description: String,
-    pub created_at: String,
-    pub updated_at: String,
+    #[schema(value_type = String)]
+    pub created_at: DateTime<Utc>,
+    #[schema(value_type = String)]
+    pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
     pub total_tokens: Option<i32>,
     pub input_tokens: Option<i32>,
