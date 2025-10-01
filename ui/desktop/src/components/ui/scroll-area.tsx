@@ -33,6 +33,8 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     const [isScrolled, setIsScrolled] = React.useState(false);
     const userScrolledUpRef = React.useRef(false);
     const lastScrollHeightRef = React.useRef(0);
+    const isActivelyScrollingRef = React.useRef(false);
+    const scrollTimeoutRef = React.useRef<number | null>(null);
 
     const BOTTOM_SCROLL_THRESHOLD = 100;
 
@@ -84,6 +86,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       [scrollToBottom, scrollToPosition, isAtBottom, isFollowing]
     );
 
+    // track last scroll position to detect user-initiated scrolling
+    const lastScrollTopRef = React.useRef(0);
+
     // Handle scroll events to update isFollowing state
     const handleScroll = React.useCallback(() => {
       if (!viewportRef.current) return;
@@ -91,6 +96,25 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const viewport = viewportRef.current;
       const { scrollTop } = viewport;
       const currentIsAtBottom = isAtBottom();
+
+      // detect if this is a user-initiated scroll (position changed from last known position)
+      const scrollDelta = Math.abs(scrollTop - lastScrollTopRef.current);
+      if (scrollDelta > 0) {
+        // Mark that user is actively scrolling immediately
+        isActivelyScrollingRef.current = true;
+
+        // clear any existing timeout and set a new one
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+
+        // mark as not actively scrolling
+        scrollTimeoutRef.current = window.setTimeout(() => {
+          isActivelyScrollingRef.current = false;
+        }, 100);
+      }
+
+      lastScrollTopRef.current = scrollTop;
 
       // Detect if user manually scrolled up from the bottom
       if (!currentIsAtBottom && isFollowing) {
@@ -119,14 +143,16 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       // 1. Content has actually grown (new content added)
       // 2. User was following (at the bottom)
       // 3. User hasn't manually scrolled up
+      // 4. User is not actively scrolling
       if (
         currentScrollHeight > lastScrollHeightRef.current &&
         isFollowing &&
-        !userScrolledUpRef.current
+        !userScrolledUpRef.current &&
+        !isActivelyScrollingRef.current
       ) {
         // Use requestAnimationFrame to ensure DOM has updated
         requestAnimationFrame(() => {
-          if (viewportRef.current) {
+          if (viewportRef.current && !isActivelyScrollingRef.current) {
             viewportRef.current.scrollTo({
               top: viewportRef.current.scrollHeight,
               behavior: 'smooth',
@@ -144,7 +170,12 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       if (!viewport) return;
 
       viewport.addEventListener('scroll', handleScroll, { passive: true });
-      return () => viewport.removeEventListener('scroll', handleScroll);
+      return () => {
+        viewport.removeEventListener('scroll', handleScroll);
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+      };
     }, [handleScroll]);
 
     return (
