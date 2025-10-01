@@ -396,22 +396,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         }
     }
 
-    // Save extension state after loading all extensions
-    if let Some(session_id) = session_id.as_ref() {
-        let session_config = SessionConfig {
-            id: session_id.clone(),
-            working_dir: std::env::current_dir().unwrap_or_default(),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: None,
-        };
-
-        if let Err(e) = agent_ptr.save_extension_state(&Some(session_config)).await {
-            tracing::warn!("Failed to save initial extension state: {}", e);
-        }
-    }
-
     // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
@@ -540,6 +524,26 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             {
                 eprintln!("Note: Could not start debugging session: {}", debug_err);
             }
+        }
+    }
+
+    // Save extension state after loading all extensions
+    if let Some(session_id) = session_id.as_ref() {
+        let session_config_for_save = SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        if let Err(e) = session
+            .agent
+            .save_extension_state(&Some(session_config_for_save))
+            .await
+        {
+            tracing::warn!("Failed to save initial extension state: {}", e);
         }
     }
 
