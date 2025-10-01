@@ -203,14 +203,14 @@ pub async fn handle_schedule_remove(id: String) -> Result<()> {
     }
 }
 
-pub async fn handle_schedule_sessions(id: String, limit: Option<u32>) -> Result<()> {
+pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
     let scheduler = SchedulerFactory::create(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.sessions(&id, limit.unwrap_or(50) as usize).await {
+    match scheduler.sessions(&id, limit.unwrap_or(50)).await {
         Ok(sessions) => {
             if sessions.is_empty() {
                 println!("No sessions found for schedule ID '{}'.", id);

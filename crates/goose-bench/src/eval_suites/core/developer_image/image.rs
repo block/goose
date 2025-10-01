@@ -47,7 +47,9 @@ impl Evaluation for DeveloperImage {
                     if let MessageContent::ToolRequest(tool_req) = content {
                         if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 if tool_call.name == "developer__screen_capture"
                                     && (args.get("display").and_then(Value::as_i64) == Some(0))

@@ -5,9 +5,9 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolCall;
 use rmcp::model::{
-    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -29,7 +29,7 @@ struct DatabricksMessage {
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let mut converted = DatabricksMessage {
             content: Value::Null,
             role: match message.role {
@@ -102,6 +102,12 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     match &request.tool_call {
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
+                            let arguments_str = match &tool_call.arguments {
+                                Some(args) => {
+                                    serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                                }
+                                None => "{}".to_string(),
+                            };
 
                             let tool_calls = converted.tool_calls.get_or_insert_default();
                             tool_calls.push(json!({
@@ -109,7 +115,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 "type": "function",
                                 "function": {
                                     "name": sanitized_name,
-                                    "arguments": tool_call.arguments.to_string(),
+                                    "arguments": arguments_str,
                                 }
                             }));
                         }
@@ -286,6 +292,7 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert Databricks' API response to internal Message format
+#[allow(clippy::too_many_lines)]
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
@@ -373,7 +380,10 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(ToolCall::new(&function_name, params)),
+                                Ok(CallToolRequestParam {
+                                    name: function_name.into(),
+                                    arguments: Some(object(params)),
+                                }),
                             ));
                         }
                         Err(e) => {
@@ -771,7 +781,10 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+                Ok(CallToolRequestParam {
+                    name: "example".into(),
+                    arguments: Some(object!({"param1": "value1"})),
+                }),
             ),
         ];
 
@@ -807,7 +820,10 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+            Ok(CallToolRequestParam {
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -956,7 +972,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({"param": "value"}));
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1027,7 +1043,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({}));
+            assert_eq!(tool_call.arguments, Some(object!({})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1223,6 +1239,67 @@ mod tests {
         } else {
             panic!("Expected Text content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with None arguments are formatted as "{}" string
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: None, // This is the key case the fix addresses
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be the string "{}", not null
+        assert_eq!(tool_call["function"]["arguments"], "{}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_some_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with Some arguments are properly JSON-serialized
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value", "number": 42})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be a JSON string representation
+        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
+        let parsed_args: Value = serde_json::from_str(args_str)?;
+        assert_eq!(parsed_args["param"], "value");
+        assert_eq!(parsed_args["number"], 42);
 
         Ok(())
     }

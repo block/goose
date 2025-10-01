@@ -80,7 +80,7 @@ Goose automatically adds metadata fields to recipes saved from the Desktop app.
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
 | `settings` | Object | Configuration for model provider, model name, and other settings |
-| `sub_recipes` | Array | List of sub-recipes |
+| `sub_recipes` | Array | List of subrecipes |
 | `response` | Object | Configuration for structured output validation |
 | `retry` | Object | Configuration for automated retry logic with success validation |
 
@@ -205,7 +205,7 @@ This feature is only available through the CLI.
 
 If a recipe uses an extension that requires a secret, Goose can prompt users to provide the secret when running the recipe:
 
-1. When a recipe is loaded, Goose scans all extensions (including those in sub-recipes) for `env_keys` fields
+1. When a recipe is loaded, Goose scans all extensions (including those in subrecipes) for `env_keys` fields
 2. If any required environment variables are missing from the secure keyring, Goose prompts the user to enter them
 3. Values are stored securely in the system keyring and reused for subsequent runs
 
@@ -249,31 +249,31 @@ settings:
 Settings specified in a recipe will override your default Goose configuration when that recipe is executed. If no settings are specified, Goose will use your configured defaults.
 :::
 
-## Sub-Recipes
+## Subrecipes
 
-The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-recipes) that the main recipe calls to perform specific tasks. Each sub-recipe in the array has the following structure:
+The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecipes) that the main recipe calls to perform specific tasks. Each subrecipe in the array has the following structure:
 
-### Sub-Recipe Fields
+### Subrecipe Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | String | Unique identifier for the sub-recipe |
-| `path` | String | Relative or absolute path to the sub-recipe file |
-| `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
-| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple sub-recipe instances. See [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) for details |
+| `name` | String | Unique identifier for the subrecipe |
+| `path` | String | Relative or absolute path to the subrecipe file |
+| `values` | Object | (Optional) Pre-configured parameter values that are passed to the subrecipe |
+| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple subrecipe instances. See [Running Subrecipes In Parallel](/docs/tutorials/subrecipes-in-parallel) for details |
 
-### Example Sub-Recipe Configuration
+### Example Subrecipe Configuration
 
 ```yaml
 sub_recipes:
   - name: "security_scan"
-    path: "./sub-recipes/security-analysis.yaml"
+    path: "./subrecipes/security-analysis.yaml"
     values:  # in key-value format: {parameter_name}: {parameter_value}
       scan_level: "comprehensive"
       include_dependencies: "true"
   
   - name: "quality_check"
-    path: "./sub-recipes/quality-analysis.yaml"
+    path: "./subrecipes/quality-analysis.yaml"
 ```
 
 ## Automated Retry with Success Validation
@@ -426,7 +426,7 @@ Advanced template features include:
 
 ### indent() Filter For Multi-Line Values
 
-Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a sub-recipe:
+Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a subrecipe:
 
 ```yaml
 sub_recipes:

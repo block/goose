@@ -27,18 +27,18 @@ pub fn create_dynamic_task_tool() -> Tool {
             "properties": {
                 "task_parameters": {
                     "type": "array",
-                    "description": "Array of tasks. Each needs 'instructions' OR 'prompt'.",
+                    "description": "Array of tasks. Each task must have either 'instructions' OR 'prompt' field (at least one is required).",
                     "items": {
                         "type": "object",
                         "properties": {
-                            // Required (one of these)
+                            // Either instructions or prompt is required (validated at runtime)
                             "instructions": {
                                 "type": "string",
-                                "description": "Task instructions"
+                                "description": "Task instructions (required if prompt is not provided)"
                             },
                             "prompt": {
                                 "type": "string",
-                                "description": "Initial prompt"
+                                "description": "Initial prompt (required if instructions is not provided)"
                             },
                             // Optional - auto-generated if not provided
                             "title": {"type": "string"},
@@ -66,11 +66,7 @@ pub fn create_dynamic_task_tool() -> Tool {
                                 "type": "boolean",
                                 "description": "If true, return only the last message from the subagent (default: false, returns full conversation)"
                             }
-                        },
-                        "anyOf": [
-                            {"required": ["instructions"]},
-                            {"required": ["prompt"]}
-                        ]
+                        }
                     },
                     "minItems": 1
                 },

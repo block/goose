@@ -158,8 +158,8 @@ impl ToolInspector for PermissionInspector {
                         }
                     }
                     // 2. Check if it's a readonly or regular tool (both pre-approved)
-                    else if self.readonly_tools.contains(tool_name)
-                        || self.regular_tools.contains(tool_name)
+                    else if self.readonly_tools.contains(tool_name.as_ref())
+                        || self.regular_tools.contains(tool_name.as_ref())
                     {
                         InspectionAction::Allow
                     }
@@ -179,9 +179,9 @@ impl ToolInspector for PermissionInspector {
                     InspectionAction::Allow => {
                         if *mode == "auto" {
                             "Auto mode - all tools approved".to_string()
-                        } else if self.readonly_tools.contains(tool_name) {
+                        } else if self.readonly_tools.contains(tool_name.as_ref()) {
                             "Tool marked as read-only".to_string()
-                        } else if self.regular_tools.contains(tool_name) {
+                        } else if self.regular_tools.contains(tool_name.as_ref()) {
                             "Tool pre-approved".to_string()
                         } else {
                             "User permission allows this tool".to_string()

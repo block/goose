@@ -1,60 +1,60 @@
 ---
-title: Running Sub-Recipes In Parallel
-sidebar_label: Sub-Recipes In Parallel
-description: Run multiple sub-recipes instances concurrently with real-time progress tracking
+title: Running Subrecipes In Parallel
+sidebar_label: Subrecipes In Parallel
+description: Run multiple subrecipes instances concurrently with real-time progress tracking
 ---
 
-Goose recipes can execute multiple [sub-recipe](/docs/guides/recipes/sub-recipes) instances concurrently using isolated worker processes. This feature enables efficient batch operations, parallel processing of different tasks, and faster completion of complex workflows.
+Goose recipes can execute multiple [subrecipe](/docs/guides/recipes/subrecipes) instances concurrently using isolated worker processes. This feature enables efficient batch operations, parallel processing of different tasks, and faster completion of complex workflows.
 
 :::warning Experimental Feature
-Running sub-recipes in parallel is an experimental feature in active development. Behavior and configuration may change in future releases.
+Running subrecipes in parallel is an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
 Here are some common use cases:
 
-- **Monorepo build failures**: When 3 services fail in a monorepo build, use a "diagnose failure" sub-recipe with each build URL to diagnose all failures in parallel
-- **Document summarization**: Process a CSV file with document links by running a "summarize document" sub-recipe for each link simultaneously  
+- **Monorepo build failures**: When 3 services fail in a monorepo build, use a "diagnose failure" subrecipe with each build URL to diagnose all failures in parallel
+- **Document summarization**: Process a CSV file with document links by running a "summarize document" subrecipe for each link simultaneously  
 - **Code analysis across repositories**: Run security, quality, and performance analysis on multiple codebases simultaneously
 
 ## How It Works
 
-Parallel sub-recipe execution uses an isolated worker system that automatically manages concurrent task execution. Goose creates individual tasks for each sub-recipe instance and distributes them across up to 10 concurrent workers.
+Parallel subrecipe execution uses an isolated worker system that automatically manages concurrent task execution. Goose creates individual tasks for each subrecipe instance and distributes them across up to 10 concurrent workers.
 
 | Scenario | Default Behavior | Override Options |
 |----------|------------------|------------------|
-| **Different sub-recipes** | Sequential | Add "in parallel" to prompt |
-| **Same sub-recipe** with different parameters | Parallel | • Set `sequential_when_repeated: true`<br />• Add "sequentially" to prompt |
+| **Different subrecipes** | Sequential | Add "in parallel" to prompt |
+| **Same subrecipe** with different parameters | Parallel | • Set `sequential_when_repeated: true`<br />• Add "sequentially" to prompt |
 
-### Different Sub-Recipes
+### Different Subrecipes
 
-When running different sub-recipes, Goose determines the execution mode based on:
+When running different subrecipes, Goose determines the execution mode based on:
 1. **Explicit user request** in the prompt ("in parallel", "sequentially") 
-2. **Sequential execution by default**: Different sub-recipes run one after another unless explicitly requested to run in parallel
+2. **Sequential execution by default**: Different subrecipes run one after another unless explicitly requested to run in parallel
 
-In your prompt, you can simply mention "in parallel" in your prompt when calling different sub-recipes:
+In your prompt, you can simply mention "in parallel" in your prompt when calling different subrecipes:
 
 ```yaml
 prompt: |
-  run the following sub-recipes in parallel:
-    - use weather sub-recipe to get the weather for Sydney
-    - use things-to-do sub-recipe to find activities in Sydney
+  run the following subrecipes in parallel:
+    - use weather subrecipe to get the weather for Sydney
+    - use things-to-do subrecipe to find activities in Sydney
 ```
 
-### Same Sub-Recipe
+### Same Subrecipe
 
-When running the same sub-recipe with different parameters, Goose determines the execution mode based on:
+When running the same subrecipe with different parameters, Goose determines the execution mode based on:
 1. **[Recipe-level configuration](#choosing-between-execution-modes)** (`sequential_when_repeated` flag) - when set to true, this forces sequential execution
 2. **User request** in the prompt ("sequentially" to override default parallel behavior)
-3. **Parallel execution by default**: Multiple instances of the same sub-recipe run concurrently
+3. **Parallel execution by default**: Multiple instances of the same subrecipe run concurrently
 
-If your prompt implies multiple executions of the same sub-recipe, Goose will automatically create parallel instances:
+If your prompt implies multiple executions of the same subrecipe, Goose will automatically create parallel instances:
 
 ```yaml
 prompt: |
   get the weather for three biggest cities in Australia
 ```
 
-In this example, Goose recognizes that "three biggest cities" requires running the weather sub-recipe multiple times for different cities, so it executes them in parallel.
+In this example, Goose recognizes that "three biggest cities" requires running the weather subrecipe multiple times for different cities, so it executes them in parallel.
 
 If you wanted to run them sequentially, you can just tell Goose:
 
@@ -71,9 +71,9 @@ When running multiple tasks in parallel from the CLI, you can track progress thr
 
 ## Examples
 
-### Running Different Sub-Recipes in Parallel
+### Running Different Subrecipes in Parallel
 
-This example runs the `weather` and `things-to-do` sub-recipes in parallel:
+This example runs the `weather` and `things-to-do` subrecipes in parallel:
 
 ```yaml
 # plan_trip.yaml
@@ -82,16 +82,16 @@ title: Plan Your Trip
 description: Get weather forecast and find things to do for your destination
 instructions: You are a travel planning assistant that helps users prepare for their trips.
 prompt: |
-  run the following sub-recipes in parallel to plan my trip:
-    - use weather sub-recipe to get the weather forecast for Sydney
-    - use things-to-do sub-recipe to find activities and attractions in Sydney
+  run the following subrecipes in parallel to plan my trip:
+    - use weather subrecipe to get the weather forecast for Sydney
+    - use things-to-do subrecipe to find activities and attractions in Sydney
 sub_recipes:
 - name: weather
-  path: "./sub-recipes/weather.yaml"
+  path: "./subrecipes/weather.yaml"
   values:
     city: Sydney
 - name: things-to-do
-  path: "./sub-recipes/things-to-do.yaml"
+  path: "./subrecipes/things-to-do.yaml"
   values:
     city: Sydney
     duration: "3 days"
@@ -102,9 +102,9 @@ extensions:
   bundled: true
 ```
 
-### Running the Same Sub-Recipe in Parallel (with Different Parameters)
+### Running the Same Subrecipe in Parallel (with Different Parameters)
 
-This example runs three instances of the `weather` sub-recipe in parallel for different cities:
+This example runs three instances of the `weather` subrecipe in parallel for different cities:
 
 ```yaml
 # multi_city_weather.yaml
@@ -117,7 +117,7 @@ prompt: |
   to help me decide where to visit
 sub_recipes:
 - name: weather
-  path: "./sub-recipes/weather.yaml"
+  path: "./subrecipes/weather.yaml"
 extensions:
 - type: builtin
   name: developer
@@ -125,12 +125,12 @@ extensions:
   bundled: true
 ```
 
-**Sub-Recipes:**
+**Subrecipes:**
 
 <details>
   <summary>weather</summary>
     ```yaml
-    # sub-recipes/weather.yaml
+    # subrecipes/weather.yaml
     version: 1.0.0
     title: Find weather
     description: Get weather data for a city
@@ -155,7 +155,7 @@ extensions:
 <details>
   <summary>things-to-do</summary>
     ```yaml
-    # sub-recipes/things-to-do.yaml
+    # subrecipes/things-to-do.yaml
     version: 1.0.0
     title: Things to do in a city
     description: Find activities and attractions for travelers
@@ -201,12 +201,12 @@ While parallel execution offers speed benefits, sequential execution is sometime
 
 **Recipe-Level Configuration:**
 
-For sub-recipes that should never run in parallel, set `sequential_when_repeated: true` to override user requests:
+For subrecipes that should never run in parallel, set `sequential_when_repeated: true` to override user requests:
 
 ```yaml
 sub_recipes:
   - name: database-migration
-    path: "./sub-recipes/migrate.yaml"
+    path: "./subrecipes/migrate.yaml"
     sequential_when_repeated: true  # Always sequential
 ```
 

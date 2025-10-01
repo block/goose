@@ -1,14 +1,10 @@
 ---
 title: Subagents
-sidebar_position: 1
+sidebar_position: 50
 sidebar_label: Subagents
 ---
 
 Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. They bring process isolation and context preservation by offloading work to separate instances. Think of them as temporary assistants that handle specific jobs without cluttering your chat with tool execution details.
-
-:::warning
-Subagents are an experimental feature in active development. Behavior and configuration may change in future releases.
-:::
 
 ## How to Use Subagents
 
@@ -29,20 +25,6 @@ You can run multiple subagents sequentially or in parallel.
 :::info
 If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
 :::
-
-
-## Prerequisites
-To use subagents, you need to enable alpha features first. You can do this by setting an [environment variable](/docs/guides/environment-variables#experimental-features) or adding it to your [config file](/docs/guides/config-file#experimental-features):
-
-**Environment Variable:**
-```bash
-export ALPHA_FEATURES=true
-```
-
-**Config File** (`~/.config/goose/config.yaml`):
-```yaml
-ALPHA_FEATURES: true
-```
 
 ## Internal Subagents
 

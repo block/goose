@@ -2,6 +2,7 @@
 title: Enhanced Code Editing with AI Models
 sidebar_label: Enhanced Code Editing
 description: Use AI models to intelligently apply code changes
+sidebar_position: 110
 ---
 
 The [Developer extension](/docs/mcp/developer-mcp) supports using AI models for enhanced code editing through the `str_replace` command. When configured, it intelligently applies code changes using an AI model instead of simple string replacement.

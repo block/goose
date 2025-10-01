@@ -355,7 +355,9 @@ impl SessionStorage {
     async fn get_pool(db_path: &Path, create_if_missing: bool) -> Result<Pool<Sqlite>> {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
-            .create_if_missing(create_if_missing);
+            .create_if_missing(create_if_missing)
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(

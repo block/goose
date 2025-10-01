@@ -1,5 +1,5 @@
 ---
-sidebar_position: 20
+sidebar_position: 95
 title: Environment Variables
 sidebar_label: Environment Variables
 ---
@@ -52,6 +52,10 @@ export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
 
+:::info Automatic Multi-Model Switching
+The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
+:::
+
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
@@ -84,7 +88,7 @@ export GOOSE_LEAD_FALLBACK_TURNS=2
 
 ### Planning Mode Configuration
 
-These variables control Goose's [planning functionality](/docs/guides/creating-plans).
+These variables control Goose's [planning functionality](/docs/guides/multi-model/creating-plans).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -205,7 +209,7 @@ These variables allow you to override the default context window size (token lim
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
 | `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
-| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/multi-model/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 
 **Examples**
 
@@ -315,7 +319,7 @@ These variables enable experimental features that are in active development. The
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | "true", "1" (case insensitive) to enable | false |
+| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case insensitive) to enable | false |
 
 **Examples**
 

@@ -150,6 +150,7 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
                 name: arg.name,
                 description: arg.description,
                 required: arg.required,
+                title: None,
             })
             .collect::<Vec<PromptArgument>>();
 
@@ -383,6 +384,9 @@ impl ServerHandler for DeveloperServer {
             server_info: Implementation {
                 name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                title: None,
+                icons: None,
+                website_url: None,
             },
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
