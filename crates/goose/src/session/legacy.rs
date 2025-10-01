@@ -1,7 +1,7 @@
 use crate::conversation::Conversation;
 use crate::session::Session;
 use anyhow::Result;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -100,5 +100,6 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
 fn parse_session_timestamp(session_name: &str) -> Option<SystemTime> {
     NaiveDateTime::parse_from_str(session_name, "%Y%m%d_%H%M%S")
         .ok()
-        .map(|dt| SystemTime::from(dt.and_utc()))
+        .and_then(|dt| Local.from_local_datetime(&dt).single())
+        .map(SystemTime::from)
 }
