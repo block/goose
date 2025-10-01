@@ -1,0 +1,67 @@
+version: 1.0.0
+title: Quick Note
+author:
+  contact: aegntic
+description: Create quick notes and organize them by date and tags
+instructions: Your job is to create, organize, and retrieve quick notes based on user input
+activities:
+  - Create timestamped note files
+  - Organize notes by date
+  - Add tags to notes for easy retrieval
+  - Search existing notes by content or tags
+parameters:
+  - key: action
+    input_type: string
+    requirement: required
+    description: Action to perform: create, search, list
+  - key: content
+    input_type: string
+    requirement: optional
+    description: Note content or search terms
+  - key: tags
+    input_type: string
+    requirement: optional
+    description: Comma-separated tags for the note
+extensions:
+  - type: command
+    name: filesystem
+    display_name: Filesystem
+    command: npx -y @modelcontextprotocol/server-filesystem
+    timeout: 300
+    bundled: false
+prompt: |
+  Help the user {% if action == 'create' %}create a new note{% elif action == 'search' %}search for existing notes{% else %}list recent notes{% endif %}.
+
+  {% if action == 'create' %}
+  Create a new note with the following content: "{{ content }}"
+  {% if tags %}
+  Add these tags: {{ tags }}
+  {% endif %}
+
+  Steps:
+  1. Create a notes directory if it doesn't exist: ~/goose-notes/
+  2. Create a filename with current date: notes-YYYY-MM-DD-HHMMSS.md
+  3. Add timestamp, tags, and content to the note
+  4. Save the file and confirm creation
+
+  {% elif action == 'search' %}
+  Search for notes containing: "{{ content }}"
+  {% if tags %}
+  Also look for notes with tags: {{ tags }}
+  {% endif %}
+
+  Steps:
+  1. Search through note files in ~/goose-notes/
+  2. Look for matching content or tags
+  3. Display relevant results with file names and timestamps
+
+  {% else %}
+  List the 10 most recent notes from ~/goose-notes/
+
+  Steps:
+  1. List files in the notes directory
+  2. Sort by date (most recent first)
+  3. Show file names, timestamps, and brief previews
+  {% endif %}
+
+  Always confirm what action you're taking and show results clearly.

@@ -1,0 +1,17 @@
+{
+  "id": "meeting-agenda-generator",
+  "title": "Meeting Agenda Generator",
+  "description": "Create structured meeting agendas based on project context and recent files",
+  "category": "productivity",
+  "job": "management",
+  "example_prompt": "Create a meeting agenda for our weekly team sync. Please review the recent project files in the current directory to understand current progress and blockers, then generate a structured agenda with topics, time allocations, and action items.",
+  "example_result": "# Weekly Team Sync Meeting Agenda\n\n**Date:** October 2, 2025\n**Duration:** 45 minutes\n**Attendees:** Development Team\n\n## Meeting Goals\n- Review current sprint progress\n- Identify blockers and dependencies\n- Plan next week's priorities\n\n## Agenda Items\n\n### 1. Sprint Progress Review (15 min)\n- Current sprint status: 60% complete\n- Completed features:\n  - User authentication module\n  - Database migration scripts\n  - API endpoint documentation\n\n### 2. Blockers & Challenges (10 min)\n- **Blocker**: API rate limiting issues with third-party service\n- **Challenge**: Frontend performance optimization needed\n- **Dependency**: Waiting on design team for UI mockups\n\n### 3. Upcoming Priorities (10 min)\n- Complete payment integration feature\n- Implement caching layer\n- Performance testing and optimization\n\n### 4. Action Items (10 min)\n- **John**: Research alternative API services by Friday\n- **Sarah**: Complete payment integration draft by Thursday\n- **Mike**: Set up performance testing environment\n- **Team**: Review design mockups when available\n\n## Next Steps\n- Follow up on API research in 2 days\n- Schedule design review for next Monday\n- Update project timeline with new dependencies",
+  "extensions": [
+    {
+      "name": "Filesystem",
+      "command": "npx -y @modelcontextprotocol/server-filesystem",
+      "is_builtin": false,
+      "environmentVariables": []
+    }
+  ]
+}
