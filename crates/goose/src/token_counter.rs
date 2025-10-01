@@ -12,6 +12,14 @@ static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
 
 const MAX_TOKEN_CACHE_SIZE: usize = 10_000;
 
+// token use for various bits of a tool calls:
+const FUNC_INIT: usize = 7;
+const PROP_INIT: usize = 3;
+const PROP_KEY: usize = 3;
+const ENUM_INIT: isize = -3;
+const ENUM_ITEM: usize = 3;
+const FUNC_END: usize = 12;
+
 pub struct AsyncTokenCounter {
     tokenizer: Arc<CoreBPE>,
     token_cache: Arc<DashMap<u64, usize>>,
@@ -54,17 +62,10 @@ impl AsyncTokenCounter {
     }
 
     pub fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
-        let func_init = 7;
-        let prop_init = 3;
-        let prop_key = 3;
-        let enum_init: isize = -3;
-        let enum_item = 3;
-        let func_end = 12;
-
         let mut func_token_count = 0;
         if !tools.is_empty() {
             for tool in tools {
-                func_token_count += func_init;
+                func_token_count += FUNC_INIT;
                 let name = &tool.name;
                 let description = &tool
                     .description
@@ -80,9 +81,9 @@ impl AsyncTokenCounter {
                     tool.input_schema.get("properties")
                 {
                     if !properties.is_empty() {
-                        func_token_count += prop_init;
+                        func_token_count += PROP_INIT;
                         for (key, value) in properties {
-                            func_token_count += prop_key;
+                            func_token_count += PROP_KEY;
                             let p_name = key;
                             let p_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
                             let p_desc = value
@@ -97,10 +98,11 @@ impl AsyncTokenCounter {
                             if let Some(enum_values) = value.get("enum").and_then(|v| v.as_array())
                             {
                                 func_token_count =
-                                    func_token_count.saturating_add_signed(enum_init);
+                                    func_token_count.saturating_add_signed(ENUM_INIT);
                                 for item in enum_values {
                                     if let Some(item_str) = item.as_str() {
-                                        func_token_count += enum_item;
+                                        func_token_count =
+                                            func_token_count.saturating_add_signed(ENUM_INIT);
                                         func_token_count += self.count_tokens(item_str);
                                     }
                                 }
@@ -109,7 +111,7 @@ impl AsyncTokenCounter {
                     }
                 }
             }
-            func_token_count += func_end;
+            func_token_count += FUNC_END;
         }
 
         func_token_count
@@ -150,7 +152,7 @@ impl AsyncTokenCounter {
             num_tokens += self.count_tokens_for_tools(tools);
         }
 
-        num_tokens += 3;
+        num_tokens += 3; // Reply primer
 
         num_tokens
     }
@@ -201,17 +203,10 @@ impl TokenCounter {
     }
 
     pub fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
-        let func_init = 7;
-        let prop_init = 3;
-        let prop_key = 3;
-        let enum_init: isize = -3;
-        let enum_item = 3;
-        let func_end = 12;
-
         let mut func_token_count = 0;
         if !tools.is_empty() {
             for tool in tools {
-                func_token_count += func_init;
+                func_token_count += FUNC_INIT;
                 let name = &tool.name;
                 let description = &tool
                     .description
@@ -226,9 +221,9 @@ impl TokenCounter {
                     tool.input_schema.get("properties")
                 {
                     if !properties.is_empty() {
-                        func_token_count += prop_init;
+                        func_token_count += PROP_INIT;
                         for (key, value) in properties {
-                            func_token_count += prop_key;
+                            func_token_count += PROP_KEY;
                             let p_name = key;
                             let p_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
                             let p_desc = value
@@ -241,10 +236,11 @@ impl TokenCounter {
                             if let Some(enum_values) = value.get("enum").and_then(|v| v.as_array())
                             {
                                 func_token_count =
-                                    func_token_count.saturating_add_signed(enum_init);
+                                    func_token_count.saturating_add_signed(ENUM_INIT);
                                 for item in enum_values {
                                     if let Some(item_str) = item.as_str() {
-                                        func_token_count += enum_item;
+                                        func_token_count =
+                                            func_token_count.saturating_add_signed(ENUM_INIT);
                                         func_token_count += self.count_tokens(item_str);
                                     }
                                 }
@@ -253,7 +249,7 @@ impl TokenCounter {
                     }
                 }
             }
-            func_token_count += func_end;
+            func_token_count += FUNC_END;
         }
 
         func_token_count
