@@ -192,9 +192,8 @@ impl Default for TokenCounter {
 
 impl TokenCounter {
     pub fn new() -> Self {
-        let tokenizer = get_tokenizer_blocking().unwrap_or_else(|_| {
-            Arc::new(tiktoken_rs::o200k_base().expect("Fallback tokenizer failed"))
-        });
+        /// Count tokens for a piece of text using our single tokenizer.
+        let tokenizer = get_tokenizer_blocking().expect("Failed to initialize tokenizer");
         Self { tokenizer }
     }
 
