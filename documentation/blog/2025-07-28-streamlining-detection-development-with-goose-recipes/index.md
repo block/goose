@@ -9,7 +9,7 @@ authors:
 
 Creating effective security detections in Panther traditionally requires deep knowledge of detection logic, testing frameworks, and development workflows. The detection engineering team at Block has streamlined this process by building Goose recipes that automate the entire detection creation lifecycle from initial repository setup to pull request creation.
 
-This blog post explores how to leverage Goose's [recipe](https://block.github.io/goose/docs/guides/recipes/) and [sub-recipe](https://block.github.io/goose/docs/guides/recipes/sub-recipes) system to create new detections in Panther with minimal manual intervention, ensuring consistency, quality, and adherence to team standards.
+This blog post explores how to leverage Goose's [recipe](https://block.github.io/goose/docs/guides/recipes/) and [subrecipe](https://block.github.io/goose/docs/guides/recipes/subrecipes) system to create new detections in Panther with minimal manual intervention, ensuring consistency, quality, and adherence to team standards.
 
 <!-- truncate -->
 
@@ -60,7 +60,7 @@ prompt: |
 </details>
 
 
-The detection creation recipe demonstrates the power of this approach by coordinating six specialized sub-recipes, each handling a specific aspect of detection development:
+The detection creation recipe demonstrates the power of this approach by coordinating six specialized subrecipes, each handling a specific aspect of detection development:
 
 1. [**workflow_setup**](#1-workflow_setup-foundation-first) - Repository preparation and environment validation
 2. [**similar_rule_analyzer**](#2-similar_rule_analyzer-learning-from-existing-patterns) - Finding and analyzing existing detection patterns
@@ -88,22 +88,22 @@ This centralized approach through `AGENTS.md` becomes the foundation for our rec
 
 ## The Architecture
 ### Design Principles
-1. **Single Responsibility**: Each sub-recipe has one clear job
+1. **Single Responsibility**: Each subrecipe has one clear job
 2. **Explicit Data Flow**: No hidden state or implicit dependencies
 3. **Fail-Fast**: Stop immediately when critical steps fail
 4. **Graceful Degradation**: Continue with reduced functionality when possible
 5. **Comprehensive Testing**: Validate everything before deployment
 
-### Why Sub-Recipes Matter
+### Why Subrecipes Matter
 The traditional approach to AI-assisted detection creation often involves a single, monolithic prompt (AKA “single-shot prompting”) that tries to handle everything at once. This leads to several problems:
 - **Context confusion**: The AI loses focus when juggling multiple responsibilities
-- **Inconsistent outputs**: Without clear boundaries, results vary significantly (e.g. one sub-recipe may try to complete the task that we're expecting another sub-recipe to accomplish)
+- **Inconsistent outputs**: Without clear boundaries, results vary significantly (e.g. one subrecipe may try to complete the task that we're expecting another subrecipe to accomplish)
 - **Difficult debugging**: When something fails, it's hard to identify the specific issue
 - **Poor maintainability**: Changes to one aspect affect the entire workflow
 
-The sub-recipe architecture solves these problems through strict separation of concerns, setting boundaries and providing exit criteria.
+The subrecipe architecture solves these problems through strict separation of concerns, setting boundaries and providing exit criteria.
 
-Each sub-recipe operates in isolation with:
+Each subrecipe operates in isolation with:
 - Clearly defined inputs and outputs
 - Specific scope boundaries (what it MUST and MUST NOT do)
 - Standardized JSON response schemas
@@ -130,7 +130,7 @@ Workflow visualized
 </details>
 
 ## Data Flow and State Management
-Since sub-recipes currently run in isolation, data must be explicitly passed between them. The main recipe orchestrates this flow:
+Since subrecipes currently run in isolation, data must be explicitly passed between them. The main recipe orchestrates this flow:
 
 Example of how this would be defined in the recipe:
 ```
@@ -192,7 +192,7 @@ The workflow makes intelligent decisions based on results from previous steps:
 - skip_panther_mcp: Controls schema_and_sample_events_analyzer execution  
 - create_pr: Controls pr_creator execution
 
-# Runtime conditions (based on sub-recipe results):
+# Runtime conditions (based on subrecipe results):
 - schema_and_sample_events_analyzer runs only if:
   * skip_panther_mcp is false AND
   * (similar_rules_found is empty OR mcp_panther.access_test_successful is false)
@@ -223,13 +223,13 @@ Additionally, Jinja support enables the codification of event triggers, ensuring
 {% endif %}
 ```
 
-## Deep Dive: Key Sub-Recipes
+## Deep Dive: Key Subrecipes
 ### 1. `workflow_setup`: Foundation First
 |Input | Output
 --- | ---
 `rule_description` | `branch_name`, `standards_summary`, `repo_ready`, `mcp_panther`
 
-This sub-recipe handles all the foundational work:
+This subrecipe handles all the foundational work:
 
 **Key responsibilities**:
 - Repository access verification
@@ -256,7 +256,7 @@ Input | Output
 --- | ---
 `rule_description`, `standards_summary`, `rule_type` | `similar_rules_found`, `rule_analysis`, `suggested_approach`
 
-This sub-recipe searches the repository for similar detection patterns:
+This subrecipe searches the repository for similar detection patterns:
 
 ```
 # Search strategy by rule type:
@@ -281,7 +281,7 @@ Input | Output
 --- | ---
 `rule_description`, `similar_rules_found` | `log_schemas`, `example_logs`, `field_mapping`, `panther_mcp_usage`
 
-This sub-recipe bridges the gap between detection requirements and implementation by leveraging Panther's MCP integration:
+This subrecipe bridges the gap between detection requirements and implementation by leveraging Panther's MCP integration:
 
 **Key responsibilities**:
 - Log schema analysis using Panther MCP
@@ -326,7 +326,7 @@ Input | Output
 --- | ---
 `rule_description`, `similar_rules_found`, `rule_analysis`, `log_schemas`, `standards_summary` | `rule_files_created`, `rule_implementation`, `test_cases_created`
 
-This is where the magic happens - this sub-recipe generates the required files containing the detection logic, metadata and unit tests.
+This is where the magic happens - this subrecipe generates the required files containing the detection logic, metadata and unit tests.
 
 **Smart log source validation**:
 - If schema analysis ran successfully → Use validated log types
@@ -374,7 +374,7 @@ Input | Output
 --- | ---
 `rule_files_created` | `test_results`, `validation_status`, `issues_found`
 
-This sub-recipe serves as the critical quality gate, executing the mandatory testing pipeline that ensures every detection meets production standards.
+This subrecipe serves as the critical quality gate, executing the mandatory testing pipeline that ensures every detection meets production standards.
 
 **Key responsibilities**:
 - Execute all mandatory testing commands from `AGENTS.md` (e.g. linting, formatting and both unit and pytests)
@@ -384,7 +384,7 @@ This sub-recipe serves as the critical quality gate, executing the mandatory tes
 
 These checks ensure detections meet our standards, preventing subpar code from being merged. Should a check fail, the LLM will iterate, identifying and implementing necessary changes until compliance is achieved as part of the same recipe run.
 
-**Intelligent failure analysis**: The sub-recipe doesn't just run tests - it analyzes failures and provides specific guidance:
+**Intelligent failure analysis**: The subrecipe doesn't just run tests - it analyzes failures and provides specific guidance:
 ```json
 {
   "test_results": {
@@ -429,7 +429,7 @@ Input | Output
 --- | ---
 `rule_files_created`, `rule_description`, `branch_name`, `create_pr`, `panther_mcp_usage` | `pr_created`, `pr_url`, `pr_number`, `summary`
 
-This sub-recipe handles the final workflow step with full adherence to team standards:
+This subrecipe handles the final workflow step with full adherence to team standards:
 
 **Key responsibilities**:
 - Git branch management and commits
@@ -461,13 +461,13 @@ This sub-recipe handles the final workflow step with full adherence to team stan
 }
 ```
 
-_Quality assurance_: This sub-recipe includes comprehensive error handling for git failures, PR creation issues, and template population problems, providing clear fallback instructions when automation fails.
+_Quality assurance_: This subrecipe includes comprehensive error handling for git failures, PR creation issues, and template population problems, providing clear fallback instructions when automation fails.
 
 ## Error Handling and Fail-Fast Design
 This workflow implements sophisticated error handling with intelligent stopping points:
 
 ### Standardized Response Schema
-Every sub-recipe uses a consistent JSON response format:
+Every subrecipe uses a consistent JSON response format:
 ```json
 {
   "status": {
@@ -481,7 +481,7 @@ Every sub-recipe uses a consistent JSON response format:
 ```
 
 ### Failures
-This workflow distinguishes between different types of failures. For example, each sub-recipe’s response has an `error_code` field. When a failure occurs, the LLM categorizes the type of error encountered and surfaces this information to the main recipe so it can make a determination on what to do next.
+This workflow distinguishes between different types of failures. For example, each subrecipe’s response has an `error_code` field. When a failure occurs, the LLM categorizes the type of error encountered and surfaces this information to the main recipe so it can make a determination on what to do next.
 
 As an example, `rule_creator` is configured with these error categories:
 ```
@@ -500,7 +500,7 @@ response:
         ...
 ```
 
-If this sub-recipe returns `file_creation_failed`, we shouldn’t move on to the `testing_validator` or `pr_creator` steps.
+If this subrecipe returns `file_creation_failed`, we shouldn’t move on to the `testing_validator` or `pr_creator` steps.
 
 This fail-fast approach prevents wasted effort on meaningless subsequent steps.
 
@@ -528,7 +528,7 @@ goose run --recipe recipe.yaml --interactive \
 The recipe system ensures compliance with team standards through:
 
 ### Automated Standards Extraction
-The `workflow_setup` sub-recipe extracts key requirements from `AGENTS.md`:
+The `workflow_setup` subrecipe extracts key requirements from `AGENTS.md`:
 - File naming conventions (`ai_` prefix for AI-created rules)
 - Required Python functions and error handling patterns
 - Testing requirements and validation commands
@@ -542,7 +542,7 @@ The `workflow_setup` sub-recipe extracts key requirements from `AGENTS.md`:
 - **Consistency**: Standardized file structures and naming
 
 ### Pull Request Automation
-The `pr_creator` sub-recipe follows team standards:
+The `pr_creator` subrecipe follows team standards:
 - Proper branch naming (e.g. `ai/<description>`)
 - Template-based PR descriptions
 - Draft mode for review
@@ -575,7 +575,7 @@ For Organizations
 - **Compliance**: Adherence to security and development standards
 
 ## Conclusion
-Goose's recipe and sub-recipe system represents a significant advancement in AI-assisted security detection development. By breaking complex workflows into specialized, composable components, teams can achieve:
+Goose's recipe and subrecipe system represents a significant advancement in AI-assisted security detection development. By breaking complex workflows into specialized, composable components, teams can achieve:
 - **Higher quality detections** through automated testing and validation
 - **Faster development cycles** with intelligent optimization
 - **Better consistency** through standardized processes

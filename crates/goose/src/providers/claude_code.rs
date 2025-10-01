@@ -129,7 +129,7 @@ impl ClaudeCodeProvider {
     fn messages_to_claude_format(&self, _system: &str, messages: &[Message]) -> Result<Value> {
         let mut claude_messages = Vec::new();
 
-        for message in messages {
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
             let role = match message.role {
                 Role::User => "user",
                 Role::Assistant => "assistant",

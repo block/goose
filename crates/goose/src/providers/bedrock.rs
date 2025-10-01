@@ -124,6 +124,7 @@ impl BedrockProvider {
             .set_messages(Some(
                 messages
                     .iter()
+                    .filter(|m| m.is_agent_visible())
                     .map(to_bedrock_message)
                     .collect::<Result<_>>()?,
             ));

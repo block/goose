@@ -114,12 +114,32 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
     remove_sessions(matched_sessions).await
 }
 
-pub async fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
+pub async fn handle_session_list(
+    format: String,
+    ascending: bool,
+    working_dir: Option<PathBuf>,
+    limit: Option<usize>,
+) -> Result<()> {
     let mut sessions = SessionManager::list_sessions().await?;
+
+    if let Some(ref pat) = working_dir {
+        let pat_lower = pat.to_string_lossy().to_lowercase();
+        sessions.retain(|s| {
+            s.working_dir
+                .to_string_lossy()
+                .to_lowercase()
+                .contains(&pat_lower)
+        });
+    }
+
     if ascending {
         sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
     } else {
         sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    }
+
+    if let Some(n) = limit {
+        sessions.truncate(n);
     }
 
     match format.as_str() {
@@ -138,11 +158,7 @@ pub async fn handle_session_list(verbose: bool, format: String, ascending: bool)
                     "{} - {} - {}",
                     session.id, session.description, session.updated_at
                 );
-                if verbose {
-                    println!("  {}", output);
-                } else {
-                    println!("{}", output);
-                }
+                println!("{}", output);
             }
         }
     }

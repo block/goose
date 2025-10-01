@@ -382,8 +382,8 @@ impl Provider for GithubCopilotProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "github_copilot",
-            "Github Copilot",
-            "Github Copilot and associated models",
+            "GitHub Copilot",
+            "GitHub Copilot and associated models",
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,

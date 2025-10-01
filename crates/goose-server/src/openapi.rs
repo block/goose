@@ -9,7 +9,7 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, Icon, ImageContent, RawAudioContent,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TextContent, Tool, ToolAnnotations,
 };
@@ -314,6 +314,7 @@ derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
+derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
 #[derive(OpenApi)]
@@ -408,6 +409,7 @@ derive_utoipa!(Icon as IconSchema);
         ResourceContentsSchema,
         ContextLengthExceeded,
         SummarizationRequested,
+        JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
         ExtensionEntry,

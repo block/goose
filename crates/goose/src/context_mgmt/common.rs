@@ -43,10 +43,9 @@ pub fn get_messages_token_counts_async(
     token_counter: &AsyncTokenCounter,
     messages: &[Message],
 ) -> Vec<usize> {
-    // Calculate current token count of each message, use count_chat_tokens to ensure we
-    // capture the full content of the message, include ToolRequests and ToolResponses
     messages
         .iter()
+        .filter(|m| m.is_agent_visible())
         .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
         .collect()
 }

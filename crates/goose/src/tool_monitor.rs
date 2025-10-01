@@ -2,29 +2,37 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use rmcp::model::CallToolRequestParam;
+use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolCall {
+// Helper struct for internal tracking
+#[derive(Debug, Clone)]
+struct InternalToolCall {
     name: String,
-    parameters: serde_json::Value,
+    parameters: Value,
 }
 
-impl ToolCall {
-    pub fn new(name: String, parameters: serde_json::Value) -> Self {
-        Self { name, parameters }
+impl InternalToolCall {
+    fn matches(&self, other: &InternalToolCall) -> bool {
+        self.name == other.name && self.parameters == other.parameters
     }
 
-    fn matches(&self, other: &ToolCall) -> bool {
-        self.name == other.name && self.parameters == other.parameters
+    fn from_tool_call(tool_call: &CallToolRequestParam) -> Self {
+        let name = tool_call.name.to_string();
+        let parameters = tool_call
+            .arguments
+            .as_ref()
+            .map(|obj| Value::Object(obj.clone()))
+            .unwrap_or(Value::Null);
+        Self { name, parameters }
     }
 }
 
 #[derive(Debug)]
 pub struct RepetitionInspector {
     max_repetitions: Option<u32>,
-    last_call: Option<ToolCall>,
+    last_call: Option<InternalToolCall>,
     repeat_count: u32,
     call_counts: HashMap<String, u32>,
 }
@@ -39,18 +47,22 @@ impl RepetitionInspector {
         }
     }
 
-    pub fn check_tool_call(&mut self, tool_call: ToolCall) -> bool {
-        let total_calls = self.call_counts.entry(tool_call.name.clone()).or_insert(0);
+    pub fn check_tool_call(&mut self, tool_call: CallToolRequestParam) -> bool {
+        let internal_call = InternalToolCall::from_tool_call(&tool_call);
+        let total_calls = self
+            .call_counts
+            .entry(internal_call.name.clone())
+            .or_insert(0);
         *total_calls += 1;
 
         if self.max_repetitions.is_none() {
-            self.last_call = Some(tool_call);
+            self.last_call = Some(internal_call);
             self.repeat_count = 1;
             return true;
         }
 
         if let Some(last) = &self.last_call {
-            if last.matches(&tool_call) {
+            if last.matches(&internal_call) {
                 self.repeat_count += 1;
                 if self.repeat_count > self.max_repetitions.unwrap() {
                     return false;
@@ -62,7 +74,7 @@ impl RepetitionInspector {
             self.repeat_count = 1;
         }
 
-        self.last_call = Some(tool_call);
+        self.last_call = Some(internal_call);
         true
     }
 
@@ -93,16 +105,13 @@ impl ToolInspector for RepetitionInspector {
         // Check repetition limits for each tool request
         for tool_request in tool_requests {
             if let Ok(tool_call) = &tool_request.tool_call {
-                let tool_call_info =
-                    ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
-
                 // Create a temporary clone to check without modifying state
                 let mut temp_inspector = RepetitionInspector::new(self.max_repetitions);
                 temp_inspector.last_call = self.last_call.clone();
                 temp_inspector.repeat_count = self.repeat_count;
                 temp_inspector.call_counts = self.call_counts.clone();
 
-                if !temp_inspector.check_tool_call(tool_call_info) {
+                if !temp_inspector.check_tool_call(tool_call.clone()) {
                     results.push(InspectionResult {
                         tool_request_id: tool_request.id.clone(),
                         action: InspectionAction::Deny,
