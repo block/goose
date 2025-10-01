@@ -185,9 +185,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       currentIndex: number;
     } | null>(null);
 
-    // Infinite scroll state
     const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
@@ -214,33 +212,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     };
 
-    // Get the visible date groups for infinite scroll
     const visibleDateGroups = useMemo(() => {
       return dateGroups.slice(0, visibleGroupsCount);
     }, [dateGroups, visibleGroupsCount]);
 
-    // Infinite scroll event handler
     const handleScroll = useCallback(
       (target: HTMLDivElement) => {
         const { scrollTop, scrollHeight, clientHeight } = target;
-        const threshold = 200; // pixels from bottom to trigger load more
+        const threshold = 200;
 
-        // Check if we're near the bottom and not already loading more
         if (
           scrollHeight - scrollTop - clientHeight < threshold &&
-          !isLoadingMore &&
           visibleGroupsCount < dateGroups.length
         ) {
-          setIsLoadingMore(true);
-
-          // Load 5 more groups with a slight delay for better UX
-          setTimeout(() => {
-            setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
-            setIsLoadingMore(false);
-          }, 300);
+          setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
         }
       },
-      [isLoadingMore, visibleGroupsCount, dateGroups.length]
+      [visibleGroupsCount, dateGroups.length]
     );
 
     // Reset visible groups count when dateGroups change (from search)
@@ -601,7 +589,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      // For regular rendering in grid layout with infinite scroll
       return (
         <div className="space-y-8">
           {visibleDateGroups.map((group) => (
@@ -622,8 +609,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
           ))}
 
-          {/* Loading indicator for infinite scroll */}
-          {isLoadingMore && (
+          {visibleGroupsCount < dateGroups.length && (
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-muted">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
@@ -631,15 +617,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
           )}
-
-          {/* Show message when all groups are loaded */}
-          {!debouncedSearchTerm &&
-            visibleGroupsCount >= dateGroups.length &&
-            dateGroups.length > 15 && (
-              <div className="flex justify-center py-8 text-text-muted text-sm">
-                All sessions loaded ({dateGroups.length} groups)
-              </div>
-            )}
         </div>
       );
     };
