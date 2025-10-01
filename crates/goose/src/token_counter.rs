@@ -136,12 +136,13 @@ impl AsyncTokenCounter {
                 if let Some(content_text) = content.as_text() {
                     num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
-                    let tool_call = tool_request.tool_call.as_ref().unwrap();
-                    let text = format!(
-                        "{}:{}:{:?}",
-                        tool_request.id, tool_call.name, tool_call.arguments
-                    );
-                    num_tokens += self.count_tokens(&text);
+                    if let Ok(tool_call) = tool_request.tool_call.as_ref() {
+                        let text = format!(
+                            "{}:{}:{:?}",
+                            tool_request.id, tool_call.name, tool_call.arguments
+                        );
+                        num_tokens += self.count_tokens(&text);
+                    }
                 } else if let Some(tool_response_text) = content.as_tool_response_text() {
                     num_tokens += self.count_tokens(&tool_response_text);
                 }
@@ -274,12 +275,13 @@ impl TokenCounter {
                 if let Some(content_text) = content.as_text() {
                     num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
-                    let tool_call = tool_request.tool_call.as_ref().unwrap();
-                    let text = format!(
-                        "{}:{}:{:?}",
-                        tool_request.id, tool_call.name, tool_call.arguments
-                    );
-                    num_tokens += self.count_tokens(&text);
+                    if let Ok(tool_call) = tool_request.tool_call.as_ref() {
+                        let text = format!(
+                            "{}:{}:{:?}",
+                            tool_request.id, tool_call.name, tool_call.arguments
+                        );
+                        num_tokens += self.count_tokens(&text);
+                    }
                 } else if let Some(tool_response_text) = content.as_tool_response_text() {
                     num_tokens += self.count_tokens(&tool_response_text);
                 } else {
