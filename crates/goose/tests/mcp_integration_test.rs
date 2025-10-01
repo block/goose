@@ -1,9 +1,8 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 use std::{env, fs};
-use serde::Deserialize;
-use serde_json::json;
 
 use rmcp::model::{CallToolRequestParam, Content};
 use rmcp::object;
