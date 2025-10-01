@@ -100,7 +100,7 @@ jobs:
           source ./bin/activate-hermit
           just check-openapi-schema
 
-  desktop-test:
+  desktop-lint:
     name: Test and Lint Electron Desktop App
     runs-on: macos-latest
     needs: changes
