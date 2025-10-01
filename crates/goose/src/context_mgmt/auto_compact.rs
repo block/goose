@@ -249,7 +249,7 @@ mod tests {
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use chrono::Utc;
+    use chrono::{DateTime, Utc};
     use rmcp::model::{AnnotateAble, RawTextContent, Role, Tool};
     use std::sync::Arc;
 
@@ -317,8 +317,12 @@ mod tests {
             id: "test_session".to_string(),
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
-            created_at: "2024-01-01T00:00:00Z".to_string(),
-            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            created_at: DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                .unwrap()
+                .to_utc(),
+            updated_at: DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                .unwrap()
+                .to_utc(),
             schedule_id: Some("test_job".to_string()),
             recipe: None,
             total_tokens: Some(100),

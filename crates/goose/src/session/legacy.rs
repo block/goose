@@ -1,7 +1,7 @@
 use crate::conversation::Conversation;
 use crate::session::Session;
 use anyhow::Result;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -65,9 +65,9 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
         if let Some(obj) = metadata_json.as_object_mut() {
             obj.entry("id").or_insert(serde_json::json!(session_name));
             obj.entry("created_at")
-                .or_insert(serde_json::json!(format_timestamp(created_time)?));
+                .or_insert(serde_json::json!(DateTime::<Utc>::from(created_time)));
             obj.entry("updated_at")
-                .or_insert(serde_json::json!(format_timestamp(modified_time)?));
+                .or_insert(serde_json::json!(DateTime::<Utc>::from(modified_time)));
             obj.entry("extension_data").or_insert(serde_json::json!({}));
             obj.entry("message_count").or_insert(serde_json::json!(0));
 
@@ -95,15 +95,6 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
     }
 
     Ok(session)
-}
-
-fn format_timestamp(time: SystemTime) -> Result<String> {
-    let duration = time.duration_since(std::time::UNIX_EPOCH)?;
-    let timestamp = chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
-        .unwrap_or_default()
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
-    Ok(timestamp)
 }
 
 fn parse_session_timestamp(session_name: &str) -> Option<SystemTime> {
