@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use console::style;
 
 use goose::config::{Config, ExtensionConfig};
 
@@ -890,10 +889,6 @@ pub async fn cli() -> Result<()> {
 
                     let result = session.interactive(None).await;
 
-                    if let Some(id) = session.session_id() {
-                        println!("Closing session. Session ID: {}", style(id).cyan());
-                    }
-
                     let session_duration = session_start.elapsed();
                     let exit_type = if result.is_ok() { "normal" } else { "error" };
 
@@ -1107,10 +1102,6 @@ pub async fn cli() -> Result<()> {
 
                 let result = session.headless(contents).await;
 
-                if let Some(id) = session.session_id() {
-                    println!("Closing session. Session ID: {}", style(id).cyan());
-                }
-
                 let session_duration = session_start.elapsed();
                 let exit_type = if result.is_ok() { "normal" } else { "error" };
 
@@ -1273,11 +1264,6 @@ pub async fn cli() -> Result<()> {
                     eprintln!("Session ended with error: {}", e);
                     std::process::exit(1);
                 }
-
-                if let Some(id) = session.session_id() {
-                    println!("Closing session. Session ID: {}", style(id).cyan());
-                }
-
                 Ok(())
             };
         }
