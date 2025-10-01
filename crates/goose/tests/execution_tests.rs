@@ -81,8 +81,6 @@ mod execution_tests {
         assert!(!manager.has_session(&session).await);
 
         assert!(manager.remove_session(&session).await.is_err());
-
-        AgentManager::reset_for_test();
     }
 
     #[tokio::test]
@@ -112,10 +110,10 @@ mod execution_tests {
         }
 
         assert_eq!(manager.session_count().await, 1);
-
-        AgentManager::reset_for_test();
     }
 
+    #[tokio::test]
+    #[serial]
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
@@ -140,129 +138,119 @@ mod execution_tests {
             .map(|r| r.unwrap())
             .collect();
 
-        // All should be the same agent (double-check pattern should prevent duplicates)
         for agent in &agents[1..] {
             assert!(
                 Arc::ptr_eq(&agents[0], agent),
                 "All concurrent requests should get the same agent"
             );
         }
-
-        // Only one session should exist
         assert_eq!(manager.session_count().await, 1);
+    }
 
-        #[tokio::test]
-        #[serial]
-        async fn test_configure_default_provider() {
-            use std::env;
+    #[tokio::test]
+    #[serial]
+    async fn test_configure_default_provider() {
+        use std::env;
 
-            AgentManager::reset_for_test();
+        AgentManager::reset_for_test();
 
-            let original_provider = env::var("GOOSE_DEFAULT_PROVIDER").ok();
-            let original_model = env::var("GOOSE_DEFAULT_MODEL").ok();
+        let original_provider = env::var("GOOSE_DEFAULT_PROVIDER").ok();
+        let original_model = env::var("GOOSE_DEFAULT_MODEL").ok();
 
-            env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
-            env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
+        env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
+        env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
 
-            let manager = AgentManager::instance().await.unwrap();
-            let result = manager.configure_default_provider().await;
+        let manager = AgentManager::instance().await.unwrap();
+        let result = manager.configure_default_provider().await;
 
-            assert!(result.is_ok());
+        assert!(result.is_ok());
 
-            // Restore original env vars
-            if let Some(val) = original_provider {
-                env::set_var("GOOSE_DEFAULT_PROVIDER", val);
-            } else {
-                env::remove_var("GOOSE_DEFAULT_PROVIDER");
-            }
-            if let Some(val) = original_model {
-                env::set_var("GOOSE_DEFAULT_MODEL", val);
-            } else {
-                env::remove_var("GOOSE_DEFAULT_MODEL");
-            }
-
-            AgentManager::reset_for_test();
+        // Restore original env vars
+        if let Some(val) = original_provider {
+            env::set_var("GOOSE_DEFAULT_PROVIDER", val);
+        } else {
+            env::remove_var("GOOSE_DEFAULT_PROVIDER");
         }
-
-        #[tokio::test]
-        #[serial]
-        async fn test_set_default_provider() {
-            use goose::providers::testprovider::TestProvider;
-            use std::sync::Arc;
-
-            AgentManager::reset_for_test();
-            let manager = AgentManager::instance().await.unwrap();
-
-            // Create a test provider for replaying (doesn't need inner provider)
-            let temp_file = format!(
-                "{}/test_provider_{}.json",
-                std::env::temp_dir().display(),
-                std::process::id()
-            );
-
-            // Create an empty test provider (will fail on actual use but that's ok for this test)
-            let test_provider = TestProvider::new_replaying(&temp_file)
-                .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
-
-            manager.set_default_provider(Arc::new(test_provider)).await;
-
-            let session = String::from("provider-test");
-            let _agent = manager.get_or_create_agent(session.clone()).await.unwrap();
-
-            assert!(manager.has_session(&session).await);
-
-            AgentManager::reset_for_test();
+        if let Some(val) = original_model {
+            env::set_var("GOOSE_DEFAULT_MODEL", val);
+        } else {
+            env::remove_var("GOOSE_DEFAULT_MODEL");
         }
+    }
 
-        #[tokio::test]
-        #[serial]
-        async fn test_eviction_updates_last_used() {
-            AgentManager::reset_for_test();
-            // Test that accessing a session updates its last_used timestamp
-            // and affects eviction order
-            let manager = AgentManager::instance().await.unwrap();
+    #[tokio::test]
+    #[serial]
+    async fn test_set_default_provider() {
+        use goose::providers::testprovider::TestProvider;
+        use std::sync::Arc;
 
-            let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
 
-            for session in &sessions {
-                manager.get_or_create_agent(session.clone()).await.unwrap();
-                // Small delay to ensure different timestamps
-                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            }
+        // Create a test provider for replaying (doesn't need inner provider)
+        let temp_file = format!(
+            "{}/test_provider_{}.json",
+            std::env::temp_dir().display(),
+            std::process::id()
+        );
 
-            // Access the first session again to update its last_used
+        // Create an empty test provider (will fail on actual use but that's ok for this test)
+        let test_provider = TestProvider::new_replaying(&temp_file)
+            .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
+
+        manager.set_default_provider(Arc::new(test_provider)).await;
+
+        let session = String::from("provider-test");
+        let _agent = manager.get_or_create_agent(session.clone()).await.unwrap();
+
+        assert!(manager.has_session(&session).await);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_eviction_updates_last_used() {
+        AgentManager::reset_for_test();
+        // Test that accessing a session updates its last_used timestamp
+        // and affects eviction order
+        let manager = AgentManager::instance().await.unwrap();
+
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
+
+        for session in &sessions {
+            manager.get_or_create_agent(session.clone()).await.unwrap();
+            // Small delay to ensure different timestamps
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            manager
-                .get_or_create_agent(sessions[0].clone())
-                .await
-                .unwrap();
-
-            // Now create a 101st session - should evict session2 (least recently used)
-            let session101 = String::from("session-101");
-            manager
-                .get_or_create_agent(session101.clone())
-                .await
-                .unwrap();
-
-            assert!(manager.has_session(&sessions[0]).await);
-            assert!(!manager.has_session(&sessions[1]).await);
-            assert!(manager.has_session(&session101).await);
-            AgentManager::reset_for_test();
         }
 
-        #[tokio::test]
-        #[serial]
-        async fn test_remove_nonexistent_session_error() {
-            // Test that removing a non-existent session returns an error
-            AgentManager::reset_for_test();
-            let manager = AgentManager::instance().await.unwrap();
-            let session = String::from("never-created");
+        // Access the first session again to update its last_used
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        manager
+            .get_or_create_agent(sessions[0].clone())
+            .await
+            .unwrap();
 
-            let result = manager.remove_session(&session).await;
-            assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("not found"));
+        // Now create a 101st session - should evict session2 (least recently used)
+        let session101 = String::from("session-101");
+        manager
+            .get_or_create_agent(session101.clone())
+            .await
+            .unwrap();
 
-            AgentManager::reset_for_test();
-        }
+        assert!(manager.has_session(&sessions[0]).await);
+        assert!(!manager.has_session(&sessions[1]).await);
+        assert!(manager.has_session(&session101).await);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_remove_nonexistent_session_error() {
+        // Test that removing a non-existent session returns an error
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
+        let session = String::from("never-created");
+
+        let result = manager.remove_session(&session).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
     }
 }

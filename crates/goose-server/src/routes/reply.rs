@@ -10,7 +10,6 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
-use goose::execution::SessionExecutionMode;
 use goose::mcp_utils::ToolResult;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;

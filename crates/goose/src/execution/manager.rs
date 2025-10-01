@@ -1,6 +1,3 @@
-//! Agent lifecycle management with session isolation
-
-use super::SessionExecutionMode;
 use crate::agents::Agent;
 use crate::config::APP_STRATEGY;
 use crate::model::ModelConfig;
