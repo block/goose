@@ -1,0 +1,12 @@
+[project]
+name = "weather-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.1"
+dependencies = [
+    "fastmcp>=2.5.1",
+    "mcp>=1.9.1",
+    "requests>=2.32.3",
+    "typing-extensions>=4.13.2",
+]
