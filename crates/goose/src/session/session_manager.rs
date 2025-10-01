@@ -28,9 +28,7 @@ pub struct Session {
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
     pub description: String,
-    #[schema(value_type = String)]
     pub created_at: DateTime<Utc>,
-    #[schema(value_type = String)]
     pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
     pub total_tokens: Option<i32>,
