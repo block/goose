@@ -858,3 +858,262 @@ impl SessionStorage {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agents::extension::Envs;
+    use crate::config::ExtensionConfig;
+    use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+    use std::collections::HashMap;
+    use tempfile::tempdir;
+
+    /// Helper to create a SessionStorage instance with a temporary database
+    async fn create_test_storage() -> Result<(SessionStorage, tempfile::TempDir)> {
+        let temp_dir = tempdir()?;
+        let db_path = temp_dir.path().join("test_sessions.db");
+        let storage = SessionStorage::create(&db_path).await?;
+        Ok((storage, temp_dir))
+    }
+
+    #[tokio::test]
+    async fn test_extension_data_persistence() -> Result<()> {
+        let (storage, _temp_dir) = create_test_storage().await?;
+
+        // Create a session
+        let session_id = "test_session_001";
+        let working_dir = PathBuf::from("/test/dir");
+
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (id, description, working_dir, extension_data)
+            VALUES (?, ?, ?, '{}')
+        "#,
+        )
+        .bind(session_id)
+        .bind("Test session")
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&storage.pool)
+        .await?;
+
+        // Create extension_data with some state
+        let mut extension_data = ExtensionData::default();
+        extension_data.set_extension_state("test_ext", "v1", serde_json::json!({"key": "value"}));
+
+        // Update the session with extension_data
+        let extension_data_json = serde_json::to_string(&extension_data)?;
+        sqlx::query("UPDATE sessions SET extension_data = ? WHERE id = ?")
+            .bind(&extension_data_json)
+            .bind(session_id)
+            .execute(&storage.pool)
+            .await?;
+
+        // Read back the session
+        let session = storage.get_session(session_id, false).await?;
+
+        // Verify extension_data was persisted correctly
+        assert_eq!(
+            session.extension_data.get_extension_state("test_ext", "v1"),
+            Some(&serde_json::json!({"key": "value"}))
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_enabled_extensions_state_database_roundtrip() -> Result<()> {
+        let (storage, _temp_dir) = create_test_storage().await?;
+
+        // Create test extension configs
+        let configs = vec![
+            ExtensionConfig::Builtin {
+                name: "developer".to_string(),
+                display_name: Some("Developer Tools".to_string()),
+                description: Some("Built-in developer extension".to_string()),
+                timeout: Some(30),
+                bundled: Some(true),
+                available_tools: vec!["read_file".to_string(), "write_file".to_string()],
+            },
+            ExtensionConfig::Stdio {
+                name: "custom_mcp".to_string(),
+                cmd: "python".to_string(),
+                args: vec!["-m".to_string(), "mcp_server".to_string()],
+                envs: {
+                    let mut map = HashMap::new();
+                    map.insert("API_KEY".to_string(), "test123".to_string());
+                    Envs::new(map)
+                },
+                env_keys: vec!["API_KEY".to_string()],
+                timeout: Some(60),
+                description: Some("Custom MCP server".to_string()),
+                bundled: Some(false),
+                available_tools: vec!["custom_tool".to_string()],
+            },
+        ];
+
+        let extensions_state = EnabledExtensionsState::new(configs.clone());
+
+        // Create a session
+        let session_id = "test_session_002";
+        let working_dir = PathBuf::from("/test/dir");
+
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (id, description, working_dir, extension_data)
+            VALUES (?, ?, ?, '{}')
+        "#,
+        )
+        .bind(session_id)
+        .bind("Test session with extensions")
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&storage.pool)
+        .await?;
+
+        // Save extension state to database
+        let mut extension_data = ExtensionData::default();
+        extensions_state.to_extension_data(&mut extension_data)?;
+
+        let extension_data_json = serde_json::to_string(&extension_data)?;
+        sqlx::query("UPDATE sessions SET extension_data = ? WHERE id = ?")
+            .bind(&extension_data_json)
+            .bind(session_id)
+            .execute(&storage.pool)
+            .await?;
+
+        // Read back the session
+        let session = storage.get_session(session_id, false).await?;
+
+        // Restore EnabledExtensionsState from database
+        let restored_state = EnabledExtensionsState::from_extension_data(&session.extension_data)
+            .expect("Failed to restore extension state");
+
+        // Verify all extensions were restored correctly
+        assert_eq!(restored_state.extensions.len(), 2);
+
+        // Verify first extension (Builtin)
+        match &restored_state.extensions[0] {
+            ExtensionConfig::Builtin {
+                name,
+                display_name,
+                timeout,
+                bundled,
+                available_tools,
+                ..
+            } => {
+                assert_eq!(name, "developer");
+                assert_eq!(display_name, &Some("Developer Tools".to_string()));
+                assert_eq!(timeout, &Some(30));
+                assert_eq!(bundled, &Some(true));
+                assert_eq!(available_tools.len(), 2);
+            }
+            _ => panic!("Expected Builtin variant"),
+        }
+
+        // Verify second extension (Stdio)
+        match &restored_state.extensions[1] {
+            ExtensionConfig::Stdio {
+                name,
+                cmd,
+                envs,
+                timeout,
+                ..
+            } => {
+                assert_eq!(name, "custom_mcp");
+                assert_eq!(cmd, "python");
+                assert_eq!(envs.get_env().get("API_KEY"), Some(&"test123".to_string()));
+                assert_eq!(timeout, &Some(60));
+            }
+            _ => panic!("Expected Stdio variant"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multiple_extension_states_in_database() -> Result<()> {
+        let (storage, _temp_dir) = create_test_storage().await?;
+
+        // Create a session
+        let session_id = "test_session_003";
+        let working_dir = PathBuf::from("/test/dir");
+
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (id, description, working_dir, extension_data)
+            VALUES (?, ?, ?, '{}')
+        "#,
+        )
+        .bind(session_id)
+        .bind("Test session")
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&storage.pool)
+        .await?;
+
+        // Create extension_data with multiple states
+        let mut extension_data = ExtensionData::default();
+        extension_data.set_extension_state(
+            "state_one",
+            "v0",
+            serde_json::json!({"data": "value1"}),
+        );
+        extension_data.set_extension_state(
+            "state_two",
+            "v1",
+            serde_json::json!({"data": "value2"}),
+        );
+
+        // Update via direct SQL
+        let extension_data_json = serde_json::to_string(&extension_data)?;
+        sqlx::query("UPDATE sessions SET extension_data = ? WHERE id = ?")
+            .bind(&extension_data_json)
+            .bind(session_id)
+            .execute(&storage.pool)
+            .await?;
+
+        // Verify the update
+        let session = storage.get_session(session_id, false).await?;
+        assert_eq!(
+            session
+                .extension_data
+                .get_extension_state("state_one", "v0"),
+            Some(&serde_json::json!({"data": "value1"}))
+        );
+        assert_eq!(
+            session
+                .extension_data
+                .get_extension_state("state_two", "v1"),
+            Some(&serde_json::json!({"data": "value2"}))
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_extension_data_empty_by_default() -> Result<()> {
+        let (storage, _temp_dir) = create_test_storage().await?;
+
+        // Create a session without explicitly setting extension_data
+        let session_id = "test_session_004";
+        let working_dir = PathBuf::from("/test/dir");
+
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (id, description, working_dir)
+            VALUES (?, ?, ?)
+        "#,
+        )
+        .bind(session_id)
+        .bind("Test session")
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&storage.pool)
+        .await?;
+
+        // Read the session
+        let session = storage.get_session(session_id, false).await?;
+
+        // Verify extension_data is empty by default
+        assert_eq!(session.extension_data.extension_states.len(), 0);
+
+        Ok(())
+    }
+}

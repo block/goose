@@ -31,7 +31,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -649,25 +649,26 @@ impl Agent {
 
     /// Save current extension state to session metadata
     /// Should be called after any extension add/remove operation
-    async fn save_extension_state(&self, session: &Option<SessionConfig>) -> Result<()> {
+    pub async fn save_extension_state(&self, session: &Option<SessionConfig>) -> Result<()> {
         if let Some(session_config) = session {
-            let extension_configs = self.extension_manager
-                .get_extension_configs()
-                .await;
+            let extension_configs = self.extension_manager.get_extension_configs().await;
 
             let extensions_state = EnabledExtensionsState::new(extension_configs);
 
             // Load current session
-            if let Ok(mut session_data) = SessionManager::get_session(&session_config.id, false).await {
-                // Update extension data
-                if extensions_state.to_extension_data(&mut session_data.extension_data).is_ok() {
-                    // Save back to database
-                    SessionManager::update_session(&session_config.id)
-                        .extension_data(session_data.extension_data)
-                        .apply()
-                        .await?;
-                }
+            let mut session_data = SessionManager::get_session(&session_config.id, false).await?;
+
+            // Update extension data
+            if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
+                warn!("Failed to serialize extension state: {}", e);
+                return Err(anyhow!("Extension state serialization failed: {}", e));
             }
+
+            // Save back to database
+            SessionManager::update_session(&session_config.id)
+                .extension_data(session_data.extension_data)
+                .apply()
+                .await?;
         }
         Ok(())
     }
@@ -776,7 +777,10 @@ impl Agent {
         // Save extension state after successful operation
         if result.is_ok() {
             if let Err(e) = self.save_extension_state(session).await {
-                warn!("Failed to save extension state after manage_extensions: {}", e);
+                warn!(
+                    "Failed to save extension state after manage_extensions: {}",
+                    e
+                );
             }
         }
 

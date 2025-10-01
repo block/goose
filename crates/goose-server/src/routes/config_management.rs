@@ -182,19 +182,8 @@ pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value
     )
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
-    match ExtensionConfigManager::get_all() {
-        Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
-        Err(err) => {
-            if err
-                .downcast_ref::<goose::config::base::ConfigError>()
-                .is_some_and(|e| matches!(e, goose::config::base::ConfigError::DeserializeError(_)))
-            {
-                Err(StatusCode::UNPROCESSABLE_ENTITY)
-            } else {
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        }
-    }
+    let extensions = goose::config::get_all_extensions();
+    Ok(Json(ExtensionResponse { extensions }))
 }
 
 #[utoipa::path(
@@ -211,8 +200,7 @@ pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
 pub async fn add_extension(
     Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    let extensions =
-        ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let extensions = goose::config::get_all_extensions();
     let key = goose::config::extensions::name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);

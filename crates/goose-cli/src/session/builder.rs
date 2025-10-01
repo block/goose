@@ -1,7 +1,7 @@
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::types::RetryConfig;
+use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
 use goose::config::{get_all_extensions, get_enabled_extensions, Config, ExtensionConfig};
 use goose::providers::create;
@@ -10,7 +10,6 @@ use goose::session::SessionManager;
 use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -327,7 +326,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             match SessionManager::get_session(session_id, false).await {
                 Ok(session_data) => {
                     // Try to load saved extension configs directly
-                    if let Some(saved_state) = EnabledExtensionsState::from_extension_data(&session_data.extension_data) {
+                    if let Some(saved_state) =
+                        EnabledExtensionsState::from_extension_data(&session_data.extension_data)
+                    {
                         // Use the saved configs as-is (no lookup needed!)
                         saved_state.extensions
                     } else {
@@ -397,28 +398,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Save extension state after loading all extensions
     if let Some(session_id) = session_id.as_ref() {
-        let loaded_extension_configs = agent_ptr
-            .extension_manager
-            .get_extension_configs()
-            .await;
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
 
-        if !loaded_extension_configs.is_empty() {
-            let extensions_state = EnabledExtensionsState::new(loaded_extension_configs);
-
-            // Load current session
-            if let Ok(mut session_data) = SessionManager::get_session(session_id, false).await {
-                // Update extension data
-                if extensions_state.to_extension_data(&mut session_data.extension_data).is_ok() {
-                    // Save back to database
-                    if let Err(e) = SessionManager::update_session(session_id)
-                        .extension_data(session_data.extension_data)
-                        .apply()
-                        .await
-                    {
-                        tracing::warn!("Failed to save initial extension state: {}", e);
-                    }
-                }
-            }
+        if let Err(e) = agent_ptr.save_extension_state(&Some(session_config)).await {
+            tracing::warn!("Failed to save initial extension state: {}", e);
         }
     }
 
@@ -569,33 +559,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         let override_prompt =
             std::fs::read_to_string(path).expect("Failed to read system prompt file");
         session.agent.override_system_prompt(override_prompt).await;
-    }
-
-    // Prepare metadata with extension configurations (will be persisted with first message)
-    if let Some(session_file) = &session_file {
-        let all_extension_configs = session.agent.get_extension_configs().await;
-
-        // Prepare metadata to be persisted with first message
-        let mut startup_metadata = if session_config.resume {
-            // For resumed sessions, load existing metadata or create new one
-            session::read_metadata(session_file).unwrap_or_else(|_| {
-                SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-            })
-        } else {
-            // For new sessions, create fresh metadata
-            SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-        };
-
-        // Update metadata with extension configurations
-        if !all_extension_configs.is_empty() {
-            let enabled_extensions_state = EnabledExtensionsState::new(all_extension_configs);
-            if let Err(e) = enabled_extensions_state.to_extension_data(&mut startup_metadata.extension_data) {
-                tracing::warn!("Failed to save enabled extensions to metadata: {}", e);
-            }
-        }
-
-        // Set the prepared metadata on the session
-        session.startup_metadata = Some(startup_metadata);
     }
 
     // Display session information unless in quiet mode
