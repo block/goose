@@ -231,13 +231,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       [visibleGroupsCount, dateGroups.length]
     );
 
-    // Reset visible groups count when dateGroups change (from search)
     useEffect(() => {
       if (debouncedSearchTerm) {
-        // When searching, show all results
         setVisibleGroupsCount(dateGroups.length);
       } else {
-        // When not searching, reset to initial count
         setVisibleGroupsCount(15);
       }
     }, [debouncedSearchTerm, dateGroups.length]);
