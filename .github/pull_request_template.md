@@ -1,13 +1,6 @@
 ## Summary
 <!-- Describe your change -->
 
-### Related Issues
-Fixes #ISSUE_ID  
-Relates to #ISSUE_ID  
-Discussion: LINK (if any)
-
-### Testing
-<!-- How have this change been tested? Unit/integration tests? Manual testing? -->
 
 ### Type of Change
 <!-- Select all that apply -->
@@ -16,15 +9,23 @@ Discussion: LINK (if any)
 - [ ] Refactor / Code quality
 - [ ] Performance improvement
 - [ ] Documentation
-- [ ] Tooling / CI
 - [ ] Tests
 - [ ] Security fix
 - [ ] Build / Release
 - [ ] Other (specify below)
 
+### Testing
+<!-- How have this change been tested? Unit/integration tests? Manual testing? -->
+
+### Related Issues
+Relates to #ISSUE_ID  
+Discussion: LINK (if any)
+
+
 ### Screenshots/Demos (for UX changes)
-Before:
-After:
+Before:  
+
+After:   
 
 <!-- For Recipe Cookbook Submissions ONLY: Include your email below to receive $10 OpenRouter credits once approved & merged -->
 **Email**: 
