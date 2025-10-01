@@ -3,9 +3,11 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 // Constants for frequently used strings in Anthropic API format
 const TYPE_FIELD: &str = "type";
@@ -168,6 +170,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     anthropic_messages
 }
 
+fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
+    if input_schema.is_empty() {
+        return Arc::new(json_object!({
+            "type": "object",
+        }));
+    }
+    input_schema
+}
+
 /// Convert internal Tool format to Anthropic's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
@@ -178,7 +189,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             tool_specs.push(json!({
                 NAME_FIELD: tool.name,
                 "description": tool.description,
-                "input_schema": tool.input_schema
+                "input_schema": anthropic_flavored_input_schema(tool.input_schema.clone())
             }));
         }
     }
