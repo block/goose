@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple ACP client to test the Goose ACP agent.
+Simple ACP client to test the goose ACP agent.
 Connects to goose acp running on stdio.
 """
 

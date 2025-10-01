@@ -81,7 +81,7 @@ impl SchedulerFactory {
                         eprintln!(
                             "   • Or download from: https://github.com/temporalio/cli/releases"
                         );
-                        eprintln!("   • Then restart Goose");
+                        eprintln!("   • Then restart goose");
                         eprintln!();
 
                         let scheduler = Scheduler::new(storage_path).await?;

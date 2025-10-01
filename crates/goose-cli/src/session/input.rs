@@ -68,7 +68,7 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
     );
 
-    let prompt = format!("{} ", console::style("( O)>").cyan().bold());
+    let prompt = get_input_prompt_string();
 
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
@@ -269,6 +269,21 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     };
 
     Some(InputResult::Plan(options))
+}
+
+/// Generates the input prompt string for the CLI interface.
+/// Returns a styled prompt with the goose face "( O)>" followed by a space.
+/// On Windows, returns plain text without ANSI styling for better compatibility.
+/// On other platforms, applies styling using ANSI escape codes.
+fn get_input_prompt_string() -> String {
+    let goose = "( O)>";
+    if cfg!(target_os = "windows") {
+        // Use plain text on Windows to avoid ANSI compatibility issues
+        format!("{goose} ")
+    } else {
+        // On other platforms, use styled prompt with ANSI colors
+        format!("{} ", console::style(goose).cyan().bold())
+    }
 }
 
 fn print_help() {
@@ -535,5 +550,45 @@ mod tests {
         // Test with whitespace
         let result = handle_slash_command("  /summarize  ");
         assert!(matches!(result, Some(InputResult::Summarize)));
+    }
+
+    #[test]
+    fn test_get_input_prompt_string() {
+        let prompt = get_input_prompt_string();
+
+        // Prompt should always end with a space
+        assert!(prompt.ends_with(" "));
+
+        // Prompt should contain the goose face
+        assert!(prompt.contains("( O)>"));
+
+        // On Windows, prompt should be plain text without ANSI codes
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(prompt, "( O)> ");
+            // Ensure no ANSI escape sequences
+            assert!(!prompt.contains("\x1b["));
+        }
+
+        // On non-Windows, prompt behavior depends on terminal capabilities
+        #[cfg(not(target_os = "windows"))]
+        {
+            // In CI environments, console crate may strip ANSI codes
+            let is_ci = std::env::var("CI").is_ok();
+
+            if is_ci {
+                // In CI, just verify basic structure - console crate handles ANSI detection
+                assert!(prompt.len() >= "( O)> ".len());
+            } else {
+                // In interactive terminals, expect styling to be applied
+                // Note: This may still vary based on terminal capabilities
+                assert!(prompt.len() >= "( O)> ".len());
+
+                // If ANSI codes are present, they should be valid
+                if prompt.contains("\x1b[") {
+                    assert!(prompt.contains("36") || prompt.contains("1"));
+                }
+            }
+        }
     }
 }

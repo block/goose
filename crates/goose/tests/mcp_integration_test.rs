@@ -1,17 +1,71 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 use std::{env, fs};
 
-use rmcp::model::Content;
-use serde_json::json;
+use rmcp::model::{CallToolRequestParam, Content};
+use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::ExtensionManager;
-use mcp_core::ToolCall;
 
 use test_case::test_case;
+
+use once_cell::sync::Lazy;
+use std::process::Command;
+
+#[derive(Deserialize)]
+struct CargoBuildMessage {
+    reason: String,
+    target: Target,
+    executable: String,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    name: String,
+    kind: Vec<String>,
+}
+
+fn build_and_get_binary_path() -> PathBuf {
+    let output = Command::new("cargo")
+        .args([
+            "build",
+            "--frozen",
+            "-p",
+            "goose-test",
+            "--bin",
+            "capture",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("failed to build binary");
+
+    if !output.status.success() {
+        panic!("build failed: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(serde_json::from_str::<CargoBuildMessage>)
+        .filter_map(Result::ok)
+        .filter(|message| message.reason == "compiler-artifact")
+        .filter_map(|message| {
+            if message.target.name == "capture"
+                && message.target.kind.contains(&String::from("bin"))
+            {
+                Some(PathBuf::from(message.executable))
+            } else {
+                None
+            }
+        })
+        .next()
+        .expect("failed to parase binary path")
+}
+
+static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
 
 enum TestMode {
     Record,
@@ -21,66 +75,66 @@ enum TestMode {
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
     vec![
-        ToolCall::new("echo", json!({"message": "Hello, world!"})),
-        ToolCall::new("add", json!({"a": 1, "b": 2})),
-        ToolCall::new("longRunningOperation", json!({"duration": 1, "steps": 5})),
-        ToolCall::new("structuredContent", json!({"location": "11238"})),
+        CallToolRequestParam { name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
+        CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
+        CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
+        CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        ToolCall::new("get_file_contents", json!({
+        CallToolRequestParam { name: "get_file_contents".into(), arguments: Some(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
-            "sha": "48c1ec8afdb7d4d5b4f6e67e623926c884034776"
-        })),
+            "sha": "ab62b863c1666232a67048b6c4e10007a2a5b83c"
+        }))},
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        ToolCall::new("fetch", json!({
+        CallToolRequestParam { name: "fetch".into(), arguments: Some(object!({
             "url": "https://example.com",
-        })),
+        })) }
     ],
     vec![]
 )]
 #[test_case(
     vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
     vec![
-        ToolCall::new("text_editor", json!({
+        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "view",
             "path": "~/goose/crates/goose/tests/tmp/goose.txt"
-        })),
-        ToolCall::new("text_editor", json!({
+        }))},
+        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
             "path": "~/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose",
-            "new_str": "# codename goose (modified by test)"
-        })),
+            "old_str": "# goose",
+            "new_str": "# goose (modified by test)"
+        }))},
         // Test shell command to verify file was modified
-        ToolCall::new("shell", json!({
+        CallToolRequestParam { name: "shell".into(), arguments: Some(object!({
             "command": "cat ~/goose/crates/goose/tests/tmp/goose.txt"
-        })),
+        })) },
         // Test text_editor tool to restore original content
-        ToolCall::new("text_editor", json!({
+        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
             "path": "~/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose (modified by test)",
-            "new_str": "# codename goose"
-        })),
-        ToolCall::new("list_windows", json!({})),
+            "old_str": "# goose (modified by test)",
+            "new_str": "# goose"
+        }))},
+        CallToolRequestParam { name: "list_windows".into(), arguments: Some(object!({})) },
     ],
     vec![]
 )]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
-    tool_calls: Vec<ToolCall>,
+    tool_calls: Vec<CallToolRequestParam>,
     required_envs: Vec<&str>,
 ) {
     let replay_file_name = command
@@ -105,21 +159,11 @@ async fn test_replayed_session(
         TestMode::Record => "record",
         TestMode::Playback => "playback",
     };
-    let cmd = "cargo".to_string();
-    let mut args = vec![
-        "run",
-        "--quiet",
-        "-p",
-        "goose-test",
-        "--bin",
-        "capture",
-        "--",
-        "stdio",
-        mode_arg,
-    ]
-    .into_iter()
-    .map(str::to_string)
-    .collect::<Vec<String>>();
+    let cmd = REPLAY_BINARY_PATH.to_string_lossy().to_string();
+    let mut args = vec!["stdio", mode_arg]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<String>>();
 
     args.push(replay_file_path.to_string_lossy().to_string());
 
@@ -159,10 +203,12 @@ async fn test_replayed_session(
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         extension_manager.add_extension(extension_config).await?;
-
         let mut results = Vec::new();
         for tool_call in tool_calls {
-            let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
+            let tool_call = CallToolRequestParam {
+                name: format!("test__{}", tool_call.name).into(),
+                arguments: tool_call.arguments,
+            };
             let result = extension_manager
                 .dispatch_tool_call(tool_call, CancellationToken::default())
                 .await;

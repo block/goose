@@ -15,7 +15,6 @@ import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
-import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
 
 import { ChatType } from './types/chat';
@@ -319,7 +318,7 @@ export function AppInner() {
   const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
-    sessionId: generateSessionId(),
+    sessionId: '',
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
@@ -356,10 +355,12 @@ export function AppInner() {
     if (loadingHub) {
       (async () => {
         try {
-          await loadCurrentChat({
+          const loadedChat = await loadCurrentChat({
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
+          // Update the chat state with the loaded session to ensure sessionId is available globally
+          setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
             // the onboarding flow will trigger
@@ -369,7 +370,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -581,7 +582,19 @@ export function AppInner() {
               }
             />
             <Route path="settings" element={<SettingsRoute />} />
-            <Route path="extensions" element={<ExtensionsRoute />} />
+            <Route
+              path="extensions"
+              element={
+                <ChatProvider
+                  chat={chat}
+                  setChat={setChat}
+                  contextKey="extensions"
+                  agentWaitingMessage={agentWaitingMessage}
+                >
+                  <ExtensionsRoute />
+                </ChatProvider>
+              }
+            />
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />

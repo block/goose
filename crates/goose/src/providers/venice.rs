@@ -11,9 +11,9 @@ use super::retry::ProviderRetry;
 use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
+use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
-use mcp_core::{ToolCall, ToolResult};
-use rmcp::model::{Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, Role, Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -339,12 +339,19 @@ impl Provider for VeniceProvider {
                         .iter()
                         .filter_map(|tr| {
                             if let ToolResult::Ok(tool_call) = &tr.tool_call {
+                                // Safely convert arguments to a JSON string
+                                let args_str = tool_call
+                                    .arguments
+                                    .as_ref() // borrow the Option contents
+                                    .map(|map| serde_json::to_string(map).unwrap_or_default())
+                                    .unwrap_or_default();
+
                                 // Log tool call details for debugging
                                 tracing::debug!(
                                     "Tool call conversion: id={}, name={}, args_len={}",
                                     tr.id,
                                     tool_call.name,
-                                    tool_call.arguments.to_string().len()
+                                    args_str.len()
                                 );
 
                                 // Convert to Venice format
@@ -353,7 +360,7 @@ impl Provider for VeniceProvider {
                                     "type": "function",
                                     "function": {
                                         "name": tool_call.name,
-                                        "arguments": tool_call.arguments.to_string()
+                                        "arguments": args_str
                                     }
                                 }))
                             } else {
@@ -453,8 +460,10 @@ impl Provider for VeniceProvider {
                         function["arguments"].clone()
                     };
 
-                    // Create a ToolCall using the function name and arguments
-                    let tool_call = ToolCall { name, arguments };
+                    let tool_call = CallToolRequestParam {
+                        name: name.into(),
+                        arguments: Some(object(arguments)),
+                    };
 
                     // Create a ToolRequest MessageContent
                     let tool_request = MessageContent::tool_request(id, ToolResult::Ok(tool_call));

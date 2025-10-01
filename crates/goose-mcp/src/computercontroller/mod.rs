@@ -4,9 +4,9 @@ use reqwest::{Client, Url};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, ListResourcesResult,
-        PaginatedRequestParam, RawResource, ReadResourceRequestParam, ReadResourceResult, Resource,
-        ResourceContents, ServerCapabilities, ServerInfo,
+        AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
+        ListResourcesResult, PaginatedRequestParam, RawResource, ReadResourceRequestParam,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -417,7 +417,7 @@ impl ComputerControllerServer {
             tool_router: Self::tool_router(),
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
-            http_client: Client::builder().user_agent("Goose/1.0").build().unwrap(),
+            http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
             instructions,
             system_automation,
         }
@@ -1293,6 +1293,9 @@ impl ServerHandler for ComputerControllerServer {
             server_info: Implementation {
                 name: "goose-computercontroller".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                title: None,
+                icons: None,
+                website_url: None,
             },
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -1311,15 +1314,12 @@ impl ServerHandler for ComputerControllerServer {
         let active_resources = self.active_resources.lock().unwrap();
         let resources: Vec<Resource> = active_resources
             .keys()
-            .map(|uri| Resource {
-                raw: RawResource {
-                    name: uri.split('/').next_back().unwrap_or("").to_string(),
-                    uri: uri.clone(),
-                    description: None,
-                    mime_type: None,
-                    size: None,
-                },
-                annotations: None,
+            .map(|uri| {
+                RawResource::new(
+                    uri.clone(),
+                    uri.split('/').next_back().unwrap_or("").to_string(),
+                )
+                .no_annotation()
             })
             .collect();
         Ok(ListResourcesResult {

@@ -63,12 +63,6 @@ export default function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Link to="/recipe-generator" className="no-underline ml-4">
-            <div className="flex items-center gap-2 bg-bgAppInverse text-textProminentInverse px-4 py-3 rounded-lg hover:bg-opacity-90 transition-all">
-              <Wand2 className="h-5 w-5" />
-              <span>Recipe Generator</span>
-            </div>
-          </Link>
         </div>
 
         {error && (

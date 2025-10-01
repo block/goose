@@ -94,6 +94,3 @@ jobs:
           
           # Order to process PRs (oldest first is more fair)
           ascending: true
-          
-          # Only process PRs (not issues)
-          only-pr-labels: true

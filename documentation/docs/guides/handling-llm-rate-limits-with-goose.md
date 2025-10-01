@@ -1,7 +1,7 @@
 ---
 title: Set LLM Rate Limits
 sidebar_label: LLM Rate Limits
-sidebar_position: 9
+sidebar_position: 60
 ---
 
 import Tabs from '@theme/Tabs';

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use mcp_client::client::Error as ClientError;
 use rmcp::model::Tool;
 use rmcp::service::ClientInitializeError;
+use rmcp::ServiceError as ClientError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -160,7 +160,7 @@ pub enum ExtensionConfig {
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
+        /// Whether this extension is bundled with goose
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -179,7 +179,7 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         description: Option<String>,
-        /// Whether this extension is bundled with Goose
+        /// Whether this extension is bundled with goose
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -193,7 +193,7 @@ pub enum ExtensionConfig {
         display_name: Option<String>, // needed for the UI
         description: Option<String>,
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
+        /// Whether this extension is bundled with goose
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -215,7 +215,7 @@ pub enum ExtensionConfig {
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
+        /// Whether this extension is bundled with goose
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -230,7 +230,7 @@ pub enum ExtensionConfig {
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
-        /// Whether this extension is bundled with Goose
+        /// Whether this extension is bundled with goose
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]

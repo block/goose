@@ -10,7 +10,7 @@ pub mod session;
 pub mod signal;
 
 // Re-export commonly used types
-pub use session::Session;
+pub use session::CliSession;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),

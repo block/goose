@@ -10,16 +10,13 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
-use goose::execution::SessionExecutionMode;
+use goose::mcp_utils::ToolResult;
+use goose::permission::{Permission, PermissionConfirmation};
+use goose::session::SessionManager;
 use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
 };
-use goose::{
-    permission::{Permission, PermissionConfirmation},
-    session,
-};
-use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -68,7 +65,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
                         }
                     })
                 })
-                .unwrap_or_else(|| "unknown".to_string());
+                .unwrap_or_else(|| "unknown".to_string().into());
 
             let success = tool_response.tool_result.is_ok();
             let result_status = if success { "success" } else { "error" };
@@ -209,10 +206,7 @@ async fn reply_handler(
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = match state
-            .get_agent(session_id.clone(), SessionExecutionMode::Interactive)
-            .await
-        {
+        let agent = match state.get_agent(session_id.clone()).await {
             Ok(agent) => agent,
             Err(e) => {
                 tracing::error!("Failed to get session agent: {}", e);
@@ -228,30 +222,13 @@ async fn reply_handler(
             }
         };
 
-        // Load session metadata to get the working directory and other config
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path for {}: {}", session_id, e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
-
-        let session_metadata = match session::read_metadata(&session_path) {
+        let session = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
+                tracing::error!("Failed to read session for {}: {}", session_id, e);
                 let _ = stream_event(
                     MessageEvent::Error {
-                        error: format!("Failed to read session metadata: {}", e),
+                        error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
                     &cancel_token,
@@ -262,9 +239,9 @@ async fn reply_handler(
         };
 
         let session_config = SessionConfig {
-            id: session::Identifier::Name(session_id.clone()),
-            working_dir: session_metadata.working_dir.clone(),
-            schedule_id: session_metadata.schedule_id.clone(),
+            id: session_id.clone(),
+            working_dir: session.working_dir.clone(),
+            schedule_id: session.schedule_id.clone(),
             execution_mode: None,
             max_turns: None,
             retry_config: None,
@@ -294,22 +271,6 @@ async fn reply_handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path: {}", e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
-            }
-        };
-        let saved_message_count = all_messages.len();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
@@ -376,40 +337,18 @@ async fn reply_handler(
             }
         }
 
-        if all_messages.len() > saved_message_count {
-            if let Ok(provider) = agent.provider().await {
-                let provider = Arc::clone(&provider);
-                let session_path_clone = session_path.to_path_buf();
-                let all_messages_clone = all_messages.clone();
-                let working_dir = session_config.working_dir.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session::persist_messages(
-                        &session_path_clone,
-                        &all_messages_clone,
-                        Some(provider),
-                        Some(working_dir),
-                    )
-                    .await
-                    {
-                        tracing::error!("Failed to store session history: {:?}", e);
-                    }
-                });
-            }
-        }
         let session_duration = session_start.elapsed();
 
-        if let Ok(metadata) = session::read_metadata(&session_path) {
-            let total_tokens = metadata.total_tokens.unwrap_or(0);
-            let message_count = metadata.message_count;
-
+        if let Ok(session) = SessionManager::get_session(&session_id, true).await {
+            let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
                 counter.goose.session_completions = 1,
                 session_type = "app",
                 interface = "ui",
                 exit_type = "normal",
                 duration_ms = session_duration.as_millis() as u64,
-                total_tokens,
-                message_count,
+                total_tokens = total_tokens,
+                message_count = session.message_count,
                 "Session completed"
             );
 

@@ -188,6 +188,23 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
     ]
 }
 
+fn adjust_base_dir_for_overlap(base_dir: &Path, file_path: &Path) -> PathBuf {
+    let base_components: Vec<_> = base_dir.components().collect();
+    let file_components: Vec<_> = file_path.components().collect();
+
+    let min_len = base_components.len().min(file_components.len());
+    let max_k = (1..=min_len)
+        .rfind(|&k| file_components[0..k] == base_components[base_components.len() - k..])
+        .unwrap_or(0);
+
+    if max_k > 0 {
+        let adjusted_components = base_components[..base_components.len() - max_k].to_vec();
+        PathBuf::from_iter(adjusted_components)
+    } else {
+        base_dir.to_path_buf()
+    }
+}
+
 /// Applies a single patch and updates results
 fn apply_single_patch(
     patch: &mpatch::Patch,
@@ -196,10 +213,12 @@ fn apply_single_patch(
     results: &mut DiffResults,
     failed_hunks: &mut Vec<String>,
 ) -> Result<(), ErrorData> {
-    let file_path = base_dir.join(&patch.file_path);
+    let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
+
+    let file_path = adjusted_base_dir.join(&patch.file_path);
 
     // Validate path safety
-    validate_path_safety(base_dir, &file_path)?;
+    validate_path_safety(&adjusted_base_dir, &file_path)?;
 
     // Save history before modifying
     let file_existed = file_path.exists();
@@ -208,7 +227,7 @@ fn apply_single_patch(
     }
 
     // Apply patch with fuzzy matching (70% similarity threshold)
-    let success = apply_patch(patch, base_dir, false, 0.7).map_err(|e| match e {
+    let success = apply_patch(patch, &adjusted_base_dir, false, 0.7).map_err(|e| match e {
         PatchError::Io { path, source } => ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to process '{}': {}", path.display(), source),

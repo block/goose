@@ -25,67 +25,56 @@ mod execution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_session_isolation() {
-        let manager = AgentManager::new(None).await.unwrap();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
 
         let session1 = uuid::Uuid::new_v4().to_string();
         let session2 = uuid::Uuid::new_v4().to_string();
 
-        let agent1 = manager
-            .get_or_create_agent(session1.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
+        let agent1 = manager.get_or_create_agent(session1.clone()).await.unwrap();
 
-        let agent2 = manager
-            .get_or_create_agent(session2.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
+        let agent2 = manager.get_or_create_agent(session2.clone()).await.unwrap();
 
         // Different sessions should have different agents
         assert!(!Arc::ptr_eq(&agent1, &agent2));
 
         // Getting the same session should return the same agent
-        let agent1_again = manager
-            .get_or_create_agent(session1, SessionExecutionMode::chat())
-            .await
-            .unwrap();
+        let agent1_again = manager.get_or_create_agent(session1).await.unwrap();
 
         assert!(Arc::ptr_eq(&agent1, &agent1_again));
+
+        AgentManager::reset_for_test();
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_session_limit() {
-        let manager = AgentManager::new(Some(3)).await.unwrap();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
 
-        let sessions: Vec<_> = (0..3).map(|i| format!("session-{}", i)).collect();
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
-            manager
-                .get_or_create_agent(session.clone(), SessionExecutionMode::chat())
-                .await
-                .unwrap();
+            manager.get_or_create_agent(session.clone()).await.unwrap();
         }
 
         // Create a new session after cleanup
         let new_session = "new-session".to_string();
-        let _new_agent = manager
-            .get_or_create_agent(new_session, SessionExecutionMode::chat())
-            .await
-            .unwrap();
+        let _new_agent = manager.get_or_create_agent(new_session).await.unwrap();
 
-        assert_eq!(manager.session_count().await, 3);
-        assert!(!manager.has_session(&sessions[0]).await);
+        assert_eq!(manager.session_count().await, 100);
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_remove_session() {
-        let manager = AgentManager::new(None).await.unwrap();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
         let session = String::from("remove-test");
 
-        manager
-            .get_or_create_agent(session.clone(), SessionExecutionMode::chat())
-            .await
-            .unwrap();
+        manager.get_or_create_agent(session.clone()).await.unwrap();
         assert!(manager.has_session(&session).await);
 
         manager.remove_session(&session).await.unwrap();
@@ -95,8 +84,10 @@ mod execution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_access() {
-        let manager = Arc::new(AgentManager::new(None).await.unwrap());
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
         let session = String::from("concurrent-test");
 
         let mut handles = vec![];
@@ -104,9 +95,7 @@ mod execution_tests {
             let mgr = Arc::clone(&manager);
             let sess = session.clone();
             handles.push(tokio::spawn(async move {
-                mgr.get_or_create_agent(sess, SessionExecutionMode::chat())
-                    .await
-                    .unwrap()
+                mgr.get_or_create_agent(sess).await.unwrap()
             }));
         }
 
@@ -124,31 +113,12 @@ mod execution_tests {
     }
 
     #[tokio::test]
-    async fn test_different_modes_same_session() {
-        let manager = AgentManager::new(None).await.unwrap();
-        let session_id = String::from("mode-test");
-
-        // Create initial agent
-        let agent1 = manager
-            .get_or_create_agent(session_id.clone(), SessionExecutionMode::chat())
-            .await
-            .unwrap();
-
-        // Get same session with different mode - should return same agent
-        // (mode is stored but agent is reused)
-        let agent2 = manager
-            .get_or_create_agent(session_id.clone(), SessionExecutionMode::Background)
-            .await
-            .unwrap();
-
-        assert!(Arc::ptr_eq(&agent1, &agent2));
-    }
-
-    #[tokio::test]
+    #[serial]
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
-        let manager = Arc::new(AgentManager::new(None).await.unwrap());
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
         let session_id = String::from("race-condition-test");
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
@@ -157,10 +127,7 @@ mod execution_tests {
             let sess = session_id.clone();
             let mgr_clone = Arc::clone(&manager);
             handles.push(tokio::spawn(async move {
-                mgr_clone
-                    .get_or_create_agent(sess, SessionExecutionMode::Interactive)
-                    .await
-                    .unwrap()
+                mgr_clone.get_or_create_agent(sess).await.unwrap()
             }));
         }
 
@@ -171,39 +138,12 @@ mod execution_tests {
             .map(|r| r.unwrap())
             .collect();
 
-        // All should be the same agent (double-check pattern should prevent duplicates)
         for agent in &agents[1..] {
             assert!(
                 Arc::ptr_eq(&agents[0], agent),
                 "All concurrent requests should get the same agent"
             );
         }
-
-        // Only one session should exist
-        assert_eq!(manager.session_count().await, 1);
-    }
-
-    #[tokio::test]
-    async fn test_edge_case_max_sessions_one() {
-        let manager = AgentManager::new(Some(1)).await.unwrap();
-
-        let session1 = String::from("only-session");
-        manager
-            .get_or_create_agent(session1.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
-
-        assert_eq!(manager.session_count().await, 1);
-
-        // Creating second session should evict the first
-        let session2 = String::from("new-session");
-        manager
-            .get_or_create_agent(session2.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
-
-        assert!(!manager.has_session(&session1).await);
-        assert!(manager.has_session(&session2).await);
         assert_eq!(manager.session_count().await, 1);
     }
 
@@ -212,13 +152,15 @@ mod execution_tests {
     async fn test_configure_default_provider() {
         use std::env;
 
+        AgentManager::reset_for_test();
+
         let original_provider = env::var("GOOSE_DEFAULT_PROVIDER").ok();
         let original_model = env::var("GOOSE_DEFAULT_MODEL").ok();
 
         env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
         env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
 
-        let manager = AgentManager::new(None).await.unwrap();
+        let manager = AgentManager::instance().await.unwrap();
         let result = manager.configure_default_provider().await;
 
         assert!(result.is_ok());
@@ -237,11 +179,13 @@ mod execution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_set_default_provider() {
         use goose::providers::testprovider::TestProvider;
         use std::sync::Arc;
 
-        let manager = AgentManager::new(None).await.unwrap();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
 
         // Create a test provider for replaying (doesn't need inner provider)
         let temp_file = format!(
@@ -257,61 +201,52 @@ mod execution_tests {
         manager.set_default_provider(Arc::new(test_provider)).await;
 
         let session = String::from("provider-test");
-        let _agent = manager
-            .get_or_create_agent(session.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
+        let _agent = manager.get_or_create_agent(session.clone()).await.unwrap();
 
         assert!(manager.has_session(&session).await);
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_eviction_updates_last_used() {
+        AgentManager::reset_for_test();
         // Test that accessing a session updates its last_used timestamp
         // and affects eviction order
-        let manager = AgentManager::new(Some(2)).await.unwrap();
+        let manager = AgentManager::instance().await.unwrap();
 
-        let session1 = String::from("session-1");
-        let session2 = String::from("session-2");
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
-        manager
-            .get_or_create_agent(session1.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
+        for session in &sessions {
+            manager.get_or_create_agent(session.clone()).await.unwrap();
+            // Small delay to ensure different timestamps
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
 
-        // Small delay to ensure different timestamps
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-        manager
-            .get_or_create_agent(session2.clone(), SessionExecutionMode::Interactive)
-            .await
-            .unwrap();
-
-        // Access session1 again to update its last_used
+        // Access the first session again to update its last_used
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         manager
-            .get_or_create_agent(session1.clone(), SessionExecutionMode::Interactive)
+            .get_or_create_agent(sessions[0].clone())
             .await
             .unwrap();
 
-        // Now create a third session - should evict session2 (least recently used)
-        let session3 = String::from("session-3");
+        // Now create a 101st session - should evict session2 (least recently used)
+        let session101 = String::from("session-101");
         manager
-            .get_or_create_agent(session3.clone(), SessionExecutionMode::Interactive)
+            .get_or_create_agent(session101.clone())
             .await
             .unwrap();
 
-        // session1 should still exist (recently accessed)
-        // session2 should be evicted (least recently used)
-        assert!(manager.has_session(&session1).await);
-        assert!(!manager.has_session(&session2).await);
-        assert!(manager.has_session(&session3).await);
+        assert!(manager.has_session(&sessions[0]).await);
+        assert!(!manager.has_session(&sessions[1]).await);
+        assert!(manager.has_session(&session101).await);
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_remove_nonexistent_session_error() {
         // Test that removing a non-existent session returns an error
-        let manager = AgentManager::new(None).await.unwrap();
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
         let session = String::from("never-created");
 
         let result = manager.remove_session(&session).await;

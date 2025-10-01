@@ -13,6 +13,10 @@ The lead/worker model is a smart hand-off system. The "lead" model (think: GPT-4
 
 If things go sideways (e.g. the worker model gets confused or keeps making mistakes), Goose notices and automatically pulls the lead model back in to recover. Once things are back on track, the worker takes over again.
 
+:::tip Consider AutoPilot for Advanced Model Switching
+[AutoPilot](/docs/guides/multi-model/autopilot) supports turn-based switching and also offers intelligent context-aware switching between multiple models.
+:::
+
 ## Turn-Based System
 
 A **turn** is one full interaction - your prompt and the model's response. Goose switches models based on turns:
@@ -101,7 +105,7 @@ export RUST_LOG=goose::providers::lead_worker=info
 ```
 
 ## Planning Mode Compatibility
-The lead/worker model is an automatic alternative to the [Goose CLI's `/plan` command](/docs/guides/creating-plans.md). You can assign separate models to use as the lead/worker and planning models. For example:
+The lead/worker model is an automatic alternative to the [Goose CLI's `/plan` command](/docs/guides/multi-model/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
 
 ```bash
 export GOOSE_PROVIDER="openai"

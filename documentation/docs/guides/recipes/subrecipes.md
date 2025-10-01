@@ -1,51 +1,51 @@
 ---
 sidebar_position: 4
-title: Sub-Recipes For Specialized Tasks
-sidebar_label: Sub-Recipes
-description: Learn how a recipe can use sub-recipes to perform specific tasks
+title: Subrecipes For Specialized Tasks
+sidebar_label: Subrecipes
+description: Learn how a recipe can use subrecipes to perform specific tasks
 ---
 
-Sub-recipes are recipes that are used by another recipe to perform specific tasks. They enable:
+Subrecipes are recipes that are used by another recipe to perform specific tasks. They enable:
 - **Multi-step workflows** - Break complex tasks into distinct phases with specialized expertise
 - **Reusable components** - Create common tasks that can be used in various workflows
 
 :::warning Experimental Feature
-Sub-recipes are an experimental feature in active development. Behavior and configuration may change in future releases.
+Subrecipes are an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
-## How Sub-Recipes Work
+## How Subrecipes Work
 
-The "main recipe" registers its sub-recipes in the `sub_recipes` field, which contains the following fields:
+The "main recipe" registers its subrecipes in the `sub_recipes` field, which contains the following fields:
 
-- `name`: Unique identifier for the sub-recipe, used to generate the tool name
-- `path`: File path to the sub-recipe file (relative or absolute)
-- `values`: (Optional) Pre-configured parameter values that are always passed to the sub-recipe
+- `name`: Unique identifier for the subrecipe, used to generate the tool name
+- `path`: File path to the subrecipe file (relative or absolute)
+- `values`: (Optional) Pre-configured parameter values that are always passed to the subrecipe
 
-When the main recipe is run, Goose generates a tool for each sub-recipe that:
-- Accepts parameters defined by the sub-recipe
-- Executes the sub-recipe in a separate session with its own context
+When the main recipe is run, Goose generates a tool for each subrecipe that:
+- Accepts parameters defined by the subrecipe
+- Executes the subrecipe in a separate session with its own context
 - Returns output to the main recipe
 
-Sub-recipe sessions run in isolation - they don't share conversation history, memory, or state with the main recipe or other sub-recipes. Additionally, sub-recipes cannot define their own sub-recipes (no nesting allowed).
+Sub-recipe sessions run in isolation - they don't share conversation history, memory, or state with the main recipe or other subrecipes. Additionally, subrecipes cannot define their own subrecipes (no nesting allowed).
 
 ### Parameter Handling
 
-Parameters received by sub-recipes can be used in prompts and instructions using `{{ parameter_name }}` syntax. Sub-recipes receive parameters in two ways:
+Parameters received by subrecipes can be used in prompts and instructions using `{{ parameter_name }}` syntax. Subrecipes receive parameters in two ways:
 
 1. **Pre-set values**: Fixed parameter values defined in the `values` field are automatically provided and cannot be overridden at runtime
-2. **Context-based parameters**: The AI agent can extract parameter values from the conversation context, including results from previous sub-recipes
+2. **Context-based parameters**: The AI agent can extract parameter values from the conversation context, including results from previous subrecipes
 
 Pre-set values take precedence over context-based parameters. If both the conversation context and `values` field provide the same parameter, the `values` version is used.
 
 :::tip
-Use the `indent()` filter to maintain valid YAML format when passing multi-line parameter values to sub-recipes, for example: `{{ content | indent(2) }}`. See [Template Support](/docs/guides/recipes/recipe-reference#template-support) for more details.
+Use the `indent()` filter to maintain valid YAML format when passing multi-line parameter values to subrecipes, for example: `{{ content | indent(2) }}`. See [Template Support](/docs/guides/recipes/recipe-reference#template-support) for more details.
 :::
 
 ## Examples
 
 ### Sequential Processing
 
-This Code Review Pipeline example shows a main recipe that uses two sub-recipes to perform a comprehensive code review:
+This Code Review Pipeline example shows a main recipe that uses two subrecipes to perform a comprehensive code review:
 
 **Usage:**
 ```bash
@@ -58,9 +58,9 @@ goose run --recipe code-review-pipeline.yaml --params repository_path=/path/to/r
 # code-review-pipeline.yaml
 version: "1.0.0"
 title: "Code Review Pipeline"
-description: "Automated code review using sub-recipes"
+description: "Automated code review using subrecipes"
 instructions: |
-  Perform a code review using the available sub-recipe tools.
+  Perform a code review using the available subrecipe tools.
   Run security analysis first, then code quality analysis.
 
 parameters:
@@ -71,12 +71,12 @@ parameters:
 
 sub_recipes:
   - name: "security_scan"
-    path: "./sub-recipes/security-analysis.yaml"
+    path: "./subrecipes/security-analysis.yaml"
     values:
       scan_level: "comprehensive"
   
   - name: "quality_check"
-    path: "./sub-recipes/quality-analysis.yaml"
+    path: "./subrecipes/quality-analysis.yaml"
 
 extensions:
   - type: builtin
@@ -85,16 +85,16 @@ extensions:
     bundled: true
 
 prompt: |
-  Review the code at {{ repository_path }} using the sub-recipe tools.
+  Review the code at {{ repository_path }} using the subrecipe tools.
   Run security scan first, then quality analysis.
 ```
 
-**Sub-Recipes:**
+**Subrecipes:**
 
 <details>
   <summary>security_scan</summary>
   ```yaml
-  # sub-recipes/security-analysis.yaml
+  # subrecipes/security-analysis.yaml
   version: "1.0.0"
   title: "Security Scanner"
   description: "Analyze code for security vulnerabilities"
@@ -129,7 +129,7 @@ prompt: |
 <details>
   <summary>quality_check</summary>
   ```yaml
-  # sub-recipes/quality-analysis.yaml
+  # subrecipes/quality-analysis.yaml
   version: "1.0.0"
   title: "Code Quality Analyzer"
   description: "Analyze code quality and best practices"
@@ -156,12 +156,12 @@ prompt: |
 </details>
 
 :::tip
-For faster execution when sub-recipes are independent, see [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) to execute multiple sub-recipes concurrently.
+For faster execution when subrecipes are independent, see [Running Subrecipes In Parallel](/docs/tutorials/subrecipes-in-parallel) to execute multiple subrecipes concurrently.
 :::
 
 ### Conditional Processing
 
-This Smart Project Analyzer example shows conditional logic that chooses between different sub-recipes based on analysis:
+This Smart Project Analyzer example shows conditional logic that chooses between different subrecipes based on analysis:
 
 **Usage:**
 ```bash
@@ -178,9 +178,9 @@ description: "Analyze project and choose appropriate processing based on type"
 instructions: |
   First examine the repository to determine the project type (web app, CLI tool, library, etc.).
   Based on what you find:
-  - If it's a web application, use the web_security_audit sub-recipe
-  - If it's a CLI tool or library, use the api_documentation sub-recipe
-  Only run one sub-recipe based on your analysis.
+  - If it's a web application, use the web_security_audit subrecipe
+  - If it's a CLI tool or library, use the api_documentation subrecipe
+  Only run one subrecipe based on your analysis.
 
 parameters:
   - key: repository_path
@@ -190,13 +190,13 @@ parameters:
 
 sub_recipes:
   - name: "web_security_audit"
-    path: "./sub-recipes/web-security.yaml"
+    path: "./subrecipes/web-security.yaml"
     values:
       check_cors: "true"
       check_csrf: "true"
   
   - name: "api_documentation"
-    path: "./sub-recipes/api-docs.yaml"
+    path: "./subrecipes/api-docs.yaml"
     values:
       format: "markdown"
 
@@ -208,15 +208,15 @@ extensions:
 
 prompt: |
   Analyze the project at {{ repository_path }} and determine its type.
-  Then run the appropriate sub-recipe tool based on your findings.
+  Then run the appropriate subrecipe tool based on your findings.
 ```
 
-**Sub-Recipes:**
+**Subrecipes:**
 
 <details>
   <summary>web_security_audit</summary>
   ```yaml
-  # sub-recipes/web-security.yaml
+  # subrecipes/web-security.yaml
   version: "1.0.0"
   title: "Web Security Auditor"
   description: "Security audit for web applications"
@@ -259,7 +259,7 @@ prompt: |
 <details>
   <summary>api_documentation</summary>
   ```yaml
-  # sub-recipes/api-docs.yaml
+  # subrecipes/api-docs.yaml
   version: "1.0.0"
   title: "API Documentation Generator"
   description: "Generate documentation for APIs and libraries"
@@ -294,7 +294,7 @@ prompt: |
 
 ### Context-Based Parameter Passing
 
-This Travel Planner example shows how sub-recipes can receive parameters from conversation context, including results from previous sub-recipes:
+This Travel Planner example shows how subrecipes can receive parameters from conversation context, including results from previous subrecipes:
 
 **Usage:**
 ```bash
@@ -316,11 +316,11 @@ prompt: |
 
 sub_recipes:
   - name: weather_data
-    path: "./sub-recipes/weather-data.yaml"
+    path: "./subrecipes/weather-data.yaml"
     # No values - location parameter comes from prompt context
   
   - name: activity_suggestions
-    path: "./sub-recipes/activity-suggestions.yaml"
+    path: "./subrecipes/activity-suggestions.yaml"
     # weather_conditions parameter comes from conversation context
 
 extensions:
@@ -330,12 +330,12 @@ extensions:
     bundled: true
 ```
 
-**Sub-Recipes:**
+**Subrecipes:**
 
 <details>
   <summary>weather_data</summary>
   ```yaml
-  # sub-recipes/weather-data.yaml
+  # subrecipes/weather-data.yaml
   version: "1.0.0"
   title: "Weather Data Collector"
   description: "Fetch current weather conditions for a location"
@@ -372,7 +372,7 @@ extensions:
 <details>
   <summary>activity_suggestions</summary>
   ```yaml
-  # sub-recipes/activity-suggestions.yaml
+  # subrecipes/activity-suggestions.yaml
   version: "1.0.0"
   title: "Activity Recommender"
   description: "Suggest activities based on weather conditions"
@@ -400,14 +400,14 @@ extensions:
 </details>
 
 In this example:
-- The `weather_data` sub-recipe gets the location from the prompt context (the AI extracts "Sydney" from the natural language prompt)
-- The `activity_suggestions` sub-recipe gets weather conditions from the conversation context (the AI uses the weather results from the first sub-recipe)
+- The `weather_data` subrecipe gets the location from the prompt context (the AI extracts "Sydney" from the natural language prompt)
+- The `activity_suggestions` subrecipe gets weather conditions from the conversation context (the AI uses the weather results from the first subrecipe)
 
 ## Best Practices
-- **Single responsibility**: Each sub-recipe should have one clear purpose
+- **Single responsibility**: Each subrecipe should have one clear purpose
 - **Clear parameters**: Use descriptive names and descriptions
 - **Pre-set fixed values**: Use `values` for parameters that don't change
-- **Test independently**: Verify sub-recipes work alone before combining
+- **Test independently**: Verify subrecipes work alone before combining
 
 ## Learn More
 Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.

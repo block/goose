@@ -1,3 +1,5 @@
+use rmcp::model::JsonObject;
+/// MCP client implementation for Goose
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
@@ -50,7 +52,7 @@ pub trait McpClientTrait: Send + Sync {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Value,
+        arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
 
@@ -132,6 +134,9 @@ impl ClientHandler for GooseClient {
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                icons: None,
+                title: None,
+                website_url: None,
             },
         }
     }
@@ -302,13 +307,9 @@ impl McpClientTrait for McpClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Value,
+        arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let arguments = match arguments {
-            Value::Object(map) => Some(map),
-            _ => None,
-        };
         let res = self
             .send_request(
                 ClientRequest::CallToolRequest(CallToolRequest {

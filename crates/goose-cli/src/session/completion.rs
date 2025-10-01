@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use super::CompletionCache;
 
-/// Completer for Goose CLI commands
+/// Completer for goose CLI commands
 pub struct GooseCompleter {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     filename_completer: FilenameCompleter,
@@ -458,11 +458,13 @@ mod tests {
                 name: "required_arg".to_string(),
                 description: Some("A required argument".to_string()),
                 required: Some(true),
+                title: None,
             },
             PromptArgument {
                 name: "optional_arg".to_string(),
                 description: Some("An optional argument".to_string()),
                 required: Some(false),
+                title: None,
             },
         ];
 

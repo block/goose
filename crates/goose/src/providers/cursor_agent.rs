@@ -133,7 +133,7 @@ impl CursorAgentProvider {
         full_prompt.push_str("\n\n");
 
         // Add conversation history
-        for message in messages {
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
             let role_prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -149,7 +149,7 @@ impl CursorAgentProvider {
                     MessageContent::ToolRequest(tool_request) => {
                         if let Ok(tool_call) = &tool_request.tool_call {
                             full_prompt.push_str(&format!(
-                                "Tool Use: {} with args: {}\n",
+                                "Tool Use: {} with args: {:?}\n",
                                 tool_call.name, tool_call.arguments
                             ));
                         }
