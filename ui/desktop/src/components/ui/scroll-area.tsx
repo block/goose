@@ -15,10 +15,22 @@ interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAr
   /* padding needs to be passed into the container inside ScrollArea to avoid pushing the scrollbar out */
   paddingX?: number;
   paddingY?: number;
+  handleScroll?: (viewport: HTMLDivElement) => void;
 }
 
 const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
-  ({ className, children, autoScroll = false, paddingX, paddingY, ...props }, ref) => {
+  (
+    {
+      className,
+      children,
+      autoScroll = false,
+      paddingX,
+      paddingY,
+      handleScroll: handleScrollProp,
+      ...props
+    },
+    ref
+  ) => {
     const rootRef = React.useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
     const viewportRef = React.useRef<HTMLDivElement>(null);
     const viewportEndRef = React.useRef<HTMLDivElement>(null);
@@ -71,7 +83,11 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
 
       setIsFollowing(isAtBottom);
       setIsScrolled(scrollTop > 0);
-    }, []);
+
+      if (handleScrollProp) {
+        handleScrollProp(viewport);
+      }
+    }, [handleScrollProp]);
 
     // Track previous scroll height to detect content changes
     const prevScrollHeightRef = React.useRef<number>(0);
