@@ -101,8 +101,7 @@ impl AsyncTokenCounter {
                                     func_token_count.saturating_add_signed(ENUM_INIT);
                                 for item in enum_values {
                                     if let Some(item_str) = item.as_str() {
-                                        func_token_count =
-                                            func_token_count.saturating_add_signed(ENUM_INIT);
+                                        func_token_count += ENUM_ITEM;
                                         func_token_count += self.count_tokens(item_str);
                                     }
                                 }
@@ -192,7 +191,6 @@ impl Default for TokenCounter {
 
 impl TokenCounter {
     pub fn new() -> Self {
-        /// Count tokens for a piece of text using our single tokenizer.
         let tokenizer = get_tokenizer_blocking().expect("Failed to initialize tokenizer");
         Self { tokenizer }
     }
@@ -239,8 +237,7 @@ impl TokenCounter {
                                     func_token_count.saturating_add_signed(ENUM_INIT);
                                 for item in enum_values {
                                     if let Some(item_str) = item.as_str() {
-                                        func_token_count =
-                                            func_token_count.saturating_add_signed(ENUM_INIT);
+                                        func_token_count += ENUM_ITEM;
                                         func_token_count += self.count_tokens(item_str);
                                     }
                                 }
@@ -319,10 +316,10 @@ impl TokenCounter {
 async fn get_tokenizer() -> Result<Arc<CoreBPE>, String> {
     let tokenizer = TOKENIZER
         .get_or_init(|| async {
-            tiktoken_rs::o200k_base().map(Arc::new).unwrap_or_else(|e| {
-                eprintln!("Failed to initialize o200k_base tokenizer: {}", e);
-                Arc::new(tiktoken_rs::cl100k_base().expect("Fallback tokenizer failed"))
-            })
+            match tiktoken_rs::o200k_base() {
+                Ok(bpe) => Arc::new(bpe),
+                Err(e) => panic!("Failed to initialize o200k_base tokenizer: {}", e),
+            }
         })
         .await;
     Ok(tokenizer.clone())
