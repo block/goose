@@ -62,7 +62,6 @@ fn build_and_get_binary_path() -> PathBuf {
                 None
             }
         })
-        .map(PathBuf::from)
         .next()
         .expect("failed to parase binary path")
 }
