@@ -1,4 +1,5 @@
-name: Hacktobefest Content
+name: Hacktoberfest Content
+description: Issue template for various blog and video contributions as part of Hacktoberfest 2025
 title: "Hacktoberfest Blog: <add your title here>"
 labels: ["hacktoberfest", "hacktoberfest-accepted"]
 assignees: ["ebonylouis", "blackgirlbytes", "taniandjerry"]
