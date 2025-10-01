@@ -3,7 +3,8 @@ title: Quick Note
 author:
   contact: aegntic
 description: Create quick notes and organize them by date and tags
-instructions: Your job is to create, organize, and retrieve quick notes based on user input
+instructions: |
+  You are a note-taking assistant. Your job is to help users create, organize, and retrieve quick notes using the filesystem.
 activities:
   - Create timestamped note files
   - Organize notes by date
