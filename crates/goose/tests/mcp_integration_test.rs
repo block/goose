@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
@@ -11,6 +12,60 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::ExtensionManager;
 
 use test_case::test_case;
+
+use once_cell::sync::Lazy;
+use std::process::Command;
+
+#[derive(Deserialize)]
+struct CargoBuildMessage {
+    reason: String,
+    target: Target,
+    executable: String,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    name: String,
+    kind: Vec<String>,
+}
+
+fn build_and_get_binary_path() -> PathBuf {
+    let output = Command::new("cargo")
+        .args([
+            "build",
+            "--frozen",
+            "-p",
+            "goose-test",
+            "--bin",
+            "capture",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("failed to build binary");
+
+    if !output.status.success() {
+        panic!("build failed: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(serde_json::from_str::<CargoBuildMessage>)
+        .filter_map(Result::ok)
+        .filter(|message| message.reason == "compiler-artifact")
+        .filter_map(|message| {
+            if message.target.name == "capture"
+                && message.target.kind.contains(&String::from("bin"))
+            {
+                Some(PathBuf::from(message.executable))
+            } else {
+                None
+            }
+        })
+        .next()
+        .expect("failed to parase binary path")
+}
+
+static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
 
 enum TestMode {
     Record,
@@ -104,21 +159,11 @@ async fn test_replayed_session(
         TestMode::Record => "record",
         TestMode::Playback => "playback",
     };
-    let cmd = "cargo".to_string();
-    let mut args = vec![
-        "run",
-        "--quiet",
-        "-p",
-        "goose-test",
-        "--bin",
-        "capture",
-        "--",
-        "stdio",
-        mode_arg,
-    ]
-    .into_iter()
-    .map(str::to_string)
-    .collect::<Vec<String>>();
+    let cmd = REPLAY_BINARY_PATH.to_string_lossy().to_string();
+    let mut args = vec!["stdio", mode_arg]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<String>>();
 
     args.push(replay_file_path.to_string_lossy().to_string());
 

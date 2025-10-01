@@ -9,9 +9,9 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, ImageContent, JsonObject, RawEmbeddedResource,
-    RawImageContent, RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool,
-    ToolAnnotations,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
+    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
+    TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -307,6 +307,7 @@ derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
+derive_utoipa!(RawAudioContent as RawAudioContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
@@ -314,30 +315,7 @@ derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
-
-// Create a manual schema for the generic Annotated type
-// We manually define this to avoid circular references from RawContent::Audio(AudioContent)
-// where AudioContent = Annotated<RawAudioContent>
-struct AnnotatedSchema {}
-
-impl<'__s> ToSchema<'__s> for AnnotatedSchema {
-    fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
-        let schema = Schema::OneOf(
-            OneOfBuilder::new()
-                .item(RefOr::Ref(Ref::new("#/components/schemas/RawTextContent")))
-                .item(RefOr::Ref(Ref::new("#/components/schemas/RawImageContent")))
-                .item(RefOr::Ref(Ref::new(
-                    "#/components/schemas/RawEmbeddedResource",
-                )))
-                .build(),
-        );
-        ("Annotated", RefOr::T(schema))
-    }
-
-    fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-        Vec::new()
-    }
-}
+derive_utoipa!(Icon as IconSchema);
 
 #[derive(OpenApi)]
 #[openapi(
@@ -419,9 +397,9 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         TextContentSchema,
         RawTextContentSchema,
         RawImageContentSchema,
+        RawAudioContentSchema,
         RawEmbeddedResourceSchema,
         RawResourceSchema,
-        AnnotatedSchema,
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
@@ -447,6 +425,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         Session,
         SessionInsights,
         Conversation,
+        IconSchema,
         goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,

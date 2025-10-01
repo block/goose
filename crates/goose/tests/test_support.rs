@@ -382,7 +382,7 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         id: "".to_string(),
         working_dir: PathBuf::from(working_dir),
         description: "Test session".to_string(),
-        created_at: "".to_string(),
+        created_at: Default::default(),
         schedule_id: Some("test_job".to_string()),
         recipe: None,
         total_tokens: Some(100),
@@ -392,7 +392,7 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
         extension_data: Default::default(),
-        updated_at: "".to_string(),
+        updated_at: Default::default(),
         conversation: None,
         message_count,
     }

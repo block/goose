@@ -1,5 +1,5 @@
 {
   "label": "Multi-Model Config",
-  "position": 20,
+  "position": 100,
   "description": "Configure multiple models and providers for model-switching strategies."
 }

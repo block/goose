@@ -104,7 +104,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-sans text-sm">{label}</span>
+        <span className="flex items-center font-sans text-sm truncate flex-1 min-w-0">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
@@ -286,36 +286,32 @@ function ToolCallView({
       return typeof value === 'string' ? value : JSON.stringify(value);
     };
 
-    const truncate = (str: string, maxLength: number = 50): string => {
-      return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
-    };
-
     // Generate descriptive text based on tool type
     switch (toolName) {
       case 'text_editor':
         if (args.command === 'write' && args.path) {
-          return `writing ${truncate(getStringValue(args.path))}`;
+          return `writing ${getStringValue(args.path)}`;
         }
         if (args.command === 'view' && args.path) {
-          return `reading ${truncate(getStringValue(args.path))}`;
+          return `reading ${getStringValue(args.path)}`;
         }
         if (args.command === 'str_replace' && args.path) {
-          return `editing ${truncate(getStringValue(args.path))}`;
+          return `editing ${getStringValue(args.path)}`;
         }
         if (args.command && args.path) {
-          return `${getStringValue(args.command)} ${truncate(getStringValue(args.path))}`;
+          return `${getStringValue(args.command)} ${getStringValue(args.path)}`;
         }
         break;
 
       case 'shell':
         if (args.command) {
-          return `running ${truncate(getStringValue(args.command))}`;
+          return `running ${getStringValue(args.command)}`;
         }
         break;
 
       case 'search':
         if (args.name) {
-          return `searching for "${truncate(getStringValue(args.name))}"`;
+          return `searching for "${getStringValue(args.name)}"`;
         }
         if (args.mimeType) {
           return `searching for ${getStringValue(args.mimeType)} files`;
@@ -326,30 +322,30 @@ function ToolCallView({
         if (args.uri) {
           const uri = getStringValue(args.uri);
           const fileId = uri.replace('gdrive:///', '');
-          return `reading file ${truncate(fileId)}`;
+          return `reading file ${fileId}`;
         }
         if (args.url) {
-          return `reading ${truncate(getStringValue(args.url))}`;
+          return `reading ${getStringValue(args.url)}`;
         }
         break;
       }
 
       case 'create_file':
         if (args.name) {
-          return `creating ${truncate(getStringValue(args.name))}`;
+          return `creating ${getStringValue(args.name)}`;
         }
         break;
 
       case 'update_file':
         if (args.fileId) {
-          return `updating file ${truncate(getStringValue(args.fileId))}`;
+          return `updating file ${getStringValue(args.fileId)}`;
         }
         break;
 
       case 'sheets_tool': {
         if (args.operation && args.spreadsheetId) {
           const operation = getStringValue(args.operation);
-          const sheetId = truncate(getStringValue(args.spreadsheetId));
+          const sheetId = getStringValue(args.spreadsheetId);
           return `${operation} in sheet ${sheetId}`;
         }
         break;
@@ -358,7 +354,7 @@ function ToolCallView({
       case 'docs_tool': {
         if (args.operation && args.documentId) {
           const operation = getStringValue(args.operation);
-          const docId = truncate(getStringValue(args.documentId));
+          const docId = getStringValue(args.documentId);
           return `${operation} in document ${docId}`;
         }
         break;
@@ -366,13 +362,13 @@ function ToolCallView({
 
       case 'web_scrape':
         if (args.url) {
-          return `scraping ${truncate(getStringValue(args.url))}`;
+          return `scraping ${getStringValue(args.url)}`;
         }
         break;
 
       case 'remember_memory':
         if (args.category && args.data) {
-          return `storing ${getStringValue(args.category)}: ${truncate(getStringValue(args.data))}`;
+          return `storing ${getStringValue(args.category)}: ${getStringValue(args.data)}`;
         }
         break;
 
@@ -384,7 +380,7 @@ function ToolCallView({
 
       case 'screen_capture':
         if (args.window_title) {
-          return `capturing window "${truncate(getStringValue(args.window_title))}"`;
+          return `capturing window "${getStringValue(args.window_title)}"`;
         }
         return `capturing screen`;
 
@@ -414,8 +410,7 @@ function ToolCallView({
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
-          const truncatedValue = truncate(stringValue, 30);
-          return `${toolDisplayName} ${key}: ${truncatedValue}`;
+          return `${toolDisplayName} ${key}: ${stringValue}`;
         }
 
         // For multiple parameters, show tool name and keys
@@ -458,12 +453,12 @@ function ToolCallView({
   const toolLabel = (
     <span
       className={cn(
-        'flex items-center gap-2',
+        'flex items-center gap-2 min-w-0',
         extensionTooltip && 'cursor-pointer hover:opacity-80'
       )}
     >
       <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
-      <span>{getToolLabelContent()}</span>
+      <span className="truncate flex-1 min-w-0">{getToolLabelContent()}</span>
     </span>
   );
   return (

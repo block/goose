@@ -1,6 +1,6 @@
 ---
 title: Quick Goose Tips
-sidebar_position: 6
+sidebar_position: 30
 sidebar_label: Quick Tips
 description: Best practices for working with Goose
 ---

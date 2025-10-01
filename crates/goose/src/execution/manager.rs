@@ -1,6 +1,3 @@
-//! Agent lifecycle management with session isolation
-
-use super::SessionExecutionMode;
 use crate::agents::Agent;
 use crate::config::APP_STRATEGY;
 use crate::model::ModelConfig;
@@ -112,49 +109,27 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_or_create_agent(
-        &self,
-        session_id: String,
-        mode: SessionExecutionMode,
-    ) -> Result<Arc<Agent>> {
-        let agent = {
+    pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
+        {
             let mut sessions = self.sessions.write().await;
-            if let Some(agent) = sessions.get(&session_id) {
-                debug!("Found existing agent for session {}", session_id);
-                return Ok(Arc::clone(agent));
-            }
-
-            info!(
-                "Creating new agent for session {} with mode {}",
-                session_id, mode
-            );
-            let agent = Arc::new(Agent::new());
-            sessions.put(session_id.clone(), Arc::clone(&agent));
-            agent
-        };
-
-        match &mode {
-            SessionExecutionMode::Interactive | SessionExecutionMode::Background => {
-                debug!("Setting scheduler on agent for session {}", session_id);
-                agent.set_scheduler(Arc::clone(&self.scheduler)).await;
-            }
-            SessionExecutionMode::SubTask { .. } => {
-                debug!(
-                    "SubTask mode for session {}, skipping scheduler setup",
-                    session_id
-                );
+            if let Some(existing) = sessions.get(&session_id) {
+                return Ok(Arc::clone(existing));
             }
         }
 
+        let agent = Arc::new(Agent::new());
+        agent.set_scheduler(Arc::clone(&self.scheduler)).await;
         if let Some(provider) = &*self.default_provider.read().await {
-            debug!(
-                "Setting default provider on agent for session {}",
-                session_id
-            );
-            let _ = agent.update_provider(Arc::clone(provider)).await;
+            agent.update_provider(Arc::clone(provider)).await?;
         }
 
-        Ok(agent)
+        let mut sessions = self.sessions.write().await;
+        if let Some(existing) = sessions.get(&session_id) {
+            Ok(Arc::clone(existing))
+        } else {
+            sessions.put(session_id, agent.clone());
+            Ok(agent)
+        }
     }
 
     pub async fn remove_session(&self, session_id: &str) -> Result<()> {

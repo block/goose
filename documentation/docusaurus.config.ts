@@ -302,6 +302,10 @@ const config: Config = {
           {
             from: '/docs/guides/isolated-development-environments',
             to: '/docs/tutorials/isolated-development-environments'
+          },
+          {
+            from: '/docs/experimental/subagents',
+            to: '/docs/guides/subagents'
           }         
         ],
       },

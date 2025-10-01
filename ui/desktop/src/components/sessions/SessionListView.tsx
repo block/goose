@@ -185,6 +185,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       currentIndex: number;
     } | null>(null);
 
+    const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
+
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingSession, setEditingSession] = useState<Session | null>(null);
@@ -209,6 +211,33 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         delete sessionRefs.current[itemId];
       }
     };
+
+    const visibleDateGroups = useMemo(() => {
+      return dateGroups.slice(0, visibleGroupsCount);
+    }, [dateGroups, visibleGroupsCount]);
+
+    const handleScroll = useCallback(
+      (target: HTMLDivElement) => {
+        const { scrollTop, scrollHeight, clientHeight } = target;
+        const threshold = 200;
+
+        if (
+          scrollHeight - scrollTop - clientHeight < threshold &&
+          visibleGroupsCount < dateGroups.length
+        ) {
+          setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
+        }
+      },
+      [visibleGroupsCount, dateGroups.length]
+    );
+
+    useEffect(() => {
+      if (debouncedSearchTerm) {
+        setVisibleGroupsCount(dateGroups.length);
+      } else {
+        setVisibleGroupsCount(15);
+      }
+    }, [debouncedSearchTerm, dateGroups.length]);
 
     const loadSessions = useCallback(async () => {
       setIsLoading(true);
@@ -557,10 +586,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      // For regular rendering in grid layout
       return (
         <div className="space-y-8">
-          {dateGroups.map((group) => (
+          {visibleDateGroups.map((group) => (
             <div key={group.label} className="space-y-4">
               <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
                 <h2 className="text-text-muted">{group.label}</h2>
@@ -577,6 +605,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
           ))}
+
+          {visibleGroupsCount < dateGroups.length && (
+            <div className="flex justify-center py-8">
+              <div className="flex items-center space-x-2 text-text-muted">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                <span>Loading more sessions...</span>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
@@ -597,7 +634,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
 
             <div className="flex-1 min-h-0 relative px-8">
-              <ScrollArea className="h-full" data-search-scroll-area>
+              <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
                 <div ref={containerRef} className="h-full relative">
                   <SearchView
                     onSearch={handleSearch}

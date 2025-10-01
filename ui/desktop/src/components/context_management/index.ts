@@ -18,12 +18,14 @@ import { generateId } from 'ai';
 export async function manageContextFromBackend({
   messages,
   manageAction,
+  sessionId,
 }: {
   messages: FrontendMessage[];
   manageAction: 'truncation' | 'summarize';
+  sessionId: string;
 }): Promise<ContextManageResponse> {
   try {
-    const contextManagementRequest = { manageAction, messages };
+    const contextManagementRequest = { manageAction, messages, sessionId };
 
     // Cast to the API-expected type
     const result = await manageContext({

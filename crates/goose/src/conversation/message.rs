@@ -379,7 +379,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -462,7 +462,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -474,19 +474,6 @@ pub struct Message {
     pub content: Vec<MessageContent>,
     #[serde(default)]
     pub metadata: MessageMetadata,
-}
-
-impl fmt::Debug for Message {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let joined_content: String = self
-            .content
-            .iter()
-            .map(|c| format!("{c}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        write!(f, "{:?}: {}", self.role, joined_content)
-    }
 }
 
 fn default_created() -> i64 {
