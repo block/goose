@@ -587,6 +587,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
             undefined,
             undefined,
             undefined,
+            undefined,
             'schedules'
           );
           // Store the deep link in localStorage for the schedules view to pick up

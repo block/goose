@@ -74,7 +74,13 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
       try {
         const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
         console.log(`Creating new chat window without recipe, working dir: ${workingDir}`);
-        window.electron.createChatWindow(undefined, workingDir as string);
+        window.electron.createChatWindow(
+          undefined,
+          workingDir as string,
+          undefined,
+          undefined,
+          undefined
+        );
         // Close the current window after creating the new one
         window.electron.hideWindow();
       } catch (error) {

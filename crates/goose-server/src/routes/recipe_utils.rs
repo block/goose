@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::hash::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -87,6 +88,39 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
+}
+
+fn get_recipe_temp_file_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("goose_recipe_file_map.json")
+}
+
+pub fn save_recipe_file_hash_map(hash_map: &HashMap<String, std::path::PathBuf>) -> Result<()> {
+    let temp_path = get_recipe_temp_file_path();
+    let json_data = serde_json::to_string(hash_map)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize hash map: {}", e))?;
+    fs::write(temp_path, json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to write recipe id to file: {}", e))?;
+    Ok(())
+}
+
+fn load_recipe_file_hash_map() -> Result<HashMap<String, std::path::PathBuf>> {
+    let temp_path = get_recipe_temp_file_path();
+    if !temp_path.exists() {
+        return Ok(HashMap::new());
+    }
+    let json_data = fs::read_to_string(temp_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read recipe id to file: {}", e))?;
+    let hash_map = serde_json::from_str(&json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize hash map: {}", e))?;
+    Ok(hash_map)
+}
+
+pub fn find_recipe_file_path_by_id(recipe_id: &str) -> Result<PathBuf> {
+    let recipe_file_hash_map = load_recipe_file_hash_map()?;
+    recipe_file_hash_map
+        .get(recipe_id)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Recipe not found with id: {}", recipe_id))
 }
 
 // this is a temporary struct to deserilize the UI recipe files. should not be used for other purposes.

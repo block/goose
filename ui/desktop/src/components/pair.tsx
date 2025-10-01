@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
@@ -18,7 +18,7 @@ export interface PairRouteState {
 
 interface PairProps {
   chat: ChatType;
-  setChat: (chat: ChatType) => void;
+  setChat: Dispatch<SetStateAction<ChatType>>;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;

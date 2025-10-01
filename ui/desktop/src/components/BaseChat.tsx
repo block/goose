@@ -65,6 +65,7 @@ import { Message } from '../types/message';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
+import RecipeApprovalPrompt from './RecipeApprovalPrompt';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -72,7 +73,7 @@ export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
 interface BaseChatProps {
   chat: ChatType;
-  setChat: (chat: ChatType) => void;
+  setChat: React.Dispatch<React.SetStateAction<ChatType>>;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageStreamFinish?: () => void;
@@ -116,6 +117,7 @@ function BaseChatContent({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
   const { isCompacting, handleManualCompaction } = useContextManager();
+  const [isApprovingRecipe, setIsApprovingRecipe] = React.useState(false);
 
   // Timeout ref for debouncing auto-scroll
   const autoScrollTimeoutRef = useRef<number | null>(null);
@@ -160,6 +162,16 @@ function BaseChatContent({
       }
     };
   }, []);
+
+  const handleRecipeReject = React.useCallback(() => {
+    setChat((prev) => ({
+      ...prev,
+      recipeExecutionStatus: null,
+      recipeConfig: null,
+      recipeId: null,
+      recipeSetupState: null,
+    }));
+  }, [setChat]);
 
   // Use shared chat engine
   const {
@@ -221,6 +233,78 @@ function BaseChatContent({
     handleRecipeCancel,
     hasSecurityWarnings,
   } = useRecipeManager(chat, location.state?.recipeConfig);
+
+  const requiresTrustApproval = React.useMemo(() => {
+    if (chat.recipeSetupState) {
+      return !chat.recipeSetupState.trustGranted;
+    }
+    return chat.recipeExecutionStatus === 'PendingTrust';
+  }, [chat.recipeExecutionStatus, chat.recipeSetupState]);
+
+  const requiresParameterEntry = React.useMemo(() => {
+    if (chat.recipeSetupState) {
+      return !chat.recipeSetupState.parametersSatisfied;
+    }
+    return chat.recipeExecutionStatus === 'ParametersRequired';
+  }, [chat.recipeExecutionStatus, chat.recipeSetupState]);
+
+  const showRecipeApprovalPrompt = Boolean(
+    recipeConfig && (requiresTrustApproval || (requiresParameterEntry && filteredParameters.length > 0))
+  );
+
+  const hasRequiredParameters = React.useMemo(
+    () => filteredParameters.some((param) => param.requirement === 'required'),
+    [filteredParameters]
+  );
+
+  const handleRecipeApprove = React.useCallback(
+    async (parameterValues: Record<string, string> = {}) => {
+      try {
+        setIsApprovingRecipe(true);
+
+        if (filteredParameters.length > 0 || Object.keys(parameterValues).length > 0) {
+          await handleParameterSubmit(parameterValues);
+        }
+
+        if (chat.recipeConfig && window.electron?.recordRecipeHash) {
+          await window.electron.recordRecipeHash(chat.recipeConfig);
+        }
+      } catch (error) {
+        console.error('Failed to record recipe approval:', error);
+      } finally {
+        setIsApprovingRecipe(false);
+        setChat((prev) => {
+          const parametersSatisfied =
+            prev.recipeSetupState?.parametersSatisfied ||
+            filteredParameters.length === 0 ||
+            !hasRequiredParameters ||
+            Object.keys(parameterValues).length > 0;
+
+          return {
+            ...prev,
+            recipeExecutionStatus: 'ReadyForExecution',
+            recipeSetupState: prev.recipeSetupState
+              ? {
+                  ...prev.recipeSetupState,
+                  trustGranted: true,
+                  parametersSatisfied,
+                }
+              : {
+                  trustGranted: true,
+                  parametersSatisfied,
+                },
+          };
+        });
+      }
+    },
+    [
+      chat.recipeConfig,
+      filteredParameters.length,
+      handleParameterSubmit,
+      hasRequiredParameters,
+      setChat,
+    ]
+  );
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
@@ -371,6 +455,21 @@ function BaseChatContent({
 
             {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
+
+            {showRecipeApprovalPrompt && (
+              <div className="mb-6">
+                <RecipeApprovalPrompt
+                  recipe={recipeConfig ?? chat.recipeConfig ?? null}
+                  parameters={filteredParameters}
+                  existingValues={recipeParameters}
+                  requiresTrustApproval={requiresTrustApproval}
+                  requiresParameterEntry={requiresParameterEntry}
+                  onApprove={handleRecipeApprove}
+                  onReject={handleRecipeReject}
+                  isSubmitting={isApprovingRecipe}
+                />
+              </div>
+            )}
 
             {/* Recipe Activities - always show when recipe is active and accepted */}
             {recipeConfig && recipeAccepted && !suppressEmptyState && (

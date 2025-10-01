@@ -2,7 +2,7 @@ use crate::config::APP_STRATEGY;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
-use crate::recipe::Recipe;
+use crate::recipe::{Recipe, recipe_setup_state::RecipeSetupState};
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -17,10 +17,18 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 1;
+const CURRENT_SCHEMA_VERSION: i32 = 2;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, sqlx::Type)]
+#[sqlx(type_name = "TEXT")]
+pub enum RecipeExecutionStatus {
+    PendingTrust,
+    ParametersRequired,
+    PendingConfirmExecution,
+    ReadyForExecution,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
     pub id: String,
@@ -40,6 +48,9 @@ pub struct Session {
     pub recipe: Option<Recipe>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    // TODO: Lifei remove this
+    pub recipe_execution_status: Option<RecipeExecutionStatus>,
+    pub recipe_setup_state: Option<RecipeSetupState>,
 }
 
 pub struct SessionUpdateBuilder {
@@ -55,6 +66,8 @@ pub struct SessionUpdateBuilder {
     accumulated_output_tokens: Option<Option<i32>>,
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
+    recipe_execution_status: Option<Option<RecipeExecutionStatus>>,
+    recipe_setup_state: Option<Option<RecipeSetupState>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -81,6 +94,8 @@ impl SessionUpdateBuilder {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe: None,
+            recipe_execution_status: None,
+            recipe_setup_state: None,
         }
     }
 
@@ -136,6 +151,16 @@ impl SessionUpdateBuilder {
 
     pub fn recipe(mut self, recipe: Option<Recipe>) -> Self {
         self.recipe = Some(recipe);
+        self
+    }
+
+    pub fn recipe_execution_status(mut self, status: Option<RecipeExecutionStatus>) -> Self {
+        self.recipe_execution_status = Some(status);
+        self
+    }
+
+    pub fn recipe_setup_state(mut self, state: Option<RecipeSetupState>) -> Self {
+        self.recipe_setup_state = Some(state);
         self
     }
 
@@ -292,6 +317,8 @@ impl Default for Session {
             recipe: None,
             conversation: None,
             message_count: 0,
+            recipe_execution_status: None,
+            recipe_setup_state: None,
         }
     }
 }
@@ -310,6 +337,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let recipe_json: Option<String> = row.try_get("recipe_json")?;
         let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let recipe_setup_state_json: Option<String> = row.try_get("recipe_setup_state_json")?;
+        let recipe_setup_state = recipe_setup_state_json.and_then(|json| serde_json::from_str(&json).ok());
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
@@ -327,7 +357,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             schedule_id: row.try_get("schedule_id")?,
             recipe,
             conversation: None,
-            message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            message_count: row.try_get::<i64, _>("message_count").unwrap_or(0) as usize,
+            recipe_execution_status: row.try_get("recipe_execution_status")?,
+            recipe_setup_state,
         })
     }
 }
@@ -411,7 +443,9 @@ impl SessionStorage {
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
-                recipe_json TEXT
+                recipe_json TEXT,
+                recipe_execution_status TEXT,
+                recipe_setup_state_json TEXT
             )
         "#,
         )
@@ -496,6 +530,10 @@ impl SessionStorage {
             Some(recipe) => Some(serde_json::to_string(recipe)?),
             None => None,
         };
+        let recipe_setup_state_json = match &session.recipe_setup_state {
+            Some(state) => Some(serde_json::to_string(state)?),
+            None => None,
+        };
 
         sqlx::query(
             r#"
@@ -503,8 +541,8 @@ impl SessionStorage {
             id, description, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, recipe_execution_status, recipe_setup_state_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(&session.id)
@@ -521,6 +559,8 @@ impl SessionStorage {
         .bind(session.accumulated_output_tokens)
         .bind(&session.schedule_id)
         .bind(recipe_json)
+        .bind(session.recipe_execution_status.clone())
+        .bind(recipe_setup_state_json)
         .execute(&self.pool)
         .await?;
 
@@ -597,6 +637,17 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            2 => {
+                // Add recipe_setup_state_json column, ignore error if it already exists
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN recipe_setup_state_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await
+                .ok(); // Ignore any error
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -611,7 +662,7 @@ impl SessionStorage {
         SELECT id, working_dir, description, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json
+               schedule_id, recipe_json, recipe_execution_status, recipe_setup_state_json
         FROM sessions
         WHERE id = ?
     "#,
@@ -668,6 +719,8 @@ impl SessionStorage {
         );
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
+        add_update!(builder.recipe_execution_status, "recipe_execution_status");
+        add_update!(builder.recipe_setup_state, "recipe_setup_state_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -713,6 +766,13 @@ impl SessionStorage {
         if let Some(recipe) = builder.recipe {
             let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
             q = q.bind(recipe_json);
+        }
+        if let Some(status) = builder.recipe_execution_status {
+            q = q.bind(status);
+        }
+        if let Some(state) = builder.recipe_setup_state {
+            let state_json = state.map(|s| serde_json::to_string(&s)).transpose()?;
+            q = q.bind(state_json);
         }
 
         q = q.bind(&builder.session_id);
@@ -798,13 +858,14 @@ impl SessionStorage {
         Ok(())
     }
 
+    // TODO: Lifei do i need to add recipe_execution_status and recipe_setup_state_json?
     async fn list_sessions(&self) -> Result<Vec<Session>> {
         sqlx::query_as::<_, Session>(
             r#"
         SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json,
+               s.schedule_id, s.recipe_json, s.recipe_setup_state_json,
                COUNT(m.id) as message_count
         FROM sessions s
         INNER JOIN messages m ON s.id = m.session_id

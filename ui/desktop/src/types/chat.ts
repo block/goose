@@ -1,6 +1,11 @@
 import { Message } from './message';
 import { Recipe } from '../recipe';
 
+export interface ChatRecipeSetupState {
+  parametersSatisfied: boolean;
+  trustGranted: boolean;
+}
+
 export interface ChatType {
   sessionId: string;
   title: string;
@@ -8,4 +13,7 @@ export interface ChatType {
   messages: Message[];
   recipeConfig?: Recipe | null; // Add recipe configuration to chat state
   recipeParameters?: Record<string, string> | null; // Add recipe parameters to chat state
+  recipeId?: string | null;
+  recipeExecutionStatus?: 'PendingTrust' | 'ParametersRequired' | 'PendingConfirmExecution' | 'ReadyForExecution' | null;
+  recipeSetupState?: ChatRecipeSetupState | null;
 }

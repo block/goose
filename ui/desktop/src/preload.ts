@@ -52,6 +52,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
+    recipeId?: string | null,
     recipe?: Recipe,
     viewType?: string
   ) => void;
@@ -139,10 +140,20 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
+    recipeId?: string | null,
     recipe?: Recipe,
     viewType?: string
   ) =>
-    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
+    ipcRenderer.send(
+      'create-chat-window',
+      query,
+      dir,
+      version,
+      resumeSessionId,
+      recipeId ?? null,
+      recipe,
+      viewType
+    ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),

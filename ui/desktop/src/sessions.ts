@@ -11,6 +11,7 @@ export function resumeSession(session: Session) {
     undefined, // query
     workingDir,
     undefined, // version
-    session.id
+    session.id,
+    undefined
   );
 }

@@ -11,7 +11,7 @@ use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::routes::recipe_utils::get_all_recipes_manifests;
+use crate::routes::recipe_utils::{get_all_recipes_manifests, save_recipe_file_hash_map, find_recipe_file_path_by_id};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -223,7 +223,6 @@ async fn scan_recipe(
     tag = "Recipe Management"
 )]
 async fn list_recipes(
-    State(state): State<Arc<AppState>>,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
     let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap();
     let mut recipe_file_hash_map = HashMap::new();
@@ -242,7 +241,10 @@ async fn list_recipes(
             }
         })
         .collect::<Vec<RecipeManifestResponse>>();
-    state.set_recipe_file_hash_map(recipe_file_hash_map).await;
+    if let Err(e) = save_recipe_file_hash_map(&recipe_file_hash_map) {
+        tracing::error!("Failed to save recipe file hash map to temp file: {}", e);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     Ok(Json(ListRecipeResponse {
         recipe_manifest_responses,
@@ -262,13 +264,14 @@ async fn list_recipes(
     tag = "Recipe Management"
 )]
 async fn delete_recipe(
-    State(state): State<Arc<AppState>>,
     Json(request): Json<DeleteRecipeRequest>,
 ) -> StatusCode {
-    let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
-    let file_path = match recipe_file_hash_map.get(&request.id) {
-        Some(path) => path,
-        None => return StatusCode::NOT_FOUND,
+    let file_path = match find_recipe_file_path_by_id(&request.id) {
+        Ok(path) => path,
+        Err(e) => {
+            tracing::error!("Failed to find recipe file path: {}", e);
+            return StatusCode::NOT_FOUND;
+        }
     };
 
     if fs::remove_file(file_path).is_err() {

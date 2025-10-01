@@ -614,6 +614,8 @@ export type Recipe = {
     version?: string;
 };
 
+export type RecipeExecutionStatus = 'PendingTrust' | 'ParametersRequired' | 'PendingConfirmExecution' | 'ReadyForExecution';
+
 export type RecipeManifestResponse = {
     id: string;
     isGlobal: boolean;
@@ -634,6 +636,11 @@ export type RecipeParameter = {
 export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file' | 'select';
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
+
+export type RecipeSetupState = {
+    parameters_satisfied: boolean;
+    trust_granted: boolean;
+};
 
 export type RedactedThinkingContent = {
     data: string;
@@ -728,6 +735,8 @@ export type Session = {
     message_count: number;
     output_tokens?: number | null;
     recipe?: Recipe | null;
+    recipe_execution_status?: RecipeExecutionStatus | null;
+    recipe_setup_state?: RecipeSetupState | null;
     schedule_id?: string | null;
     total_tokens?: number | null;
     updated_at: string;
@@ -789,6 +798,7 @@ export type SetupResponse = {
 
 export type StartAgentRequest = {
     recipe?: Recipe | null;
+    recipe_id?: string | null;
     working_dir: string;
 };
 

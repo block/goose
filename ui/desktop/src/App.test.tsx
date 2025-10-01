@@ -124,6 +124,8 @@ vi.mock('./contexts/ChatContext', () => ({
       messages: [],
       messageHistoryIndex: 0,
       recipeConfig: null,
+      recipeId: null,
+      recipeExecutionStatus: null,
     },
     setChat: vi.fn(),
     setPairChat: vi.fn(), // Keep this from HEAD

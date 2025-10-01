@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../config';
 import { useMessageStream } from './useMessageStream';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -27,7 +27,7 @@ const isUserMessage = (message: Message): boolean => {
 
 interface UseChatEngineProps {
   chat: ChatType;
-  setChat: (chat: ChatType) => void;
+  setChat: Dispatch<SetStateAction<ChatType>>;
   onMessageStreamFinish?: () => void;
   onMessageSent?: () => void; // Add callback for when message is sent
 }
@@ -195,7 +195,6 @@ export const useChatEngine = ({
 
   // Update chat messages when they change
   useEffect(() => {
-    // @ts-expect-error - TypeScript being overly strict about the return type
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
 

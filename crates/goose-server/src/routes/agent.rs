@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use super::recipe_utils::find_recipe_file_path_by_id;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -6,10 +7,13 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
+use goose::recipe::recipe_hash::has_accepted_recipe_before;
+use goose::session::session_manager::RecipeExecutionStatus;
+use std::fs;
 
 use goose::model::ModelConfig;
 use goose::providers::create;
-use goose::recipe::{Recipe, Response};
+use goose::recipe::{Recipe, Response, build_recipe::build_recipe_from_file, build_recipe::RecipeError, recipe_setup_state::RecipeSetupState};
 use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -20,6 +24,15 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+
+macro_rules! handle_error {
+    ($result:expr, $context:expr) => {
+        $result.map_err(|e| {
+            tracing::error!("Internal server error in {}: {}", $context, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    };
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
@@ -71,6 +84,7 @@ pub struct UpdateRouterToolSelectorRequest {
 pub struct StartAgentRequest {
     working_dir: String,
     recipe: Option<Recipe>,
+    recipe_id: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -101,23 +115,68 @@ async fn start_agent(
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let description = format!("New session {}", counter);
 
-    let mut session =
-        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if let Some(recipe) = payload.recipe {
-        SessionManager::update_session(&session.id)
-            .recipe(Some(recipe))
-            .apply()
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        session = SessionManager::get_session(&session.id, false)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut session = handle_error!(
+        SessionManager::create_session(PathBuf::from(&payload.working_dir), description).await,
+        "session creation"
+    );
+    let mut recipe_in_session = payload.recipe;
+    let mut recipe_execution_status = None;
+    let mut recipe_setup_state = None;
+    if let Some(recipe_id) = payload.recipe_id {
+        let recipe_file_path = find_recipe_file_path_by_id(&recipe_id).map_err(|e| {
+            tracing::error!("Failed to find recipe file path: {}", e);
+            StatusCode::NOT_FOUND
+        })?;
+        let recipe_file_content = handle_error!(
+            fs::read_to_string(&recipe_file_path),
+            "reading recipe file"
+        );
+        recipe_in_session = Some(handle_error!(
+            Recipe::from_content(&recipe_file_content),
+            "parsing recipe content"
+        ));
+        let trust_granted = handle_error!(
+            has_accepted_recipe_before(&recipe_file_content),
+            "checking recipe trust status"
+        );
+        let parameters_satisfied = match build_recipe_from_file(&recipe_file_path, vec![]) {
+            Ok(_recipe) => {
+                true
+            }
+            Err(RecipeError::MissingParams { .. }) => {
+                false
+            }
+            Err(e) => {
+                tracing::error!("Failed to parse recipe: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+        recipe_setup_state = Some(RecipeSetupState {
+            trust_granted,
+            parameters_satisfied,
+        });
     }
 
+    if let Some(recipe) = recipe_in_session {
+        recipe_setup_state = recipe_setup_state.or(Some(RecipeSetupState {
+            trust_granted: false,
+            parameters_satisfied: false,
+        }));
+        handle_error!(
+            SessionManager::update_session(&session.id)
+                .recipe(Some(recipe))
+                .recipe_execution_status(recipe_execution_status)
+                .recipe_setup_state(recipe_setup_state)
+                .apply()
+                .await,
+            "updating session with recipe"
+        );
+
+        session = handle_error!(
+            SessionManager::get_session(&session.id, false).await,
+            "retrieving updated session"
+        );
+    }
     Ok(Json(session))
 }
 

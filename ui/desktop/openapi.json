@@ -3296,6 +3296,15 @@
           }
         }
       },
+      "RecipeExecutionStatus": {
+        "type": "string",
+        "enum": [
+          "PendingTrust",
+          "ParametersRequired",
+          "PendingConfirmExecution",
+          "ReadyForExecution"
+        ]
+      },
       "RecipeManifestResponse": {
         "type": "object",
         "required": [
@@ -3375,6 +3384,21 @@
           "optional",
           "user_prompt"
         ]
+      },
+      "RecipeSetupState": {
+        "type": "object",
+        "required": [
+          "trust_granted",
+          "parameters_satisfied"
+        ],
+        "properties": {
+          "parameters_satisfied": {
+            "type": "boolean"
+          },
+          "trust_granted": {
+            "type": "boolean"
+          }
+        }
       },
       "RedactedThinkingContent": {
         "type": "object",
@@ -3651,6 +3675,22 @@
             ],
             "nullable": true
           },
+          "recipe_execution_status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecipeExecutionStatus"
+              }
+            ],
+            "nullable": true
+          },
+          "recipe_setup_state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecipeSetupState"
+              }
+            ],
+            "nullable": true
+          },
           "schedule_id": {
             "type": "string",
             "nullable": true
@@ -3838,6 +3878,10 @@
                 "$ref": "#/components/schemas/Recipe"
               }
             ],
+            "nullable": true
+          },
+          "recipe_id": {
+            "type": "string",
             "nullable": true
           },
           "working_dir": {

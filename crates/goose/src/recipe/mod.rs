@@ -12,6 +12,8 @@ use utoipa::ToSchema;
 
 pub mod build_recipe;
 pub mod read_recipe_file_content;
+pub mod recipe_hash;
+pub mod recipe_setup_state;
 pub mod template_recipe;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
@@ -307,6 +309,7 @@ impl Recipe {
             retry: None,
         }
     }
+    
     pub fn from_content(content: &str) -> Result<Self> {
         let recipe: Recipe =
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {

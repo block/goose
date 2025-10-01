@@ -76,7 +76,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const handleNewWindow = () => {
     window.electron.createChatWindow(
       undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
+      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined,
+      undefined,
+      undefined,
+      undefined
     );
   };
 

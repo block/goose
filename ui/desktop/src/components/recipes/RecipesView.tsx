@@ -6,7 +6,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Recipe, generateDeepLink } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../../api';
@@ -67,7 +67,8 @@ export default function RecipesView() {
     }
   };
 
-  const handleLoadRecipe = async (recipe: Recipe) => {
+  const handleLoadRecipe = async (recipeManifest: RecipeManifestResponse) => {
+    const { recipe, id } = recipeManifest;
     try {
       // onLoadRecipe is not working for loading recipes. It looks correct
       // but the instructions are not flowing through to the server.
@@ -79,12 +80,13 @@ export default function RecipesView() {
       // } else {
       // Fallback to creating a new window (for backwards compatibility)
       window.electron.createChatWindow(
-        undefined, // query
-        undefined, // dir
-        undefined, // version
-        undefined, // resumeSessionId
-        recipe, // recipe config
-        undefined // view type
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        id,
+        recipe,
+        undefined
       );
       // }
     } catch (err) {
@@ -174,7 +176,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(recipe);
+              handleLoadRecipe(recipeManifestResponse);
             }}
             size="sm"
             className="h-8"
@@ -698,8 +700,11 @@ export default function RecipesView() {
               </Button>
               <Button
                 onClick={() => {
+                  if (!selectedRecipe) {
+                    return;
+                  }
                   setShowPreview(false);
-                  handleLoadRecipe(selectedRecipe.recipe);
+                  handleLoadRecipe(selectedRecipe);
                 }}
                 variant="default"
               >

@@ -8,6 +8,8 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
 use goose::session::{Session, SessionInsights};
+use goose::session::session_manager::RecipeExecutionStatus;
+use goose::recipe::recipe_setup_state::RecipeSetupState;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -423,6 +425,8 @@ derive_utoipa!(Icon as IconSchema);
         PrincipalType,
         ModelInfo,
         Session,
+        RecipeExecutionStatus,
+        RecipeSetupState,
         SessionInsights,
         Conversation,
         IconSchema,

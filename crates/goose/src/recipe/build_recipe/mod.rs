@@ -1,4 +1,4 @@
-use crate::recipe::read_recipe_file_content::{read_parameter_file_content, RecipeFile};
+use crate::recipe::read_recipe_file_content::{read_parameter_file_content, read_recipe_file, RecipeFile};
 use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_content_with_params};
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
@@ -58,6 +58,19 @@ pub fn validate_recipe_parameters(
     validate_optional_parameters(&recipe_parameters)?;
     validate_parameters_in_template(&recipe_parameters, &template_variables)?;
     Ok(recipe_parameters)
+}
+
+pub fn build_recipe_from_file(
+    file_path: &Path,
+    params: Vec<(String, String)>,
+) -> Result<Recipe, RecipeError> {
+    let recipe_file =
+        read_recipe_file(file_path).map_err(|source| RecipeError::RecipeParsing { source })?;
+    build_recipe_from_template(
+        recipe_file,
+        params,
+        None::<fn(&str, &str) -> Result<String>>,
+    )
 }
 
 pub fn build_recipe_from_template<F>(
