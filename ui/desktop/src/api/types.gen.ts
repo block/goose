@@ -25,6 +25,13 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+export type ChatRequest = {
+    messages: Array<Message>;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    session_id: string;
+};
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -1799,6 +1806,31 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ReplyData = {
+    body: ChatRequest;
+    path?: never;
+    query?: never;
+    url: '/reply';
+};
+
+export type ReplyErrors = {
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReplyResponses = {
+    /**
+     * Streaming response initiated
+     */
+    200: unknown;
+};
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

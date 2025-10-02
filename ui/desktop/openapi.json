@@ -1120,6 +1120,35 @@
         }
       }
     },
+    "/reply": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "reply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Streaming response initiated"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -1756,6 +1785,32 @@
           "metadata": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "messages",
+          "session_id"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
