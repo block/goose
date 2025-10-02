@@ -1,5 +1,5 @@
 ---
-sidebar_position: 15
+sidebar_position: 85
 title: Configuration File
 sidebar_label: Configuration File
 ---
@@ -47,7 +47,7 @@ These settings enable experimental features that are in active development. Thes
 
 | Setting | Purpose | Values | Default | Required |
 |---------|---------|---------|---------|-----------|
-| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | true/false | false | No |
+| `ALPHA_FEATURES` | Enables access to experimental alpha features&mdash;check the feature docs to see if this flag is required | true/false | false | No |
 
 Additional [environment variables](/docs/guides/environment-variables) may also be supported in config.yaml.
 

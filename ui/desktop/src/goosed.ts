@@ -34,8 +34,7 @@ export const checkServerStatus = async (client: Client): Promise<boolean> => {
     try {
       await status({ client, throwOnError: true });
       return true;
-    } catch (error) {
-      log.error('failure to connect, will retry', error);
+    } catch {
       if (attempt === maxAttempts) {
         log.error(`Server failed to respond after ${(interval * maxAttempts) / 1000} seconds`);
       }

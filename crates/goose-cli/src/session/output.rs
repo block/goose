@@ -743,6 +743,14 @@ pub fn display_session_info(
         );
     }
 
+    if let Some(id) = session_id {
+        println!(
+            "    {} {}",
+            style("session id:").dim(),
+            style(id).cyan().dim()
+        );
+    }
+
     println!(
         "    {} {}",
         style("working directory:").dim(),

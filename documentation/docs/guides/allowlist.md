@@ -1,5 +1,5 @@
 ---
-sidebar_position: 19
+sidebar_position: 90
 title: Goose Extension Allowlist
 sidebar_label: Extension Allowlist
 ---

@@ -5,6 +5,7 @@ use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use etcetera::{choose_app_strategy, AppStrategy};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
@@ -27,8 +28,8 @@ pub struct Session {
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
     pub description: String,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
     pub total_tokens: Option<i32>,
     pub input_tokens: Option<i32>,
@@ -279,8 +280,8 @@ impl Default for Session {
             id: String::new(),
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             description: String::new(),
-            created_at: String::new(),
-            updated_at: String::new(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
             extension_data: ExtensionData::default(),
             total_tokens: None,
             input_tokens: None,
@@ -510,8 +511,8 @@ impl SessionStorage {
         .bind(&session.id)
         .bind(&session.description)
         .bind(session.working_dir.to_string_lossy().as_ref())
-        .bind(&session.created_at)
-        .bind(&session.updated_at)
+        .bind(session.created_at)
+        .bind(session.updated_at)
         .bind(serde_json::to_string(&session.extension_data)?)
         .bind(session.total_tokens)
         .bind(session.input_tokens)

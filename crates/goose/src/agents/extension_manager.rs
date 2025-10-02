@@ -4,9 +4,12 @@ use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
 use rmcp::service::ClientInitializeError;
-use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+use rmcp::transport::streamable_http_client::{
+    AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
+};
 use rmcp::transport::{
-    ConfigureCommandExt, SseClientTransport, StreamableHttpClientTransport, TokioChildProcess,
+    ConfigureCommandExt, DynamicTransportError, SseClientTransport, StreamableHttpClientTransport,
+    TokioChildProcess,
 };
 use std::collections::HashMap;
 use std::process::Stdio;
@@ -205,6 +208,28 @@ async fn child_process_client(
     }
 }
 
+fn extract_auth_error(
+    res: &Result<McpClient, ClientInitializeError>,
+) -> Option<&AuthRequiredError> {
+    match res {
+        Ok(_) => None,
+        Err(err) => match err {
+            ClientInitializeError::TransportError {
+                error: DynamicTransportError { error, .. },
+                ..
+            } => error
+                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
+                .and_then(|auth_error| match auth_error {
+                    StreamableHttpError::AuthRequired(auth_required_error) => {
+                        Some(auth_required_error)
+                    }
+                    _ => None,
+                }),
+            _ => None,
+        },
+    }
+}
+
 impl ExtensionManager {
     pub fn new() -> Self {
         Self {
@@ -340,15 +365,10 @@ impl ExtensionManager {
                     ),
                 )
                 .await;
-                let client = if let Err(e) = client_res {
-                    // make an attempt at oauth, but failing that, return the original error,
-                    // because this might not have been an auth error at all.
-                    // TODO: when rmcp supports it, we should trigger this flow on 401s with
-                    // WWW-Authenticate headers, not just any init error
-                    let am = match oauth_flow(uri, name).await {
-                        Ok(am) => am,
-                        Err(_) => return Err(e.into()),
-                    };
+                let client = if let Some(_auth_error) = extract_auth_error(&client_res) {
+                    let am = oauth_flow(uri, name)
+                        .await
+                        .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
                     let client = AuthClient::new(reqwest::Client::default(), am);
                     let transport = StreamableHttpClientTransport::with_client(
                         client,
@@ -571,6 +591,8 @@ impl ExtensionManager {
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
+                                icons: None,
+                                title: None,
                             });
                         }
                     }
@@ -1143,27 +1165,21 @@ mod tests {
             use std::sync::Arc;
             Ok(ListToolsResult {
                 tools: vec![
-                    Tool {
-                        name: "tool".into(),
-                        description: Some("A basic tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
-                    Tool {
-                        name: "available_tool".into(),
-                        description: Some("An available tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
-                    Tool {
-                        name: "hidden_tool".into(),
-                        description: Some("A hidden tool".into()),
-                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
-                        annotations: None,
-                        output_schema: None,
-                    },
+                    Tool::new(
+                        "tool".to_string(),
+                        "A basic tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "available_tool".to_string(),
+                        "An available tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "hidden_tool".to_string(),
+                        "hidden tool".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
                 ],
                 next_cursor: None,
             })

@@ -758,6 +758,11 @@ impl CliSession {
                 }
             }
         }
+
+        if let Some(id) = &self.session_id {
+            println!("Closing session. Session ID: {}", console::style(id).cyan());
+        }
+
         Ok(())
     }
 

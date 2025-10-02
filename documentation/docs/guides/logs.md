@@ -1,7 +1,7 @@
 ---
 title: Goose Logging System
 sidebar_label: Logging System
-sidebar_position: 9
+sidebar_position: 65
 ---
 
 

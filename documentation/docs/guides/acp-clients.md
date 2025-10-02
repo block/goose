@@ -1,5 +1,5 @@
 ---
-sidebar_position: 25
+sidebar_position: 105
 title: Using Goose in ACP Clients
 sidebar_label: Goose in ACP Clients
 ---
