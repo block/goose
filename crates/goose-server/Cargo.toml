@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", features = ["utoipa"] }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 schemars = "1.0"
