@@ -539,7 +539,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
         if let Err(e) = session
             .agent
-            .save_extension_state(&Some(session_config_for_save))
+            .save_extension_state(&session_config_for_save)
             .await
         {
             tracing::warn!("Failed to save initial extension state: {}", e);

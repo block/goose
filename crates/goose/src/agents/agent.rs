@@ -649,24 +649,23 @@ impl Agent {
 
     /// Save current extension state to session metadata
     /// Should be called after any extension add/remove operation
-    pub async fn save_extension_state(&self, session: &Option<SessionConfig>) -> Result<()> {
-        if let Some(session_config) = session {
-            let extension_configs = self.extension_manager.get_extension_configs().await;
+    pub async fn save_extension_state(&self, session: &SessionConfig) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
 
-            let extensions_state = EnabledExtensionsState::new(extension_configs);
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
 
-            let mut session_data = SessionManager::get_session(&session_config.id, false).await?;
+        let mut session_data = SessionManager::get_session(&session.id, false).await?;
 
-            if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
-                warn!("Failed to serialize extension state: {}", e);
-                return Err(anyhow!("Extension state serialization failed: {}", e));
-            }
-
-            SessionManager::update_session(&session_config.id)
-                .extension_data(session_data.extension_data)
-                .apply()
-                .await?;
+        if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
+            warn!("Failed to serialize extension state: {}", e);
+            return Err(anyhow!("Extension state serialization failed: {}", e));
         }
+
+        SessionManager::update_session(&session.id)
+            .extension_data(session_data.extension_data)
+            .apply()
+            .await?;
+
         Ok(())
     }
 
@@ -772,11 +771,13 @@ impl Agent {
         }
 
         if result.is_ok() {
-            if let Err(e) = self.save_extension_state(session).await {
-                warn!(
-                    "Failed to save extension state after manage_extensions: {}",
-                    e
-                );
+            if let Some(session_config) = session {
+                if let Err(e) = self.save_extension_state(session_config).await {
+                    warn!(
+                        "Failed to save extension state after manage_extensions: {}",
+                        e
+                    );
+                }
             }
         }
 
