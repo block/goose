@@ -1,0 +1,23 @@
+version: "1.0.0"
+title: Swagger to Markdown
+description: Converts Swagger/OpenAPI JSON to human-readable Markdown API documentation.
+instructions: Parse the Swagger JSON and produce structured Markdown documentation with examples.
+activities:
+  - Parse Swagger/OpenAPI JSON
+  - Extract endpoints, request, and response schemas
+  - Format Markdown docs
+prompt: |
+  Convert Swagger file {{swagger_file}} into Markdown API documentation.
+parameters:
+  - key: swagger_file
+    input_type: file
+    requirement: required
+    description: Swagger/OpenAPI JSON file
+  - key: output_folder
+    input_type: file
+    requirement: user_prompt
+    description: Folder to save generated Markdown docs
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
