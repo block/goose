@@ -1,0 +1,20 @@
+version: "1.0.0"
+title: Auto Docstring Generator
+description: Automatically generates Python docstrings for functions and classes following PEP-257.
+instructions: Analyze the Python source code and add descriptive docstrings for each function and class.
+activities:
+  - Parse Python file
+  - Identify functions and classes
+  - Generate clear docstrings
+  - Ensure consistency with style guide
+prompt: |
+  Generate PEP-257 compliant docstrings for all functions and classes in {{source_file}}.
+parameters:
+  - key: source_file
+    input_type: file
+    requirement: required
+    description: Python file to add docstrings
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
