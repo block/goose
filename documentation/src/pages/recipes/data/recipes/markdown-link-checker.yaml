@@ -1,0 +1,19 @@
+version: "1.0.0"
+title: Markdown Link Checker
+description: Checks all links in a Markdown file for validity and flags broken links.
+instructions: Parse Markdown and validate hyperlinks, including local and external links.
+activities:
+  - Extract all links from Markdown
+  - Check if links are reachable
+  - Generate a report of broken links
+prompt: |
+  Check all links in {{markdown_file}} and report broken links.
+parameters:
+  - key: markdown_file
+    input_type: file
+    requirement: required
+    description: Markdown file to validate links
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
