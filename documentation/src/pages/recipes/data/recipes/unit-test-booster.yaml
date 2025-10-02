@@ -1,0 +1,19 @@
+version: "1.0.0"
+title: Unit Test Booster
+description: Generates unit tests for existing Python functions to improve code coverage.
+instructions: Analyze source code and create meaningful test cases for all functions.
+activities:
+  - Identify all functions in the source file
+  - Generate pytest test cases
+  - Suggest mock data if needed
+prompt: |
+  Generate unit tests for all functions in {{source_file}} using pytest.
+parameters:
+  - key: source_file
+    input_type: file
+    requirement: required
+    description: Python file to generate tests for
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
