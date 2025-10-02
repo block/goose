@@ -527,7 +527,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         }
     }
 
-    // Save extension state after loading all extensions
     if let Some(session_id) = session_id.as_ref() {
         let session_config_for_save = SessionConfig {
             id: session_id.clone(),

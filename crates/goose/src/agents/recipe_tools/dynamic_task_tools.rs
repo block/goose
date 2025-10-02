@@ -108,9 +108,7 @@ fn process_extensions(
 
         for ext in arr {
             if let Some(name_str) = ext.as_str() {
-                // Look up the full extension config by name
                 if let Some(config) = crate::config::get_extension_by_name(name_str) {
-                    // Check if the extension is enabled
                     if crate::config::is_extension_enabled(&config.key()) {
                         converted_extensions.push(config);
                     } else {

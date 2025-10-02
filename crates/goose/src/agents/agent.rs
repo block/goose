@@ -655,16 +655,13 @@ impl Agent {
 
             let extensions_state = EnabledExtensionsState::new(extension_configs);
 
-            // Load current session
             let mut session_data = SessionManager::get_session(&session_config.id, false).await?;
 
-            // Update extension data
             if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
                 warn!("Failed to serialize extension state: {}", e);
                 return Err(anyhow!("Extension state serialization failed: {}", e));
             }
 
-            // Save back to database
             SessionManager::update_session(&session_config.id)
                 .extension_data(session_data.extension_data)
                 .apply()
@@ -774,7 +771,6 @@ impl Agent {
             }
         }
 
-        // Save extension state after successful operation
         if result.is_ok() {
             if let Err(e) = self.save_extension_state(session).await {
                 warn!(

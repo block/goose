@@ -108,7 +108,6 @@ impl ExtensionState for EnabledExtensionsState {
 }
 
 impl EnabledExtensionsState {
-    /// Create a new enabled extensions state
     pub fn new(extensions: Vec<ExtensionConfig>) -> Self {
         Self { extensions }
     }
