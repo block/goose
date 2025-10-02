@@ -75,7 +75,7 @@ pub struct ScanRecipeResponse {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct SaveRecipeToFileRequest {
+pub struct SaveRecipeRequest {
     recipe: Recipe,
     id: Option<String>,
     is_global: Option<bool>,
@@ -295,8 +295,8 @@ async fn delete_recipe(
 
 #[utoipa::path(
     post,
-    path = "/recipes/save_to_file",
-    request_body = SaveRecipeToFileRequest,
+    path = "/recipes/save",
+    request_body = SaveRecipeRequest,
     responses(
         (status = 204, description = "Recipe saved to file successfully"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
@@ -304,9 +304,9 @@ async fn delete_recipe(
     ),
     tag = "Recipe Management"
 )]
-async fn save_recipe_to_file(
+async fn save_recipe(
     State(state): State<Arc<AppState>>,
-    Json(request): Json<SaveRecipeToFileRequest>,
+    Json(request): Json<SaveRecipeRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
     let file_path = match request.id {
         Some(id) => state.recipe_file_hash_map.lock().await.get(&id).cloned(),
@@ -352,7 +352,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
-        .route("/recipes/save_to_file", post(save_recipe_to_file))
+        .route("/recipes/save", post(save_recipe))
         .route("/recipes/parse", post(parse_recipe))
         .with_state(state)
 }

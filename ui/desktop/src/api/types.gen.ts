@@ -691,7 +691,7 @@ export type RunNowResponse = {
     session_id: string;
 };
 
-export type SaveRecipeToFileRequest = {
+export type SaveRecipeRequest = {
     id?: string | null;
     is_global?: boolean | null;
     recipe: Recipe;
@@ -1813,14 +1813,14 @@ export type ParseRecipeResponses = {
 
 export type ParseRecipeResponse2 = ParseRecipeResponses[keyof ParseRecipeResponses];
 
-export type SaveRecipeToFileData = {
-    body: SaveRecipeToFileRequest;
+export type SaveRecipeData = {
+    body: SaveRecipeRequest;
     path?: never;
     query?: never;
-    url: '/recipes/save_to_file';
+    url: '/recipes/save';
 };
 
-export type SaveRecipeToFileErrors = {
+export type SaveRecipeErrors = {
     /**
      * Unauthorized - Invalid or missing API key
      */
@@ -1831,16 +1831,16 @@ export type SaveRecipeToFileErrors = {
     500: ErrorResponse;
 };
 
-export type SaveRecipeToFileError = SaveRecipeToFileErrors[keyof SaveRecipeToFileErrors];
+export type SaveRecipeError = SaveRecipeErrors[keyof SaveRecipeErrors];
 
-export type SaveRecipeToFileResponses = {
+export type SaveRecipeResponses = {
     /**
      * Recipe saved to file successfully
      */
     204: void;
 };
 
-export type SaveRecipeToFileResponse = SaveRecipeToFileResponses[keyof SaveRecipeToFileResponses];
+export type SaveRecipeResponse = SaveRecipeResponses[keyof SaveRecipeResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;

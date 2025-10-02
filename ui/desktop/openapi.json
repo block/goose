@@ -1140,17 +1140,17 @@
         }
       }
     },
-    "/recipes/save_to_file": {
+    "/recipes/save": {
       "post": {
         "tags": [
           "Recipe Management"
         ],
-        "operationId": "save_recipe_to_file",
+        "operationId": "save_recipe",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SaveRecipeToFileRequest"
+                "$ref": "#/components/schemas/SaveRecipeRequest"
               }
             }
           },
@@ -3593,7 +3593,7 @@
           }
         }
       },
-      "SaveRecipeToFileRequest": {
+      "SaveRecipeRequest": {
         "type": "object",
         "required": [
           "recipe"

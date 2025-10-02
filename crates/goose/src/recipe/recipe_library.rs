@@ -24,7 +24,9 @@ pub fn list_recipes_from_library(is_global: bool) -> Result<Vec<(PathBuf, Recipe
     if path.exists() {
         for entry in fs::read_dir(path)? {
             let path = entry?.path();
-            if path.extension() == Some("yaml".as_ref()) {
+            let extension = path.extension();
+
+            if extension == Some("yaml".as_ref()) || extension == Some("json".as_ref()) {
                 let Ok(recipe_file) = read_recipe_file(path.clone()) else {
                     continue;
                 };
