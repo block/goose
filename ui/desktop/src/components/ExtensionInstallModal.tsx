@@ -47,6 +47,14 @@ interface ExtensionInstallModalProps {
 
 function extractCommand(link: string): string {
   const url = new URL(link);
+
+  // For remote extensions (SSE or Streaming HTTP), return the URL
+  const remoteUrl = url.searchParams.get('url');
+  if (remoteUrl) {
+    return remoteUrl;
+  }
+
+  // For stdio extensions, return the command
   const cmd = url.searchParams.get('cmd') || 'Unknown Command';
   const args = url.searchParams.getAll('arg').map(decodeURIComponent);
   return `${cmd} ${args.join(' ')}`.trim();

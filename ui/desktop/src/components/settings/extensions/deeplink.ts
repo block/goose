@@ -88,7 +88,8 @@ function getStreamableHttpConfig(
   name: string,
   description: string,
   timeout: number,
-  headers?: { [key: string]: string }
+  headers?: { [key: string]: string },
+  envs?: { [key: string]: string }
 ) {
   const config: ExtensionConfig = {
     name,
@@ -97,6 +98,7 @@ function getStreamableHttpConfig(
     description,
     timeout: timeout,
     headers: headers,
+    envs: envs,
   };
 
   return config;
@@ -163,9 +165,21 @@ export async function addExtensionFromDeepLink(
         )
       : undefined;
 
+  // Parse env vars for remote extensions (same logic as stdio)
+  const envList = parsedUrl.searchParams.getAll('env');
+  const envs =
+    envList.length > 0
+      ? Object.fromEntries(
+          envList.map((env) => {
+            const [key] = env.split('=');
+            return [key, ''];
+          })
+        )
+      : undefined;
+
   const config = remoteUrl
     ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers)
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
