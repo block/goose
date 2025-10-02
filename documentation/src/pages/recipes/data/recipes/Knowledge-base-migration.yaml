@@ -1,0 +1,36 @@
+version: 1.0.0
+title: Knowledge Base Article Migrator
+description: Migrates knowledge base (KB) articles into a unified format.
+instructions: Follow the steps to migrate articles while preserving metadata and formatting.
+activities:
+  - Copy KB articles into new folder
+  - Normalize headers, metadata, and tags
+  - Add TOC entries if missing
+prompt: |
+  Migrate the KB article(s) from {{kb_source}} into {{kb_target}}.
+  Ensure:
+  - Metadata like author, tags, and date are preserved
+  - Format matches {{template_file}}
+  - All internal links remain functional
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+parameters:
+- key: kb_source
+  input_type: file
+  requirement: user_prompt
+  description: Source KB file or folder
+- key: kb_target
+  input_type: file
+  requirement: user_prompt
+  description: Destination folder for migrated articles
+- key: template_file
+  input_type: file
+  requirement: required
+  description: The template file to ensure consistency
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
