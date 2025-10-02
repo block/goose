@@ -118,6 +118,14 @@ async fn start_agent(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
+    if let Err(e) = goose::projects::update_project_tracker_for_dir(
+        &PathBuf::from(&payload.working_dir),
+        None,
+        Some(&session.id),
+    ) {
+        tracing::warn!("Failed to update project tracker: {}", e);
+    }
+
     Ok(Json(session))
 }
 
@@ -138,6 +146,14 @@ async fn resume_agent(
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    if let Err(e) = goose::projects::update_project_tracker_for_dir(
+        &session.working_dir,
+        None,
+        Some(&session.id),
+    ) {
+        tracing::warn!("Failed to update project tracker: {}", e);
+    }
 
     Ok(Json(session))
 }

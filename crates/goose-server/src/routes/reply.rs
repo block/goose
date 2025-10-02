@@ -200,12 +200,26 @@ async fn reply_handler(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = Conversation::new_unvalidated(request.messages);
+    let messages = Conversation::new_unvalidated(request.messages.clone());
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
+    let request_messages = request.messages.clone();
 
     drop(tokio::spawn(async move {
+        let last_user_message = request_messages
+            .iter()
+            .rev()
+            .find(|msg| msg.role == rmcp::model::Role::User)
+            .and_then(|msg| {
+                msg.content.iter().find_map(|content| {
+                    if let goose::conversation::message::MessageContent::Text(text) = content {
+                        Some(text.text.as_str())
+                    } else {
+                        None
+                    }
+                })
+            });
         let agent = match state.get_agent(session_id.clone()).await {
             Ok(agent) => agent,
             Err(e) => {
@@ -246,6 +260,13 @@ async fn reply_handler(
             max_turns: None,
             retry_config: None,
         };
+        if let Err(e) = goose::projects::update_project_tracker_for_dir(
+            &session.working_dir,
+            last_user_message,
+            Some(&session_id),
+        ) {
+            tracing::warn!("Failed to update project tracker: {}", e);
+        }
 
         let mut stream = match agent
             .reply(
