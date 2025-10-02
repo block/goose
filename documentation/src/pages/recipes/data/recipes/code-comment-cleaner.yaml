@@ -1,0 +1,19 @@
+version: "1.0.0"
+title: Code Comment Cleaner
+description: Cleans unnecessary or outdated comments from source code while preserving important ones.
+instructions: Analyze code comments and remove redundant or meaningless comments.
+activities:
+  - Detect outdated or redundant comments
+  - Retain meaningful comments
+  - Format remaining comments consistently
+prompt: |
+  Clean comments in {{source_file}} while keeping important explanations intact.
+parameters:
+  - key: source_file
+    input_type: file
+    requirement: required
+    description: Source code file to clean
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
