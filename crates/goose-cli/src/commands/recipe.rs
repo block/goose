@@ -33,12 +33,13 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 ///
 /// # Arguments
 ///
-/// * `file_path` - Path to the recipe file
+/// * `recipe_name` - Path to the recipe file
+/// * `open` - Automatically open the deeplink in Goose Desktop
 ///
 /// # Returns
 ///
 /// Result indicating success or failure
-pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
+pub fn handle_deeplink(recipe_name: &str, open: bool) -> Result<String> {
     // Load the recipe file first to validate it
     match load_recipe_for_validation(recipe_name) {
         Ok(recipe) => match recipe_deeplink::encode(&recipe) {
@@ -50,6 +51,27 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
                 );
                 let full_url = format!("goose://recipe?config={}", encoded);
                 println!("{}", full_url);
+                
+                // Automatically open the deeplink if the open flag is set
+                if open {
+                    match open::that(&full_url) {
+                        Ok(_) => {
+                            println!(
+                                "{} Opened deeplink in Goose Desktop",
+                                style("✓").green().bold()
+                            );
+                        }
+                        Err(err) => {
+                            println!(
+                                "{} Failed to open deeplink automatically: {}",
+                                style("⚠").yellow().bold(),
+                                err
+                            );
+                            println!("You can manually copy and open the URL above, or ensure Goose Desktop is installed.");
+                        }
+                    }
+                }
+                
                 Ok(full_url)
             }
             Err(err) => {
@@ -187,7 +209,7 @@ response:
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path, false);
         assert!(result.is_ok());
         let url = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
@@ -200,8 +222,23 @@ response:
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path, false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_deeplink_with_open() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        // Test with open=true - should still return valid URL even if opening fails
+        let result = handle_deeplink(&recipe_path, true);
+        assert!(result.is_ok());
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+        let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
+        assert!(encoded_part.len() > 0);
     }
 
     #[test]

@@ -281,6 +281,13 @@ enum RecipeCommand {
             help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
         )]
         recipe_name: String,
+        
+        /// Automatically open the deeplink in Goose Desktop
+        #[arg(
+            long = "open",
+            help = "Automatically open the generated deeplink in Goose Desktop"
+        )]
+        open: bool,
     },
 
     /// List available recipes
@@ -1212,8 +1219,8 @@ pub async fn cli() -> Result<()> {
                 RecipeCommand::Validate { recipe_name } => {
                     handle_validate(&recipe_name)?;
                 }
-                RecipeCommand::Deeplink { recipe_name } => {
-                    handle_deeplink(&recipe_name)?;
+                RecipeCommand::Deeplink { recipe_name, open } => {
+                    handle_deeplink(&recipe_name, open)?;
                 }
                 RecipeCommand::List { format, verbose } => {
                     handle_list(&format, verbose)?;
