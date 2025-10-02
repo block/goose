@@ -859,3 +859,48 @@ impl SessionStorage {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_concurrent_session_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_sessions.db");
+
+        let storage = SessionStorage::create(&db_path).await.unwrap();
+        if SESSION_STORAGE.set(Arc::new(storage)).is_err() {
+            panic!("Failed to initialize SESSION_STORAGE");
+        }
+
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let handle = tokio::spawn(async move {
+                let working_dir = PathBuf::from(format!("/tmp/test_{}", i));
+                let description = format!("Test session {}", i);
+
+                SessionManager::create_session(working_dir, description).await
+            });
+            handles.push(handle);
+        }
+
+        let mut results = vec![];
+        for handle in handles {
+            match handle.await.unwrap() {
+                Ok(session) => results.push(session.id),
+                Err(e) => panic!("Failed to create session: {}", e),
+            }
+        }
+
+        assert_eq!(results.len(), 10, "All tasks should complete");
+
+        let unique_ids: std::collections::HashSet<_> = results.iter().collect();
+        assert_eq!(unique_ids.len(), 10, "All session IDs should be unique");
+
+        let sessions = SessionManager::list_sessions().await.unwrap();
+        assert_eq!(sessions.len(), 10, "Should have 10 sessions in database");
+    }
+}
