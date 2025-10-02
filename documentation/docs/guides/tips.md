@@ -50,3 +50,7 @@ Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest
 ### Use `goose dev` for faster feedback
 When iterating on your project, run `goose dev` instead of `goose build`.  
 This provides quicker feedback loops, helping you catch issues earlier without doing a full build every time.
+
+### Use `goose shortcuts` to speed up workflows
+Goose can execute common tasks faster using predefined shortcuts. Instead of typing long commands or performing repetitive actions, define a shortcut once and reuse it anytime.  
+Example: `goose shortcuts add deploy "run deployment script"` lets you deploy quickly by simply running `goose deploy`.
