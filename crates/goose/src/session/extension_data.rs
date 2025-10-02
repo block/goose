@@ -188,5 +188,4 @@ mod tests {
             Some(&json!({"key": "value"}))
         );
     }
-
 }
