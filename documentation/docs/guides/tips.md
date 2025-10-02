@@ -47,6 +47,5 @@ You don’t need to get it right the first time. Iterating on prompts and tools 
 ### Keep Goose updated
 Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
 
-### Use `goose dev` for faster feedback
-When iterating on your project, run `goose dev` instead of `goose build`.  
-This provides quicker feedback loops, helping you catch issues earlier without doing a full build every time.
+### Automate repetitive tasks safely
+Goose can help streamline your workflow by automating repetitive tasks. Before automating, clearly define the task and test it on a small scale. This ensures predictable results while saving time on routine actions without risking critical files or data.
