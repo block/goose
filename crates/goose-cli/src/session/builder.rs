@@ -3,7 +3,10 @@ use super::CliSession;
 use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
-use goose::config::{get_all_extensions, get_enabled_extensions, Config, ExtensionConfig};
+use goose::config::{
+    extensions::{get_extension_by_name, set_extension, ExtensionEntry},
+    get_all_extensions, get_enabled_extensions, Config, ExtensionConfig,
+};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session::SessionManager;
@@ -147,6 +150,41 @@ async fn offer_extension_debugging_help(
         }
     }
     Ok(())
+}
+
+fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
+    let missing: Vec<_> = saved_extensions
+        .iter()
+        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
+        .cloned()
+        .collect();
+
+    if !missing.is_empty() {
+        let names = missing
+            .iter()
+            .map(|e| e.name())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if !cliclack::confirm(format!(
+            "Extension(s) {} from previous session are no longer in config. Re-add them to config?",
+            names
+        ))
+        .initial_value(true)
+        .interact()
+        .unwrap_or(false)
+        {
+            println!("{}", style("Resume cancelled.").yellow());
+            process::exit(0);
+        }
+
+        missing.into_iter().for_each(|config| {
+            set_extension(ExtensionEntry {
+                enabled: true,
+                config,
+            });
+        });
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -325,14 +363,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         if let Some(session_id) = session_id.as_ref() {
             match SessionManager::get_session(session_id, false).await {
                 Ok(session_data) => {
-                    // Try to load saved extension configs directly
                     if let Some(saved_state) =
                         EnabledExtensionsState::from_extension_data(&session_data.extension_data)
                     {
-                        // Use the saved configs as-is (no lookup needed!)
+                        check_missing_extensions_or_exit(&saved_state.extensions);
                         saved_state.extensions
                     } else {
-                        // Fallback to currently enabled extensions
                         get_enabled_extensions()
                     }
                 }
