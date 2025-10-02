@@ -10,6 +10,10 @@ description.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+utoipa = ["dep:utoipa"]
+
 [build-dependencies]
 tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
@@ -75,7 +79,7 @@ serde_yaml = "0.9.34"
 once_cell = "1.20.2"
 etcetera = "0.8.0"
 rand = "0.8.5"
-utoipa = { version = "4.1", features = ["chrono"] }
+utoipa = { version = "4.1", features = ["chrono"], optional = true }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }

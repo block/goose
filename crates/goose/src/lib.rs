@@ -8,6 +8,7 @@ pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
 pub mod permission;
+pub mod projects;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
