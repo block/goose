@@ -14,6 +14,8 @@ import { useSearchParams } from 'react-router-dom';
 export interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: string;
+  projectPath?: string;
+  sessionId?: string;
 }
 
 interface PairProps {

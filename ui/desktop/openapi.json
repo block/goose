@@ -926,6 +926,157 @@
         }
       }
     },
+    "/projects": {
+      "get": {
+        "tags": [
+          "Projects Management"
+        ],
+        "operationId": "list_projects",
+        "responses": {
+          "200": {
+            "description": "List of projects retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Projects Management"
+        ],
+        "operationId": "update_current_project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateProjectResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/projects/{path}": {
+      "get": {
+        "tags": [
+          "Projects Management"
+        ],
+        "operationId": "get_project",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "Project directory path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectInfoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Project not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Projects Management"
+        ],
+        "operationId": "remove_project",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "Project directory path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project removed successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Project not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/recipes/create": {
       "post": {
         "tags": [
@@ -3022,6 +3173,61 @@
           "Tool"
         ]
       },
+      "ProjectInfoDisplay": {
+        "type": "object",
+        "description": "Display version of ProjectInfo for API responses",
+        "required": [
+          "path",
+          "last_accessed"
+        ],
+        "properties": {
+          "last_accessed": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last time the project was accessed"
+          },
+          "last_instruction": {
+            "type": "string",
+            "description": "Last instruction sent to goose (if available)",
+            "nullable": true
+          },
+          "last_session_id": {
+            "type": "string",
+            "description": "Last session ID associated with this project",
+            "nullable": true
+          },
+          "path": {
+            "type": "string",
+            "description": "The absolute path to the project directory"
+          }
+        }
+      },
+      "ProjectInfoResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectInfoDisplay"
+          }
+        }
+      },
+      "ProjectsListResponse": {
+        "type": "object",
+        "required": [
+          "projects"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectInfoDisplay"
+            },
+            "description": "List of tracked projects"
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -4113,6 +4319,33 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "Optional instruction to associate with this project",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "Optional session ID to associate with this project",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateProjectResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message"
           }
         }
       },

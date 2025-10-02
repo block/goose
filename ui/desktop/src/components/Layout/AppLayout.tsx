@@ -45,6 +45,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       case 'schedules':
         navigate('/schedules');
         break;
+      case 'projects':
+        navigate('/projects');
+        break;
       case 'recipes':
         navigate('/recipes');
         break;

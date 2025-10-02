@@ -462,6 +462,39 @@ export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
 export type PrincipalType = 'Extension' | 'Tool';
 
+/**
+ * Display version of ProjectInfo for API responses
+ */
+export type ProjectInfoDisplay = {
+    /**
+     * Last time the project was accessed
+     */
+    last_accessed: string;
+    /**
+     * Last instruction sent to goose (if available)
+     */
+    last_instruction?: string | null;
+    /**
+     * Last session ID associated with this project
+     */
+    last_session_id?: string | null;
+    /**
+     * The absolute path to the project directory
+     */
+    path: string;
+};
+
+export type ProjectInfoResponse = {
+    project: ProjectInfoDisplay;
+};
+
+export type ProjectsListResponse = {
+    /**
+     * List of tracked projects
+     */
+    projects: Array<ProjectInfoDisplay>;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -890,6 +923,24 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+export type UpdateProjectRequest = {
+    /**
+     * Optional instruction to associate with this project
+     */
+    instruction?: string | null;
+    /**
+     * Optional session ID to associate with this project
+     */
+    sessionId?: string | null;
+};
+
+export type UpdateProjectResponse = {
+    /**
+     * Success message
+     */
+    message: string;
 };
 
 export type UpdateProviderRequest = {
@@ -1648,6 +1699,130 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type ListProjectsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/projects';
+};
+
+export type ListProjectsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListProjectsResponses = {
+    /**
+     * List of projects retrieved successfully
+     */
+    200: ProjectsListResponse;
+};
+
+export type ListProjectsResponse = ListProjectsResponses[keyof ListProjectsResponses];
+
+export type UpdateCurrentProjectData = {
+    body: UpdateProjectRequest;
+    path?: never;
+    query?: never;
+    url: '/projects';
+};
+
+export type UpdateCurrentProjectErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateCurrentProjectResponses = {
+    /**
+     * Project updated successfully
+     */
+    200: UpdateProjectResponse;
+};
+
+export type UpdateCurrentProjectResponse = UpdateCurrentProjectResponses[keyof UpdateCurrentProjectResponses];
+
+export type RemoveProjectData = {
+    body?: never;
+    path: {
+        /**
+         * Project directory path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/projects/{path}';
+};
+
+export type RemoveProjectErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Project not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveProjectResponses = {
+    /**
+     * Project removed successfully
+     */
+    200: unknown;
+};
+
+export type GetProjectData = {
+    body?: never;
+    path: {
+        /**
+         * Project directory path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/projects/{path}';
+};
+
+export type GetProjectErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Project not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProjectResponses = {
+    /**
+     * Project information retrieved successfully
+     */
+    200: ProjectInfoResponse;
+};
+
+export type GetProjectResponse = GetProjectResponses[keyof GetProjectResponses];
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;

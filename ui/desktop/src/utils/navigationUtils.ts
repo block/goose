@@ -13,6 +13,7 @@ export type View =
   | 'settingsV2'
   | 'sessions'
   | 'schedules'
+  | 'projects'
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
@@ -53,6 +54,9 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         break;
       case 'schedules':
         navigate('/schedules', { state: options });
+        break;
+      case 'projects':
+        navigate('/projects', { state: options });
         break;
       case 'recipes':
         navigate('/recipes', { state: options });

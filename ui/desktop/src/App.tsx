@@ -22,6 +22,7 @@ import Hub from './components/hub';
 import Pair, { PairRouteState } from './components/pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
+import ProjectsView from './components/projects/ProjectsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
@@ -127,6 +128,20 @@ const SessionsRoute = () => {
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   return <SessionsView setView={setView} />;
+};
+
+const ProjectsRoute = () => {
+  const handleSelectProject = (projectPath: string, sessionId?: string) => {
+    // Create a new chat window with the project context
+    window.electron.createChatWindow(
+      undefined, // query
+      projectPath, // working directory
+      undefined, // version
+      sessionId // resume session ID
+    );
+  };
+
+  return <ProjectsView onSelectProject={handleSelectProject} />;
 };
 
 const SchedulesRoute = () => {
@@ -598,6 +613,7 @@ export function AppInner() {
               }
             />
             <Route path="sessions" element={<SessionsRoute />} />
+            <Route path="projects" element={<ProjectsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
             <Route path="recipe-editor" element={<RecipeEditorRoute />} />
