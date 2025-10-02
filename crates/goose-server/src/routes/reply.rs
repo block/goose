@@ -161,6 +161,7 @@ async fn stream_event(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 #[utoipa::path(
     post,
     path = "/reply",
