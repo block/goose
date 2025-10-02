@@ -1,0 +1,19 @@
+version: "1.0.0"
+title: Changelog Generator
+description: Automatically generates a CHANGELOG.md from git commit messages.
+instructions: Parse git history and create a structured changelog with dates and commit summaries.
+activities:
+  - Read git commit history
+  - Categorize commits (feature, fix, docs, etc.)
+  - Generate Markdown changelog
+prompt: |
+  Generate a changelog from git history of {{repo_path}} and save it as CHANGELOG.md.
+parameters:
+  - key: repo_path
+    input_type: file
+    requirement: required
+    description: Path to git repository
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
