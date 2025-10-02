@@ -159,33 +159,28 @@ impl SessionManager {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         let storage = Self::instance().await?;
 
-        let mut tx = storage.pool.begin().await?;
-
-        let max_idx = sqlx::query_scalar::<_, Option<i32>>(
-            "SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER)) FROM sessions WHERE id LIKE ?",
-        )
-        .bind(format!("{}_%", today))
-        .fetch_one(&mut *tx)
-        .await?
-        .unwrap_or(0);
-
-        let session_id = format!("{}_{}", today, max_idx + 1);
-
-        sqlx::query(
+        Ok(sqlx::query_as(
             r#"
-        INSERT INTO sessions (id, description, working_dir, extension_data)
-        VALUES (?, ?, ?, '{}')
-    "#,
+                INSERT INTO sessions (id, description, working_dir, extension_data)
+                VALUES (
+                    ? || '_' || CAST(COALESCE((
+                        SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
+                        FROM sessions
+                        WHERE id LIKE ? || '_%'
+                    ), 0) + 1 AS TEXT),
+                    ?,
+                    ?,
+                    '{}'
+                )
+                RETURNING *
+                "#,
         )
-        .bind(&session_id)
+        .bind(&today)
+        .bind(&today)
         .bind(&description)
         .bind(working_dir.to_string_lossy().as_ref())
-        .execute(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-
-        Self::get_session(&session_id, false).await
+        .fetch_one(&storage.pool)
+        .await?)
     }
 
     pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
@@ -863,7 +858,10 @@ impl SessionStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use tempfile::TempDir;
+
+    const NUM_CONCURRENT_SESSIONS: i32 = 10;
 
     #[tokio::test]
     async fn test_concurrent_session_creation() {
@@ -877,30 +875,80 @@ mod tests {
 
         let mut handles = vec![];
 
-        for i in 0..10 {
+        for i in 0..NUM_CONCURRENT_SESSIONS {
             let handle = tokio::spawn(async move {
                 let working_dir = PathBuf::from(format!("/tmp/test_{}", i));
                 let description = format!("Test session {}", i);
 
-                SessionManager::create_session(working_dir, description).await
+                let session = SessionManager::create_session(working_dir.clone(), description)
+                    .await
+                    .unwrap();
+
+                SessionManager::add_message(
+                    &session.id,
+                    &Message {
+                        id: None,
+                        role: Role::User,
+                        created: chrono::Utc::now().timestamp_millis(),
+                        content: vec![MessageContent::text("hello world")],
+                        metadata: Default::default(),
+                    },
+                )
+                .await
+                .unwrap();
+
+                SessionManager::add_message(
+                    &session.id,
+                    &Message {
+                        id: None,
+                        role: Role::Assistant,
+                        created: chrono::Utc::now().timestamp_millis(),
+                        content: vec![MessageContent::text("sup world?")],
+                        metadata: Default::default(),
+                    },
+                )
+                .await
+                .unwrap();
+
+                SessionManager::update_session(&session.id)
+                    .description(format!("Updated session {}", i))
+                    .total_tokens(Some(100 * i))
+                    .apply()
+                    .await
+                    .unwrap();
+
+                let updated = SessionManager::get_session(&session.id, true)
+                    .await
+                    .unwrap();
+                assert_eq!(updated.message_count, 2);
+                assert_eq!(updated.total_tokens, Some(100 * i));
+
+                session.id
             });
             handles.push(handle);
         }
 
         let mut results = vec![];
         for handle in handles {
-            match handle.await.unwrap() {
-                Ok(session) => results.push(session.id),
-                Err(e) => panic!("Failed to create session: {}", e),
-            }
+            results.push(handle.await.unwrap());
         }
 
-        assert_eq!(results.len(), 10, "All tasks should complete");
+        assert_eq!(results.len(), NUM_CONCURRENT_SESSIONS as usize);
 
         let unique_ids: std::collections::HashSet<_> = results.iter().collect();
-        assert_eq!(unique_ids.len(), 10, "All session IDs should be unique");
+        assert_eq!(unique_ids.len(), NUM_CONCURRENT_SESSIONS as usize);
 
         let sessions = SessionManager::list_sessions().await.unwrap();
-        assert_eq!(sessions.len(), 10, "Should have 10 sessions in database");
+        assert_eq!(sessions.len(), NUM_CONCURRENT_SESSIONS as usize);
+
+        for session in &sessions {
+            assert_eq!(session.message_count, 2);
+            assert!(session.description.starts_with("Updated session"));
+        }
+
+        let insights = SessionManager::get_insights().await.unwrap();
+        assert_eq!(insights.total_sessions, NUM_CONCURRENT_SESSIONS as usize);
+        let expected_tokens = 100 * NUM_CONCURRENT_SESSIONS * (NUM_CONCURRENT_SESSIONS - 1) / 2;
+        assert_eq!(insights.total_tokens, expected_tokens as i64);
     }
 }
