@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -453,25 +454,35 @@ impl Agent {
                 .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
-            let provider = self.provider().await.ok();
+            let provider = match self.provider().await {
+                Ok(p) => p,
+                Err(_) => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Provider is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let parent_session_id = session
+                .as_ref()
+                .map(|s| s.id.to_string())
+                .unwrap_or_default();
+            let parent_working_dir = session
+                .as_ref()
+                .map(|s| s.working_dir.clone())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+            let task_config = TaskConfig::new(provider, parent_session_id, parent_working_dir);
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            let parent_session_id: Option<String> = session.as_ref().and_then(|session_config| {
-                if let Identifier::Path(path_str) = &session_config.id {
-                    // Convert string to Path and extract the file stem (filename without extension)
-                    let path = Path::new(path_str);
-                    path.file_stem()
-                        .and_then(|stem| stem.to_str())
-                        .map(|stem| stem.to_string())
-                } else {
-                    None
-                }
-            });
 
-            let task_config = TaskConfig::new(provider, parent_session_id);
             subagent_execute_task_tool::run_tasks(
                 arguments,
                 task_config,

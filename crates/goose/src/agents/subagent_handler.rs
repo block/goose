@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use crate::{
-    agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
+    agents::{subagent_task_config::TaskConfig, AgentEvent, ExtensionConfig, SessionConfig},
+    config::ExtensionConfigManager,
     conversation::{message::Message, Conversation},
-    execution::{manager::AgentManager, SessionExecutionMode},
-    providers::base::Provider,
+    execution::manager::AgentManager,
     session::SessionManager,
 };
 use anyhow::{anyhow, Result};
@@ -98,15 +96,11 @@ fn get_agent_messages(
     task_config: TaskConfig,
 ) -> BoxFuture<'static, Result<Conversation>> {
     Box::pin(async move {
-        let agent_manager = AgentManager::instance(None)
+        let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-        let parent_session_id = task_config
-            .parent_session_id
-            .ok_or_else(|| anyhow!("Parent session ID is missing"))?;
-
-        let current_dir = std::env::current_dir()
-            .map_err(|e| anyhow!("Failed to get current directory for sub agent: {}", e))?;
+        let parent_session_id = task_config.parent_session_id;
+        let current_dir = task_config.parent_working_dir;
         let session = SessionManager::create_session(
             current_dir.clone(),
             format!("Subagent task for: {}", parent_session_id),
@@ -115,31 +109,34 @@ fn get_agent_messages(
         .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
 
         let agent = agent_manager
-            .get_or_create_agent(
-                session.id.clone(),
-                SessionExecutionMode::SubTask {
-                    parent_session: parent_session_id,
-                },
-            )
+            .get_or_create_agent(session.id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
-        let agent_provider: Arc<dyn Provider> = task_config
-            .provider
-            .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
         agent
-            .update_provider(agent_provider)
+            .update_provider(task_config.provider)
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
-        if let Some(recipe_extensions) = task_config.extensions {
-            for extension in recipe_extensions {
-                if let Err(e) = agent.add_extension(extension.clone()).await {
-                    debug!(
-                        "Failed to add extension '{}' to subagent: {}",
-                        extension.name(),
-                        e
-                    );
-                }
+        let extensions_to_add = if let Some(ref extensions) = task_config.extensions {
+            // Use the explicitly specified extensions
+            extensions.clone()
+        } else {
+            // Default behavior: use all enabled extensions
+            ExtensionConfigManager::get_all()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|ext| ext.enabled)
+                .map(|ext| ext.config)
+                .collect::<Vec<ExtensionConfig>>()
+        };
+
+        for extension in extensions_to_add {
+            if let Err(e) = agent.add_extension(extension.clone()).await {
+                debug!(
+                    "Failed to add extension '{}' to subagent: {}",
+                    extension.name(),
+                    e
+                );
             }
         }
 
@@ -147,8 +144,6 @@ fn get_agent_messages(
             Conversation::new_unvalidated(
                 vec![Message::user().with_text(text_instruction.clone())],
             );
-        let current_dir = std::env::current_dir()
-            .map_err(|e| anyhow!("Failed to get current directory for sub agent: {}", e))?;
         let session_config = SessionConfig {
             id: session.id,
             working_dir: current_dir,
