@@ -1,0 +1,19 @@
+version: "1.0.0"
+title: Python Dependency Updater
+description: Updates Python dependencies in requirements.txt or pyproject.toml to the latest safe versions.
+instructions: Analyze dependency files and update versions while maintaining compatibility.
+activities:
+  - Read dependency files
+  - Identify outdated packages
+  - Suggest updates
+prompt: |
+  Update dependencies in {{dependency_file}} to the latest compatible versions.
+parameters:
+  - key: dependency_file
+    input_type: file
+    requirement: required
+    description: Path to requirements.txt or pyproject.toml
+extensions: []
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
