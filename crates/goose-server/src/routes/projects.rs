@@ -167,7 +167,9 @@ async fn update_current_project(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/projects", get(list_projects).post(update_current_project))
-        .route("/projects/{path}", get(get_project).delete(remove_project))
+        .route("/projects", get(list_projects))
+        .route("/projects", post(update_current_project))
+        .route("/projects/{path}", get(get_project))
+        .route("/projects/{path}", delete(remove_project))
         .with_state(state)
 }
