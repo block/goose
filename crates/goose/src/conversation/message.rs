@@ -3,7 +3,7 @@ use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
     PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
-    ResourceContents, Role, TextContent,
+    ResourceContents, Role, SamplingMessage, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -86,6 +86,16 @@ pub struct ToolConfirmationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplingConfirmationRequest {
+    pub id: String,
+    pub extension_name: String,
+    pub messages: Vec<SamplingMessage>,
+    pub system_prompt: Option<String>,
+    pub prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
@@ -124,6 +134,7 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    SamplingConfirmationRequest(SamplingConfirmationRequest),
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
@@ -149,6 +160,9 @@ impl fmt::Display for MessageContent {
             ),
             MessageContent::ToolConfirmationRequest(r) => {
                 write!(f, "[ToolConfirmationRequest: {}]", r.tool_name)
+            }
+            MessageContent::SamplingConfirmationRequest(r) => {
+                write!(f, "[SamplingConfirmationRequest: {}]", r.extension_name)
             }
             MessageContent::FrontendToolRequest(r) => match &r.tool_call {
                 Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
@@ -279,6 +293,31 @@ impl MessageContent {
         } else {
             None
         }
+    }
+
+    pub fn as_sampling_confirmation_request(&self) -> Option<&SamplingConfirmationRequest> {
+        if let MessageContent::SamplingConfirmationRequest(ref sampling_confirmation_request) = self
+        {
+            Some(sampling_confirmation_request)
+        } else {
+            None
+        }
+    }
+
+    pub fn sampling_confirmation_request<S: Into<String>>(
+        id: S,
+        extension_name: String,
+        messages: Vec<SamplingMessage>,
+        system_prompt: Option<String>,
+        prompt: Option<String>,
+    ) -> Self {
+        MessageContent::SamplingConfirmationRequest(SamplingConfirmationRequest {
+            id: id.into(),
+            extension_name,
+            messages,
+            system_prompt,
+            prompt,
+        })
     }
 
     pub fn as_tool_response_text(&self) -> Option<String> {
@@ -574,6 +613,24 @@ impl Message {
     ) -> Self {
         self.with_content(MessageContent::tool_confirmation_request(
             id, tool_name, arguments, prompt,
+        ))
+    }
+
+    /// Add a sampling confirmation request to the message
+    pub fn with_sampling_confirmation_request<S: Into<String>>(
+        self,
+        id: S,
+        extension_name: String,
+        messages: Vec<SamplingMessage>,
+        system_prompt: Option<String>,
+        prompt: Option<String>,
+    ) -> Self {
+        self.with_content(MessageContent::sampling_confirmation_request(
+            id,
+            extension_name,
+            messages,
+            system_prompt,
+            prompt,
         ))
     }
 

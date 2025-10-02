@@ -94,12 +94,27 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
+export interface SamplingMessage {
+  role: string;
+  content: string;
+}
+
+export interface SamplingConfirmationRequestMessageContent {
+  type: 'samplingConfirmationRequest';
+  id: string;
+  extensionName: string;
+  messages: SamplingMessage[];
+  systemPrompt?: string;
+  prompt?: string;
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
+  | SamplingConfirmationRequestMessageContent
   | ContextLengthExceededContent
   | SummarizationRequestedContent;
 
@@ -231,6 +246,15 @@ export function getToolConfirmationContent(
   return message.content.find(
     (content): content is ToolConfirmationRequestMessageContent =>
       content.type === 'toolConfirmationRequest'
+  );
+}
+
+export function getSamplingConfirmationContent(
+  message: Message
+): SamplingConfirmationRequestMessageContent | undefined {
+  return message.content.find(
+    (content): content is SamplingConfirmationRequestMessageContent =>
+      content.type === 'samplingConfirmationRequest'
   );
 }
 

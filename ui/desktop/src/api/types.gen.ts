@@ -391,6 +391,8 @@ export type MessageContent = (TextContent & {
     type: 'toolResponse';
 }) | (ToolConfirmationRequest & {
     type: 'toolConfirmationRequest';
+}) | (SamplingConfirmationRequest & {
+    type: 'samplingConfirmationRequest';
 }) | (FrontendToolRequest & {
     type: 'frontendToolRequest';
 }) | (ThinkingContent & {
@@ -467,7 +469,7 @@ export type PermissionConfirmationRequest = {
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
-export type PrincipalType = 'Extension' | 'Tool';
+export type PrincipalType = 'Extension' | 'Tool' | 'Sampling';
 
 export type ProviderDetails = {
     is_configured: boolean;
@@ -699,6 +701,55 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SamplingApprovalRequest = {
+    /**
+     * The user's action: approve, deny, or edit
+     */
+    action: string;
+    /**
+     * If action is "edit", this contains the edited messages
+     */
+    edited_messages?: Array<SamplingMessage> | null;
+    /**
+     * The sampling confirmation request ID
+     */
+    id: string;
+    /**
+     * The session ID for the current agent session
+     */
+    session_id: string;
+};
+
+export type SamplingConfirmationRequest = {
+    extensionName: string;
+    id: string;
+    messages: Array<SamplingMessage>;
+    prompt?: string | null;
+    systemPrompt?: string | null;
+};
+
+export type SamplingMessage = {
+    /**
+     * The actual content of the message
+     */
+    content: string;
+    /**
+     * The role of the message sender (User or Assistant)
+     */
+    role: string;
+};
+
+export type SamplingResponse = {
+    /**
+     * Optional message
+     */
+    message?: string | null;
+    /**
+     * Status of the response
+     */
+    status: string;
 };
 
 export type SaveRecipeRequest = {
@@ -1894,6 +1945,33 @@ export type ReplyResponses = {
      */
     200: unknown;
 };
+
+export type HandleSamplingApprovalData = {
+    body: SamplingApprovalRequest;
+    path?: never;
+    query?: never;
+    url: '/sampling/approve';
+};
+
+export type HandleSamplingApprovalErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type HandleSamplingApprovalResponses = {
+    /**
+     * Sampling approval processed
+     */
+    200: SamplingResponse;
+};
+
+export type HandleSamplingApprovalResponse = HandleSamplingApprovalResponses[keyof HandleSamplingApprovalResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

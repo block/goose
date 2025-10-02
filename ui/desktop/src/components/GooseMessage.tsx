@@ -16,9 +16,11 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  getSamplingConfirmationContent,
   createToolErrorResponseMessage,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
+import SamplingConfirmation from './SamplingConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
@@ -133,6 +135,8 @@ export default function GooseMessage({
   const messageChain = getChainForMessage(messageIndex, toolCallChains);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
+  const samplingConfirmationContent = getSamplingConfirmationContent(message);
+  const hasSamplingConfirmation = samplingConfirmationContent !== undefined;
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -286,6 +290,15 @@ export default function GooseMessage({
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
             toolConfirmationContent={toolConfirmationContent}
+          />
+        )}
+
+        {hasSamplingConfirmation && (
+          <SamplingConfirmation
+            sessionId={sessionId}
+            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex}
+            samplingConfirmationContent={samplingConfirmationContent}
           />
         )}
       </div>

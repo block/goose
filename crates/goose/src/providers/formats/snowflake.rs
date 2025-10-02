@@ -23,6 +23,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
 
         for msg_content in &message.content {
             match msg_content {
+                MessageContent::SamplingConfirmationRequest(_) => {
+                    // Skip sampling confirmation requests
+                }
                 MessageContent::Text(text) => {
                     if !text_content.is_empty() {
                         text_content.push('\n');

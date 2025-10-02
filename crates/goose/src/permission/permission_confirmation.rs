@@ -13,6 +13,7 @@ pub enum Permission {
 pub enum PrincipalType {
     Extension,
     Tool,
+    Sampling,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

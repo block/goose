@@ -48,6 +48,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         TEXT_TYPE: text.text
                     }));
                 }
+                MessageContent::SamplingConfirmationRequest(_) => {
+                    // Skip sampling confirmation requests
+                }
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {

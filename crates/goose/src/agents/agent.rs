@@ -66,6 +66,16 @@ use crate::session::SessionManager;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
+/// Represents the action taken on a sampling confirmation request
+#[derive(Debug, Clone)]
+pub enum SamplingApprovalAction {
+    Approve,
+    Deny,
+    Edit {
+        edited_messages: Vec<rmcp::model::SamplingMessage>,
+    },
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -97,6 +107,9 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) sampling_confirmation_tx: mpsc::Sender<(String, SamplingApprovalAction)>,
+    pub(super) sampling_confirmation_rx:
+        Arc<Mutex<mpsc::Receiver<(String, SamplingApprovalAction)>>>,
 
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
@@ -111,6 +124,7 @@ pub enum AgentEvent {
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
     HistoryReplaced(Vec<Message>),
+    SamplingConfirmationRequest(crate::conversation::message::SamplingConfirmationRequest),
 }
 
 impl Default for Agent {
@@ -158,6 +172,7 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        let (sampling_tx, sampling_rx) = mpsc::channel(32);
 
         Self {
             provider: Mutex::new(None),
@@ -172,6 +187,8 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            sampling_confirmation_tx: sampling_tx,
+            sampling_confirmation_rx: Arc::new(Mutex::new(sampling_rx)),
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
@@ -801,6 +818,48 @@ impl Agent {
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
+    }
+
+    /// Handle a sampling confirmation response
+    pub async fn handle_sampling_confirmation(
+        &self,
+        request_id: String,
+        action: SamplingApprovalAction,
+    ) {
+        if let Err(e) = self
+            .sampling_confirmation_tx
+            .send((request_id, action))
+            .await
+        {
+            error!("Failed to send sampling confirmation: {}", e);
+        }
+    }
+
+    /// Get the sampling confirmation receiver (for ExtensionManager to use)
+    pub fn get_sampling_confirmation_receiver(
+        &self,
+    ) -> Arc<Mutex<mpsc::Receiver<(String, SamplingApprovalAction)>>> {
+        self.sampling_confirmation_rx.clone()
+    }
+
+    /// Emit a sampling confirmation request event
+    pub async fn emit_sampling_confirmation_request(
+        &self,
+        request_id: String,
+        extension_name: String,
+        messages: Vec<rmcp::model::SamplingMessage>,
+        system_prompt: Option<String>,
+        prompt: Option<String>,
+    ) -> Result<AgentEvent> {
+        let sampling_request = crate::conversation::message::SamplingConfirmationRequest {
+            id: request_id,
+            extension_name,
+            messages,
+            system_prompt,
+            prompt,
+        };
+
+        Ok(AgentEvent::SamplingConfirmationRequest(sampling_request))
     }
 
     /// Handle auto-compaction logic and return compacted messages if needed

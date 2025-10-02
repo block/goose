@@ -68,6 +68,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         for content in &message.content {
             match content {
+                MessageContent::SamplingConfirmationRequest(_) => {
+                    // Skip sampling confirmation requests
+                }
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
                         // Check for image paths in the text

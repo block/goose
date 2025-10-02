@@ -141,6 +141,10 @@ enum MessageEvent {
         request_id: String,
         message: ServerNotification,
     },
+    SamplingConfirmationRequest {
+        #[serde(flatten)]
+        request: goose::conversation::message::SamplingConfirmationRequest,
+    },
     Ping,
 }
 
@@ -319,6 +323,9 @@ pub async fn reply(
                                 request_id: request_id.clone(),
                                 message: n,
                             }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::SamplingConfirmationRequest(request)))) => {
+                            stream_event(MessageEvent::SamplingConfirmationRequest { request }, &tx, &cancel_token).await;
                         }
 
                         Ok(Some(Err(e))) => {

@@ -609,6 +609,11 @@ async fn process_message_streaming(
                     Ok(AgentEvent::ModelChange { model, mode }) => {
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
+                    Ok(AgentEvent::SamplingConfirmationRequest(_)) => {
+                        // For web interface, we don't have a UI to show sampling confirmations yet
+                        // So we just log and continue - the sampling handler will timeout and execute directly
+                        tracing::warn!("Sampling confirmation request received but no UI available for web interface");
+                    }
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         let mut sender = sender.lock().await;

@@ -92,6 +92,7 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: Mutex<PlatformExtensionContext>,
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
+    agent: Arc<Mutex<Option<Arc<crate::agents::Agent>>>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -253,6 +254,7 @@ impl ExtensionManager {
             extensions: Mutex::new(HashMap::new()),
             context: Mutex::new(PlatformExtensionContext { session_id: None }),
             provider: Arc::new(Mutex::new(None)),
+            agent: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -267,6 +269,11 @@ impl ExtensionManager {
     /// Set the provider for handling sampling requests
     pub async fn set_provider(&self, provider: Arc<dyn Provider>) {
         *self.provider.lock().await = Some(provider);
+    }
+
+    /// Set the agent reference for handling sampling requests
+    pub async fn set_agent(&self, agent: Arc<crate::agents::Agent>) {
+        *self.agent.lock().await = Some(agent);
     }
 
     /// Get the provider for handling sampling requests
@@ -345,10 +352,15 @@ impl ExtensionManager {
         }
 
         // Create sampling handler for this extension
-        let sampling_handler = Box::new(ExtensionSamplingHandler::new(
-            self.provider.clone(),
-            sanitized_name.clone(),
-        ));
+        let mut sampling_handler =
+            ExtensionSamplingHandler::new(self.provider.clone(), sanitized_name.clone());
+
+        // Set the agent reference if available
+        if let Some(agent) = self.agent.lock().await.as_ref() {
+            sampling_handler = sampling_handler.with_agent(agent.clone());
+        }
+
+        let sampling_handler = Box::new(sampling_handler);
 
         let client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse { uri, timeout, .. } => {
@@ -1137,15 +1149,22 @@ impl ExtensionManager {
 #[derive(Clone)]
 pub struct ExtensionSamplingHandler {
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
-    _extension_name: String,
+    extension_name: String,
+    agent: Option<Arc<crate::agents::Agent>>,
 }
 
 impl ExtensionSamplingHandler {
     pub fn new(provider: Arc<Mutex<Option<Arc<dyn Provider>>>>, extension_name: String) -> Self {
         Self {
             provider,
-            _extension_name: extension_name,
+            extension_name,
+            agent: None,
         }
+    }
+
+    pub fn with_agent(mut self, agent: Arc<crate::agents::Agent>) -> Self {
+        self.agent = Some(agent);
+        self
     }
 }
 
@@ -1154,7 +1173,107 @@ impl SamplingHandler for ExtensionSamplingHandler {
     async fn handle_create_message(
         &self,
         params: CreateMessageRequestParam,
-        _extension_name: String,
+        extension_name: String,
+    ) -> Result<CreateMessageResult, ServiceError> {
+        use crate::agents::agent::SamplingApprovalAction;
+
+        // If we have an agent, use it to request approval
+        if let Some(agent) = &self.agent {
+            // Generate a unique request ID for this sampling request
+            let request_id = uuid::Uuid::new_v4().to_string();
+
+            // Get the sampling confirmation receiver
+            let receiver = agent.get_sampling_confirmation_receiver();
+            let mut receiver_guard = receiver.lock().await;
+
+            // Emit the sampling confirmation request event to the UI
+            let sampling_event = match agent
+                .emit_sampling_confirmation_request(
+                    request_id.clone(),
+                    extension_name.clone(),
+                    params.messages.clone(),
+                    params.system_prompt.clone(),
+                    None, // prompt field - could be used for additional context
+                )
+                .await
+            {
+                Ok(event) => event,
+                Err(e) => {
+                    tracing::error!("Failed to emit sampling confirmation request: {}", e);
+                    // Fall back to direct execution if we can't emit the event
+                    return self.execute_sampling(params).await;
+                }
+            };
+
+            // Emit the sampling confirmation request to the agent's reply stream
+            // Note: This requires the agent to have a mechanism to emit events to its reply stream
+            // For now, we log the event and wait for a response through the existing channel mechanism
+            tracing::info!(
+                "Sampling request from extension '{}' with request_id: {} - emitted event: {:?}",
+                extension_name,
+                request_id,
+                sampling_event
+            );
+
+            // Set a timeout for waiting for approval (30 seconds)
+            let timeout_duration = tokio::time::Duration::from_secs(30);
+
+            // Wait for a response with the matching request_id
+            // Use a more robust mechanism to handle multiple concurrent requests
+            let mut unmatched_responses = Vec::new();
+
+            match tokio::time::timeout(timeout_duration, async {
+                while let Some((id, action)) = receiver_guard.recv().await {
+                    if id == request_id {
+                        // Found our response, return it
+                        return Some(action);
+                    } else {
+                        // Store unmatched responses to potentially handle later
+                        unmatched_responses.push((id.clone(), action));
+                        tracing::debug!(
+                            "Received sampling response for different request_id: {} (expected: {})",
+                            id, request_id
+                        );
+                    }
+                }
+                None
+            }).await {
+                Ok(Some(action)) => {
+                    match action {
+                        SamplingApprovalAction::Approve => {
+                            tracing::debug!("Sampling request {} approved", request_id);
+                            self.execute_sampling(params).await
+                        }
+                        SamplingApprovalAction::Deny => {
+                            tracing::debug!("Sampling request {} denied", request_id);
+                            Err(ServiceError::UnexpectedResponse)
+                        }
+                        SamplingApprovalAction::Edit { edited_messages } => {
+                            tracing::debug!("Sampling request {} edited", request_id);
+                            // Create a new params with the edited messages
+                            let mut edited_params = params;
+                            edited_params.messages = edited_messages;
+                            self.execute_sampling(edited_params).await
+                        }
+                    }
+                }
+                Ok(None) | Err(_) => {
+                    tracing::warn!("Sampling request {} timed out or no response received, executing directly", request_id);
+                    // Timeout or no response - fallback to direct execution
+                    self.execute_sampling(params).await
+                }
+            }
+        } else {
+            // No agent available, execute directly
+            self.execute_sampling(params).await
+        }
+    }
+}
+
+impl ExtensionSamplingHandler {
+    async fn execute_sampling(
+        &self,
+        params: CreateMessageRequestParam,
     ) -> Result<CreateMessageResult, ServiceError> {
         // Get the provider from the shared reference
         let provider_lock = self.provider.lock().await;
@@ -1641,5 +1760,136 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_resource_conflict_resolution_first() {
+        let extension_manager = ExtensionManager::new();
+
+        // Create mock extensions that would both have the same resource
+        let matching_extensions = vec![
+            (
+                "extension_b".to_string(),
+                vec![Content::text("Content from B")],
+            ),
+            (
+                "extension_a".to_string(),
+                vec![Content::text("Content from A")],
+            ),
+        ];
+
+        let result = extension_manager.handle_resource_conflict(
+            "test://resource",
+            matching_extensions,
+            "first",
+        );
+
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        // Should return content from extension_a (alphabetically first)
+        if let Some(text_content) = content[0].as_text() {
+            assert!(text_content.text.contains("Content from A"));
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resource_conflict_resolution_error() {
+        let extension_manager = ExtensionManager::new();
+
+        let matching_extensions = vec![
+            (
+                "extension_a".to_string(),
+                vec![Content::text("Content from A")],
+            ),
+            (
+                "extension_b".to_string(),
+                vec![Content::text("Content from B")],
+            ),
+        ];
+
+        let result = extension_manager.handle_resource_conflict(
+            "test://resource",
+            matching_extensions,
+            "error",
+        );
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+        assert!(error.message.contains("multiple extensions"));
+        assert!(error.message.contains("extension_a"));
+        assert!(error.message.contains("extension_b"));
+    }
+
+    #[tokio::test]
+    async fn test_resource_conflict_resolution_merge() {
+        let extension_manager = ExtensionManager::new();
+
+        let matching_extensions = vec![
+            (
+                "extension_a".to_string(),
+                vec![Content::text("Content from A")],
+            ),
+            (
+                "extension_b".to_string(),
+                vec![Content::text("Content from B")],
+            ),
+        ];
+
+        let result = extension_manager.handle_resource_conflict(
+            "test://resource",
+            matching_extensions,
+            "merge",
+        );
+
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 4); // 2 headers + 2 content pieces
+
+        // Check that both extensions' content is included with headers
+        let content_text: Vec<String> = content
+            .iter()
+            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+            .collect();
+
+        assert!(content_text
+            .iter()
+            .any(|text| text.contains("=== Content from extension: extension_a ===")));
+        assert!(content_text
+            .iter()
+            .any(|text| text.contains("Content from A")));
+        assert!(content_text
+            .iter()
+            .any(|text| text.contains("=== Content from extension: extension_b ===")));
+        assert!(content_text
+            .iter()
+            .any(|text| text.contains("Content from B")));
+    }
+
+    #[tokio::test]
+    async fn test_resource_conflict_resolution_invalid_strategy() {
+        let extension_manager = ExtensionManager::new();
+
+        let matching_extensions = vec![(
+            "extension_a".to_string(),
+            vec![Content::text("Content from A")],
+        )];
+
+        let result = extension_manager.handle_resource_conflict(
+            "test://resource",
+            matching_extensions,
+            "invalid_strategy",
+        );
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+        assert!(error
+            .message
+            .contains("Unknown conflict_resolution strategy"));
+        assert!(error.message.contains("'first', 'error', 'merge'"));
     }
 }

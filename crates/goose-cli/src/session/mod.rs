@@ -1189,6 +1189,13 @@ impl CliSession {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
+                        Some(Ok(AgentEvent::SamplingConfirmationRequest(_))) => {
+                            // For CLI sessions, we don't have a UI to show sampling confirmations
+                            // So we just log and continue - the sampling handler will timeout and execute directly
+                            if self.debug {
+                                eprintln!("Sampling confirmation request received but no UI available for CLI session");
+                            }
+                        }
 
                         Some(Err(e)) => {
                             // Check if it's a ProviderError::ContextLengthExceeded

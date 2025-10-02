@@ -1235,6 +1235,42 @@
         }
       }
     },
+    "/sampling/approve": {
+      "post": {
+        "tags": [
+          "super::routes::sampling"
+        ],
+        "operationId": "handle_sampling_approval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamplingApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sampling approval processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -2994,6 +3030,27 @@
           {
             "allOf": [
               {
+                "$ref": "#/components/schemas/SamplingConfirmationRequest"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "samplingConfirmationRequest"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
                 "$ref": "#/components/schemas/FrontendToolRequest"
               },
               {
@@ -3214,7 +3271,8 @@
         "type": "string",
         "enum": [
           "Extension",
-          "Tool"
+          "Tool",
+          "Sampling"
         ]
       },
       "ProviderDetails": {
@@ -3705,6 +3763,100 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "SamplingApprovalRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "id",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The user's action: approve, deny, or edit"
+          },
+          "edited_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SamplingMessage"
+            },
+            "description": "If action is \"edit\", this contains the edited messages",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "description": "The sampling confirmation request ID"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "The session ID for the current agent session"
+          }
+        }
+      },
+      "SamplingConfirmationRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "extensionName",
+          "messages"
+        ],
+        "properties": {
+          "extensionName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SamplingMessage"
+            }
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "systemPrompt": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SamplingMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The actual content of the message"
+          },
+          "role": {
+            "type": "string",
+            "description": "The role of the message sender (User or Assistant)"
+          }
+        }
+      },
+      "SamplingResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Optional message",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the response"
           }
         }
       },

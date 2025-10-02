@@ -1238,6 +1238,11 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::McpNotification(_)) => {}
                         Ok(AgentEvent::ModelChange { .. }) => {}
                         Ok(AgentEvent::HistoryReplaced(_)) => {}
+                        Ok(AgentEvent::SamplingConfirmationRequest(_)) => {
+                            // For scheduled jobs, we don't have a UI to show sampling confirmations
+                            // So we just log and continue - the sampling handler will timeout and execute directly
+                            tracing::warn!("[Job {}] Sampling confirmation request received but no UI available for scheduled job", job.id);
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
