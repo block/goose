@@ -40,14 +40,14 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 /// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     match generate_deeplink(recipe_name) {
-        Ok((full_url, recipe)) => {
+        Ok((deeplink_url, recipe)) => {
             println!(
                 "{} Generated deeplink for: {}",
                 style("✓").green().bold(),
                 recipe.title
             );
-            println!("{}", full_url);
-            Ok(full_url)
+            println!("{}", deeplink_url);
+            Ok(deeplink_url)
         }
         Err(err) => {
             println!(
@@ -168,8 +168,7 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-
-/// Helper function to generate a deeplink 
+/// Helper function to generate a deeplink
 ///
 /// # Arguments
 ///
@@ -186,9 +185,7 @@ fn generate_deeplink(recipe_name: &str) -> Result<(String, goose::recipe::Recipe
             let full_url = format!("goose://recipe?config={}", encoded);
             Ok((full_url, recipe))
         }
-        Err(err) => {
-            Err(anyhow::anyhow!("Failed to encode recipe: {}", err))
-        }
+        Err(err) => Err(anyhow::anyhow!("Failed to encode recipe: {}", err)),
     }
 }
 
@@ -346,7 +343,7 @@ response:
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
-        
+
         let result = generate_deeplink(&recipe_path);
         assert!(result.is_err());
     }

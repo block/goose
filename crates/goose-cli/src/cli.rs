@@ -287,9 +287,7 @@ enum RecipeCommand {
     #[command(about = "Open a recipe in Goose Desktop")]
     Open {
         /// Recipe name to get recipe file to open
-        #[arg(
-            help = "recipe name or full path to the recipe file"
-        )]
+        #[arg(help = "recipe name or full path to the recipe file")]
         recipe_name: String,
     },
 
