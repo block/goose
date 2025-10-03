@@ -19,6 +19,7 @@ describe('Recipe Validation', () => {
         type: 'builtin',
         name: 'developer',
         display_name: 'Developer',
+        description: 'Developer',
         timeout: 300,
         bundled: true,
       },
@@ -35,6 +36,7 @@ describe('Recipe Validation', () => {
       {
         type: 'builtin',
         name: 'developer',
+        description: 'Developer',
       },
     ],
   };
@@ -57,6 +59,7 @@ describe('Recipe Validation', () => {
       {
         type: 'builtin',
         name: 'developer',
+        description: 'developer',
       },
     ],
   };
@@ -74,6 +77,7 @@ describe('Recipe Validation', () => {
       {
         type: 'builtin',
         name: 'developer',
+        description: 'developer',
       },
     ],
   };
@@ -178,9 +182,9 @@ describe('Recipe Validation', () => {
           ...validRecipe,
           extensions: [
             {
-              // Only required fields for builtin extension
               type: 'builtin',
               name: 'developer',
+              description: 'description',
             },
           ],
         };
@@ -541,10 +545,12 @@ describe('Recipe Validation', () => {
           {
             type: 'builtin',
             name: 'developer',
+            description: 'developer',
           },
           {
             type: 'builtin',
             name: 'computercontroller',
+            description: 'computercontroller',
           },
         ],
       };
