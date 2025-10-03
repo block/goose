@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '../../../ui/button';
 import {
   Dialog,
@@ -43,6 +43,7 @@ export default function ExtensionModal({
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
   const [hasPendingEnvVars, setHasPendingEnvVars] = useState(false);
   const [hasPendingHeaders, setHasPendingHeaders] = useState(false);
+  const [pendingHeader, setPendingHeader] = useState<{ key: string; value: string } | null>(null);
 
   // Function to check if form has been modified
   const hasFormChanges = (): boolean => {
@@ -72,7 +73,7 @@ export default function ExtensionModal({
         envVar.value !== '••••••••'
     );
 
-    // Check if there are pending environment variables being typed
+    // Check if there are pending environment variables or headers being typed
     const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
 
     return (
@@ -168,6 +169,14 @@ export default function ExtensionModal({
     });
   };
 
+  const handlePendingHeaderChange = useCallback(
+    (hasPending: boolean, header?: { key: string; value: string }) => {
+      setHasPendingHeaders(hasPending);
+      setPendingHeader(header || null);
+    },
+    []
+  );
+
   // Function to store a secret value
   const storeSecret = async (key: string, value: string) => {
     try {
@@ -248,9 +257,20 @@ export default function ExtensionModal({
   const handleSubmit = async () => {
     setSubmitAttempted(true);
 
+    // Build final data with pending header included
+    const finalHeaders = [...formData.headers];
+    if (pendingHeader) {
+      finalHeaders.push({ ...pendingHeader, isEdited: true });
+    }
+
+    const finalFormData = {
+      ...formData,
+      headers: finalHeaders,
+    };
+
     if (isFormValid()) {
       // Only store env vars that have been edited (which includes new)
-      const secretPromises = formData.envVars
+      const secretPromises = finalFormData.envVars
         .filter((envVar) => envVar.isEdited)
         .map(({ key, value }) => storeSecret(key, value));
 
@@ -261,9 +281,11 @@ export default function ExtensionModal({
         if (results.every((success) => success)) {
           // Convert timeout to number if needed
           const dataToSubmit = {
-            ...formData,
+            ...finalFormData,
             timeout:
-              typeof formData.timeout === 'string' ? Number(formData.timeout) : formData.timeout,
+              typeof finalFormData.timeout === 'string'
+                ? Number(finalFormData.timeout)
+                : finalFormData.timeout,
           };
           onSubmit(dataToSubmit);
           onClose();
@@ -366,7 +388,7 @@ export default function ExtensionModal({
                   onRemove={handleRemoveHeader}
                   onChange={handleHeaderChange}
                   submitAttempted={submitAttempted}
-                  onPendingInputChange={setHasPendingHeaders}
+                  onPendingInputChange={handlePendingHeaderChange}
                 />
               </div>
             </>
