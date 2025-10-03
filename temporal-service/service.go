@@ -14,6 +14,39 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// AuthMiddleware checks the X-Secret-Key header for authentication
+func AuthMiddleware(next http.Handler) http.Handler {
+	secretKey := os.Getenv("TEMPORAL_SECRET_KEY")
+	if secretKey == "" {
+		log.Println("Warning: TEMPORAL_SECRET_KEY not set, using default value")
+		secretKey = "test"  // Use the same default as the Goose server
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow only health endpoint without authentication for service discovery
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Check for the secret key header
+		providedKey := r.Header.Get("X-Secret-Key")
+		if providedKey == "" || providedKey != secretKey {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"success": "false",
+				"message": "Unauthorized: Invalid or missing X-Secret-Key header",
+			})
+			log.Printf("Unauthorized access attempt to %s", r.URL.Path)
+			return
+		}
+
+		// Key is valid, proceed to the handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Global service instance for activities to access
 var globalService *TemporalService
 

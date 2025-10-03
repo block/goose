@@ -269,6 +269,11 @@ impl TemporalScheduler {
         self.port_config.ui_port
     }
 
+    // Helper function to get the secret key from environment or use default
+    fn get_secret_key() -> String {
+        std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string())
+    }
+
     async fn start_go_service(&self) -> Result<(), SchedulerError> {
         info!(
             "Starting Temporal Go service on port {}...",
@@ -306,9 +311,11 @@ impl TemporalScheduler {
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
         let mut command = Command::new(&binary_path);
+                
         command
             .current_dir(working_dir)
-            .env("PORT", self.port_config.http_port.to_string());
+            .env("PORT", self.port_config.http_port.to_string())
+            .env("TEMPORAL_SECRET_KEY", Self::get_secret_key());  // Pass existing secret key to Go process
 
         // Platform-specific process configuration based on Electron app approach
         #[cfg(windows)]
@@ -1000,12 +1007,20 @@ impl TemporalScheduler {
         let response = self
             .http_client
             .post(&url)
+            .header("X-Secret-Key", Self::get_secret_key())  // Add the secret key header
             .json(&request)
             .send()
             .await
             .map_err(|e| {
                 SchedulerError::SchedulerInternalError(format!("HTTP request failed: {}", e))
             })?;
+
+        // Check specifically for 401 Unauthorized
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(SchedulerError::SchedulerInternalError(
+                "Authentication failed: Invalid or missing X-Secret-Key".to_string(),
+            ));
+        }
 
         if !response.status().is_success() {
             return Err(SchedulerError::SchedulerInternalError(format!(
