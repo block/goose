@@ -4,6 +4,7 @@ import { Recipe } from '../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../toasts';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import { Play } from 'lucide-react';
 
 interface SaveRecipeDialogProps {
   isOpen: boolean;
@@ -11,6 +12,8 @@ interface SaveRecipeDialogProps {
   onSuccess?: () => void;
   recipe: Recipe;
   suggestedName?: string;
+  showSaveAndRun?: boolean;
+  onSaveAndRun?: (recipe: Recipe) => void;
 }
 
 export default function SaveRecipeDialog({
@@ -19,6 +22,8 @@ export default function SaveRecipeDialog({
   onSuccess,
   recipe,
   suggestedName,
+  showSaveAndRun = false,
+  onSaveAndRun,
 }: SaveRecipeDialogProps) {
   const [saveRecipeName, setSaveRecipeName] = useState(
     suggestedName || generateRecipeFilename(recipe)
@@ -67,6 +72,46 @@ export default function SaveRecipeDialog({
       toastError({
         title: 'Save Failed',
         msg: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAndRunRecipe = async () => {
+    if (!saveRecipeName.trim()) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (!recipe.title || !recipe.description || !recipe.instructions) {
+        throw new Error('Invalid recipe configuration: missing required fields');
+      }
+
+      await saveRecipe(recipe, {
+        name: saveRecipeName.trim(),
+        global: saveGlobal,
+      });
+
+      setSaveRecipeName('');
+      onClose(true);
+
+      toastSuccess({
+        title: saveRecipeName.trim(),
+        msg: 'Recipe saved and launched successfully',
+      });
+
+      // Launch the recipe in a new window
+      onSaveAndRun?.(recipe);
+      onSuccess?.();
+    } catch (error) {
+      console.error('Failed to save and run recipe:', error);
+
+      toastError({
+        title: 'Save and Run Failed',
+        msg: `Failed to save and run recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
         traceback: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -145,10 +190,21 @@ export default function SaveRecipeDialog({
           <Button
             onClick={handleSaveRecipe}
             disabled={!saveRecipeName.trim() || saving}
-            variant="default"
+            variant="outline"
           >
             {saving ? 'Saving...' : 'Save Recipe'}
           </Button>
+          {showSaveAndRun && (
+            <Button
+              onClick={handleSaveAndRunRecipe}
+              disabled={!saveRecipeName.trim() || saving}
+              variant="default"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              <Play className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save & Run Recipe'}
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -7,12 +7,6 @@ import { RecipeFormFields } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
 
 describe('RecipeFormFields', () => {
-  const defaultProps = {
-    showRecipeNameField: false,
-    showSaveLocationField: false,
-    autoGenerateRecipeName: false,
-  };
-
   const useTestForm = (initialValues?: Partial<RecipeFormData>) => {
     const defaultValues: RecipeFormData = {
       title: '',
@@ -52,12 +46,12 @@ describe('RecipeFormFields', () => {
 
   describe('Basic Rendering', () => {
     it('renders the component without crashing', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
       expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
     });
 
     it('renders required form fields', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/description/i)).toBeInTheDocument();
@@ -69,7 +63,7 @@ describe('RecipeFormFields', () => {
     });
 
     it('shows form inputs with proper accessibility', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       expect(screen.getByRole('textbox', { name: /title/i })).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /description/i })).toBeInTheDocument();
@@ -81,7 +75,7 @@ describe('RecipeFormFields', () => {
   describe('Form Interactions', () => {
     it('allows typing in text fields', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       const titleInput = screen.getByRole('textbox', { name: /title/i });
       await user.type(titleInput, 'Test Recipe');
@@ -94,7 +88,7 @@ describe('RecipeFormFields', () => {
 
     it('allows typing in textarea fields', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       const instructionsInput = screen.getByRole('textbox', { name: /instructions/i });
       await user.type(instructionsInput, 'Do something');
@@ -108,7 +102,7 @@ describe('RecipeFormFields', () => {
 
   describe('Parameter Management', () => {
     it('shows parameter input section', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       expect(screen.getByPlaceholderText('Enter parameter name...')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /add parameter/i })).toBeInTheDocument();
@@ -116,7 +110,7 @@ describe('RecipeFormFields', () => {
 
     it('allows adding parameters manually', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
       const addButton = screen.getByRole('button', { name: /add parameter/i });
@@ -135,19 +129,14 @@ describe('RecipeFormFields', () => {
     });
   });
 
-  describe('Conditional Fields', () => {
-    it('shows recipe name field when enabled', () => {
-      render(<TestWrapper {...defaultProps} showRecipeNameField={true} />);
+  describe('Always Visible Fields', () => {
+    it('always shows recipe name field', () => {
+      render(<TestWrapper />);
       expect(screen.getByText('Recipe Name')).toBeInTheDocument();
     });
 
-    it('hides recipe name field when disabled', () => {
-      render(<TestWrapper {...defaultProps} showRecipeNameField={false} />);
-      expect(screen.queryByText('Recipe Name')).not.toBeInTheDocument();
-    });
-
-    it('shows save location field when enabled', () => {
-      render(<TestWrapper {...defaultProps} showSaveLocationField={true} />);
+    it('always shows save location field', () => {
+      render(<TestWrapper />);
       expect(screen.getByText('Save Location')).toBeInTheDocument();
       expect(screen.getByText('Global - Available across all Goose sessions')).toBeInTheDocument();
     });
@@ -162,7 +151,7 @@ describe('RecipeFormFields', () => {
         prompt: 'Pre-filled Prompt',
       };
 
-      render(<TestWrapper {...defaultProps} initialValues={initialValues} />);
+      render(<TestWrapper initialValues={initialValues} />);
 
       expect(screen.getByDisplayValue('Pre-filled Title')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Pre-filled Description')).toBeInTheDocument();
@@ -173,7 +162,7 @@ describe('RecipeFormFields', () => {
 
   describe('Editor Buttons', () => {
     it('shows editor buttons for instructions and JSON schema', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       const editorButtons = screen.getAllByText('Open Editor');
       expect(editorButtons.length).toBeGreaterThan(0);
@@ -183,7 +172,7 @@ describe('RecipeFormFields', () => {
   describe('Parameter Auto-Detection', () => {
     it('has parameter detection functionality', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       const instructionsInput = screen.getByPlaceholderText(
         'Detailed instructions for the AI, hidden from the user...'
@@ -210,7 +199,7 @@ describe('RecipeFormFields', () => {
 
     it('allows manual parameter addition', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
@@ -227,7 +216,7 @@ describe('RecipeFormFields', () => {
     });
 
     it('shows parameter management UI', () => {
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Check parameter section exists
       expect(screen.getByText('Parameters')).toBeInTheDocument();
@@ -240,7 +229,7 @@ describe('RecipeFormFields', () => {
 
     it('handles activities field for parameter detection', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Check that activities section exists
       expect(screen.getByText('Activities')).toBeInTheDocument();
@@ -281,7 +270,7 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} {...defaultProps} />;
+        return <RecipeFormFields form={form} />;
       };
 
       render(<TestComponent />);
@@ -374,7 +363,7 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} {...defaultProps} />;
+        return <RecipeFormFields form={form} />;
       };
 
       render(<TestComponent />);
@@ -436,7 +425,7 @@ describe('RecipeFormFields', () => {
 
     it('renders parameter form fields when manually adding parameters', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
@@ -541,7 +530,7 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} {...defaultProps} />;
+        return <RecipeFormFields form={form} />;
       };
 
       render(<TestComponent />);
@@ -616,7 +605,7 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} {...defaultProps} />;
+        return <RecipeFormFields form={form} />;
       };
 
       render(<TestComponent />);
@@ -649,7 +638,7 @@ describe('RecipeFormFields', () => {
 
     it('shows delete button for parameters', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
@@ -680,7 +669,7 @@ describe('RecipeFormFields', () => {
 
     it('supports different parameter input types', async () => {
       const user = userEvent.setup();
-      render(<TestWrapper {...defaultProps} />);
+      render(<TestWrapper />);
 
       // Add a parameter and test changing its type
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');

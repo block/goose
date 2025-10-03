@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Parameter } from '../../../recipe';
 import { RecipeNameField } from './RecipeNameField';
-import { generateRecipeNameFromTitle } from './recipeNameUtils';
+
 import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';
@@ -18,11 +18,6 @@ interface RecipeFormFieldsProps {
   // Form instance from parent
   form: RecipeFormApi;
 
-  // Configuration
-  showRecipeNameField?: boolean;
-  showSaveLocationField?: boolean;
-  autoGenerateRecipeName?: boolean;
-
   // Event handlers
   onTitleChange?: (value: string) => void;
   onDescriptionChange?: (value: string) => void;
@@ -35,9 +30,6 @@ interface RecipeFormFieldsProps {
 
 export function RecipeFormFields({
   form,
-  showRecipeNameField = false,
-  showSaveLocationField = false,
-  autoGenerateRecipeName = false,
   onTitleChange,
   onDescriptionChange,
   onInstructionsChange,
@@ -144,11 +136,6 @@ export function RecipeFormFields({
               value={field.state.value}
               onChange={(e) => {
                 field.handleChange(e.target.value);
-                if (autoGenerateRecipeName) {
-                  const suggestedName = generateRecipeNameFromTitle(e.target.value);
-                  form.setFieldValue('recipeName', suggestedName);
-                  onRecipeNameChange?.(suggestedName);
-                }
                 onTitleChange?.(e.target.value);
               }}
               onBlur={field.handleBlur}
@@ -475,73 +462,69 @@ export function RecipeFormFields({
       </form.Field>
 
       {/* Recipe Name Field */}
-      {showRecipeNameField && (
-        <form.Field name="recipeName">
-          {(field: FormFieldApi<string | undefined>) => (
-            <div>
-              <div data-testid="recipe-name-field">
-                <RecipeNameField
-                  id="recipe-name-field"
-                  value={field.state.value || ''}
-                  onChange={(value) => {
-                    field.handleChange(value);
-                    onRecipeNameChange?.(value);
-                  }}
-                  onBlur={field.handleBlur}
-                  errors={field.state.meta.errors}
-                />
-              </div>
+      <form.Field name="recipeName">
+        {(field: FormFieldApi<string | undefined>) => (
+          <div>
+            <div data-testid="recipe-name-field">
+              <RecipeNameField
+                id="recipe-name-field"
+                value={field.state.value || ''}
+                onChange={(value) => {
+                  field.handleChange(value);
+                  onRecipeNameChange?.(value);
+                }}
+                onBlur={field.handleBlur}
+                errors={field.state.meta.errors}
+              />
             </div>
-          )}
-        </form.Field>
-      )}
+          </div>
+        )}
+      </form.Field>
 
       {/* Save Location Field */}
-      {showSaveLocationField && (
-        <form.Field name="global">
-          {(field: FormFieldApi<boolean>) => (
-            <div data-testid="save-location-field">
-              <label className="block text-sm font-medium text-text-standard mb-2">
-                Save Location
+      <form.Field name="global">
+        {(field: FormFieldApi<boolean>) => (
+          <div data-testid="save-location-field">
+            <label className="block text-sm font-medium text-text-standard mb-2">
+              Save Location
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="save-location"
+                  checked={field.state.value === true}
+                  onChange={() => {
+                    field.handleChange(true);
+                    onGlobalChange?.(true);
+                  }}
+                  className="mr-2"
+                  data-testid="global-radio"
+                />
+                <span className="text-sm text-text-standard">
+                  Global - Available across all Goose sessions
+                </span>
               </label>
-              <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="save-location"
-                    checked={field.state.value === true}
-                    onChange={() => {
-                      field.handleChange(true);
-                      onGlobalChange?.(true);
-                    }}
-                    className="mr-2"
-                    data-testid="global-radio"
-                  />
-                  <span className="text-sm text-text-standard">
-                    Global - Available across all Goose sessions
-                  </span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="save-location"
-                    checked={field.state.value === false}
-                    onChange={() => {
-                      field.handleChange(false);
-                      onGlobalChange?.(false);
-                    }}
-                    className="mr-2"
-                    data-testid="directory-radio"
-                  />
-                  <span className="text-sm text-text-standard">
-                    Directory - Available in the working directory
-                  </span>
-                </label>
-              </div>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="save-location"
+                  checked={field.state.value === false}
+                  onChange={() => {
+                    field.handleChange(false);
+                    onGlobalChange?.(false);
+                  }}
+                  className="mr-2"
+                  data-testid="directory-radio"
+                />
+                <span className="text-sm text-text-standard">
+                  Directory - Available in the working directory
+                </span>
+              </label>
             </div>
-          )}
-        </form.Field>
-      )}
+          </div>
+        )}
+      </form.Field>
     </div>
   );
 }

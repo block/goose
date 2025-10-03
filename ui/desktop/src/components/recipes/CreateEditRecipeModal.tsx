@@ -3,14 +3,16 @@ import { useForm } from '@tanstack/react-form';
 import { Recipe, generateDeepLink, Parameter } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
-import { Check, Save, Calendar, X } from 'lucide-react';
+import { Check, Save, Calendar, X, Play } from 'lucide-react';
 import { ExtensionConfig, useConfig } from '../ConfigContext';
 import { FixedExtensionEntry } from '../ConfigContext';
 import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 import { Button } from '../ui/button';
-import SaveRecipeDialog from './shared/SaveRecipeDialog';
+
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
+import { saveRecipe, generateRecipeFilename } from '../../recipe/recipeStorage';
+import { toastSuccess, toastError } from '../../toasts';
 
 interface CreateEditRecipeModalProps {
   isOpen: boolean;
@@ -80,13 +82,17 @@ export default function CreateEditRecipeModal({
       setActivities(form.state.values.activities);
       setParameters(form.state.values.parameters);
       setJsonSchema(form.state.values.jsonSchema);
+      setRecipeName(form.state.values.recipeName);
+      setGlobal(form.state.values.global);
     });
   }, [form]);
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [recipeName, setRecipeName] = useState(form.state.values.recipeName);
+  const [global, setGlobal] = useState(form.state.values.global);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Initialize selected extensions for the recipe from config
   const [recipeExtensions] = useState<string[]>(() => {
@@ -292,12 +298,83 @@ export default function CreateEditRecipeModal({
       });
   };
 
-  const handleSaveRecipeClick = () => {
+  const handleSaveRecipeClick = async () => {
     if (!validateForm()) {
+      toastError({
+        title: 'Validation Failed',
+        msg: 'Please fill in all required fields and ensure JSON schema is valid.',
+      });
       return;
     }
 
-    setShowSaveDialog(true);
+    setIsSaving(true);
+    try {
+      const recipe = getCurrentConfig();
+
+      await saveRecipe(recipe, {
+        name: (recipeName || '').trim(),
+        global: global,
+      });
+
+      onClose(true);
+
+      toastSuccess({
+        title: (recipeName || '').trim(),
+        msg: 'Recipe saved successfully',
+      });
+    } catch (error) {
+      console.error('Failed to save recipe:', error);
+
+      toastError({
+        title: 'Save Failed',
+        msg: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndRunRecipeClick = async () => {
+    if (!validateForm()) {
+      toastError({
+        title: 'Validation Failed',
+        msg: 'Please fill in all required fields and ensure JSON schema is valid.',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const recipe = getCurrentConfig();
+      const recipeName = generateRecipeFilename(recipe);
+
+      await saveRecipe(recipe, {
+        name: recipeName,
+        global: true,
+      });
+
+      // Close modal first
+      onClose(true);
+
+      // Open recipe in a new window instead of navigating in the same window
+      window.electron.createChatWindow(undefined, undefined, undefined, undefined, recipe);
+
+      toastSuccess({
+        title: recipeName,
+        msg: 'Recipe saved and launched successfully',
+      });
+    } catch (error) {
+      console.error('Failed to save and run recipe:', error);
+
+      toastError({
+        title: 'Save and Run Failed',
+        msg: `Failed to save and run recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -334,12 +411,7 @@ export default function CreateEditRecipeModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          <RecipeFormFields
-            form={form}
-            showRecipeNameField={false}
-            showSaveLocationField={false}
-            autoGenerateRecipeName={false}
-          />
+          <RecipeFormFields form={form} />
 
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
@@ -402,13 +474,23 @@ export default function CreateEditRecipeModal({
             </Button>
             <Button
               onClick={handleSaveRecipeClick}
-              disabled={!requiredFieldsAreFilled()}
+              disabled={!requiredFieldsAreFilled() || isSaving}
               variant="outline"
               size="default"
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Save className="w-4 h-4" />
-              Save Recipe
+              {isSaving ? 'Saving...' : 'Save Recipe'}
+            </Button>
+            <Button
+              onClick={handleSaveAndRunRecipeClick}
+              disabled={!requiredFieldsAreFilled() || isSaving}
+              variant="default"
+              size="default"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2"
+            >
+              <Play className="w-4 h-4" />
+              {isSaving ? 'Saving...' : 'Save & Run Recipe'}
             </Button>
           </div>
         </div>
@@ -432,20 +514,6 @@ export default function CreateEditRecipeModal({
           localStorage.setItem('pendingScheduleDeepLink', deepLink);
         }}
       />
-
-      {/* Save Recipe Dialog */}
-      {showSaveDialog && (
-        <SaveRecipeDialog
-          isOpen={showSaveDialog}
-          onClose={(wasSaved) => {
-            setShowSaveDialog(false);
-            if (wasSaved) {
-              onClose(true); // Pass through that recipe was saved
-            }
-          }}
-          recipe={getCurrentConfig()}
-        />
-      )}
     </div>
   );
 }

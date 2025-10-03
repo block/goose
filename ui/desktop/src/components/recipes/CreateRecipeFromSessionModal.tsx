@@ -9,6 +9,7 @@ import { RecipeFormData } from './shared/recipeFormSchema';
 import { createRecipe } from '../../api/sdk.gen';
 import { RecipeParameter } from './shared/recipeFormSchema';
 import { toastError } from '../../toasts';
+import { generateRecipeFilename } from '../../recipe/recipeStorage';
 
 interface CreateRecipeFromSessionModalProps {
   isOpen: boolean;
@@ -93,10 +94,7 @@ export default function CreateRecipeFromSessionModal({
             form.setFieldValue('instructions', recipe.instructions || '');
             form.setFieldValue('activities', recipe.activities || []);
             form.setFieldValue('parameters', recipe.parameters || []);
-            form.setFieldValue(
-              'recipeName',
-              (recipe.title || '').toLowerCase().replace(/[^a-z0-9]/g, '_')
-            );
+            form.setFieldValue('recipeName', generateRecipeFilename(recipe));
 
             if (recipe.response?.json_schema) {
               form.setFieldValue(
@@ -154,7 +152,7 @@ export default function CreateRecipeFromSessionModal({
     return unsubscribe;
   }, [form]);
 
-  const handleCreateRecipe = async (formData: RecipeFormData) => {
+  const handleCreateRecipe = async (formData: RecipeFormData, runAfterSave = false) => {
     if (!isFormValid) {
       return;
     }
@@ -198,6 +196,11 @@ export default function CreateRecipeFromSessionModal({
 
       setCreatedRecipe(recipe);
       onRecipeCreated?.(recipe);
+
+      if (runAfterSave) {
+        onClose();
+        window.electron.createChatWindow(undefined, undefined, undefined, undefined, recipe);
+      }
     } catch (error) {
       console.error('Failed to create recipe:', error);
       toastError({
@@ -289,12 +292,7 @@ export default function CreateRecipeFromSessionModal({
             </div>
           ) : (
             <div data-testid="form-state">
-              <RecipeFormFields
-                form={form}
-                showRecipeNameField={true}
-                showSaveLocationField={true}
-                autoGenerateRecipeName={true}
-              />
+              <RecipeFormFields form={form} />
             </div>
           )}
         </div>
@@ -336,17 +334,31 @@ export default function CreateRecipeFromSessionModal({
                 </Button>
               </div>
             ) : (
-              <Button
-                onClick={() => {
-                  form.handleSubmit();
-                }}
-                disabled={!isFormValid || isCreating}
-                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="create-recipe-button"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {isCreating ? 'Creating...' : 'Create Recipe'}
-              </Button>
+              <>
+                <Button
+                  onClick={() => {
+                    form.handleSubmit();
+                  }}
+                  disabled={!isFormValid || isCreating}
+                  variant="outline"
+                  className="px-4 py-2 border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="create-recipe-button"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isCreating ? 'Creating...' : 'Create Recipe'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleCreateRecipe(form.state.values, true);
+                  }}
+                  disabled={!isFormValid || isCreating}
+                  className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="create-and-run-recipe-button"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  {isCreating ? 'Creating...' : 'Create & Run Recipe'}
+                </Button>
+              </>
             )}
           </div>
         </div>
