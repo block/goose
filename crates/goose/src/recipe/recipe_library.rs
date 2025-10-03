@@ -1,5 +1,4 @@
 use crate::config::APP_STRATEGY;
-use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::Recipe;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -27,10 +26,7 @@ pub fn list_recipes_from_library(is_global: bool) -> Result<Vec<(PathBuf, Recipe
             let extension = path.extension();
 
             if extension == Some("yaml".as_ref()) || extension == Some("json".as_ref()) {
-                let Ok(recipe_file) = read_recipe_file(path.clone()) else {
-                    continue;
-                };
-                let Ok(recipe) = Recipe::from_content(&recipe_file.content) else {
+                let Ok(recipe) = Recipe::from_file_path(&path) else {
                     continue;
                 };
                 recipes_with_path.push((path, recipe));
