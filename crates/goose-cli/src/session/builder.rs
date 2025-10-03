@@ -395,11 +395,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         });
 
+    let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
+
     // Create new session
     let mut session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
-        session_config.debug,
+        debug_mode,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
