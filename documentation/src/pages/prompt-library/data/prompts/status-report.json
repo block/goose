@@ -1,0 +1,9 @@
+{
+  "id": "status-report",
+  "title": "Status Report",
+  "description": "Generates a simple daily project status report.",
+  "category": "Productivity",
+  "example_prompt": "Generate a short project status report for Goose development progress today.",
+  "example_result": "Today's Goose development progress:\n- Added a new troubleshooting entry\n- Fixed a pre-commit hook issue\n- Submitted beginner prompt PR",
+  "extensions": ["web"]
+}
