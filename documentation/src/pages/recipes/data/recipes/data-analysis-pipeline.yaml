@@ -147,3 +147,4 @@ prompt: |
   For {{ analysis_type }}=="quick", skip heavy computations. Be efficient.
   Use memory extension to pass results between stages.
   Always verify paths work on the current OS before file operations.
+  
