@@ -1,47 +1,8 @@
-use crate::config::APP_STRATEGY;
+use crate::recipe::search_local_recipes::{discover_local_recipes, get_recipe_library_dir};
 use crate::recipe::Recipe;
-use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use serde_yaml;
 use std::fs;
 use std::path::PathBuf;
-
-pub fn get_recipe_library_dir(is_global: bool) -> PathBuf {
-    if is_global {
-        choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir()
-            .join("recipes")
-    } else {
-        std::env::current_dir().unwrap().join(".goose/recipes")
-    }
-}
-
-pub fn list_recipes_from_library(is_global: bool) -> Result<Vec<(PathBuf, Recipe)>> {
-    let path = get_recipe_library_dir(is_global);
-    let mut recipes_with_path = Vec::new();
-    if path.exists() {
-        for entry in fs::read_dir(path)? {
-            let path = entry?.path();
-            let extension = path.extension();
-
-            if extension == Some("yaml".as_ref()) || extension == Some("json".as_ref()) {
-                let Ok(recipe) = Recipe::from_file_path(&path) else {
-                    continue;
-                };
-                recipes_with_path.push((path, recipe));
-            }
-        }
-    }
-    Ok(recipes_with_path)
-}
-
-pub fn list_all_recipes_from_library() -> Result<Vec<(PathBuf, Recipe)>> {
-    let mut recipes_with_path = Vec::new();
-    recipes_with_path.extend(list_recipes_from_library(true)?);
-    recipes_with_path.extend(list_recipes_from_library(false)?);
-    Ok(recipes_with_path)
-}
 
 fn generate_recipe_filename(title: &str) -> String {
     let base_name = title
@@ -83,7 +44,7 @@ pub fn save_recipe_to_file(
             default_file_path
         }
     };
-    let all_recipes = list_all_recipes_from_library()?;
+    let all_recipes = discover_local_recipes()?;
 
     for (existing_path, existing_recipe) in &all_recipes {
         if existing_recipe.title == recipe.title && existing_path != &file_path_value {

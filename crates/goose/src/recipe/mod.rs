@@ -15,9 +15,11 @@ use utoipa::ToSchema;
 pub mod build_recipe;
 pub mod read_recipe_file_content;
 pub mod recipe_library;
+pub mod search_local_recipes;
 pub mod template_recipe;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
 fn default_version() -> String {
     "1.0.0".to_string()
