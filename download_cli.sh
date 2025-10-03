@@ -238,11 +238,34 @@ else
 fi
 
 # --- 7) Check PATH and give instructions if needed ---
+# ...existing code...
+
+# --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
   echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
-  echo "Add it to your PATH by editing ~/.bashrc, ~/.zshrc, or similar:"
-  echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
-  echo "Then reload your shell (e.g. 'source ~/.bashrc', 'source ~/.zshrc') to apply changes."
+  if [ "$OS" = "windows" ]; then
+    echo "To add goose to your PATH in PowerShell:"
+    echo ""
+    echo "# Add to your PowerShell profile"
+    echo '$profilePath = $PROFILE'
+    echo 'if (!(Test-Path $profilePath)) { New-Item -Path $profilePath -ItemType File -Force }'
+    echo 'Add-Content -Path $profilePath -Value ''$env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"'''
+    echo "# Reload profile or restart PowerShell"
+    echo '. $PROFILE'
+    echo ""
+    echo "Alternatively, you can run:"
+    echo "    goose configure"
+    echo "or rerun this install script after updating your PATH."
+  else
+    echo "Add it to your PATH by editing ~/.bashrc, ~/.zshrc, or similar:"
+    echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
+    echo "Then reload your shell (e.g. 'source ~/.bashrc', 'source ~/.zshrc') to apply changes."
+    echo ""
+    echo "Alternatively, you can run:"
+    echo "    goose configure"
+    echo "or rerun this install script after updating your PATH."
+  fi
   echo ""
 fi
+# ...existing code...
