@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use goose::config::Config;
 use goose::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
-use goose::recipe::template_recipe::parse_recipe_content;
+use goose::recipe::Recipe;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,17 @@ use super::github_recipe::{
 };
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
+
+fn recipe_search_dirs() -> Vec<PathBuf> {
+    let mut search_dirs = vec![PathBuf::from(".")];
+
+    if let Ok(recipe_path_env) = env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
+        let path_separator = if cfg!(windows) { ';' } else { ':' };
+        search_dirs.extend(recipe_path_env.split(path_separator).map(PathBuf::from));
+    }
+
+    search_dirs
+}
 
 pub fn retrieve_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     if RECIPE_FILE_EXTENSIONS
@@ -65,15 +76,7 @@ fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<RecipeFile> {
 }
 
 fn retrieve_recipe_from_local_path(recipe_name: &str) -> Result<RecipeFile> {
-    let mut search_dirs = vec![PathBuf::from(".")];
-    if let Ok(recipe_path_env) = env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
-        let path_separator = if cfg!(windows) { ';' } else { ':' };
-        let recipe_path_env_dirs: Vec<PathBuf> = recipe_path_env
-            .split(path_separator)
-            .map(PathBuf::from)
-            .collect();
-        search_dirs.extend(recipe_path_env_dirs);
-    }
+    let search_dirs = recipe_search_dirs();
     for dir in &search_dirs {
         if let Ok(result) = read_recipe_in_dir(dir, recipe_name) {
             return Ok(result);
@@ -121,19 +124,7 @@ pub fn list_available_recipes() -> Result<Vec<RecipeInfo>> {
 
 fn discover_local_recipes() -> Result<Vec<RecipeInfo>> {
     let mut recipes = Vec::new();
-    let mut search_dirs = vec![PathBuf::from(".")];
-
-    // Add GOOSE_RECIPE_PATH directories
-    if let Ok(recipe_path_env) = env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
-        let path_separator = if cfg!(windows) { ';' } else { ':' };
-        let recipe_path_env_dirs: Vec<PathBuf> = recipe_path_env
-            .split(path_separator)
-            .map(PathBuf::from)
-            .collect();
-        search_dirs.extend(recipe_path_env_dirs);
-    }
-
-    for dir in search_dirs {
+    for dir in recipe_search_dirs() {
         if let Ok(dir_recipes) = scan_directory_for_recipes(&dir) {
             recipes.extend(dir_recipes);
         }
@@ -168,26 +159,17 @@ fn scan_directory_for_recipes(dir: &Path) -> Result<Vec<RecipeInfo>> {
 }
 
 fn create_local_recipe_info(path: &Path) -> Result<RecipeInfo> {
-    let content = fs::read_to_string(path)?;
-    let recipe_dir = path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_string_lossy()
-        .to_string();
-    let (recipe, _) = parse_recipe_content(&content, recipe_dir)?;
-
+    let recipe = Recipe::from_file_path(path)?;
     let name = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("unknown")
         .to_string();
 
-    let path_str = path.to_string_lossy().to_string();
-
     Ok(RecipeInfo {
         name,
         source: RecipeSource::Local,
-        path: path_str,
+        path: path.to_string_lossy().to_string(),
         title: Some(recipe.title),
         description: Some(recipe.description),
     })
