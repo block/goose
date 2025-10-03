@@ -170,9 +170,9 @@ export default function ExtensionModal({
   };
 
   const handlePendingHeaderChange = useCallback(
-    (hasPending: boolean, header?: { key: string; value: string }) => {
+    (hasPending: boolean, header: { key: string; value: string } | null) => {
       setHasPendingHeaders(hasPending);
-      setPendingHeader(header || null);
+      setPendingHeader(header);
     },
     []
   );
@@ -226,8 +226,16 @@ export default function ExtensionModal({
     );
   };
 
+  const getFinalHeaders = () => {
+    const finalHeaders = [...formData.headers];
+    if (pendingHeader && pendingHeader.key.trim() !== '' && pendingHeader.value.trim() !== '') {
+      finalHeaders.push({ ...pendingHeader, isEdited: true });
+    }
+    return finalHeaders;
+  };
+
   const isHeadersValid = () => {
-    return formData.headers.every(
+    return getFinalHeaders().every(
       ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
     );
   };
@@ -257,18 +265,12 @@ export default function ExtensionModal({
   const handleSubmit = async () => {
     setSubmitAttempted(true);
 
-    // Build final data with pending header included
-    const finalHeaders = [...formData.headers];
-    if (pendingHeader) {
-      finalHeaders.push({ ...pendingHeader, isEdited: true });
-    }
-
-    const finalFormData = {
-      ...formData,
-      headers: finalHeaders,
-    };
-
     if (isFormValid()) {
+      const finalFormData = {
+        ...formData,
+        headers: getFinalHeaders(),
+      };
+
       // Only store env vars that have been edited (which includes new)
       const secretPromises = finalFormData.envVars
         .filter((envVar) => envVar.isEdited)

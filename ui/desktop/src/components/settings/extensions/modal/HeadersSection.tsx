@@ -10,9 +10,9 @@ interface HeadersSectionProps {
   onRemove: (index: number) => void;
   onChange: (index: number, field: 'key' | 'value', value: string) => void;
   submitAttempted: boolean;
-  onPendingInputChange?: (
+  onPendingInputChange: (
     hasPendingInput: boolean,
-    pendingHeader?: { key: string; value: string }
+    pendingHeader: { key: string; value: string } | null
   ) => void;
 }
 
@@ -36,8 +36,8 @@ export default function HeadersSection({
   React.useEffect(() => {
     const hasPendingInput = newKey.trim() !== '' || newValue.trim() !== '';
     const pendingHeader =
-      newKey.trim() && newValue.trim() ? { key: newKey, value: newValue } : undefined;
-    onPendingInputChange?.(hasPendingInput, pendingHeader);
+      newKey.trim() && newValue.trim() ? { key: newKey, value: newValue } : null;
+    onPendingInputChange(hasPendingInput, pendingHeader);
   }, [newKey, newValue, onPendingInputChange]);
 
   const handleAdd = () => {
