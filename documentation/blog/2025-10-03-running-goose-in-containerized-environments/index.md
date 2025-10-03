@@ -275,9 +275,10 @@ goose@container:~$ cat ~/.config/goose/config.yaml  # Configuration
 
 ```bash
 # Test network connectivity and API access
-$ docker run --rm -it --entrypoint bash goose:v0.9.3
-$ goose@container:~$ curl -I https://api.openai.com/v1/models
-$ goose@container:~$ goose configure --check  # Verify API keys
+$ docker run --rm -it --entrypoint bash goose:v1.8.0
+goose@container:~$ curl -I https://api.openai.com/v1/models
+# Verify API keys
+goose@container:~$ goose configure --check
 ```
 
 **Examine goose logs in verbose mode:**
