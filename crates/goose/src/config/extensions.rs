@@ -47,8 +47,14 @@ impl ExtensionConfigManager {
                 let mut m = HashMap::with_capacity(obj.len());
                 for (k, mut v) in obj {
                     if let Value::Object(ref mut inner) = v {
-                        if let Some(Value::Null) = inner.get("description") {
-                            inner.insert("description".to_string(), Value::String(String::new()));
+                        match inner.get("description") {
+                            Some(Value::Null) | None => {
+                                inner.insert(
+                                    "description".to_string(),
+                                    Value::String(String::new()),
+                                );
+                            }
+                            _ => {}
                         }
                     }
                     match serde_json::from_value::<ExtensionEntry>(v.clone()) {
