@@ -232,60 +232,8 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    let mut messages_to_process = messages.to_vec();
-
-    // Check if the last assistant message contains a tool request
-    // If so, remove it to prevent orphaned tool responses after compaction
-    if let Some(last_assistant_pos) = messages_to_process
-        .iter()
-        .rposition(|m| matches!(m.role, rmcp::model::Role::Assistant))
-    {
-        if messages_to_process[last_assistant_pos].is_tool_call() {
-            info!(
-                "Removing last assistant message with pending tool request before auto-compaction"
-            );
-            messages_to_process.remove(last_assistant_pos);
-        }
-    }
-
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) =
-        if let Some(last_message) = messages_to_process.last() {
-            if matches!(last_message.role, rmcp::model::Role::User) {
-                // Remove the last user message before auto-compaction
-                (
-                    &messages_to_process[..messages_to_process.len() - 1],
-                    Some(last_message.clone()),
-                )
-            } else {
-                (messages_to_process.as_slice(), None)
-            }
-        } else {
-            (messages_to_process.as_slice(), None)
-        };
-
-    // Perform the compaction on messages excluding the preserved user message
-    // The summarize_context method already handles the visibility properly
-    let (mut summary_messages, _, summarization_usage) =
-        agent.summarize_context(messages_to_compact).await?;
-
-    // Add back the preserved user message if it exists
-    // (keeps default visibility: both true)
-    if let Some(user_message) = preserved_user_message {
-        summary_messages.push(user_message);
-    }
-
-    // Apply fix_conversation as an additional safety net to catch any edge cases
-    let (fixed_conversation, issues) = fix_conversation(summary_messages.clone());
-    if !issues.is_empty() {
-        debug!("Fixed issues during auto-compaction: {:?}", issues);
-    }
-
-    Ok(AutoCompactResult {
-        compacted: true,
-        messages: fixed_conversation,
-        summarization_usage,
-    })
+    // Delegate the actual compaction work to perform_compaction
+    perform_compaction(agent, messages).await
 }
 
 #[cfg(test)]
