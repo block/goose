@@ -242,3 +242,5 @@ prompt: |
      Display summary of created project structure and next steps.
   
   Work through these steps systematically. Use shell commands to create files and directories.
+  
+  Detect the operating system that I'm on, and use appropriate disk path separators, being careful to avoid 'escaping' of slash or backslash characters as appropriate for my operating system when interpreting or using string values for filenames.
