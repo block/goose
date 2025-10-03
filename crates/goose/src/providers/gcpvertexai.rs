@@ -259,7 +259,6 @@ impl GcpVertexAIProvider {
                     "Exceeded maximum retry attempts ({}) for rate limiting errors",
                     self.retry_config.max_retries
                 );
-                tracing::error!("{}", error_msg);
                 return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
                     details: error_msg,
                     retry_delay: None,
@@ -294,7 +293,6 @@ impl GcpVertexAIProvider {
                             "Exceeded maximum retry attempts ({}) for rate limiting (429) errors",
                             self.retry_config.max_retries
                         );
-                        tracing::error!("{}", error_msg);
                         return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
                             details: error_msg,
                             retry_delay: None,
@@ -341,7 +339,6 @@ impl GcpVertexAIProvider {
                             "Exceeded maximum retry attempts ({}) for API overloaded (529) errors",
                             self.retry_config.max_retries
                         );
-                        tracing::error!("{}", error_msg);
                         return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
                             details: error_msg,
                             retry_delay: None,

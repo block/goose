@@ -16,7 +16,6 @@ impl CallGraph {
     }
 
     pub fn build_from_results(results: &[(PathBuf, AnalysisResult)]) -> Self {
-        tracing::debug!("Building call graph from {} files", results.len());
         let mut graph = Self::new();
 
         for (file_path, result) in results {
@@ -73,12 +72,6 @@ impl CallGraph {
     }
 
     pub fn find_incoming_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
-        tracing::trace!(
-            "Finding incoming chains for {} with depth {}",
-            symbol,
-            max_depth
-        );
-
         if max_depth == 0 {
             return vec![];
         }
@@ -133,17 +126,10 @@ impl CallGraph {
             }
         }
 
-        tracing::trace!("Found {} incoming chains", chains.len());
         chains
     }
 
     pub fn find_outgoing_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
-        tracing::trace!(
-            "Finding outgoing chains for {} with depth {}",
-            symbol,
-            max_depth
-        );
-
         if max_depth == 0 {
             return vec![];
         }
@@ -197,7 +183,6 @@ impl CallGraph {
             }
         }
 
-        tracing::trace!("Found {} outgoing chains", chains.len());
         chains
     }
 }

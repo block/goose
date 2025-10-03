@@ -186,8 +186,8 @@ pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
         Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
         Err(err) => {
             if err
-                .downcast_ref::<goose::config::base::ConfigError>()
-                .is_some_and(|e| matches!(e, goose::config::base::ConfigError::DeserializeError(_)))
+                .downcast_ref::<ConfigError>()
+                .is_some_and(|e| matches!(e, ConfigError::DeserializeError(_)))
             {
                 Err(StatusCode::UNPROCESSABLE_ENTITY)
             } else {
@@ -241,9 +241,7 @@ pub async fn add_extension(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_extension(
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Result<Json<String>, StatusCode> {
+pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, StatusCode> {
     let key = goose::config::extensions::name_to_key(&name);
     match ExtensionConfigManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
@@ -297,7 +295,7 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                                     .map(|m| m.name.clone())
                                     .unwrap_or_default();
 
-                                let metadata = goose::providers::base::ProviderMetadata {
+                                let metadata = ProviderMetadata {
                                     name: custom_provider.name.clone(),
                                     display_name: custom_provider.display_name.clone(),
                                     description: custom_provider
@@ -631,10 +629,7 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
                 )))
             }
         }
-        Err(e) => {
-            tracing::error!("Config recovery failed: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -660,15 +655,9 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
     match std::fs::read_to_string(&config_path) {
         Ok(content) => match serde_yaml::from_str::<serde_yaml::Value>(&content) {
             Ok(_) => Ok(Json("Config file is valid".to_string())),
-            Err(e) => {
-                tracing::warn!("Config validation failed: {}", e);
-                Err(StatusCode::UNPROCESSABLE_ENTITY)
-            }
+            Err(_) => Err(StatusCode::UNPROCESSABLE_ENTITY),
         },
-        Err(e) => {
-            tracing::error!("Failed to read config file: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -726,9 +715,7 @@ pub async fn create_custom_provider(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_custom_provider(
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<String>, StatusCode> {
+pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<String>, StatusCode> {
     goose::config::custom_providers::CustomProviderConfig::remove(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -821,10 +808,7 @@ mod tests {
         );
         let status_code = result.unwrap_err();
 
-        assert!(status_code == StatusCode::BAD_REQUEST,
-                "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
-                status_code
-        );
+        assert_eq!(status_code, StatusCode::BAD_REQUEST, "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}", status_code);
 
         std::env::remove_var("OPENAI_API_KEY");
     }

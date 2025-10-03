@@ -116,7 +116,6 @@ impl VeniceProvider {
         let response = self.api_client.response_post(path, payload).await?;
 
         let status = response.status();
-        tracing::debug!("Venice response status: {}", status);
 
         if !status.is_success() {
             // Read response body for more details on error
@@ -127,12 +126,6 @@ impl VeniceProvider {
 
             // Try to parse the error response
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_body) {
-                // Print the full JSON error for better debugging
-                println!(
-                    "Venice API error response: {}",
-                    serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
-                );
-
                 // Check for tool support errors
                 if let Some(details) = json.get("details") {
                     // Specifically look for tool support issues
@@ -371,7 +364,6 @@ impl Provider for VeniceProvider {
                         .collect();
 
                     if !venice_tool_calls.is_empty() {
-                        tracing::debug!("Adding {} tool calls to message", venice_tool_calls.len());
                         venice_msg["tool_calls"] = json!(venice_tool_calls);
                     }
                 }
@@ -425,9 +417,6 @@ impl Provider for VeniceProvider {
 
             payload["tools"] = json!(formatted_tools);
         }
-
-        tracing::debug!("Sending request to Venice API");
-        tracing::debug!("Venice request payload: {}", payload.to_string());
 
         // Send request with retry
         let response = self
@@ -493,7 +482,6 @@ impl Provider for VeniceProvider {
             .get(0)
             .and_then(|choice| choice["message"]["content"].as_str())
             .ok_or_else(|| {
-                tracing::error!("Invalid response format: {:?}", response_json);
                 ProviderError::RequestFailed("Invalid response format: missing content".to_string())
             })?
             .to_string();

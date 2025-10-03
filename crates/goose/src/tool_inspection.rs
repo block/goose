@@ -128,10 +128,8 @@ impl ToolInspectionManager {
                 }
             }
         }
-        tracing::warn!("Permission inspector not found for mode update");
     }
 
-    /// Update the permission manager for a specific tool
     pub async fn update_permission_manager(
         &self,
         tool_name: &str,
@@ -150,7 +148,6 @@ impl ToolInspectionManager {
                 }
             }
         }
-        tracing::warn!("Permission inspector not found for permission manager update");
     }
 
     /// Process inspection results using the permission inspector
@@ -172,7 +169,6 @@ impl ToolInspectionManager {
                 }
             }
         }
-        tracing::warn!("Permission inspector not found for processing inspection results");
         None
     }
 }

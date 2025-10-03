@@ -159,7 +159,6 @@ async fn list_schedules(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    tracing::info!("Server: Calling scheduler.list_scheduled_jobs()");
     let jobs = scheduler.list_scheduled_jobs().await.map_err(|e| {
         eprintln!("Error listing schedules: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -264,8 +263,6 @@ async fn run_now_handler(
         interface = "server",
         "Recipe execution started"
     );
-
-    tracing::info!("Server: Calling scheduler.run_now() for job '{}'", id);
 
     match scheduler.run_now(&id).await {
         Ok(session_id) => Ok(Json(RunNowResponse { session_id })),

@@ -433,10 +433,8 @@ impl Config {
             let backup_path = self.config_path.with_file_name(backup_name);
 
             if let Err(e) = std::fs::copy(&self.config_path, &backup_path) {
-                tracing::warn!("Failed to create config backup: {}", e);
                 // Don't fail the entire operation if backup fails
-            } else {
-                tracing::debug!("Created config backup: {:?}", backup_path);
+                tracing::warn!("Failed to create config backup: {}", e);
             }
         }
 
@@ -780,7 +778,6 @@ pub fn load_init_config_from_workspace() -> Result<HashMap<String, Value>, Confi
             }
         };
 
-    tracing::info!("Loaded init-config.yaml with {} keys", init_values.len());
     Ok(init_values)
 }
 

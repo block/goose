@@ -15,7 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
-use tracing::{info, warn};
+use tracing;
 use utoipa::ToSchema;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
@@ -318,7 +318,7 @@ impl SessionStorage {
             let storage = Self::create(&db_path).await?;
 
             if let Err(e) = storage.import_legacy(&session_dir).await {
-                warn!("Failed to import some legacy sessions: {}", e);
+                tracing::warn!("Failed to import some legacy sessions: {}", e);
             }
 
             storage
@@ -428,7 +428,7 @@ impl SessionStorage {
         let sessions = match legacy::list_sessions(session_dir) {
             Ok(sessions) => sessions,
             Err(_) => {
-                warn!("No legacy sessions found to import");
+                tracing::warn!("No legacy sessions found to import");
                 return Ok(());
             }
         };
@@ -445,23 +445,24 @@ impl SessionStorage {
                 Ok(session) => match self.import_legacy_session(&session).await {
                     Ok(_) => {
                         imported_count += 1;
-                        info!("  ✓ Imported: {}", session_name);
+                        tracing::info!("  ✓ Imported: {}", session_name);
                     }
                     Err(e) => {
                         failed_count += 1;
-                        info!("  ✗ Failed to import {}: {}", session_name, e);
+                        tracing::info!("  ✗ Failed to import {}: {}", session_name, e);
                     }
                 },
                 Err(e) => {
                     failed_count += 1;
-                    info!("  ✗ Failed to load {}: {}", session_name, e);
+                    tracing::info!("  ✗ Failed to load {}: {}", session_name, e);
                 }
             }
         }
 
-        info!(
+        tracing::info!(
             "Import complete: {} successful, {} failed",
-            imported_count, failed_count
+            imported_count,
+            failed_count
         );
         Ok(())
     }
@@ -509,19 +510,10 @@ impl SessionStorage {
         let current_version = self.get_schema_version().await?;
 
         if current_version < CURRENT_SCHEMA_VERSION {
-            info!(
-                "Running database migrations from v{} to v{}...",
-                current_version, CURRENT_SCHEMA_VERSION
-            );
-
             for version in (current_version + 1)..=CURRENT_SCHEMA_VERSION {
-                info!("  Applying migration v{}...", version);
                 self.apply_migration(version).await?;
                 self.update_schema_version(version).await?;
-                info!("  ✓ Migration v{} complete", version);
             }
-
-            info!("All migrations complete");
         }
 
         Ok(())

@@ -86,7 +86,6 @@ fn should_process_reference(
     };
 
     if ignore_patterns.matched(&safe_path, false).is_ignore() {
-        tracing::debug!("Skipping ignored file reference: {:?}", safe_path);
         return None;
     }
 

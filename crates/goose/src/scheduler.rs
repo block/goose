@@ -77,10 +77,6 @@ pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
     let data_dir = strategy.data_dir();
     let recipes_dir = data_dir.join("scheduled_recipes");
     fs::create_dir_all(&recipes_dir).map_err(SchedulerError::StorageError)?;
-    tracing::debug!(
-        "Created scheduled recipes directory at: {}",
-        recipes_dir.display()
-    );
     Ok(recipes_dir)
 }
 
@@ -240,11 +236,6 @@ impl Scheduler {
         let destination_filename = format!("{}.{}", original_job_spec.id, original_extension);
         let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
 
-        tracing::info!(
-            "Copying recipe from {} to {}",
-            original_recipe_path.display(),
-            destination_recipe_path.display()
-        );
         fs::copy(original_recipe_path, &destination_recipe_path).map_err(|e| {
             SchedulerError::StorageError(io::Error::new(
                 e.kind(),
@@ -261,14 +252,12 @@ impl Scheduler {
         stored_job.source = destination_recipe_path.to_string_lossy().into_owned();
         stored_job.current_session_id = None;
         stored_job.process_start_time = None;
-        tracing::info!("Updated job source path to: {}", stored_job.source);
 
         let job_for_task = stored_job.clone();
         let jobs_arc_for_task = self.jobs.clone();
         let storage_path_for_task = self.storage_path.clone();
         let running_tasks_for_task = self.running_tasks.clone();
 
-        tracing::info!("Attempting to parse cron expression: '{}'", stored_job.cron);
         let normalized_cron = normalize_cron_expression(&stored_job.cron);
         // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
         let tokio_cron = {
@@ -279,13 +268,6 @@ impl Scheduler {
                 normalized_cron.clone()
             }
         };
-        if tokio_cron != stored_job.cron {
-            tracing::info!(
-                "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
-                stored_job.cron,
-                tokio_cron
-            );
-        }
         let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
             let task_job_id = job_for_task.id.clone();
             let current_jobs_arc = jobs_arc_for_task.clone();
@@ -305,7 +287,6 @@ impl Scheduler {
                 };
 
                 if !should_execute {
-                    tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
                     return;
                 }
 
@@ -442,11 +423,6 @@ impl Scheduler {
             let storage_path_for_task = self.storage_path.clone();
             let running_tasks_for_task = self.running_tasks.clone();
 
-            tracing::info!(
-                "Loading job '{}' with cron expression: '{}'",
-                job_to_load.id,
-                job_to_load.cron
-            );
             let normalized_cron = normalize_cron_expression(&job_to_load.cron);
             // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
             let tokio_cron = {
@@ -731,13 +707,9 @@ impl Scheduler {
                 sched_id,
                 e.error
             ))),
-            Err(join_error) if join_error.is_cancelled() => {
-                tracing::info!("Run now job '{}' was cancelled/killed", sched_id);
-                Err(SchedulerError::AnyhowError(anyhow!(
-                    "Job '{}' was successfully cancelled",
-                    sched_id
-                )))
-            }
+            Err(join_error) if join_error.is_cancelled() => Err(SchedulerError::AnyhowError(
+                anyhow!("Job '{}' was successfully cancelled", sched_id),
+            )),
             Err(join_error) => Err(SchedulerError::AnyhowError(anyhow!(
                 "Failed to execute job '{}' immediately: {}",
                 sched_id,
@@ -808,11 +780,6 @@ impl Scheduler {
                 let storage_path_for_task = self.storage_path.clone();
                 let running_tasks_for_task = self.running_tasks.clone();
 
-                tracing::info!(
-                    "Updating job '{}' with new cron expression: '{}'",
-                    sched_id,
-                    new_cron
-                );
                 let normalized_cron = normalize_cron_expression(&new_cron);
                 // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
                 let tokio_cron = {
@@ -850,7 +817,6 @@ impl Scheduler {
                         };
 
                         if !should_execute {
-                            tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
                             return;
                         }
 
@@ -1055,8 +1021,6 @@ async fn run_scheduled_job_internal(
     jobs_arc: Option<Arc<Mutex<JobsMap>>>,
     job_id: Option<String>,
 ) -> std::result::Result<String, JobExecutionError> {
-    tracing::info!("Executing job: {} (Source: {})", job.id, job.source);
-
     let recipe_path = Path::new(&job.source);
 
     let recipe_content = match fs::read_to_string(recipe_path) {
@@ -1159,9 +1123,7 @@ async fn run_scheduled_job_internal(
             error: format!("Failed to set provider on agent: {}", e),
         });
     }
-    tracing::info!("Agent configured with provider for job '{}'", job.id);
-    let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
-    tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
+    let _execution_mode = job.execution_mode.as_deref().unwrap_or("background");
 
     let current_dir = match std::env::current_dir() {
         Ok(cd) => cd,

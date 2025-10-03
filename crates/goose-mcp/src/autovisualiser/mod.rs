@@ -512,14 +512,6 @@ Example:
             .replace("{{D3_SANKY}}", D3_SANKEY) // Note: keeping the typo to match template
             .replace("{{SANKEY_DATA}}", &data_json);
 
-        // Save to /tmp/vis.html for debugging
-        let debug_path = std::path::Path::new("/tmp/vis.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/vis.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/vis.html");
-        }
-
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
         let base64_encoded = STANDARD.encode(html_bytes);
@@ -593,14 +585,6 @@ Example:
         let html_content = TEMPLATE
             .replace("{{CHART_MIN}}", CHART_MIN)
             .replace("{{RADAR_DATA}}", &data_json);
-
-        // Save to /tmp/radar.html for debugging
-        let debug_path = std::path::Path::new("/tmp/radar.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/radar.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/radar.html");
-        }
 
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
@@ -681,14 +665,6 @@ Example multiple charts:
             .replace("{{CHART_MIN}}", CHART_MIN)
             .replace("{{CHARTS_DATA}}", &data_json);
 
-        // Save to /tmp/donut.html for debugging
-        let debug_path = std::path::Path::new("/tmp/donut.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/donut.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/donut.html");
-        }
-
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
         let base64_encoded = STANDARD.encode(html_bytes);
@@ -765,14 +741,6 @@ Example:
             .replace("{{D3_MIN}}", D3_MIN)
             .replace("{{TREEMAP_DATA}}", &data_json);
 
-        // Save to /tmp/treemap.html for debugging
-        let debug_path = std::path::Path::new("/tmp/treemap.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/treemap.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/treemap.html");
-        }
-
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
         let base64_encoded = STANDARD.encode(html_bytes);
@@ -842,14 +810,6 @@ Example:
         let html_content = TEMPLATE
             .replace("{{D3_MIN}}", D3_MIN)
             .replace("{{CHORD_DATA}}", &data_json);
-
-        // Save to /tmp/chord.html for debugging
-        let debug_path = std::path::Path::new("/tmp/chord.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/chord.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/chord.html");
-        }
 
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
@@ -952,14 +912,6 @@ Example:
             .replace("{{TITLE}}", title)
             .replace("{{SUBTITLE}}", subtitle);
 
-        // Save to /tmp/map.html for debugging
-        let debug_path = std::path::Path::new("/tmp/map.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/map.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/map.html");
-        }
-
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();
         let base64_encoded = STANDARD.encode(html_bytes);
@@ -1027,14 +979,6 @@ Example:
         let html_content = TEMPLATE
             .replace("{{CHART_MIN}}", CHART_MIN)
             .replace("{{CHART_DATA}}", &data_json);
-
-        // Save to /tmp/chart.html for debugging
-        let debug_path = std::path::Path::new("/tmp/chart.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/chart.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/chart.html");
-        }
 
         // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
         let html_bytes = html_content.as_bytes();

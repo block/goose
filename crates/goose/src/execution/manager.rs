@@ -10,7 +10,7 @@ use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
-use tracing::{debug, info, warn};
+use tracing;
 
 const DEFAULT_MAX_SESSION: usize = 100;
 
@@ -72,7 +72,6 @@ impl AgentManager {
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
-        debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);
     }
 
@@ -94,16 +93,17 @@ impl AgentManager {
                 Ok(model_config) => match create(&provider_name, model_config) {
                     Ok(provider) => {
                         self.set_default_provider(provider).await;
-                        info!(
+                        tracing::info!(
                             "Configured default provider: {} with model: {}",
-                            provider_name, model_name
+                            provider_name,
+                            model_name
                         );
                     }
                     Err(e) => {
-                        warn!("Failed to create default provider {}: {}", provider_name, e)
+                        tracing::warn!("Failed to create default provider {}: {}", provider_name, e)
                     }
                 },
-                Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
+                Err(e) => tracing::warn!("Failed to create model config for {}: {}", model_name, e),
             }
         }
         Ok(())
@@ -137,7 +137,7 @@ impl AgentManager {
         sessions
             .pop(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session {} not found", session_id))?;
-        info!("Removed session {}", session_id);
+        tracing::info!("Removed session {}", session_id);
         Ok(())
     }
 

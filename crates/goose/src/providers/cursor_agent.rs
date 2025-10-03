@@ -68,14 +68,12 @@ impl CursorAgentProvider {
                     if let Ok(metadata) = std::fs::metadata(&path_buf) {
                         let permissions = metadata.permissions();
                         if permissions.mode() & 0o111 != 0 {
-                            tracing::info!("Found cursor-agent executable at: {}", path);
                             return Some(path);
                         }
                     }
                 }
                 #[cfg(not(unix))]
                 {
-                    tracing::info!("Found cursor-agent executable at: {}", path);
                     return Some(path);
                 }
             }
@@ -91,13 +89,12 @@ impl CursorAgentProvider {
                 let path_buf = PathBuf::from(dir).join(command_name);
                 if path_buf.exists() && path_buf.is_file() {
                     let full_path = path_buf.to_string_lossy().to_string();
-                    tracing::info!("Found cursor-agent executable in PATH at: {}", full_path);
                     return Some(full_path);
                 }
             }
         }
 
-        tracing::warn!("Could not find cursor-agent executable in common locations");
+        tracing::error!("Could not find cursor-agent executable in common locations");
         None
     }
 
@@ -323,11 +320,6 @@ impl CursorAgentProvider {
                 "Command failed with exit code: {:?}",
                 exit_status.code()
             )));
-        }
-
-        tracing::debug!("Command executed successfully, got {} lines", lines.len());
-        for (i, line) in lines.iter().enumerate() {
-            tracing::debug!("Line {}: {}", i, line);
         }
 
         Ok(lines)

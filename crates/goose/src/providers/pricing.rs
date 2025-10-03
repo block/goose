@@ -76,7 +76,6 @@ impl PricingCache {
                             );
                             Ok(Some(cached))
                         } else {
-                            tracing::debug!("Disk cache expired (age: {} days)", age_days);
                             Ok(None)
                         }
                     }
@@ -102,11 +101,9 @@ impl PricingCache {
         let json_data = serde_json::to_vec_pretty(data)?;
         tokio::fs::write(&cache_path, json_data).await?;
 
-        tracing::debug!("Saved pricing data to disk cache");
         Ok(())
     }
 
-    /// Get pricing for a specific model
     pub async fn get_model_pricing(&self, provider: &str, model: &str) -> Option<PricingInfo> {
         // Try memory cache first
         {
@@ -172,16 +169,11 @@ impl PricingCache {
         };
 
         // Log how many models we fetched
-        let total_models: usize = cached_data
+        let _total_models: usize = cached_data
             .pricing
             .values()
             .map(|models| models.len())
             .sum();
-        tracing::debug!(
-            "Fetched pricing for {} providers with {} total models from OpenRouter",
-            cached_data.pricing.len(),
-            total_models
-        );
 
         // Save to disk
         self.save_to_disk(&cached_data).await?;
@@ -199,15 +191,6 @@ impl PricingCache {
     pub async fn initialize(&self) -> Result<()> {
         // Try loading from disk first
         if let Ok(Some(cached)) = self.load_from_disk().await {
-            // Log how many models we have cached
-            let total_models: usize = cached.pricing.values().map(|models| models.len()).sum();
-            tracing::debug!(
-                "Loaded {} providers with {} total models from disk cache",
-                cached.pricing.len(),
-                total_models
-            );
-
-            // Update memory cache
             {
                 let mut cache = self.memory_cache.write().await;
                 *cache = Some(cached);
@@ -216,8 +199,6 @@ impl PricingCache {
             return Ok(());
         }
 
-        // If no disk cache, fetch from OpenRouter
-        tracing::info!("Fetching pricing data from OpenRouter API");
         self.refresh().await
     }
 }

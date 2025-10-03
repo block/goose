@@ -25,14 +25,11 @@ impl Formatter {
         result: &AnalysisResult,
         mode: &AnalysisMode,
     ) -> String {
-        tracing::debug!("Formatting result for {:?} in {:?} mode", path, mode);
-
         match mode {
             AnalysisMode::Structure => Self::format_structure_overview(path, result),
             AnalysisMode::Semantic => Self::format_semantic_result(path, result),
             AnalysisMode::Focused => {
                 // Focused mode is handled separately
-                tracing::warn!("format_analysis_result called with Focused mode");
                 String::new()
             }
         }

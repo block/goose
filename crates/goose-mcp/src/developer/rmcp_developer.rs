@@ -534,7 +534,6 @@ impl ServerHandler for DeveloperServer {
 
             if let Some(token) = processes.get(&request_id) {
                 token.cancel();
-                tracing::debug!("Found process for request {}, cancelling token", request_id);
             } else {
                 tracing::warn!("No process found for request ID: {}", request_id);
             }
@@ -967,11 +966,6 @@ impl DeveloperServer {
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
         let pid = child.id();
-        if let Some(pid) = pid {
-            tracing::debug!("Shell process spawned with PID: {}", pid);
-        } else {
-            tracing::warn!("Shell process spawned but PID not available");
-        }
 
         // Stream the output and wait for completion with cancellation support
         let output_task = self.stream_shell_output(
@@ -987,9 +981,6 @@ impl DeveloperServer {
                 output_result
             }
             _ = cancellation_token.cancelled() => {
-                tracing::info!("Cancellation token triggered! Attempting to kill process and all child processes");
-
-                // Kill the process and its children using platform-specific approach
                 match kill_process_group(&mut child, pid).await {
                     Ok(_) => {
                         tracing::debug!("Successfully killed shell process and child processes");

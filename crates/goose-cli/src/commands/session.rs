@@ -73,8 +73,7 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
 pub async fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
     let all_sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to retrieve sessions: {:?}", e);
+        Err(_) => {
             return Err(anyhow::anyhow!("Failed to retrieve sessions"));
         }
     };

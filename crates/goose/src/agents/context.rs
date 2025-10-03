@@ -67,7 +67,6 @@ impl Agent {
         let (summary_message, summarization_usage) = match summary_result {
             Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
             None => {
-                // No summary was generated (empty input)
                 tracing::warn!("Summarization failed. Returning empty messages.");
                 return Ok((Conversation::empty(), vec![], None));
             }

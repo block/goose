@@ -6,7 +6,6 @@ use goose::agents::{extension::Envs, ExtensionConfig};
 use http::StatusCode;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
-use tracing;
 
 /// Enum representing the different types of extension configuration requests.
 #[derive(Deserialize)]
@@ -107,11 +106,6 @@ async fn add_extension(
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     // Log the request for debugging
-    tracing::info!(
-        "Received extension request for session: {}",
-        request.session_id
-    );
-
     let session_id = request.session_id.clone();
     let extension_request = request.config;
 

@@ -60,8 +60,6 @@ impl XaiProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        tracing::debug!("xAI request model: {:?}", self.model.model_name);
-
         let response = self
             .api_client
             .response_post("chat/completions", &payload)

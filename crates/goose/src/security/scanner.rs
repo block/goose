@@ -23,7 +23,7 @@ impl PromptInjectionScanner {
     }
 
     /// Get threshold from config
-    pub fn get_threshold_from_config(&self) -> f32 {
+    pub fn get_threshold(&self) -> f32 {
         use crate::config::Config;
         let config = Config::global();
 

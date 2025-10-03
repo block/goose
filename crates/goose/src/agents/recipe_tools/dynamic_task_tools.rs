@@ -116,8 +116,6 @@ fn process_extensions(
                             .unwrap_or(false)
                         {
                             converted_extensions.push(config);
-                        } else {
-                            tracing::warn!("Extension '{}' is disabled, skipping", name_str);
                         }
                     }
                     Ok(None) => {

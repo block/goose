@@ -1,6 +1,6 @@
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
@@ -22,8 +22,6 @@ struct CacheKey {
 
 impl AnalysisCache {
     pub fn new(max_size: usize) -> Self {
-        tracing::info!("Initializing analysis cache with size {}", max_size);
-
         let size = NonZeroUsize::new(max_size).unwrap_or_else(|| {
             tracing::warn!("Invalid cache size {}, using default 100", max_size);
             NonZeroUsize::new(100).unwrap()
@@ -35,20 +33,14 @@ impl AnalysisCache {
         }
     }
 
-    pub fn get(&self, path: &PathBuf, modified: SystemTime) -> Option<AnalysisResult> {
+    pub fn get(&self, path: &Path, modified: SystemTime) -> Option<AnalysisResult> {
         let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         let key = CacheKey {
-            path: path.clone(),
+            path: path.to_path_buf(),
             modified,
         };
 
-        if let Some(result) = cache.get(&key) {
-            tracing::trace!("Cache hit for {:?}", path);
-            Some((**result).clone())
-        } else {
-            tracing::trace!("Cache miss for {:?}", path);
-            None
-        }
+        cache.get(&key).map(|result| (**result).clone())
     }
 
     pub fn put(&self, path: PathBuf, modified: SystemTime, result: AnalysisResult) {
@@ -58,14 +50,12 @@ impl AnalysisCache {
             modified,
         };
 
-        tracing::trace!("Caching result for {:?}", path);
         cache.put(key, Arc::new(result));
     }
 
     pub fn clear(&self) {
         let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         cache.clear();
-        tracing::debug!("Cache cleared");
     }
 
     pub fn len(&self) -> usize {
