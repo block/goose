@@ -1930,7 +1930,10 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         })
         .interact()?;
 
-    let api_key: String = cliclack::password("API key:").mask('▪').interact()?;
+    let api_key: String = cliclack::password("API key:")
+        .allow_empty()
+        .mask('▪')
+        .interact()?;
 
     let models_input: String = cliclack::input("Available models (seperate with commas):")
         .placeholder("model-a, model-b, model-c")

@@ -119,17 +119,13 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     return recipe as Recipe;
   };
 
-  const validateTitleUniqueness = async (
-    title: string,
-    isGlobal: boolean
-  ): Promise<string | undefined> => {
+  const validateTitleUniqueness = async (title: string): Promise<string | undefined> => {
     if (!title.trim()) return undefined;
 
     try {
       const existingRecipes = await listSavedRecipes();
       const titleExists = existingRecipes.some(
-        (recipe) =>
-          recipe.recipe.title?.toLowerCase() === title.toLowerCase() && recipe.isGlobal === isGlobal
+        (recipe) => recipe.recipe.title?.toLowerCase() === title.toLowerCase()
       );
 
       if (titleExists) {
@@ -171,10 +167,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
         recipe.title = value.recipeTitle.trim();
 
-        const titleValidationError = await validateTitleUniqueness(
-          value.recipeTitle.trim(),
-          value.global
-        );
+        const titleValidationError = await validateTitleUniqueness(value.recipeTitle.trim());
         if (titleValidationError) {
           throw new Error(titleValidationError);
         }

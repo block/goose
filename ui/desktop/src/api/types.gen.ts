@@ -448,6 +448,14 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type ParseRecipeRequest = {
+    content: string;
+};
+
+export type ParseRecipeResponse = {
+    recipe: Recipe;
+};
+
 export type PermissionConfirmationRequest = {
     action: string;
     id: string;
@@ -616,7 +624,6 @@ export type Recipe = {
 
 export type RecipeManifestResponse = {
     id: string;
-    isGlobal: boolean;
     lastModified: string;
     name: string;
     recipe: Recipe;
@@ -693,6 +700,12 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SaveRecipeRequest = {
+    id?: string | null;
+    is_global?: boolean | null;
+    recipe: Recipe;
 };
 
 export type ScanRecipeRequest = {
@@ -1783,6 +1796,64 @@ export type ListRecipesResponses = {
 };
 
 export type ListRecipesResponse = ListRecipesResponses[keyof ListRecipesResponses];
+
+export type ParseRecipeData = {
+    body: ParseRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/parse';
+};
+
+export type ParseRecipeErrors = {
+    /**
+     * Bad request - Invalid recipe format
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ParseRecipeError = ParseRecipeErrors[keyof ParseRecipeErrors];
+
+export type ParseRecipeResponses = {
+    /**
+     * Recipe parsed successfully
+     */
+    200: ParseRecipeResponse;
+};
+
+export type ParseRecipeResponse2 = ParseRecipeResponses[keyof ParseRecipeResponses];
+
+export type SaveRecipeData = {
+    body: SaveRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/save';
+};
+
+export type SaveRecipeErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type SaveRecipeError = SaveRecipeErrors[keyof SaveRecipeErrors];
+
+export type SaveRecipeResponses = {
+    /**
+     * Recipe saved to file successfully
+     */
+    204: void;
+};
+
+export type SaveRecipeResponse = SaveRecipeResponses[keyof SaveRecipeResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;
