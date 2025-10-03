@@ -327,6 +327,8 @@ mod tests {
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
+            accumulated_cache_read_input_tokens: None,
+            accumulated_cache_write_input_tokens: None,
             extension_data: extension_data::ExtensionData::new(),
             conversation: Some(conversation),
             message_count,

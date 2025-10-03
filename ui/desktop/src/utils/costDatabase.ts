@@ -5,6 +5,8 @@ import { safeJsonParse } from './jsonUtils';
 export interface ModelCostInfo {
   input_token_cost: number; // Cost per token for input (in USD)
   output_token_cost: number; // Cost per token for output (in USD)
+  cache_read_input_token_cost?: number; // Cost per token for cache read (in USD)
+  cache_write_input_token_cost?: number; // Cost per token for cache write (in USD)
   currency: string; // Currency symbol
 }
 
@@ -54,6 +56,8 @@ async function fetchPricingForModel(
       model: string;
       input_token_cost: number;
       output_token_cost: number;
+      cache_read_input_token_cost?: number;
+      cache_write_input_token_cost?: number;
       currency: string;
     }>;
   }>(response, 'Failed to parse pricing data');
@@ -65,6 +69,8 @@ async function fetchPricingForModel(
       model: string;
       input_token_cost: number;
       output_token_cost: number;
+      cache_read_input_token_cost?: number;
+      cache_write_input_token_cost?: number;
       currency: string;
     }) => {
       const providerMatch = p.provider.toLowerCase() === lookupProvider.toLowerCase();
@@ -93,6 +99,8 @@ async function fetchPricingForModel(
     return {
       input_token_cost: pricing.input_token_cost,
       output_token_cost: pricing.output_token_cost,
+      cache_read_input_token_cost: pricing.cache_read_input_token_cost,
+      cache_write_input_token_cost: pricing.cache_write_input_token_cost,
       currency: pricing.currency || '$',
     };
   }

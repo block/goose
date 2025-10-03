@@ -391,6 +391,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_total_tokens: Some(100),
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
+        accumulated_cache_read_input_tokens: None,
+        accumulated_cache_write_input_tokens: None,
         extension_data: Default::default(),
         updated_at: Default::default(),
         conversation: None,

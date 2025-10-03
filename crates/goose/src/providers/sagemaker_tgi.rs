@@ -307,6 +307,8 @@ impl Provider for SageMakerTgiProvider {
             input_tokens: Some(0),  // Would need to tokenize input to get accurate count
             output_tokens: Some(0), // Would need to tokenize output to get accurate count
             total_tokens: Some(0),
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
         };
 
         // Add debug trace

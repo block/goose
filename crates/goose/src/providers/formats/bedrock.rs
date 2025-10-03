@@ -338,6 +338,8 @@ pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
         input_tokens: Some(usage.input_tokens),
         output_tokens: Some(usage.output_tokens),
         total_tokens: Some(usage.total_tokens),
+        cache_read_input_tokens: usage.cache_read_input_tokens,
+        cache_write_input_tokens: usage.cache_write_input_tokens,
     }
 }
 

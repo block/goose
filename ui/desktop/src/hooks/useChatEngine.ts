@@ -42,6 +42,8 @@ export const useChatEngine = ({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
+  const [sessionCacheReadTokens, setSessionCacheReadTokens] = useState<number>(0);
+  const [sessionCacheWriteTokens, setSessionCacheWriteTokens] = useState<number>(0);
   const [localInputTokens, setLocalInputTokens] = useState<number>(0);
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
@@ -210,6 +212,8 @@ export const useChatEngine = ({
         setSessionTokenCount(sessionDetails.total_tokens || 0);
         setSessionInputTokens(sessionDetails.accumulated_input_tokens || 0);
         setSessionOutputTokens(sessionDetails.accumulated_output_tokens || 0);
+        setSessionCacheReadTokens(sessionDetails.accumulated_cache_read_input_tokens || 0);
+        setSessionCacheWriteTokens(sessionDetails.accumulated_cache_write_input_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -227,6 +231,8 @@ export const useChatEngine = ({
       setSessionTokenCount(session.total_tokens || 0);
       setSessionInputTokens(session.accumulated_input_tokens || 0);
       setSessionOutputTokens(session.accumulated_output_tokens || 0);
+      setSessionCacheReadTokens(session.accumulated_cache_read_input_tokens || 0);
+      setSessionCacheWriteTokens(session.accumulated_cache_write_input_tokens || 0);
     }
   }, [session]);
 
@@ -467,6 +473,8 @@ export const useChatEngine = ({
     sessionTokenCount,
     sessionInputTokens,
     sessionOutputTokens,
+    sessionCacheReadTokens,
+    sessionCacheWriteTokens,
     localInputTokens,
     localOutputTokens,
 

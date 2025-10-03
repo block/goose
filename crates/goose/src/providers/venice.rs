@@ -507,6 +507,8 @@ impl Provider for VeniceProvider {
             input_tokens: usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
             output_tokens: usage_data["completion_tokens"].as_i64().map(|v| v as i32),
             total_tokens: usage_data["total_tokens"].as_i64().map(|v| v as i32),
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
         };
 
         Ok((
