@@ -11,19 +11,19 @@ authors:
 
 # Running Goose in Containers (Without Losing Your Mind)
 
-I'm a huge fan of containers. They're not just a cool buzzword for résumés; they actually save your sanity. And today, I'll show you how to run goose inside Docker. specifically how to integrate it into CI/CD pipelines, debug containerized workflows, and manage secure deployments at scale. Once you containerize goose, you'll never go back to raw installs.
+I'm a huge fan of containers. They're not just a cool buzzword for résumés; they actually save your sanity. And today, I'll show you how to run goose inside Docker. Specifically how to integrate it into CI/CD pipelines, debug containerized workflows, and manage secure deployments at scale. Once you containerize goose, you'll never go back to raw installs.
 
 <!--truncate-->
 
 ## Why Containerize Goose? The Real Benefits
 
-goose is an AI agent that can automate engineering tasks, build projects from scratch, debug code, and orchestrate complex workflows through the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) (MCP). But here's why containers unlock its true potential:
+Goose is an AI agent that can automate engineering tasks, build projects from scratch, debug code, and orchestrate complex workflows through the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) (MCP). But here's why containers unlock its true potential:
 
 **For CI/CD Integration:** Run automated code reviews, documentation generation, and testing across your entire pipeline without environment drift. Imagine having goose automatically review every PR, generate release notes, or validate your infrastructure as code-all running consistently in containers.
 
 **For Team Collaboration:** Every developer gets the same goose setup, eliminating "works on my machine" problems when sharing AI-powered workflows or debugging sessions.
 
-**for Production Deployments:** Scale goose instances horizontally, manage API keys securely, and deploy across multiple environments with confidence.
+**For Production Deployments:** Scale goose instances horizontally, manage API keys securely, and deploy across multiple environments with confidence.
 
 In this guide, we'll cover:
 
@@ -32,7 +32,7 @@ In this guide, we'll cover:
 - Debugging containerized goose workflows
 - Production-ready security and scaling patterns
 
-The benefits are immediate and compound over time-especially when you're managing API keys for multiple LLM providers and need consistent behavior across environments.
+The benefits are immediate and compound over time, especially when you're managing API keys for multiple LLM providers and need consistent behavior across environments.
 
 ## Quick Start: Your First Containerized Workflow
 
@@ -70,7 +70,7 @@ Pro tip: For development builds with debug symbols, add `--build-arg CARGO_PROFI
 
 ### Basic CLI Usage
 
-Mount your workspace and let Goose work its magic:
+Mount your workspace and let goose work its magic:
 
 ```bash
 $ docker run --rm \
@@ -148,7 +148,7 @@ USER goose
 
 ## CI/CD Integration: Where Containers Shine
 
-This is where containerization really pays off. In CI/CD pipelines, you want consistent, isolated environments. Here's how to integrate Goose:
+This is where containerization really pays off. In CI/CD pipelines, you want consistent, isolated environments. Here's how to integrate goose:
 
 ### GitHub Actions
 
@@ -222,12 +222,7 @@ This approach is cleaner, more maintainable, and essential for CI/CD environment
 
 ### Connecting to Local Development Services
 
-When goose needs to interact with local databases, development servers, or APIs running on your host machine, the container's isolated network becomes a barrier. This is common when:
-
-- Testing integrations with a local PostgreSQL database
-- Analyzing APIs running on `localhost:3000`
-- Debugging microservices in development
-- Working with locally hosted documentation servers
+When goose needs to interact with local databases, development servers, or APIs running on your host machine, the container's isolated network becomes a barrier.
 
 Use host networking to bridge this gap:
 
@@ -254,6 +249,8 @@ $ docker run --rm \
    goose:local
 ```
 
+This prevents individual containers from consuming excessive resources, ensuring predictable performance and cost control in production environments. This approach supports both horizontal scaling (adding more container instances to distribute load) and vertical scaling (increasing resources per container) based on your specific workload demands and infrastructure constraints.
+
 ### Debugging Container Issues
 
 When goose behaves unexpectedly in containers, you need to investigate the environment. Here are common debugging scenarios:
@@ -279,8 +276,8 @@ goose@container:~$ cat ~/.config/goose/config.yaml  # Configuration
 ```bash
 # Test network connectivity and API access
 $ docker run --rm -it --entrypoint bash goose:v0.9.3
-goose@container:~$ curl -I https://api.openai.com/v1/models
-goose@container:~$ goose configure --check  # Verify API keys
+$ goose@container:~$ curl -I https://api.openai.com/v1/models
+$ goose@container:~$ goose configure --check  # Verify API keys
 ```
 
 **Examine goose logs in verbose mode:**
@@ -307,18 +304,16 @@ $ docker buildx build --platform linux/amd64,linux/arm64 -t goose:multi .
 
 For production deployments, replace all the `latest` tags from our examples with specific release versions:
 
-### Use Specific Release Tags
-
 ```bash
 # Instead of this (unpredictable):
 $ docker pull ghcr.io/block/goose:latest
 
 # Use this (reproducible):
-$ docker pull ghcr.io/block/goose:v0.9.3
+$ docker pull ghcr.io/block/goose:v1.8.0
 ```
 
 Pinning to specific versions prevents surprises during deployments and makes rollbacks predictable when issues arise.
 
 ## Wrap-Up
 
-Containerizing Goose has been one of those "why didn't I do this sooner?" moments in my career. It eliminates environment drift, simplifies deployments, and makes your AI-powered workflows truly portable. So, start with the prebuilt image, then customize as you grow. Your future self will thank you.
+Containerizing goose has been one of those "why didn't I do this sooner?" moments in my career. It eliminates environment drift, simplifies deployments, and makes your AI-powered workflows truly portable. So, start with the prebuilt image, then customize as you grow. Your future self will thank you.
