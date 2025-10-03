@@ -237,8 +237,7 @@ else
   echo "Skipping 'goose configure', you may need to run this manually later"
 fi
 
-# --- 7) Check PATH and give instructions if needed ---
-# ...existing code...
+
 
 # --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
@@ -268,4 +267,4 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   fi
   echo ""
 fi
-# ...existing code...
+
