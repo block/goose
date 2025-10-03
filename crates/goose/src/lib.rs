@@ -1,3 +1,4 @@
+pub mod acp;
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
