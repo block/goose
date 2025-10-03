@@ -8,9 +8,17 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
+:::warning Deprecated
+The Brave Search MCP Server has been **archived** and is no longer maintained. The server may have security vulnerabilities and compatibility issues. We recommend using alternative search MCP servers like [Tavily Search](./tavily-mcp.md) or [Browserbase](./browserbase-mcp.md) for better reliability and security.
+:::
+
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kD2YA61NTLU" />
 
-This tutorial will get you started with the [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
+:::note Historical Reference
+This tutorial is provided for historical reference only. The [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) has been archived and is not recommended for new installations.
+:::
+
+This tutorial covers the deprecated Brave Search MCP Server that was previously used to enable interactive searches for both web and local searches.
 
 :::tip TLDR
 <Tabs groupId="interface">
