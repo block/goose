@@ -76,7 +76,7 @@ interface BaseChatProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageStreamFinish?: () => void;
-  onMessageSubmit?: () => void;
+  onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
@@ -189,14 +189,16 @@ function BaseChatContent({
       const hasExistingConversation = newTitle && messages.length > 0;
 
       if (isSwitchingBetweenRecipes) {
+        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
         setHasStartedUsingRecipe(false);
+        setMessages([]);
       } else if (isInitialRecipeLoad) {
         setHasStartedUsingRecipe(false);
       } else if (hasExistingConversation) {
         setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, messages.length]);
+  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -256,7 +258,7 @@ function BaseChatContent({
 
     // Call the callback if provided (for Hub to handle navigation)
     if (onMessageSubmit && combinedTextFromInput.trim()) {
-      onMessageSubmit();
+      onMessageSubmit(combinedTextFromInput);
     }
 
     engineHandleSubmit(combinedTextFromInput);
@@ -347,7 +349,8 @@ function BaseChatContent({
 
             {/* Messages or Popular Topics */}
             {
-              loadingChat ? null : filteredMessages.length > 0 ? (
+              loadingChat ? null : filteredMessages.length > 0 ||
+                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled

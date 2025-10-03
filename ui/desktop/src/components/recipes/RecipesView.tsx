@@ -11,14 +11,9 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { View, ViewOptions } from '../../utils/navigationUtils';
-import { generateDeepLink } from '../../recipe';
+import { Recipe, generateDeepLink } from '../../recipe';
 
-interface RecipesViewProps {
-  setView: (view: View, viewOptions?: ViewOptions) => void;
-}
-
-export default function RecipesView({ setView }: RecipesViewProps) {
+export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -70,14 +65,26 @@ export default function RecipesView({ setView }: RecipesViewProps) {
     }
   };
 
-  const handleLoadRecipe = async (recipeManifest: RecipeManifestResponse) => {
+  const handleLoadRecipe = async (recipe: Recipe) => {
     try {
-      // Navigate to pair view with recipe and force a new session
-      setView('pair', {
-        disableAnimation: true,
-        recipe: recipeManifest.recipe,
-        resumeSessionId: undefined, // Force new session to clear current chat
-      });
+      // onLoadRecipe is not working for loading recipes. It looks correct
+      // but the instructions are not flowing through to the server.
+      // Needs a fix but commenting out to get prod back up and running.
+      //
+      // if (onLoadRecipe) {
+      //   // Use the callback to navigate within the same window
+      //   onLoadRecipe(savedRecipe.recipe);
+      // } else {
+      // Fallback to creating a new window (for backwards compatibility)
+      window.electron.createChatWindow(
+        undefined, // query
+        undefined, // dir
+        undefined, // version
+        undefined, // resumeSessionId
+        recipe, // recipe config
+        undefined // view type
+      );
+      // }
     } catch (err) {
       console.error('Failed to load recipe:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recipe');
@@ -167,7 +174,7 @@ export default function RecipesView({ setView }: RecipesViewProps) {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(recipeManifestResponse);
+              handleLoadRecipe(recipe);
             }}
             size="sm"
             className="h-8 w-8 p-0"

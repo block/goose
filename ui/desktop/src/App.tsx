@@ -105,7 +105,6 @@ const PairRouteWrapper = ({
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}
-      recipe={routeState.recipe}
     />
   );
 };
@@ -131,8 +130,7 @@ const SchedulesRoute = () => {
 };
 
 const RecipesRoute = () => {
-  const setView = useNavigation();
-  return <RecipesView setView={setView} />;
+  return <RecipesView />;
 };
 
 const PermissionRoute = () => {
@@ -302,13 +300,15 @@ export function AppInner() {
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
-  const resetChatForNewConversation = useCallback(() => {
-    setSearchParams((prev) => {
-      prev.delete('resumeSessionId');
-      return prev;
-    });
-    resetChat();
-  }, [setSearchParams, resetChat]);
+  const resetChatIfNecessary = useCallback(() => {
+    if (chat.messages.length > 0) {
+      setSearchParams((prev) => {
+        prev.delete('resumeSessionId');
+        return prev;
+      });
+      resetChat();
+    }
+  }, [chat.messages.length, setSearchParams, resetChat]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -328,12 +328,10 @@ export function AppInner() {
     if (loadingHub) {
       (async () => {
         try {
-          const loadedChat = await loadCurrentChat({
+          await loadCurrentChat({
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
-          // Update the chat state with the loaded session to ensure sessionId is available globally
-          setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
             // the onboarding flow will trigger
@@ -343,7 +341,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -536,7 +534,7 @@ export function AppInner() {
                 <HubRouteWrapper
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   isExtensionsLoading={isExtensionsLoading}
-                  resetChat={resetChatForNewConversation}
+                  resetChat={resetChatIfNecessary}
                 />
               }
             />

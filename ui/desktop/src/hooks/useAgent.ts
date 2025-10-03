@@ -30,7 +30,6 @@ export interface InitializationContext {
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
   setIsExtensionsLoading?: (isLoading: boolean) => void;
-  forceReset?: boolean;
 }
 
 interface UseAgentReturn {
@@ -56,39 +55,16 @@ export function useAgent(): UseAgentReturn {
 
   const { getExtensions, addExtension, read } = useConfig();
 
-  const resetChat = useCallback(async () => {
-    if (initPromiseRef.current) {
-      try {
-        await initPromiseRef.current;
-      } catch (error) {
-        console.warn('Error during pending initialization cleanup:', error);
-      }
-    }
-
+  const resetChat = useCallback(() => {
     setSessionId(null);
     setAgentState(AgentState.UNINITIALIZED);
     setRecipeFromAppConfig(null);
-    initPromiseRef.current = null;
   }, []);
 
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
-      // If forceReset is true, always reinitialize
-      if (initContext.forceReset) {
-        if (initPromiseRef.current) {
-          try {
-            await initPromiseRef.current;
-          } catch (error) {
-            console.warn('Error during pending initialization cleanup:', error);
-          }
-        }
-
-        setSessionId(null);
-        setAgentState(AgentState.UNINITIALIZED);
-        initPromiseRef.current = null;
-        // Don't return early, continue to initialization
-      } else if (agentIsInitialized && sessionId) {
+      if (agentIsInitialized && sessionId) {
         const agentResponse = await resumeAgent({
           body: {
             session_id: sessionId,

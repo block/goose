@@ -4,10 +4,7 @@ import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface SessionsViewProps {}
-
-const SessionsView: React.FC<SessionsViewProps> = () => {
+const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
