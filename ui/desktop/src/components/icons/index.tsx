@@ -38,6 +38,8 @@ import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
 import { Gear } from './Gear';
+import { Key } from './Key';
+import { ArrowRight } from './ArrowRight';
 import Youtube from './Youtube';
 import { Microphone } from './Microphone';
 import { Watch0 } from './Watch0';
@@ -51,6 +53,7 @@ import { Watch6 } from './Watch6';
 export {
   ArrowDown,
   ArrowUp,
+  ArrowRight,
   Attach,
   Back,
   Bird1,
@@ -79,6 +82,7 @@ export {
   GlassWater,
   Grape,
   Idea,
+  Key,
   LinkedIn,
   Microphone,
   More,

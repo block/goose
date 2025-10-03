@@ -7,9 +7,9 @@ import { startTetrateSetup } from '../utils/tetrateSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
+import ApiKeyTester from './ApiKeyTester';
 
-import { Goose } from './icons/Goose';
-import { OpenRouter } from './icons';
+import { Goose, OpenRouter, Tetrate } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -32,6 +32,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     showRetry: boolean;
     autoClose?: number;
   } | null>(null);
+  
   const [tetrateSetupState, setTetrateSetupState] = useState<{
     show: boolean;
     title: string;
@@ -164,6 +165,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
+  const handleApiKeySuccess = (provider: string, model: string) => {
+    // Mark as having provider and close setup
+    setShowFirstTimeSetup(false);
+    setHasProvider(true);
+    navigate('/', { replace: true });
+  };
+
   useEffect(() => {
     const checkProvider = async () => {
       try {
@@ -269,8 +277,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       <div className="h-screen w-full bg-background-default overflow-hidden">
         <div className="h-full overflow-y-auto">
           <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
-            <div className="max-w-lg w-full mx-auto p-8">
-              {/* Header section - same width as buttons, left aligned */}
+            <div className="max-w-2xl w-full mx-auto p-8">
+              {/* Header section */}
               <div className="text-left mb-8 sm:mb-12">
                 <div className="space-y-3 sm:space-y-4">
                   <div className="origin-bottom-left goose-icon-animation">
@@ -278,127 +286,90 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   </div>
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
-                <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get you setup with a provider so we can
-                  make incredible work together. Scroll down to see options.
+                <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6 ">
+                  Since it's your first time here, let's get you setup with a provider so we can 
+                  make incredible work together.
                 </p>
               </div>
 
-              {/* Setup options - same width container */}
+              {/* API Key Tester - TOP OPTION */}
+              <ApiKeyTester onSuccess={handleApiKeySuccess} />
 
-              <div className="space-y-3 sm:space-y-4">
+              {/* Provider options - now just 2 cards in a row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                {/* Tetrate Card */}
                 <div className="relative">
-                  {/* Tetrate Card */}
-                  {/* Recommended badge - positioned relative to wrapper */}
-                  <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                      Recommended
-                    </span>
-                  </div>
-
                   <div
                     onClick={handleTetrateSetup}
-                    className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                    className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group h-full"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
+                        <Tetrate className="w-4 h-4 mb-3 text-text-standard" />
                         <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                          Automatic setup with Tetrate Agent Router
+                          Tetrate Agent Router
                         </h3>
                       </div>
                       <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                        <svg
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </div>
                     <p className="text-text-muted text-sm sm:text-base">
-                      Get secure access to multiple AI models, start for free. Quick setup with just
-                      a few clicks.
+                      Secure access to multiple AI models with automatic setup. Free tier available.
                     </p>
                   </div>
                 </div>
 
-                {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
+                {/* OpenRouter Card */}
                 <div className="relative">
                   <div
                     onClick={handleOpenRouterSetup}
-                    className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
+                    className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden h-full"
                   >
-                    {/* Subtle shimmer effect */}
                     <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
-
                     <div className="relative flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
+                        <OpenRouter className="w-4 h-4 mb-3 text-text-standard" />
                         <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                          Automatic setup with OpenRouter
+                          OpenRouter
                         </h3>
                       </div>
                       <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                        <svg
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </div>
                     <p className="relative text-text-muted text-sm sm:text-base">
-                      Get instant access to multiple AI models including GPT-4, Claude, and more.
-                      Quick setup with just a few clicks.
+                      Access to GPT-4, Claude, Gemini and more with automatic OAuth setup.
                     </p>
                   </div>
                 </div>
+              </div>
 
-                {/* Other providers Card - outline style */}
+              {/* Other providers option */}
+              <div className="mt-6 max-w-4xl mx-auto">
                 <div
                   onClick={() => navigate('/welcome', { replace: true })}
                   className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                      <h3 className="font-medium text-text-standard text-sm sm:text-base mb-1">
                         Other providers
                       </h3>
+                      <p className="text-text-muted text-sm sm:text-base">
+                        Configure additional providers like Google, Groq, Ollama, and more.
+                      </p>
                     </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
+                    <div className="text-text-muted group-hover:text-text-standard transition-colors ml-4">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
                   </div>
-                  <p className="text-text-muted text-sm sm:text-base">
-                    If you've already signed up for providers like Anthropic, OpenAI etc, you can
-                    enter your own keys.
-                  </p>
                 </div>
               </div>
             </div>
