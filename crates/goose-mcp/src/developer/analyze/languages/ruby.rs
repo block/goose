@@ -1,5 +1,5 @@
 /// Tree-sitter query for extracting Ruby code elements.
-/// 
+///
 /// This query captures:
 /// - Method definitions (def)
 /// - Class and module definitions
@@ -25,7 +25,7 @@ pub const ELEMENT_QUERY: &str = r#"
 "#;
 
 /// Tree-sitter query for extracting Ruby function calls.
-/// 
+///
 /// This query captures:
 /// - Direct method calls
 /// - Method calls with receivers (object.method)

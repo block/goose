@@ -127,7 +127,20 @@ impl ElementExtractor {
                     ref_type: ReferenceType::Call,
                     line: call.line,
                     context: call.context.clone(),
+                    associated_type: None,
                 });
+            }
+
+            // Languages can opt-in to advanced reference tracking by providing a REFERENCE_QUERY
+            // in their language definition. This enables tracking of:
+            // - Type instantiation (struct literals, object creation)
+            // - Field/variable/parameter type references
+            // - Method-to-type associations
+            // To add reference tracking for a new language, define REFERENCE_QUERY in
+            // languages/<lang>.rs and add the language to the check below.
+            if language == "go" {
+                let go_references = Self::extract_references(tree, source, language)?;
+                result.references.extend(go_references);
             }
         }
 
@@ -214,7 +227,8 @@ impl ElementExtractor {
                 let line = source[..node.start_byte()].lines().count() + 1;
 
                 match query.capture_names()[capture.index as usize] {
-                    "func" => {
+                    "func" | "const" => {
+                        // Treat constants like functions (defined once, referenced many times)
                         functions.push(FunctionInfo {
                             name: text.to_string(),
                             line,
@@ -313,8 +327,12 @@ impl ElementExtractor {
 
                 // Add the call based on capture name
                 match query.capture_names()[capture.index as usize] {
-                    "function.call" | "method.call" | "scoped.call" | "macro.call"
-                    | "constructor.call" => {
+                    "function.call"
+                    | "method.call"
+                    | "scoped.call"
+                    | "macro.call"
+                    | "constructor.call"
+                    | "identifier.reference" => {
                         calls.push(CallInfo {
                             caller_name,
                             callee_name: text.to_string(),
@@ -330,6 +348,129 @@ impl ElementExtractor {
 
         tracing::trace!("Extracted {} calls", calls.len());
         Ok(calls)
+    }
+
+    /// Get language-specific query for struct/type references
+    fn get_reference_query(language: &str) -> &'static str {
+        use crate::developer::analyze::languages;
+
+        match language {
+            "go" => languages::go::REFERENCE_QUERY,
+            _ => "",
+        }
+    }
+
+    /// Extract struct/type references from the parse tree
+    fn extract_references(
+        tree: &Tree,
+        source: &str,
+        language: &str,
+    ) -> Result<Vec<ReferenceInfo>, ErrorData> {
+        use tree_sitter::{Query, QueryCursor};
+
+        let mut references = Vec::new();
+
+        // Get language-specific reference query
+        let query_str = Self::get_reference_query(language);
+        if query_str.is_empty() {
+            return Ok(references);
+        }
+
+        let query = Query::new(&tree.language(), query_str).map_err(|e| {
+            tracing::error!("Failed to create reference query: {}", e);
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to create reference query: {}", e),
+                None,
+            )
+        })?;
+
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
+
+        for match_ in matches.by_ref() {
+            for capture in match_.captures {
+                let node = capture.node;
+                let text = &source[node.byte_range()];
+                let start_pos = node.start_position();
+
+                // Get the line of code for context
+                let line_start = source[..node.start_byte()]
+                    .rfind('\n')
+                    .map(|i| i + 1)
+                    .unwrap_or(0);
+                let line_end = source[node.end_byte()..]
+                    .find('\n')
+                    .map(|i| node.end_byte() + i)
+                    .unwrap_or(source.len());
+                let context = source[line_start..line_end].trim().to_string();
+
+                let capture_name = query.capture_names()[capture.index as usize];
+
+                // Map capture types to reference types with appropriate semantics
+                let (ref_type, symbol, associated_type) = match capture_name {
+                    "method.receiver" => {
+                        // For method receivers, extract the method name and associate it with the type
+                        let method_name =
+                            Self::find_method_name_for_receiver(&node, source, language);
+                        if let Some(method_name) = method_name {
+                            (
+                                ReferenceType::MethodDefinition,
+                                method_name,
+                                Some(text.to_string()), // type name
+                            )
+                        } else {
+                            continue; // Skip if we can't find the method name
+                        }
+                    }
+                    "struct.literal" => (ReferenceType::TypeInstantiation, text.to_string(), None),
+                    "field.type" => (ReferenceType::FieldType, text.to_string(), None),
+                    "param.type" => (ReferenceType::ParameterType, text.to_string(), None),
+                    "var.type" | "shortvar.type" => {
+                        (ReferenceType::VariableType, text.to_string(), None)
+                    }
+                    "type.assertion" | "type.conversion" => {
+                        (ReferenceType::Call, text.to_string(), None)
+                    }
+                    _ => continue,
+                };
+
+                references.push(ReferenceInfo {
+                    symbol,
+                    ref_type,
+                    line: start_pos.row + 1,
+                    context,
+                    associated_type,
+                });
+            }
+        }
+
+        tracing::trace!("Extracted {} struct references", references.len());
+        Ok(references)
+    }
+
+    /// Find the method name for a method receiver node
+    fn find_method_name_for_receiver(
+        receiver_node: &tree_sitter::Node,
+        source: &str,
+        language: &str,
+    ) -> Option<String> {
+        // Walk up to find the method_declaration parent
+        let mut current = *receiver_node;
+        while let Some(parent) = current.parent() {
+            if language == "go" && parent.kind() == "method_declaration" {
+                // Find the method name within the method_declaration
+                for i in 0..parent.child_count() {
+                    if let Some(child) = parent.child(i) {
+                        if child.kind() == "field_identifier" {
+                            return Some(source[child.byte_range()].to_string());
+                        }
+                    }
+                }
+            }
+            current = parent;
+        }
+        None
     }
 
     /// Find which function contains a given node

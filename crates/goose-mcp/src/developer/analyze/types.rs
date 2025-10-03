@@ -77,14 +77,29 @@ pub struct ReferenceInfo {
     pub ref_type: ReferenceType,
     pub line: usize,
     pub context: String,
+    /// For method definitions, this stores the type the method belongs to
+    /// For type usage, this is None
+    pub associated_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ReferenceType {
+    /// Type/class/struct definition
     Definition,
+    /// Method or function definition on a type (use associated_type to link to type)
+    MethodDefinition,
+    /// Function call or method call
     Call,
+    /// Type instantiation (e.g., struct literal, class constructor)
+    TypeInstantiation,
+    /// Type used in field declaration
+    FieldType,
+    /// Type used in variable declaration
+    VariableType,
+    /// Type used in function/method parameter
+    ParameterType,
+    /// Import statement
     Import,
-    Assignment,
 }
 
 // Entry type for directory results - cleaner than overloading AnalysisResult

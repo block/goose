@@ -52,7 +52,11 @@ end
         let result = ElementExtractor::extract_elements(&tree, source, "ruby").unwrap();
 
         // attr_* should be recognized as functions
-        assert!(result.function_count >= 3, "Expected at least 3 functions from attr_* declarations, got {}", result.function_count);
+        assert!(
+            result.function_count >= 3,
+            "Expected at least 3 functions from attr_* declarations, got {}",
+            result.function_count
+        );
     }
 
     #[test]
@@ -66,7 +70,10 @@ require_relative 'lib/helper'
         let tree = parser.parse(source, "ruby").unwrap();
         let result = ElementExtractor::extract_elements(&tree, source, "ruby").unwrap();
 
-        assert_eq!(result.import_count, 2, "Should find both require and require_relative");
+        assert_eq!(
+            result.import_count, 2,
+            "Should find both require and require_relative"
+        );
     }
 
     #[test]
@@ -83,7 +90,8 @@ end
 "#;
 
         let tree = parser.parse(source, "ruby").unwrap();
-        let result = ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
+        let result =
+            ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
 
         // Should find method calls
         assert!(result.calls.len() > 0, "Should find method calls");

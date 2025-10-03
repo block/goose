@@ -213,7 +213,15 @@ impl CodeAnalyzer {
         // Check if we support this language for parsing
         let supported = matches!(
             language,
-            "python" | "rust" | "javascript" | "typescript" | "go" | "java" | "kotlin" | "swift" | "ruby"
+            "python"
+                | "rust"
+                | "javascript"
+                | "typescript"
+                | "go"
+                | "java"
+                | "kotlin"
+                | "swift"
+                | "ruby"
         );
 
         if !supported {
