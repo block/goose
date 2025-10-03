@@ -4,10 +4,6 @@ import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
 
-vi.mock('../../../../api', () => ({
-  upsertConfig: vi.fn().mockResolvedValue(undefined),
-}));
-
 describe('ExtensionModal', () => {
   it('creates a http_streamable extension', async () => {
     const user = userEvent.setup();
