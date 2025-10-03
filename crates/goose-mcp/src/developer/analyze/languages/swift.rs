@@ -54,3 +54,19 @@ pub const CALL_QUERY: &str = r#"
     (call_expression
       (navigation_expression) @function.call)
 "#;
+
+/// Extract function name for Swift-specific node kinds
+///
+/// Swift has special cases like init_declaration and deinit_declaration
+/// that should return fixed names instead of extracting from children.
+pub fn extract_function_name_for_kind(
+    node: &tree_sitter::Node,
+    _source: &str,
+    kind: &str,
+) -> Option<String> {
+    match kind {
+        "init_declaration" => Some("init".to_string()),
+        "deinit_declaration" => Some("deinit".to_string()),
+        _ => None,
+    }
+}

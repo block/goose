@@ -71,3 +71,24 @@ pub const REFERENCE_QUERY: &str = r#"
         (qualified_type
           name: (type_identifier) @field.type)))
 "#;
+
+/// Find the method name for a method receiver node in Go
+///
+/// This walks up the tree to find the method_declaration parent and extracts
+/// the method name, used for associating methods with their receiver types.
+pub fn find_method_for_receiver(receiver_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    let mut current = *receiver_node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "method_declaration" {
+            for i in 0..parent.child_count() {
+                if let Some(child) = parent.child(i) {
+                    if child.kind() == "field_identifier" {
+                        return Some(source[child.byte_range()].to_string());
+                    }
+                }
+            }
+        }
+        current = parent;
+    }
+    None
+}

@@ -211,20 +211,8 @@ impl CodeAnalyzer {
         }
 
         // Check if we support this language for parsing
-        let supported = matches!(
-            language,
-            "python"
-                | "rust"
-                | "javascript"
-                | "typescript"
-                | "go"
-                | "java"
-                | "kotlin"
-                | "swift"
-                | "ruby"
-        );
-
-        if !supported {
+        // A language is supported if it has query definitions
+        if languages::get_element_query(&language).is_empty() {
             tracing::trace!("Language {} not supported for parsing", language);
             return Ok(AnalysisResult::empty(line_count));
         }

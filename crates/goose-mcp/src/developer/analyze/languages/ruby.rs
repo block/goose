@@ -3,6 +3,7 @@
 /// This query captures:
 /// - Method definitions (def)
 /// - Class and module definitions
+/// - Constants
 /// - Common attr_* declarations (attr_accessor, attr_reader, attr_writer)
 /// - Import statements (require, require_relative, load)
 pub const ELEMENT_QUERY: &str = r#"
@@ -12,7 +13,10 @@ pub const ELEMENT_QUERY: &str = r#"
     ; Class and module definitions
     (class name: (constant) @class)
     (module name: (constant) @class)
-    
+
+    ; Constant assignments
+    (assignment left: (constant) @const)
+
     ; Attr declarations as functions
     (call method: (identifier) @func (#eq? @func "attr_accessor"))
     (call method: (identifier) @func (#eq? @func "attr_reader"))
@@ -30,13 +34,99 @@ pub const ELEMENT_QUERY: &str = r#"
 /// - Direct method calls
 /// - Method calls with receivers (object.method)
 /// - Calls to constants (typically constructors like ClassName.new)
+/// - Identifier and constant references in various expression contexts
 pub const CALL_QUERY: &str = r#"
     ; Method calls
     (call method: (identifier) @method.call)
-    
+
     ; Method calls with receiver
     (call receiver: (_) method: (identifier) @method.call)
-    
+
     ; Calls to constants (typically constructors)
     (call receiver: (constant) @function.call)
+
+    ; Identifier and constant references in argument lists
+    (argument_list (identifier) @identifier.reference)
+    (argument_list (constant) @identifier.reference)
+
+    ; Binary expressions
+    (binary left: (identifier) @identifier.reference)
+    (binary right: (identifier) @identifier.reference)
+    (binary left: (constant) @identifier.reference)
+    (binary right: (constant) @identifier.reference)
+
+    ; Assignment expressions
+    (assignment right: (identifier) @identifier.reference)
+    (assignment right: (constant) @identifier.reference)
 "#;
+
+/// Tree-sitter query for extracting Ruby type references and usage patterns.
+///
+/// This query captures:
+/// - Method-to-class associations (instance and class methods)
+/// - Class instantiation (ClassName.new)
+/// - Type references in various contexts
+pub const REFERENCE_QUERY: &str = r#"
+    ; Instance methods within a class - capture class name, will find method via receiver lookup
+    (class
+      name: (constant) @method.receiver
+      (body_statement (method)))
+
+    ; Class instantiation (ClassName.new)
+    (call
+      receiver: (constant) @struct.literal
+      method: (identifier) @method.name (#eq? @method.name "new"))
+
+    ; Constant references as receivers (type usage)
+    (call
+      receiver: (constant) @field.type
+      method: (identifier))
+"#;
+
+/// Find the method name for a method receiver node in Ruby
+///
+/// For Ruby, the receiver_node is the class constant. This finds methods
+/// within that class node, used for associating methods with their classes.
+pub fn find_method_for_receiver(receiver_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    // For Ruby, receiver_node is the class constant
+    if receiver_node.kind() == "constant" {
+        let mut current = *receiver_node;
+        while let Some(parent) = current.parent() {
+            if parent.kind() == "class" {
+                return find_first_method_in_class(&parent, source);
+            }
+            current = parent;
+        }
+    }
+    None
+}
+
+/// Find the first method name within a Ruby class node
+fn find_first_method_in_class(class_node: &tree_sitter::Node, source: &str) -> Option<String> {
+    for i in 0..class_node.child_count() {
+        if let Some(child) = class_node.child(i) {
+            if child.kind() == "body_statement" {
+                return find_method_in_body(&child, source);
+            }
+        }
+    }
+    None
+}
+
+/// Recursively find a method within a body_statement node
+fn find_method_in_body(node: &tree_sitter::Node, source: &str) -> Option<String> {
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i) {
+            if child.kind() == "method" {
+                for j in 0..child.child_count() {
+                    if let Some(name_node) = child.child(j) {
+                        if name_node.kind() == "identifier" {
+                            return Some(source[name_node.byte_range()].to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
