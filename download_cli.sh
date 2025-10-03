@@ -36,6 +36,20 @@ if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
   exit 1
 fi
 
+# Check for required extraction tools based on detected OS
+if [ "$OS" = "windows" ]; then
+  # Windows uses PowerShell's built-in Expand-Archive - check if PowerShell is available
+  if ! command -v powershell.exe >/dev/null 2>&1 && ! command -v pwsh >/dev/null 2>&1; then
+    echo "Warning: PowerShell is recommended to extract Windows packages but was not found."
+    echo "Falling back to unzip if available."
+  fi
+else
+  if ! command -v tar >/dev/null 2>&1; then
+    echo "Error: 'tar' is required to extract packages for $OS. Please install tar and try again."
+    exit 1
+  fi
+fi
+
 
 # --- 2) Variables ---
 REPO="block/goose"
@@ -58,12 +72,33 @@ else
 fi
 
 # --- 3) Detect OS/Architecture ---
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+# Better OS detection for Windows environments
+if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    OS="windows"
+elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL detection
+    OS="windows"
+elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection (like /mnt/c/)
+    OS="windows"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="darwin"
+elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+    # Check if Windows executables are available (another Windows indicator)
+    OS="windows"
+elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+    # Check for Windows-style mount points (like in Git Bash)
+    OS="windows"
+else
+    # Fallback to uname for other systems
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+fi
+
 ARCH=$(uname -m)
 
 # Handle Windows environments (MSYS2, Git Bash, Cygwin, WSL)
 case "$OS" in
-  linux|darwin) ;;
+  linux|darwin|windows) ;;
   mingw*|msys*|cygwin*)
     OS="windows"
     ;;
@@ -86,6 +121,16 @@ case "$ARCH" in
     exit 1
     ;;
 esac
+
+# Debug output (safely handle undefined variables)
+echo "WINDIR: ${WINDIR:-<not set>}"
+echo "OSTYPE: $OSTYPE"
+echo "uname -s: $(uname -s)"
+echo "uname -m: $(uname -m)"
+echo "PWD: $PWD"
+
+# Output the detected OS
+echo "Detected OS: $OS with ARCH $ARCH"
 
 # Build the filename and URL for the stable release
 if [ "$OS" = "darwin" ]; then
