@@ -1718,8 +1718,10 @@ async function appMain() {
         ...details.responseHeaders,
         'Content-Security-Policy':
           "default-src 'self';" +
-          // Allow inline styles since we use them in our React components
-          "style-src 'self' 'unsafe-inline';" +
+          // Allow inline styles (since we use them in our React components) and external stylesheets (for MCP-UI)
+          "style-src 'self' 'unsafe-inline' https:;" +
+          // Explicitly allow external stylesheet elements
+          "style-src-elem 'self' 'unsafe-inline' https:;" +
           // Scripts from our app and inline scripts (for theme initialization)
           "script-src 'self' 'unsafe-inline';" +
           // Images from our app and data: URLs (for base64 images)
@@ -1732,8 +1734,10 @@ async function appMain() {
           "frame-src 'self' https: http:;" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
-          // Media sources - allow microphone
-          "media-src 'self' mediastream:;" +
+          // Media sources - allow microphone, https media, and blobs/data URLs
+          "media-src 'self' https: blob: data: mediastream:;" +
+          // Explicitly allow media elements (CSP3) for data/blob/https
+          "media-src-elem 'self' https: blob: data: mediastream:;" +
           // Form actions
           "form-action 'none';" +
           // Base URI restriction
