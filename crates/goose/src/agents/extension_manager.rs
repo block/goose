@@ -24,7 +24,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use super::extension::{
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
+    ToolInfo, PLATFORM_EXTENSIONS,
+};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
@@ -85,6 +88,7 @@ impl Extension {
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
+    context: Mutex<PlatformExtensionContext>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -234,7 +238,16 @@ impl ExtensionManager {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
+            context: Mutex::new(PlatformExtensionContext { session_id: None }),
         }
+    }
+
+    pub async fn set_context(&self, context: PlatformExtensionContext) {
+        *self.context.lock().await = context;
+    }
+
+    pub async fn get_context(&self) -> PlatformExtensionContext {
+        self.context.lock().await.clone()
     }
 
     pub async fn supports_resources(&self) -> bool {
@@ -417,15 +430,32 @@ impl ExtensionManager {
                 available_tools: _,
             } => {
                 let cmd = std::env::current_exe()
-                    .expect("should find the current executable")
-                    .to_str()
-                    .expect("should resolve executable to string path")
-                    .to_string();
+                    .and_then(|path| {
+                        path.to_str().map(|s| s.to_string()).ok_or_else(|| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Invalid UTF-8 in executable path",
+                            )
+                        })
+                    })
+                    .map_err(|e| {
+                        ExtensionError::ConfigError(format!(
+                            "Failed to resolve executable path: {}",
+                            e
+                        ))
+                    })?;
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
                 let client = child_process_client(command, timeout).await?;
                 Box::new(client)
+            }
+            ExtensionConfig::Platform { name, .. } => {
+                let def = PLATFORM_EXTENSIONS.get(name.as_str()).ok_or_else(|| {
+                    ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
+                })?;
+                let context = self.get_context().await;
+                (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
                 name,
@@ -453,7 +483,11 @@ impl ExtensionManager {
 
                 Box::new(client)
             }
-            _ => unreachable!(),
+            ExtensionConfig::Frontend { .. } => {
+                return Err(ExtensionError::ConfigError(
+                    "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
+                ));
+            }
         };
 
         let server_info = client.get_info().cloned();
@@ -1015,35 +1049,22 @@ impl ExtensionManager {
                 let config = extension.config.clone();
                 let description = match &config {
                     ExtensionConfig::Builtin {
-                        name, display_name, ..
+                        description,
+                        display_name,
+                        ..
                     } => {
-                        // For builtin extensions, use display name if available
-                        display_name
-                            .as_ref()
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| name.clone())
+                        if description.is_empty() {
+                            display_name.as_deref().unwrap_or("Built-in extension")
+                        } else {
+                            description
+                        }
                     }
-                    ExtensionConfig::Sse {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::StreamableHttp {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::Stdio {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::InlinePython {
-                        description, name, ..
-                    } => {
-                        // For SSE/StreamableHttp/Stdio/InlinePython, use description if available
-                        description
-                            .as_ref()
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| format!("Extension '{}'", name))
-                    }
-                    ExtensionConfig::Frontend { name, .. } => {
-                        format!("Frontend extension '{}'", name)
-                    }
+                    ExtensionConfig::Platform { description, .. }
+                    | ExtensionConfig::Sse { description, .. }
+                    | ExtensionConfig::StreamableHttp { description, .. }
+                    | ExtensionConfig::Stdio { description, .. }
+                    | ExtensionConfig::Frontend { description, .. }
+                    | ExtensionConfig::InlinePython { description, .. } => description,
                 };
                 disabled_extensions.push(format!("- {} - {}", config.name(), description));
             }
@@ -1119,7 +1140,7 @@ mod tests {
             let config = ExtensionConfig::Builtin {
                 name: name.clone(),
                 display_name: Some(name.clone()),
-                description: None,
+                description: "built-in".to_string(),
                 timeout: None,
                 bundled: None,
                 available_tools,

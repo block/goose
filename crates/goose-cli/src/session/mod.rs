@@ -206,7 +206,7 @@ impl CliSession {
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
             env_keys: Vec::new(),
-            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -240,7 +240,7 @@ impl CliSession {
             uri: extension_url,
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
-            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -275,7 +275,7 @@ impl CliSession {
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
-            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -306,7 +306,7 @@ impl CliSession {
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
-                description: None,
+                description: name.trim().to_string(),
                 available_tools: Vec::new(),
             };
             self.agent

@@ -3,7 +3,6 @@ import {
   syncBundledExtensions,
   addToAgentOnStartup,
 } from '../components/settings/extensions';
-import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 import {
@@ -272,8 +271,7 @@ export const initializeSystem = async (
 
     options?.setIsExtensionsLoading?.(true);
 
-    const extensionLoadingPromises = enabledExtensions.map(async (extensionEntry) => {
-      const extensionConfig = extractExtensionConfig(extensionEntry);
+    const extensionLoadingPromises = enabledExtensions.map(async (extensionConfig) => {
       const extensionName = extensionConfig.name;
 
       try {

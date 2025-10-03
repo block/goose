@@ -28,27 +28,6 @@ use std::error::Error;
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
-fn get_display_name(extension_id: &str) -> String {
-    match extension_id {
-        "developer" => "Developer Tools".to_string(),
-        "computercontroller" => "Computer Controller".to_string(),
-        "autovisualiser" => "Auto Visualiser".to_string(),
-        "memory" => "Memory".to_string(),
-        "tutorial" => "Tutorial".to_string(),
-        "jetbrains" => "JetBrains".to_string(),
-        // Add other extensions as needed
-        _ => {
-            extension_id
-                .chars()
-                .next()
-                .unwrap_or_default()
-                .to_uppercase()
-                .collect::<String>()
-                + &extension_id[1..]
-        }
-    }
-}
-
 pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
@@ -128,14 +107,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                         // This operation is best-effort and errors are ignored
                         set_extension(ExtensionEntry {
                             enabled: true,
-                            config: ExtensionConfig::Builtin {
-                                name: "developer".to_string(),
-                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                bundled: Some(true),
-                                description: None,
-                                available_tools: Vec::new(),
-                            },
+                            config: ExtensionConfig::default(),
                         });
                     }
                     Ok(false) => {
@@ -747,35 +719,40 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
     match extension_type {
         // TODO we'll want a place to collect all these options, maybe just an enum in goose-mcp
         "built-in" => {
-            let extension = cliclack::select("Which built-in extension would you like to enable?")
-                .item(
+            let extensions = vec![
+                (
                     "autovisualiser",
                     "Auto Visualiser",
                     "Data visualisation and UI generation tools",
-                )
-                .item(
+                ),
+                (
                     "computercontroller",
                     "Computer Controller",
                     "controls for webscraping, file caching, and automations",
-                )
-                .item(
+                ),
+                (
                     "developer",
                     "Developer Tools",
                     "Code editing and shell access",
-                )
-                .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
-                .item(
+                ),
+                ("jetbrains", "JetBrains", "Connect to jetbrains IDEs"),
+                (
                     "memory",
                     "Memory",
                     "Tools to save and retrieve durable memories",
-                )
-                .item(
+                ),
+                (
                     "tutorial",
                     "Tutorial",
                     "Access interactive tutorials and guides",
-                )
-                .interact()?
-                .to_string();
+                ),
+            ];
+
+            let mut select = cliclack::select("Which built-in extension would you like to enable?");
+            for (id, name, desc) in &extensions {
+                select = select.item(id, name, desc);
+            }
+            let extension = select.interact()?.to_string();
 
             let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
                 .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
@@ -785,7 +762,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
-            let display_name = get_display_name(&extension);
+            let (display_name, description) = extensions
+                .iter()
+                .find(|(id, _, _)| id == &extension)
+                .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
+                .unwrap_or_else(|| (extension.clone(), extension.clone()));
 
             set_extension(ExtensionEntry {
                 enabled: true,
@@ -794,7 +775,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     display_name: Some(display_name),
                     timeout: Some(timeout),
                     bundled: Some(true),
-                    description: None,
+                    description,
                     available_tools: Vec::new(),
                 },
             });
@@ -841,20 +822,13 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             let cmd = parts.next().unwrap_or("").to_string();
             let args: Vec<String> = parts.map(String::from).collect();
 
-            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
-
-            let description = if add_desc {
-                let desc = cliclack::input("Enter a description for this extension:")
-                    .placeholder("Description")
-                    .validate(|input: &String| match input.parse::<String>() {
-                        Ok(_) => Ok(()),
-                        Err(_) => Err("Please enter a valid description"),
-                    })
-                    .interact()?;
-                Some(desc)
-            } else {
-                None
-            };
+            let description = cliclack::input("Enter a description for this extension:")
+                .placeholder("Description")
+                .validate(|input: &String| match input.parse::<String>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid description"),
+                })
+                .interact()?;
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -945,21 +919,13 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
-            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
-
-            let description = if add_desc {
-                let desc = cliclack::input("Enter a description for this extension:")
-                    .placeholder("Description")
-                    .validate(|input: &String| match input.parse::<String>() {
-                        Ok(_) => Ok(()),
-                        Err(_) => Err("Please enter a valid description"),
-                    })
-                    .interact()?;
-                Some(desc)
-            } else {
-                None
-            };
-
+            let description = cliclack::input("Enter a description for this extension:")
+                .placeholder("Description")
+                .validate(|input: &String| match input.parse::<String>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid description"),
+                })
+                .interact()?;
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
@@ -1048,23 +1014,16 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
-            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
-
-            let description = if add_desc {
-                let desc = cliclack::input("Enter a description for this extension:")
-                    .placeholder("Description")
-                    .validate(|input: &String| {
-                        if input.trim().is_empty() {
-                            Err("Please enter a valid description")
-                        } else {
-                            Ok(())
-                        }
-                    })
-                    .interact()?;
-                Some(desc)
-            } else {
-                None
-            };
+            let description = cliclack::input("Enter a description for this extension:")
+                .placeholder("Description")
+                .validate(|input: &String| {
+                    if input.trim().is_empty() {
+                        Err("Please enter a valid description")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
 
             let add_headers =
                 cliclack::confirm("Would you like to add custom headers?").interact()?;
@@ -1760,7 +1719,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         ),
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
-                                        description: None,
+                                        description: "Developer extension".to_string(),
                                         available_tools: Vec::new(),
                                     },
                                 });
@@ -1859,7 +1818,7 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                                         ),
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
-                                        description: None,
+                                        description: "Developer extension".to_string(),
                                         available_tools: Vec::new(),
                                     },
                                 });

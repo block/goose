@@ -56,6 +56,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
     enabledExtensions.push({
       name: 'platform',
       type: 'builtin',
+      description: 'platform',
       enabled: true,
     });
     // Sort extensions by name to maintain consistent order

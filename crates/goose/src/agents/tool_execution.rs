@@ -90,8 +90,7 @@ impl Agent {
                             }
 
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                // Clone tool_call to avoid moving it
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), &None).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {

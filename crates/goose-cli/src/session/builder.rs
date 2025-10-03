@@ -9,6 +9,8 @@ use goose::config::{
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
+
+use goose::agents::extension::PlatformExtensionContext;
 use goose::session::SessionManager;
 use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
@@ -318,6 +320,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         Some(session.id)
     };
 
+    agent
+        .extension_manager
+        .set_context(PlatformExtensionContext {
+            session_id: session_id.clone(),
+        })
+        .await;
+
     if session_config.resume {
         if let Some(session_id) = session_id.as_ref() {
             // Read the session metadata from database
@@ -445,11 +454,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         });
 
+    let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
+
     // Create new session
     let mut session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
-        session_config.debug,
+        debug_mode,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
