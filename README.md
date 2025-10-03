@@ -27,7 +27,7 @@ _a local, extensible, open source AI agent that automates engineering tasks_
 3. Read the [full Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md).
 4. Choose a task from this project's Hacktoberfest issues in our [Project Hub](https://github.com/block/goose/issues/4705) and follow the instructions. Each issue has the 🏷️ `hacktoberfest` label.
 
-Have questions? Connecting with us in our [Discord community](https://discord.gg/block-opensource) in the `#hacktoberfest` project channel.
+Have questions? join us in our [Discord community](https://discord.gg/block-opensource) in the `#hacktoberfest` project channel.
 
 ---
 
