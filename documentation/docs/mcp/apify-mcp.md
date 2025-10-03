@@ -1,34 +1,29 @@
 ---
-title: Apify MCP Extension
-description: Add Apify MCP as a Goose Extension
+title: Apify Extension
+description: Add Apify as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import { PanelLeft } from 'lucide-react';
 
 This tutorial covers how to add the [Apify MCP Server](https://github.com/apify/apify-mcp-server) as a Goose extension, enabling Goose to fetch context directly from Apify’s 6,000+ ready-to-use web scrapers.
 
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40apify%2Factors-mcp-server&id=apify-mcp&name=Apify20MCP&description=Apify%20MCP&env=APIFY_TOKEN%3DYour%20API%20Key)
+  Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-  **Command**
-  ```sh
-  npx -y @apify/actors-mcp-server
-  ```
+  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   </TabItem>
 </Tabs>
-  **Endpoint URL (HTTP)**
+
+  **Endpoint URL**
   ```
-    https://mcp.apify.com
-  ```
-  **Environment Variable**
-  ```
-  APIFY_TOKEN: <YOUR_API_KEY>
+  https://mcp.apify.com
   ```
 :::
 
@@ -40,16 +35,17 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  <GooseDesktopInstaller
-    extensionId="apify-mcp"
-    extensionName="Apify MCP"
-    description="Apify MCP server to fetch data from 6.000+ ready-to-use web scrapers"
-    command="npx"
-    args={["-y", "@apify/actors-mcp-server"]}
-    envVars={[{ name: "APIFY_TOKEN", label: "Your Apify Token" }]}
-    apiKeyLink="https://console.apify.com/settings/integrations"
-    apiKeyLinkText="Apify MCP Api Token"
-  />
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Extensions`
+    3. Click `Add custom extension`
+    4. On the `Add custom extension` modal, enter the following:
+       - **Extension Name**: Apify
+       - **Type**: Streamable HTTP
+       - **Endpoint**: `https://mcp.apify.com` 
+    5. Click `+ Add` to save the header
+    6. Click `Add Extension` to save the extension
+    7. You will be taken to the OAuth screen
+    8. Navigate to the chat
   </TabItem>
   <TabItem value="cli" label="Goose CLI" default>
       <CLIExtensionInstructions
