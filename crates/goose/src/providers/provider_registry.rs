@@ -41,6 +41,7 @@ impl ProviderRegistry {
     }
 
     /// create provider with custom name
+    #[allow(clippy::too_many_arguments)]
     pub fn register_with_name<P, F>(
         &mut self,
         custom_name: String,
@@ -48,6 +49,7 @@ impl ProviderRegistry {
         description: String,
         default_model: String,
         known_models: Vec<super::base::ModelInfo>,
+        config_keys: Vec<super::base::ConfigKey>,
         constructor: F,
     ) where
         P: Provider + 'static,
@@ -61,7 +63,7 @@ impl ProviderRegistry {
             default_model,
             known_models,
             model_doc_link: base_metadata.model_doc_link,
-            config_keys: base_metadata.config_keys,
+            config_keys,
         };
 
         self.entries.insert(

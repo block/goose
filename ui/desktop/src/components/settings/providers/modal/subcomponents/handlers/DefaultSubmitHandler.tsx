@@ -74,6 +74,11 @@ export const DefaultSubmitHandler = async (
       // Explicitly define is_secret as a boolean (true/false)
       const isSecret = parameter.secret === true;
 
+      // If this is a secret value and but unchanged, skip writing to avoid overwriting the keyring with the sentinel.
+      if (isSecret && value === 'true') {
+        return Promise.resolve();
+      }
+
       // Pass the is_secret flag from the parameter definition
       return upsertFn(configKey, value, isSecret);
     }
