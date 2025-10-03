@@ -57,6 +57,12 @@ parameters:
     default: "true"
     description: Whether to include CI/CD pipeline (true/false)
   
+  - key: include_testing
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: Whether to include testing setup with unit and integration tests (true/false)
+  
   - key: base_directory
     input_type: string
     requirement: optional
@@ -78,6 +84,7 @@ prompt: |
   - Database: {{ database }}
   - Docker: {{ include_docker }}
   - CI/CD: {{ include_cicd }}
+  - Testing: {{ include_testing }}
   
   Follow these steps:
   
@@ -88,8 +95,8 @@ prompt: |
      Create frontend/ and backend/ directories.
      {% endif %}
   
+  {% if frontend_framework != "none" %}
   2. Frontend Setup
-     {% if frontend_framework != "none" %}
      {% if frontend_framework == "react" %}
      Create React app with Vite and TypeScript in the frontend directory.
      Install react-router-dom and axios.
@@ -108,10 +115,28 @@ prompt: |
      Install axios and configure.
      {% endif %}
      Create .env.example and README.md for frontend.
+     {% if include_testing == "true" %}
+     Set up testing framework:
+     {% if frontend_framework == "react" %}
+     Configure Vitest with React Testing Library.
+     Create tests for components in __tests__ directories.
+     Add integration tests for key user flows.
+     {% elif frontend_framework == "vue" %}
+     Configure Vitest with Vue Test Utils.
+     Create component and integration tests.
+     {% elif frontend_framework == "nextjs" %}
+     Configure Jest with React Testing Library.
+     Create unit and integration tests.
+     {% elif frontend_framework == "svelte" %}
+     Configure Vitest with Svelte Testing Library.
+     Create component tests.
      {% endif %}
+     Add test scripts to package.json (test, test:watch, test:coverage).
+     {% endif %}
+  {% endif %}
   
+  {% if backend_framework != "none" %}
   3. Backend Setup
-     {% if backend_framework != "none" %}
      {% if backend_framework == "nodejs" %}
      Initialize Node.js backend with Express and TypeScript.
      Install express, cors, dotenv, helmet, morgan, and types.
@@ -140,7 +165,30 @@ prompt: |
      Set up rustfmt and clippy.
      {% endif %}
      Create .env.example and README.md for backend.
+     {% if include_testing == "true" %}
+     Set up testing framework:
+     {% if backend_framework == "nodejs" %}
+     Configure Jest and Supertest for API testing.
+     Create tests for routes, controllers, and services.
+     Add integration tests for database operations.
+     Create __tests__ directories alongside source files.
+     {% elif backend_framework == "python-fastapi" %}
+     Configure Pytest with pytest-asyncio and httpx.
+     Create tests for endpoints, services, and models.
+     Add integration tests for database operations.
+     Set up test fixtures and mocks.
+     {% elif backend_framework == "go" %}
+     Set up Go testing with testify.
+     Create _test.go files for handlers and services.
+     Add integration tests for API endpoints.
+     {% elif backend_framework == "rust-actix" %}
+     Configure cargo test with actix-web test utilities.
+     Create unit and integration tests.
+     Add test modules in src files.
      {% endif %}
+     Add test scripts with coverage reporting.
+     {% endif %}
+  {% endif %}
   
   4. Quality Tools
      Create .editorconfig for consistent formatting across editors.
@@ -166,7 +214,10 @@ prompt: |
      - Checkout and setup
      - Install dependencies
      - Run linters
-     - Run tests
+     {% if include_testing == "true" %}
+     - Run unit tests with coverage
+     - Run integration tests
+     {% endif %}
      - Build artifacts
      {% if include_docker == "true" %}- Build Docker images{% endif %}
      {% endif %}
