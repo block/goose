@@ -1090,6 +1090,92 @@
         }
       }
     },
+    "/recipes/parse": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "parse_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe parsed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseRecipeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid recipe format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recipes/save": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "save_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recipe saved to file successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/recipes/scan": {
       "post": {
         "tags": [
@@ -3039,6 +3125,28 @@
           }
         }
       },
+      "ParseRecipeRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "ParseRecipeResponse": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
       "PermissionConfirmationRequest": {
         "type": "object",
         "required": [
@@ -3355,7 +3463,6 @@
         "type": "object",
         "required": [
           "name",
-          "isGlobal",
           "recipe",
           "lastModified",
           "id"
@@ -3363,9 +3470,6 @@
         "properties": {
           "id": {
             "type": "string"
-          },
-          "isGlobal": {
-            "type": "boolean"
           },
           "lastModified": {
             "type": "string"
@@ -3569,6 +3673,25 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "SaveRecipeRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_global": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },

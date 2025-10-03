@@ -2,6 +2,7 @@ pub mod agent;
 pub mod audio;
 pub mod config_management;
 pub mod context;
+pub mod errors;
 pub mod extension;
 pub mod health;
 pub mod recipe;
