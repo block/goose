@@ -11,46 +11,45 @@ authors:
 
 # Running Goose in Containers (Without Losing Your Mind)
 
-I’m a huge fan of containers. They’re not just a cool buzzword for résumés; they actually save your sanity. And today, I’ll show you how to run **Goose**, inside Docker. Once you containerize Goose, you’ll never go back to raw installs.
+I'm a huge fan of containers. They're not just a cool buzzword for résumés; they actually save your sanity. And today, I'll show you how to run goose inside Docker. specifically how to integrate it into CI/CD pipelines, debug containerized workflows, and manage secure deployments at scale. Once you containerize goose, you'll never go back to raw installs.
 
----
+<!--truncate-->
 
-## Why Even Bother?
+## Why Containerize Goose? The Real Benefits
 
-Look, [Goose](https://block.github.io/goose/) is powerful. It's an AI agent that can automate engineering tasks, build projects from scratch, debug code, and even orchestrate complex workflows. The secret sauce is the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) (MCP), which allows Goose to execute actions by connecting to external tools and APIs. Containerizing this powerful, modular system gives you:
+goose is an AI agent that can automate engineering tasks, build projects from scratch, debug code, and orchestrate complex workflows through the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) (MCP). But here's why containers unlock its true potential:
 
-- **Reproducibility:** Same setup across dev, staging, and prod
+**For CI/CD Integration:** Run automated code reviews, documentation generation, and testing across your entire pipeline without environment drift. Imagine having goose automatically review every PR, generate release notes, or validate your infrastructure as code-all running consistently in containers.
 
-- **Isolation:** No more conflicts with your local Python/Node/Rust installations
+**For Team Collaboration:** Every developer gets the same goose setup, eliminating "works on my machine" problems when sharing AI-powered workflows or debugging sessions.
 
-- **Scalability:** Easy to deploy multiple instances for CI/CD pipelines
+**for Production Deployments:** Scale goose instances horizontally, manage API keys securely, and deploy across multiple environments with confidence.
 
-- **Security:** Run as non-root user with minimal attack surface
+In this guide, we'll cover:
 
-- **Portability:** Works on any machine with Docker installed
+- Quick deployment with pre-built images
+- CI/CD pipeline integration with GitHub Actions and GitLab
+- Debugging containerized goose workflows
+- Production-ready security and scaling patterns
 
-In my experience, containerizing AI tools is especially crucial because LLM providers and API keys need to be handled securely, and containers make that a breeze.
+The benefits are immediate and compound over time-especially when you're managing API keys for multiple LLM providers and need consistent behavior across environments.
 
-## Quick Start: Pull and Run
+## Quick Start: Your First Containerized Workflow
 
-The easiest way to get started? Use the pre-built images from GitHub Container Registry. No building required.
+Let's jump straight into a practical example-using goose to analyze and improve a codebase:
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/block/goose:latest
-
-# Check it's working
-docker run --rm ghcr.io/block/goose:latest --version
-
-# Run your first command
-docker run --rm \
-    -e GOOSE_PROVIDER=openai \
-    -e GOOSE_MODEL=gpt-4o \
-    -e OPENAI_API_KEY=$OPENAI_API_KEY \
-    ghcr.io/block/goose:latest run -t "Hello, containerized world!"
+# Pull the image and analyze your project
+$ docker run --rm \
+   -v $(pwd):/workspace \
+   -w /workspace \
+   -e GOOSE_PROVIDER=openai \
+   -e GOOSE_MODEL=gpt-4o \
+   -e OPENAI_API_KEY=$OPENAI_API_KEY \
+   ghcr.io/block/goose:v0.9.3 run -t "Review this code for security issues and suggest improvements"
 ```
 
-Boom! You're up and running. That ~340MB image has everything Goose needs, optimized for size and performance.
+That's it. The ~340MB image contains everything goose needs to analyze your code, suggest improvements, or even refactor entire functions. This same pattern works for documentation generation, test creation, or architectural reviews.
 
 ## Building Your Own Images
 
@@ -58,9 +57,9 @@ Sometimes you need customizations. Maybe you want the bleeding edge from source,
 
 ```bash
 # Clone and build
-git clone https://github.com/block/goose.git
-cd goose
-docker build -t goose:local .
+$ git clone https://github.com/block/goose.git
+$ cd goose
+$ docker build -t goose:local .
 ```
 
 The build uses multi-stage magic: compiles with Rust's heavy toolchain, then copies just the binary to a minimal Debian runtime. Smart stuff. The Dockerfile even includes Link-Time Optimization (LTO) and binary stripping to keep things lean.
@@ -74,13 +73,13 @@ Pro tip: For development builds with debug symbols, add `--build-arg CARGO_PROFI
 Mount your workspace and let Goose work its magic:
 
 ```bash
-docker run --rm \
-    -v $(pwd):/workspace \
-    -w /workspace \
-    -e GOOSE_PROVIDER=openai \
-    -e GOOSE_MODEL=gpt-4o \
-    -e OPENAI_API_KEY=$OPENAI_API_KEY \
-    goose:local run -t "Analyze this codebase"
+$ docker run --rm \
+   -v $(pwd):/workspace \
+   -w /workspace \
+   -e GOOSE_PROVIDER=openai \
+   -e GOOSE_MODEL=gpt-4o \
+   -e OPENAI_API_KEY=$OPENAI_API_KEY \
+   goose:local run -t "Analyze this codebase"
 ```
 
 ### Interactive Sessions
@@ -88,13 +87,13 @@ docker run --rm \
 For longer sessions, use the interactive mode:
 
 ```bash
-docker run -it --rm \
-    -v $(pwd):/workspace \
-    -w /workspace \
-    -e GOOSE_PROVIDER=anthropic \
-    -e GOOSE_MODEL=claude-3-5-sonnet-20241022 \
-    -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-    goose:local session
+$ docker run -it --rm \
+   -v $(pwd):/workspace \
+   -w /workspace \
+   -e GOOSE_PROVIDER=anthropic \
+   -e GOOSE_MODEL=claude-3-5-sonnet-20241022 \
+   -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+   goose:local session
 ```
 
 ### Docker Compose for Complex Setups
@@ -121,7 +120,7 @@ volumes:
   goose-config:
 ```
 
-Run with: `docker-compose run --rm goose session`
+Run with: `$ docker-compose run --rm goose session`
 
 ## Configuration Deep Dive
 
@@ -130,7 +129,7 @@ Goose supports all the usual environment variables: `GOOSE_PROVIDER`, `GOOSE_MOD
 For persistent config, mount the config directory:
 
 ```bash
-docker run --rm \
+$ docker run --rm \
     -v ~/.config/goose:/home/goose/.config/goose \
     goose:local configure
 ```
@@ -184,35 +183,63 @@ analyze:
 
 I've used this setup on multiple projects, and it's a game-changer for automated code reviews and documentation generation.
 
-## Troubleshooting: Common Gotchas
+## Troubleshooting: Real-World Issues
 
-### Permission Issues
+### File Permission Problems with Workspace Mounts
 
-If you see permission errors with mounted volumes, match the user ID:
-
-```bash
-docker run --rm \
-    -v $(pwd):/workspace \
-    -u $(id -u):$(id -g) \
-    goose:local run -t "List files"
-```
-
-### API Key Headaches
-
-Make sure your environment variables are set correctly. Use `--env-file` for multiple keys:
+When goose can't write to your mounted workspace, it's usually a user ID mismatch:
 
 ```bash
-echo "OPENAI_API_KEY=your-key-here" > .env
-docker run --rm --env-file .env goose:local run -t "Test command"
+# Problem: "Permission denied" when goose tries to create files
+$ docker run --rm -v $(pwd):/workspace ghcr.io/block/goose:v0.9.3
+
+# Solution: Match container user with host user
+$ docker run --rm \
+   -v $(pwd):/workspace \
+   -u $(id -u):$(id -g) \
+   ghcr.io/block/goose:v0.9.3 run -t "Create a README.md"
 ```
 
-### Network Access
+### Managing Multiple API Keys
 
-For local services, use host networking:
+When working with multiple LLM providers (OpenAI, Anthropic, Google), passing individual `-e` flags becomes unwieldy and error-prone. Instead, use a single `.env` file:
 
 ```bash
-docker run --rm --network host goose:local
+# Create a comprehensive .env file
+$ cat > .env << EOF
+GOOSE_PROVIDER=openai
+GOOSE_MODEL=gpt-4o
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+GOOGLE_API_KEY=your-google-key
+EOF
+
+# Use the entire file at once
+$ docker run --rm --env-file .env -v $(pwd):/workspace goose:v0.9.3
 ```
+
+This approach is cleaner, more maintainable, and essential for CI/CD environments where you might switch between providers based on cost, availability, or model capabilities. It also keeps sensitive keys out of your shell history and makes it easy to version different configurations for different environments.
+
+### Connecting to Local Development Services
+
+When goose needs to interact with local databases, development servers, or APIs running on your host machine, the container's isolated network becomes a barrier. This is common when:
+
+- Testing integrations with a local PostgreSQL database
+- Analyzing APIs running on `localhost:3000`
+- Debugging microservices in development
+- Working with locally hosted documentation servers
+
+Use host networking to bridge this gap:
+
+```bash
+# Allow goose to access your local services
+$ docker run --rm --network host \
+   --env-file .env \
+   -v $(pwd):/workspace \
+   ghcr.io/block/goose:v0.9.3 run -t "Test the API endpoints in our local development server"
+```
+
+**Security note:** Only use host networking in development environments. For production, use proper service discovery and networking configurations.
 
 ## Advanced Patterns
 
@@ -221,41 +248,76 @@ docker run --rm --network host goose:local
 Set memory and CPU limits for production:
 
 ```bash
-docker run --rm \
-    --memory="2g" \
-    --cpus="2" \
-    goose:local
+$ docker run --rm \
+   --memory="2g" \
+   --cpus="2" \
+   goose:local
 ```
 
-### Custom Entrypoints
+### Debugging Container Issues
 
-Need to debug? Override the entrypoint:
+When goose behaves unexpectedly in containers, you need to investigate the environment. Here are common debugging scenarios:
+
+**Inspect the container environment:**
 
 ```bash
-docker run --rm -it --entrypoint bash goose:local
+# Drop into a shell to examine the container
+$ docker run --rm -it --entrypoint bash \
+   -v $(pwd):/workspace \
+   --env-file .env \
+   ghcr.io/block/goose:v0.9.3
+
+# Inside the container, check:
+goose@container:~$ env | grep GOOSE      # Environment variables
+goose@container:~$ goose --version       # Binary version
+goose@container:~$ ls -la /workspace     # File permissions
+goose@container:~$ cat ~/.config/goose/config.yaml  # Configuration
 ```
+
+**Debug API connectivity issues:**
+
+```bash
+# Test network connectivity and API access
+$ docker run --rm -it --entrypoint bash goose:v0.9.3
+goose@container:~$ curl -I https://api.openai.com/v1/models
+goose@container:~$ goose configure --check  # Verify API keys
+```
+
+**Examine goose logs in verbose mode:**
+
+```bash
+$ docker run --rm -it \
+   -v $(pwd):/workspace \
+   --env-file .env \
+   ghcr.io/block/goose:v0.9.3 \
+   --verbose run -t "Your failing command"
+```
+
+This debugging approach helps identify issues with file permissions, network connectivity, API authentication, or configuration problems that might not be obvious from normal goose output.
 
 ### Multi-Platform Builds
 
 For deployment across architectures:
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t goose:multi .
+$ docker buildx build --platform linux/amd64,linux/arm64 -t goose:multi .
 ```
 
 ## Production Considerations
 
-For production deployments:
+For production deployments, replace all the `latest` tags from our examples with specific release versions:
 
-1. **Use specific tags**: Avoid `latest` for reproducibility
+### Use Specific Release Tags
 
-2. **Secrets management**: Use Docker secrets or external secret stores for API keys
+```bash
+# Instead of this (unpredictable):
+$ docker pull ghcr.io/block/goose:latest
 
-3. **Logging**: Configure log aggregation
+# Use this (reproducible):
+$ docker pull ghcr.io/block/goose:v0.9.3
+```
 
-4. **Monitoring**: Set up health checks and metrics
-
-5. **Scaling**: Use orchestration tools like Kubernetes for multiple instances
+Pinning to specific versions prevents surprises during deployments and makes rollbacks predictable when issues arise.
 
 ## Wrap-Up
 
