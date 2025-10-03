@@ -3,19 +3,20 @@
   "description": "Amazing blog posts, videos, and tutorials created by our community for goose!",
   "lastUpdated": "2025-10-02",
   "hacktoberfestYear": 2025,
-  "submissionUrl": "https://github.com/block/goose/issues/new?template=hacktoberfest-content-submission.yml",
+  "submissionUrl": "https://github.com/block/goose/issues/4705",
   "submissions": [
     {
-      "title": "Configuring goose for Team Environments and Shared Workflows",
+      "title": "Hacktoberfest 2025: Contributing to goose",
       "author": {
-        "name": "Community Contributor",
-        "handle": "teamgoose"
+        "name": "Tania Chakraborty",
+        "handle": "taniandjerry"
       },
       "type": "blog",
-      "url": "https://teamgoose.dev/goose-team-setup",
+      "url": "https://block.github.io/goose/blog/2025/09/26/hacktoberfest-2025",
       "thumbnail": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=225&fit=crop&crop=entropy&auto=format",
-      "submittedDate": "2025-10-20",
-      "tags": ["team-setup", "configuration", "collaboration"]
+      "submittedDate": "2025-09-26",
+      "tags": ["hacktoberfest", "open-source", "contributing"],
+      "hacktoberfest": true
     }
   ]
 }
