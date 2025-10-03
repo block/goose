@@ -7,6 +7,7 @@ use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 
+use goose::agents::extension::PlatformExtensionContext;
 use goose::session::SessionManager;
 use rustyline::EditMode;
 use std::collections::HashSet;
@@ -280,6 +281,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .unwrap();
         Some(session.id)
     };
+
+    agent
+        .extension_manager
+        .set_context(PlatformExtensionContext {
+            session_id: session_id.clone(),
+        })
+        .await;
 
     if session_config.resume {
         if let Some(session_id) = session_id.as_ref() {

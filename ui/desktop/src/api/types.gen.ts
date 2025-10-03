@@ -192,11 +192,8 @@ export type ExtendPromptResponse = {
  */
 export type ExtensionConfig = {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     /**
@@ -209,12 +206,9 @@ export type ExtensionConfig = {
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
     cmd: string;
-    description?: string | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     /**
@@ -225,11 +219,8 @@ export type ExtensionConfig = {
     type: 'stdio';
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -239,11 +230,17 @@ export type ExtensionConfig = {
     type: 'builtin';
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    type: 'platform';
+} | {
+    available_tools?: Array<string>;
+    bundled?: boolean | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     headers?: {
@@ -258,10 +255,8 @@ export type ExtensionConfig = {
     uri: string;
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
+    description: string;
     /**
      * Instructions for how to use these tools
      */
@@ -285,10 +280,7 @@ export type ExtensionConfig = {
      * Python package dependencies required by this extension
      */
     dependencies?: Array<string> | null;
-    /**
-     * Description of what the extension does
-     */
-    description?: string | null;
+    description: string;
     /**
      * The name used to identify this extension
      */
