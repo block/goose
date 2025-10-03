@@ -3,7 +3,9 @@ use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
+use tracing::warn;
 use utoipa::ToSchema;
 
 pub const DEFAULT_EXTENSION: &str = "developer";
@@ -30,9 +32,52 @@ pub struct ExtensionConfigManager;
 
 impl ExtensionConfigManager {
     fn get_extensions_map() -> Result<HashMap<String, ExtensionEntry>> {
-        let mut extensions_map = Config::global()
-            .get_param(EXTENSIONS_CONFIG_KEY)
-            .unwrap_or_else(|_| HashMap::new());
+        let raw: Value = Config::global()
+            .get_param::<Value>(EXTENSIONS_CONFIG_KEY)
+            .unwrap_or_else(|err| {
+                warn!(
+                    "Failed to load {}: {err}. Falling back to empty object.",
+                    EXTENSIONS_CONFIG_KEY
+                );
+                Value::Object(serde_json::Map::new())
+            });
+
+        let mut extensions_map: HashMap<String, ExtensionEntry> = match raw {
+            Value::Object(obj) => {
+                let mut m = HashMap::with_capacity(obj.len());
+                for (k, mut v) in obj {
+                    if let Value::Object(ref mut inner) = v {
+                        if let Some(Value::Null) = inner.get("description") {
+                            inner.insert("description".to_string(), Value::String(String::new()));
+                        }
+                    }
+                    match serde_json::from_value::<ExtensionEntry>(v.clone()) {
+                        Ok(entry) => {
+                            m.insert(k, entry);
+                        }
+                        Err(err) => {
+                            let bad_json = serde_json::to_string(&v).unwrap_or_else(|e| {
+                                format!("<failed to serialize malformed value: {e}>")
+                            });
+                            warn!(
+                                extension = %k,
+                                error = %err,
+                                bad_json = %bad_json,
+                                "Skipping malformed extension"
+                            );
+                        }
+                    }
+                }
+                m
+            }
+            other => {
+                warn!(
+                    "Expected object for {}, got {}. Using empty map.",
+                    EXTENSIONS_CONFIG_KEY, other
+                );
+                HashMap::new()
+            }
+        };
 
         if !extensions_map.is_empty() {
             for (name, def) in PLATFORM_EXTENSIONS.iter() {

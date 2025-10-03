@@ -184,6 +184,7 @@ pub enum ExtensionConfig {
     Sse {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         uri: String,
         #[serde(default)]
@@ -203,6 +204,7 @@ pub enum ExtensionConfig {
     Stdio {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         cmd: String,
         args: Vec<String>,
@@ -221,6 +223,7 @@ pub enum ExtensionConfig {
     Builtin {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
@@ -234,6 +237,7 @@ pub enum ExtensionConfig {
     Platform {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         #[serde(default)]
         bundled: Option<bool>,
@@ -245,6 +249,7 @@ pub enum ExtensionConfig {
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         uri: String,
         #[serde(default)]
@@ -266,6 +271,7 @@ pub enum ExtensionConfig {
     Frontend {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         /// The tools provided by the frontend
         tools: Vec<Tool>,
@@ -281,6 +287,7 @@ pub enum ExtensionConfig {
     InlinePython {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         description: String,
         /// The Python code to execute
         code: String,
