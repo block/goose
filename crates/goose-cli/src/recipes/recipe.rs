@@ -15,8 +15,6 @@ use goose::recipe::Recipe;
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
-
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
         let input_value =

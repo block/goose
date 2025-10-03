@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 use console::style;
 use goose::recipe::template_recipe::parse_recipe_content;
+use goose::recipe::RECIPE_FILE_EXTENSIONS;
 use serde::{Deserialize, Serialize};
 
-use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use std::env;
 use std::fs;
