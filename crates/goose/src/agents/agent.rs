@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -43,6 +44,8 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::ExtensionState;
+use crate::session::{extension_data, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -65,8 +68,6 @@ use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
-use crate::session::extension_data::ExtensionState;
-use crate::session::{extension_data, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -461,14 +462,35 @@ impl Agent {
                 .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
-            let provider = self.provider().await.ok();
+            let provider = match self.provider().await {
+                Ok(p) => p,
+                Err(_) => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Provider is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let parent_session_id = session
+                .as_ref()
+                .map(|s| s.id.to_string())
+                .unwrap_or_default();
+            let parent_working_dir = session
+                .as_ref()
+                .map(|s| s.working_dir.clone())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+            let task_config = TaskConfig::new(provider, parent_session_id, parent_working_dir);
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
-            let task_config = TaskConfig::new(provider);
             subagent_execute_task_tool::run_tasks(
                 arguments,
                 task_config,
