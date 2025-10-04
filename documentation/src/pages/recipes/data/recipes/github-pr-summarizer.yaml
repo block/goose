@@ -1,3 +1,4 @@
+---
 title: GitHub PR Summarizer
 description: >
   Fetches open pull requests from a GitHub repository
@@ -13,8 +14,10 @@ instructions: |
      - A one-sentence TL;DR for each PR.
      - Extra context from commits/changes if descriptions are lacking.
 activities:
-  - "Use the GitHub extension to list open pull requests from the repo block/goose"
-  - "Send PR titles, descriptions, and commit messages to the Summarizer extension"
+  - "Use the GitHub extension to list open pull requests \
+     from the repo block/goose"
+  - "Send PR titles, descriptions, and commit messages \
+     to the Summarizer extension"
   - "Generate a summary that includes PR count and concise details of each PR"
 
 extensions:
