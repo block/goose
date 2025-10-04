@@ -33,7 +33,7 @@ parameters:
     description: "Filter tasks by specific project name"
     default: ""
 extensions:
-  - type: builtin
+  - type: stdio
     name: filesystem
     display_name: Filesystem
     timeout: 300
