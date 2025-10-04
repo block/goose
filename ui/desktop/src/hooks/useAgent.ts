@@ -26,7 +26,7 @@ export enum AgentState {
 }
 
 export interface InitializationContext {
-  recipeConfig?: Recipe;
+  recipe?: Recipe;
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
   setIsExtensionsLoading?: (isLoading: boolean) => void;
@@ -115,7 +115,7 @@ export function useAgent(): UseAgentReturn {
             : await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-                  recipe: recipeFromAppConfig ?? initContext.recipeConfig,
+                  recipe: recipeFromAppConfig ?? initContext.recipe,
                 },
                 throwOnError: true,
               });
@@ -139,13 +139,13 @@ export function useAgent(): UseAgentReturn {
 
           agentWaitingMessage('Extensions are loading');
 
-          const recipeConfigForInit = initContext.recipeConfig || agentSession.recipe || undefined;
+          const recipeForInit = initContext.recipe || agentSession.recipe || undefined;
           await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
             recipeParameters: agentSession.user_recipe_values,
-            recipeConfig: recipeConfigForInit,
+            recipe: recipeForInit,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -156,12 +156,12 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const recipeConfig = initContext.recipeConfig || agentSession.recipe;
+          const recipe = initContext.recipe || agentSession.recipe;
           const conversation = agentSession.conversation || [];
           // If we're loading a recipe from initContext (new recipe load), start with empty messages
           // Otherwise, use the messages from the session
           const messages =
-            initContext.recipeConfig && !initContext.resumeSessionId
+            initContext.recipe && !initContext.resumeSessionId
               ? []
               : conversation.map((message: ApiMessage) =>
                   convertApiMessageToFrontendMessage(message)
@@ -172,7 +172,7 @@ export function useAgent(): UseAgentReturn {
             title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
             messages: messages,
-            recipeConfig: recipeConfig,
+            recipeConfig: recipe,
             recipeParameters: agentSession.user_recipe_values || null,
           };
 

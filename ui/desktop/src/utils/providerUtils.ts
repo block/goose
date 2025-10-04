@@ -149,15 +149,15 @@ export const substituteParameters = (text: string, params: Record<string, string
 export const updateSystemPromptWithParameters = async (
   sessionId: string,
   recipeParameters: Record<string, string>,
-  recipeConfig?: {
+  recipe?: {
     instructions?: string | null;
     sub_recipes?: SubRecipe[] | null;
     parameters?: RecipeParameter[] | null;
   }
 ): Promise<void> => {
-  const subRecipes = recipeConfig?.sub_recipes;
+  const subRecipes = recipe?.sub_recipes;
   try {
-    const originalInstructions = recipeConfig?.instructions;
+    const originalInstructions = recipe?.instructions;
 
     if (!originalInstructions) {
       return;
@@ -199,7 +199,7 @@ export const initializeSystem = async (
     addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
     setIsExtensionsLoading?: (loading: boolean) => void;
     recipeParameters?: Record<string, string> | null;
-    recipeConfig?: Recipe;
+    recipe?: Recipe;
   }
 ) => {
   try {
@@ -224,11 +224,11 @@ export const initializeSystem = async (
       console.log('This will not end well');
     }
 
-    // Get recipeConfig - prefer from options (session metadata) over app config
-    const recipeConfig = options?.recipeConfig || window.appConfig?.get?.('recipe');
-    const recipe_instructions = (recipeConfig as { instructions?: string })?.instructions;
-    const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
-    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
+    // Get recipe - prefer from options (session metadata) over app config
+    const recipe = options?.recipe || window.appConfig?.get?.('recipe');
+    const recipe_instructions = (recipe as { instructions?: string })?.instructions;
+    const responseConfig = (recipe as { response?: { json_schema?: unknown } })?.response;
+    const subRecipes = (recipe as { sub_recipes?: SubRecipe[] })?.sub_recipes;
     const hasSubRecipes = subRecipes && subRecipes?.length > 0;
     const recipeParameters = options?.recipeParameters;
 

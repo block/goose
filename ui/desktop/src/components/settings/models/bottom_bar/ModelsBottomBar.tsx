@@ -25,7 +25,7 @@ interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
-  recipeConfig?: Recipe | null;
+  recipe?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
 }
 
@@ -34,7 +34,7 @@ export default function ModelsBottomBar({
   dropdownRef,
   setView,
   alerts,
-  recipeConfig,
+  recipe,
   hasMessages = false,
 }: ModelsBottomBarProps) {
   const {
@@ -168,14 +168,14 @@ export default function ModelsBottomBar({
 
   // Handle view recipe - open modal instead of navigating
   const handleViewRecipe = () => {
-    if (recipeConfig) {
+    if (recipe) {
       setShowViewRecipeModal(true);
     }
   };
 
   // Handle save recipe - show save dialog
   const handleSaveRecipeClick = () => {
-    if (recipeConfig) {
+    if (recipe) {
       setShowSaveDialog(true);
     }
   };
@@ -211,7 +211,7 @@ export default function ModelsBottomBar({
           </DropdownMenuItem>
 
           {/* Recipe-specific menu items - only show when actively using a recipe */}
-          {recipeConfig && (
+          {recipe && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleViewRecipe}>
@@ -226,7 +226,7 @@ export default function ModelsBottomBar({
           )}
 
           {/* Only show "Create a recipe from this session" when there are messages AND no recipe is currently active */}
-          {hasMessages && !recipeConfig && (
+          {hasMessages && !recipe && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -256,20 +256,20 @@ export default function ModelsBottomBar({
       ) : null}
 
       {/* Save Recipe Dialog */}
-      {showSaveDialog && recipeConfig && (
+      {showSaveDialog && recipe && (
         <SaveRecipeDialog
           isOpen={showSaveDialog}
           onClose={() => setShowSaveDialog(false)}
-          recipe={recipeConfig}
+          recipe={recipe}
         />
       )}
 
       {/* View Recipe Modal */}
-      {recipeConfig && (
+      {recipe && (
         <CreateEditRecipeModal
           isOpen={showViewRecipeModal}
           onClose={() => setShowViewRecipeModal(false)}
-          config={recipeConfig}
+          config={recipe}
         />
       )}
     </div>

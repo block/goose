@@ -295,7 +295,7 @@ export function AppInner() {
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
-    recipeConfig: null,
+    recipe: null,
   });
 
   const { addExtension } = useConfig();

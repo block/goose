@@ -148,7 +148,7 @@ function BaseChatContent({
     },
     onMessageSent: () => {
       // Mark that user has started using the recipe
-      if (recipeConfig) {
+      if (recipe) {
         setHasStartedUsingRecipe(true);
       }
     },
@@ -156,7 +156,7 @@ function BaseChatContent({
 
   // Use shared recipe manager
   const {
-    recipeConfig,
+    recipe,
     recipeParameters,
     filteredParameters,
     initialPrompt,
@@ -173,12 +173,12 @@ function BaseChatContent({
     setIsCreateRecipeModalOpen,
     handleRecipeCreated,
     handleStartRecipe,
-  } = useRecipeManager(chat, location.state?.recipeConfig);
+  } = useRecipeManager(chat, location.state?.recipe);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
     const previousTitle = currentRecipeTitle;
-    const newTitle = recipeConfig?.title || null;
+    const newTitle = recipe?.title || null;
     const hasRecipeChanged = newTitle !== currentRecipeTitle;
 
     if (hasRecipeChanged) {
@@ -198,7 +198,7 @@ function BaseChatContent({
         setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages]);
+  }, [recipe?.title, currentRecipeTitle, messages.length, setMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -252,7 +252,7 @@ function BaseChatContent({
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     // Mark that user has started using the recipe when they submit a message
-    if (recipeConfig && combinedTextFromInput.trim()) {
+    if (recipe && combinedTextFromInput.trim()) {
       setHasStartedUsingRecipe(true);
     }
 
@@ -269,7 +269,7 @@ function BaseChatContent({
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
     // Mark that user has started using the recipe when they use append
-    if (recipeConfig) {
+    if (recipe) {
       setHasStartedUsingRecipe(true);
     }
     append(text);
@@ -313,14 +313,12 @@ function BaseChatContent({
             paddingY={0}
           >
             {/* Recipe agent header - sticky at top of chat container */}
-            {recipeConfig?.title && (
+            {recipe?.title && (
               <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
                 <AgentHeader
-                  title={recipeConfig.title}
+                  title={recipe.title}
                   profileInfo={
-                    recipeConfig.profile
-                      ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                      : undefined
+                    recipe.profile ? `${recipe.profile} - ${recipe.mcps || 12} MCPs` : undefined
                   }
                   onChangeProfile={() => {
                     console.log('Change profile clicked');
@@ -334,14 +332,12 @@ function BaseChatContent({
             {renderBeforeMessages && renderBeforeMessages()}
 
             {/* Recipe Activities - always show when recipe is active and accepted */}
-            {recipeConfig && recipeAccepted && !suppressEmptyState && (
+            {recipe && recipeAccepted && !suppressEmptyState && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
                   append={(text: string) => appendWithTracking(text)}
-                  activities={
-                    Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
-                  }
-                  title={recipeConfig.title}
+                  activities={Array.isArray(recipe.activities) ? recipe.activities : null}
+                  title={recipe.title}
                   parameterValues={recipeParameters || {}}
                 />
               </div>
@@ -350,7 +346,7 @@ function BaseChatContent({
             {/* Messages or Popular Topics */}
             {
               loadingChat ? null : filteredMessages.length > 0 ||
-                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
+                (recipe && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -434,7 +430,7 @@ function BaseChatContent({
 
                   <div className="block h-8" />
                 </>
-              ) : !recipeConfig && showPopularTopics ? (
+              ) : !recipe && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
                 <PopularChatTopics append={(text: string) => append(text)} />
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
@@ -482,7 +478,7 @@ function BaseChatContent({
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipeConfig={recipeConfig}
+            recipe={recipe}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
@@ -499,9 +495,9 @@ function BaseChatContent({
         onConfirm={handleRecipeAccept}
         onCancel={handleRecipeCancel}
         recipeDetails={{
-          title: recipeConfig?.title,
-          description: recipeConfig?.description,
-          instructions: recipeConfig?.instructions || undefined,
+          title: recipe?.title,
+          description: recipe?.description,
+          instructions: recipe?.instructions || undefined,
         }}
         hasSecurityWarnings={hasSecurityWarnings}
       />
