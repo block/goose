@@ -10,7 +10,10 @@ pub use crate::agents::ExtensionConfig;
 pub use base::{get_config_dir, Config, ConfigError, APP_STRATEGY};
 pub use custom_providers::CustomProviderConfig;
 pub use experiments::ExperimentManager;
-pub use extensions::{ExtensionConfigManager, ExtensionEntry};
+pub use extensions::{
+    get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
+    is_extension_enabled, remove_extension, set_extension, set_extension_enabled, ExtensionEntry,
+};
 pub use permission::PermissionManager;
 pub use signup_openrouter::configure_openrouter;
 pub use signup_tetrate::configure_tetrate;

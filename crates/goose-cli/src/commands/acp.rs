@@ -4,7 +4,7 @@ use agent_client_protocol::{
 };
 use anyhow::Result;
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionConfigManager};
+use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::providers::create;
@@ -124,8 +124,7 @@ impl GooseAcpAgent {
         agent.update_provider(provider.clone()).await?;
 
         // Load and add extensions just like the normal CLI
-        let extensions_to_run: Vec<_> = ExtensionConfigManager::get_all()
-            .map_err(|e| anyhow::anyhow!("Failed to load extensions: {}", e))?
+        let extensions_to_run: Vec<_> = get_all_extensions()
             .into_iter()
             .filter(|ext| ext.enabled)
             .map(|ext| ext.config)
