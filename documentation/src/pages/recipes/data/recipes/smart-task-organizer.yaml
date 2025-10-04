@@ -35,6 +35,7 @@ parameters:
 extensions:
   - type: stdio
     name: filesystem
+    cmd: goose
     display_name: Filesystem
     timeout: 300
     bundled: true
