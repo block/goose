@@ -14,12 +14,6 @@ parameters:
     requirement: required
     description: Path to the data file to clean
   
-  - key: validation_results
-    input_type: string
-    requirement: optional
-    default: ""
-    description: Results from data validation to guide cleaning decisions
-  
   - key: handle_missing
     input_type: string
     requirement: optional

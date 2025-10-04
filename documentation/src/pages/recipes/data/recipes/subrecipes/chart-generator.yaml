@@ -14,12 +14,6 @@ parameters:
     requirement: required
     description: Path to the data file to visualize
   
-  - key: analysis_results
-    input_type: string
-    requirement: optional
-    default: ""
-    description: Statistical analysis results to guide visualization choices
-  
   - key: chart_style
     input_type: string
     requirement: optional
