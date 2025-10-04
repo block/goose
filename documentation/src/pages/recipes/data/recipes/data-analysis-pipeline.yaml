@@ -1,0 +1,150 @@
+version: 1.0.0
+title: Data Analysis Pipeline
+description: An advanced data analysis workflow that orchestrates multiple sub-recipes to clean, analyze, visualize, and report on datasets with intelligent format detection and conditional processing
+author:
+  contact: ARYPROGRAMMER
+
+activities:
+  - Detect and validate data file format (CSV, JSON, Excel, Parquet)
+  - Perform automated data cleaning and quality assessment
+  - Conduct statistical analysis and identify patterns
+  - Generate interactive visualizations and charts
+  - Create comprehensive markdown reports with insights
+  - Export results in multiple formats
+
+instructions: |
+  You are a Data Analysis Pipeline orchestrator that intelligently processes datasets through multiple specialized stages.
+  
+  Your workflow:
+  1. Detect the data format and validate structure
+  2. Clean data and handle missing values
+  3. Perform statistical analysis based on data type
+  4. Generate appropriate visualizations
+  5. Compile comprehensive reports
+  
+  Use sub-recipes for specialized tasks and coordinate their execution based on data characteristics.
+  Maintain context between stages and pass relevant findings to subsequent analysis steps.
+
+parameters:
+  - key: data_file
+    input_type: string
+    requirement: required
+    description: Path to the data file to analyze (supports CSV, JSON, Excel, Parquet)
+  
+  - key: analysis_type
+    input_type: string
+    requirement: optional
+    default: "comprehensive"
+    description: Type of analysis - options are 'quick', 'comprehensive', 'statistical', 'exploratory'
+  
+  - key: output_dir
+    input_type: string
+    requirement: optional
+    default: "./analysis_output"
+    description: Directory where analysis results and visualizations will be saved
+  
+  - key: include_visualizations
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: Whether to generate visualizations (true/false)
+  
+  - key: report_format
+    input_type: string
+    requirement: optional
+    default: "markdown"
+    description: Output report format - options are 'markdown', 'html', 'pdf'
+
+sub_recipes:
+  - name: "data_validator"
+    path: "./subrecipes/data-validator.yaml"
+    values:
+      validation_level: "comprehensive"
+  
+  - name: "data_cleaner"
+    path: "./subrecipes/data-cleaner.yaml"
+    values:
+      handle_missing: "smart"
+      remove_duplicates: "true"
+  
+  - name: "statistical_analyzer"
+    path: "./subrecipes/statistical-analyzer.yaml"
+    values:
+      confidence_level: "95"
+      include_correlations: "true"
+  
+  - name: "chart_generator"
+    path: "./subrecipes/chart-generator.yaml"
+    values:
+      chart_style: "modern"
+      color_scheme: "viridis"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For file operations, data processing, and script execution
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing analysis context and intermediate results across stages
+  
+  - type: stdio
+    name: filesystem
+    cmd: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "{{ output_dir }}"
+    timeout: 300
+    description: Enhanced filesystem operations for managing analysis outputs
+
+prompt: |
+  Analyze {{ data_file }} with {{ analysis_type }} mode. Output to {{ output_dir }}.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  - Create output directories if they don't exist
+  
+  Workflow:
+  1. Validate: Run data_validator subrecipe on {{ data_file }}
+     - Store validation results in memory
+     - Check for critical issues before proceeding
+  
+  2. Clean: If issues found, run data_cleaner subrecipe
+     - Pass validation results to cleaner
+     - Handle cleaning errors gracefully
+  
+  {% if analysis_type == "statistical" or analysis_type == "comprehensive" %}
+  3. Analyze: Run statistical_analyzer for stats and correlations
+     - Use cleaned data if available
+     - Store analysis results in memory
+  {% endif %}
+  
+  {% if include_visualizations == "true" %}
+  4. Visualize: Run chart_generator for key charts
+     - Create output directory structure
+     - Handle visualization errors
+  {% endif %}
+  
+  5. Report: Create brief {{ report_format }} summary
+     - Save to {{ output_dir }}/report.{{ report_format }}
+     - Use OS-compatible path construction
+  
+  Error Recovery:
+  - If a sub-recipe fails, continue with remaining stages if possible
+  - Log errors clearly with stage information
+  - Provide partial results if complete analysis fails
+  
+  For {{ analysis_type }}=="quick", skip heavy computations. Be efficient.
+  Use memory extension to pass results between stages.
+  Always verify paths work on the current OS before file operations.
+  
