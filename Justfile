@@ -209,6 +209,28 @@ generate-openapi:
     @echo "Generating frontend API..."
     cd ui/desktop && npm run generate-api
 
+# Generate OpenAPI clients (Python, etc.) from the OpenAPI spec
+generate-openapi-clients: generate-openapi
+    @echo "Generating OpenAPI clients..."
+    @echo "Generating Python client..."
+    @if command -v openapi-generator >/dev/null 2>&1; then \
+        openapi-generator generate \
+            -i ui/desktop/openapi.json \
+            -g python \
+            -o clients/python/goose_client/_generated \
+            --additional-properties=packageName=_generated,projectName=goose-generated \
+            --global-property=apiTests=false,modelTests=false,apiDocs=false,modelDocs=false; \
+        echo "Fixing Python client import paths..."; \
+        cd clients/python/goose_client/_generated/_generated && \
+        find . -name "*.py" -type f -exec sed -i '' 's/from _generated\./from goose_client._generated._generated./g' {} \; 2>/dev/null || \
+        find . -name "*.py" -type f -exec sed -i 's/from _generated\./from goose_client._generated._generated./g' {} \; ; \
+        sed -i '' 's/getattr(_generated\.models/getattr(goose_client._generated._generated.models/g' api_client.py 2>/dev/null || \
+        sed -i 's/getattr(_generated\.models/getattr(goose_client._generated._generated.models/g' api_client.py ; \
+        echo "Python client generated successfully"; \
+    else \
+        echo "Warning: openapi-generator not found. Install it with: brew install openapi-generator-cli"; \
+    fi
+
 # make GUI with latest binary
 lint-ui:
     cd ui/desktop && npm run lint:check

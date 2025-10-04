@@ -1,0 +1,17 @@
+httpx>=0.24.0
+httpx-sse>=0.3.0
+pydantic>=2.0
+python-dateutil>=2.8.2
+urllib3>=1.25.3
+typing-extensions>=4.0.0
+
+[async]
+asyncio>=3.4.3
+
+[dev]
+pytest>=7.0
+pytest-asyncio>=0.21
+pytest-cov>=4.0
+black>=23.0
+mypy>=1.0
+ruff>=0.1.0

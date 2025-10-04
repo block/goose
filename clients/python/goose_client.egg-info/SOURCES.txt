@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+goose_client/__init__.py
+goose_client/client.py
+goose_client/core.py
+goose_client/streaming.py
+goose_client.egg-info/PKG-INFO
+goose_client.egg-info/SOURCES.txt
+goose_client.egg-info/dependency_links.txt
+goose_client.egg-info/requires.txt
+goose_client.egg-info/top_level.txt
+goose_client/_generated/setup.py
+goose_client/extensions/__init__.py
+goose_client/extensions/base.py
+goose_client/extensions/retry.py
+goose_client/extensions/session_manager.py
+tests/test_integration.py

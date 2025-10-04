@@ -6,3 +6,23 @@ if git diff --cached --name-only | grep -q "^ui/desktop/"; then
     echo "Warning: ui/desktop directory does not exist, skipping lint-staged"
   fi
 fi
+
+# Regenerate OpenAPI clients if openapi.json is modified
+if git diff --cached --name-only | grep -q "^ui/desktop/openapi.json$"; then
+  echo "OpenAPI spec changed, regenerating clients..."
+
+  # Run the generation command
+  if just generate-openapi-clients; then
+    echo "✅ OpenAPI clients regenerated successfully"
+
+    # Add the regenerated Python client files to the commit
+    if [ -d "clients/python/goose_client/_generated" ]; then
+      git add clients/python/goose_client/_generated/
+      echo "✅ Added regenerated Python client to commit"
+    fi
+  else
+    echo "❌ Failed to regenerate OpenAPI clients"
+    echo "Please run 'just generate-openapi-clients' manually and review changes"
+    exit 1
+  fi
+fi

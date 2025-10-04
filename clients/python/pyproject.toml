@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "goose-client"
+version = "2.0.0"
+description = "Python client for Goose AI agent"
+readme = "README.md"
+authors = [
+    {name = "Goose Contributors", email = "goose@block.xyz"}
+]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "httpx>=0.24.0",
+    "httpx-sse>=0.3.0",
+    "pydantic>=2.0",
+    "python-dateutil>=2.8.2",
+    "urllib3>=1.25.3",
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+async = ["asyncio>=3.4.3"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/block/goose"
+Documentation = "https://github.com/block/goose/tree/main/clients/python"
+Repository = "https://github.com/block/goose"
+Issues = "https://github.com/block/goose/issues"
+
+[tool.setuptools]
+packages = ["goose_client", "goose_client.extensions", "goose_client._generated"]
+
+[tool.setuptools.package-data]
+goose_client = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["_generated"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "B027",  # empty method in abstract base class
+    "C901",  # too complex
+    "F401",  # unused imports (needed for re-exports)
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

@@ -1,0 +1,17 @@
+# ref: https://docs.travis-ci.com/user/languages/python
+language: python
+python:
+  - "3.9"
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+  # uncomment the following if needed
+  #- "3.13-dev"  # 3.13 development branch
+  #- "nightly"  # nightly build
+# command to install dependencies
+install:
+  - "pip install -r requirements.txt"
+  - "pip install -r test-requirements.txt"
+# command to run tests
+script: pytest --cov=_generated
