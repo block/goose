@@ -47,10 +47,5 @@ You don’t need to get it right the first time. Iterating on prompts and tools 
 ### Keep Goose updated
 Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
 
-### Automate repetitive tasks safely
-Goose can help streamline your workflow by automating repetitive tasks. Before automating, clearly define the task and test it on a small scale. This ensures predictable results while saving time on routine actions without risking critical files or data.
-
-### Use context files to save your preferences
-Goose can remember project-specific preferences using context files like `.goosehints`.  
-By storing instructions, frequently used paths, or default settings, you save time and maintain consistency across sessions.  
-This ensures Goose adapts to your workflow without needing repeated instructions.
+### Use environment variables for secrets
+Avoid hardcoding API keys or credentials in your Goose recipes. Instead, reference them from environment variables (e.g., `process.env.API_KEY`). This keeps your configuration secure and portable across environments.
