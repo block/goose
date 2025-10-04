@@ -2701,6 +2701,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "indicatif",
+ "indoc",
  "is-terminal",
  "jsonschema",
  "nix 0.30.1",
