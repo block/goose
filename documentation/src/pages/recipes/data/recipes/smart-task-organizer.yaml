@@ -39,7 +39,7 @@ extensions:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory] 
     display_name: Filesystem
     timeout: 300
-    bundled: true
+    bundled: false
 prompts:
   # Phase 1: Discovery and Scanning
   discovery_prompt: |
