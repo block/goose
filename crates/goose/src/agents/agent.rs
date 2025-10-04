@@ -1609,9 +1609,31 @@ impl Agent {
             extension_configs.len()
         );
 
+        let (title, description) =
+            if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                let title = json_content
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Custom recipe from chat")
+                    .to_string();
+
+                let description = json_content
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("a custom recipe instance from this chat session")
+                    .to_string();
+
+                (title, description)
+            } else {
+                (
+                    "Custom recipe from chat".to_string(),
+                    "a custom recipe instance from this chat session".to_string(),
+                )
+            };
+
         let recipe = Recipe::builder()
-            .title("Custom recipe from chat")
-            .description("a custom recipe instance from this chat session")
+            .title(title)
+            .description(description)
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)

@@ -59,10 +59,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   const [importing, setImporting] = useState(false);
   const [showSchemaModal, setShowSchemaModal] = useState(false);
 
-  // Handle Esc key for modal
   useEscapeKey(isOpen, onClose);
 
-  // Function to parse deeplink and extract recipe
   const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
     try {
       const cleanLink = deeplink.trim();
@@ -214,7 +212,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   });
 
   const handleClose = () => {
-    // Reset form to default values
     importRecipeForm.reset({
       deeplink: '',
       recipeUploadFile: null,
@@ -224,22 +221,18 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     onClose();
   };
 
-  // Store reference to recipe title field for programmatic updates
   let recipeTitleFieldRef: { handleChange: (value: string) => void } | null = null;
 
-  // Auto-populate recipe title when deeplink changes
   const handleDeeplinkChange = async (
     value: string,
     field: { handleChange: (value: string) => void }
   ) => {
-    // Use the proper field change handler to trigger validation
     field.handleChange(value);
 
     if (value.trim()) {
       try {
         const recipe = await parseDeeplink(value.trim());
         if (recipe && recipe.title) {
-          // Use the recipe title field's handleChange method if available
           if (recipeTitleFieldRef) {
             recipeTitleFieldRef.handleChange(recipe.title);
           } else {
@@ -247,11 +240,12 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           }
         }
       } catch (error) {
-        // Silently handle parsing errors during auto-suggest
-        console.log('Could not parse deeplink for auto-suggest:', error);
+        toastError({
+          title: 'Invalid Deeplink',
+          msg: `The deeplink format is invalid: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
       }
     } else {
-      // Clear the recipe title when deeplink is empty
       if (recipeTitleFieldRef) {
         recipeTitleFieldRef.handleChange('');
       } else {
@@ -268,7 +262,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         const fileContent = await file.text();
         const recipe = await parseRecipeUploadFile(fileContent, file.name);
         if (recipe.title) {
-          // Use the recipe title field's handleChange method if available
           if (recipeTitleFieldRef) {
             recipeTitleFieldRef.handleChange(recipe.title);
           } else {
@@ -276,11 +269,12 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           }
         }
       } catch (error) {
-        // Silently handle parsing errors during auto-suggest
-        console.log('Could not parse recipe file for auto-suggest:', error);
+        toastError({
+          title: 'Invalid Recipe File',
+          msg: `The recipe file format is invalid: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
       }
     } else {
-      // Clear the recipe title when file is removed
       if (recipeTitleFieldRef) {
         recipeTitleFieldRef.handleChange('');
       } else {
@@ -511,7 +505,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
           <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-text-standard">Recipe Schema</h3>
+              <h3 className="text-lg font-medium text-text-standard">Expected Recipe Structure</h3>
               <button
                 type="button"
                 onClick={() => setShowSchemaModal(false)}
@@ -520,15 +514,14 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                 ✕
               </button>
             </div>
+            <p className="mt-4 text-blue-700 text-sm">
+              Your YAML or JSON file should follow this structure. Required fields are: title,
+              description, and either instructions or prompt.
+            </p>
             <div className="flex-1 overflow-auto">
-              <p className="font-medium mb-3 text-text-standard">Expected Recipe Structure:</p>
-              <pre className="text-xs bg-gray-800 p-4 rounded overflow-auto whitespace-pre font-mono">
+              <pre className="text-xs bg-whitedark:bg-gray-800 p-4 rounded overflow-auto whitespace-pre font-mono">
                 {JSON.stringify(getRecipeJsonSchema(), null, 2)}
               </pre>
-              <p className="mt-4 text-blue-700 text-sm">
-                Your YAML or JSON file should follow this structure. Required fields are: title,
-                description, and either instructions or prompt.
-              </p>
             </div>
           </div>
         </div>
@@ -537,7 +530,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   );
 }
 
-// Export the button component for easy access
 export function ImportRecipeButton({ onClick }: { onClick: () => void }) {
   return (
     <Button onClick={onClick} variant="default" size="sm" className="flex items-center gap-2">

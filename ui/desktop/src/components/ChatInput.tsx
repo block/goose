@@ -81,7 +81,7 @@ interface ChatInputProps {
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
-  recipeConfig?: Recipe | null;
+  recipe?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -108,7 +108,7 @@ export default function ChatInput({
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
-  recipeConfig,
+  recipe,
   recipeAccepted,
   initialPrompt,
   toolCount,
@@ -318,7 +318,7 @@ export default function ChatInput({
 
   useEffect(() => {
     // Only load draft once and if conditions are met
-    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -329,7 +329,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipeConfig]);
+  }, [chatContext, initialValue, recipe]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(
@@ -1624,7 +1624,7 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipeConfig={recipeConfig}
+                recipe={recipe}
                 hasMessages={messages.length > 0}
               />
             </div>

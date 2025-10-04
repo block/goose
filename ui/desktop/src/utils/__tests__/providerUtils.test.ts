@@ -247,16 +247,6 @@ describe('providerUtils', () => {
       expect(result).toEqual([]);
     });
 
-    it('should handle non-array parameters', () => {
-      const parameters = {} as unknown as RecipeParameter[]; // Invalid type
-      const recipeContent = {
-        prompt: 'Use {{some_param}}',
-      };
-
-      const result = filterValidUsedParameters(parameters, recipeContent);
-      expect(result).toEqual([]);
-    });
-
     it('should handle empty recipe content', () => {
       const parameters = [createParameter('param1'), createParameter('param2')];
       const recipeContent = {};

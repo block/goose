@@ -6,7 +6,6 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
-
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
@@ -353,6 +352,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::get_session_insights,
         super::routes::session::update_session_description,
         super::routes::session::delete_session,
+        super::routes::session::update_session_user_recipe_values,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -391,6 +391,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionDescriptionRequest,
+        super::routes::session::UpdateSessionUserRecipeValuesRequest,
         Message,
         MessageContent,
         MessageMetadata,
