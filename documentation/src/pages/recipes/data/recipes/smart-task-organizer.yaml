@@ -36,7 +36,7 @@ extensions:
   - type: stdio
     name: filesystem
     cmd: goose
-    args: ["mcp", "filesystem"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory] 
     display_name: Filesystem
     timeout: 300
     bundled: true
