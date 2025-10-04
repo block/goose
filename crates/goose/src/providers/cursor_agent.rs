@@ -15,8 +15,8 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "gpt-5";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["gpt-5", "opus-4.1", "sonnet-4"];
+pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
+pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 
@@ -267,7 +267,7 @@ impl CursorAgentProvider {
 
         // Only pass model parameter if it's in the known models list
         if CURSOR_AGENT_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("-m").arg(&self.model.model_name);
+            cmd.arg("--model").arg(&self.model.model_name);
         }
 
         cmd.arg("-p")
@@ -455,7 +455,7 @@ mod tests {
         let provider = CursorAgentProvider::default();
         let config = provider.get_model_config();
 
-        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(config.model_name, "auto");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
     }
