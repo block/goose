@@ -35,7 +35,7 @@ parameters:
 extensions:
   - type: stdio
     name: filesystem
-    cmd: goose
+    cmd: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory] 
     display_name: Filesystem
     timeout: 300
