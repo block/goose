@@ -20,7 +20,7 @@ pub mod subagent;
 pub mod subagent_execution_tool;
 pub mod subagent_handler;
 mod subagent_task_config;
-pub mod todo_tools;
+pub(crate) mod todo_extension;
 mod tool_execution;
 mod tool_route_manager;
 mod tool_router_index_manager;

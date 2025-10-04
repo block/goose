@@ -1,3 +1,4 @@
+use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::APP_STRATEGY;
 use crate::model::ModelConfig;
@@ -119,6 +120,12 @@ impl AgentManager {
 
         let agent = Arc::new(Agent::new());
         agent.set_scheduler(Arc::clone(&self.scheduler)).await;
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some(session_id.clone()),
+            })
+            .await;
         if let Some(provider) = &*self.default_provider.read().await {
             agent.update_provider(Arc::clone(provider)).await?;
         }

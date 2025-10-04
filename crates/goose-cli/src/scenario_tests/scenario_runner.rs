@@ -203,7 +203,7 @@ where
             ExtensionConfig::Builtin {
                 name: "".to_string(),
                 display_name: None,
-                description: None,
+                description: "".to_string(),
                 timeout: None,
                 bundled: None,
                 available_tools: vec![],

@@ -712,7 +712,7 @@ sub_recipes:
             } => {
                 assert_eq!(name, "test_python");
                 assert_eq!(code, "print('hello world')");
-                assert_eq!(description.as_deref(), Some("Test python extension"));
+                assert_eq!(description, "Test python extension");
                 assert_eq!(timeout, &Some(300));
                 assert!(dependencies.is_some());
                 let deps = dependencies.as_ref().unwrap();

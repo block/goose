@@ -6,8 +6,6 @@ Connects to goose acp running on stdio.
 
 import subprocess
 import json
-import sys
-import uuid
 
 class AcpClient:
     def __init__(self):

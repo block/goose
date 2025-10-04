@@ -49,6 +49,7 @@ describe('Agent API', () => {
   describe('extensionApiCall', () => {
     const mockExtensionConfig: ExtensionConfig = {
       type: 'stdio',
+      description: 'description',
       name: 'test-extension',
       cmd: 'python',
       args: ['script.py'],
@@ -237,6 +238,7 @@ describe('Agent API', () => {
     const mockExtensionConfig: ExtensionConfig = {
       type: 'stdio',
       name: 'Test Extension',
+      description: 'Test description',
       cmd: 'python',
       args: ['script.py'],
     };
@@ -286,6 +288,7 @@ describe('Agent API', () => {
       const sseConfig: ExtensionConfig = {
         type: 'sse',
         name: 'SSE Extension',
+        description: 'Test description',
         uri: 'http://localhost:8080/events',
       };
 

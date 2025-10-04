@@ -8,7 +8,7 @@ type BundledExtension = {
   id: string;
   name: string;
   display_name?: string;
-  description?: string;
+  description: string;
   enabled: boolean;
   type: 'builtin' | 'stdio' | 'sse';
   cmd?: string;
@@ -59,18 +59,19 @@ export async function syncBundledExtensions(
       switch (bundledExt.type) {
         case 'builtin':
           extConfig = {
-            name: bundledExt.name,
-            display_name: bundledExt.display_name,
             type: bundledExt.type,
+            name: bundledExt.name,
+            description: bundledExt.description,
+            display_name: bundledExt.display_name,
             timeout: bundledExt.timeout ?? 300,
             bundled: true,
           };
           break;
         case 'stdio':
           extConfig = {
+            type: bundledExt.type,
             name: bundledExt.name,
             description: bundledExt.description,
-            type: bundledExt.type,
             timeout: bundledExt.timeout,
             cmd: bundledExt.cmd || '',
             args: bundledExt.args || [],
@@ -81,9 +82,9 @@ export async function syncBundledExtensions(
           break;
         case 'sse':
           extConfig = {
+            type: bundledExt.type,
             name: bundledExt.name,
             description: bundledExt.description,
-            type: bundledExt.type,
             timeout: bundledExt.timeout,
             uri: bundledExt.uri || '',
             bundled: true,

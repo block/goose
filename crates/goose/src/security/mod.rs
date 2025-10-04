@@ -6,15 +6,11 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
-use std::collections::{hash_map::DefaultHasher, HashSet};
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::OnceLock;
+use uuid::Uuid;
 
-/// Simple security manager for the POC
-/// Focuses on tool call analysis with conversation context
 pub struct SecurityManager {
-    scanner: Option<PromptInjectionScanner>,
-    flagged_findings: Arc<Mutex<HashSet<String>>>,
+    scanner: OnceLock<PromptInjectionScanner>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,43 +25,19 @@ pub struct SecurityResult {
 
 impl SecurityManager {
     pub fn new() -> Self {
-        // Initialize scanner based on config
-        let should_enable = Self::should_enable_security();
-
-        let scanner = if should_enable {
-            tracing::info!("Security scanner initialized and enabled");
-            Some(PromptInjectionScanner::new())
-        } else {
-            tracing::debug!("Security scanning disabled via configuration");
-            None
-        };
-
         Self {
-            scanner,
-            flagged_findings: Arc::new(Mutex::new(HashSet::new())),
+            scanner: OnceLock::new(),
         }
     }
 
-    /// Check if security should be enabled based on config
-    fn should_enable_security() -> bool {
-        // Check config file for security settings
+    /// Check if prompt injection security is enabled
+    pub fn is_prompt_injection_detection_enabled(&self) -> bool {
         use crate::config::Config;
         let config = Config::global();
 
-        // Try to get security.enabled from config
-        let result = config
-            .get_param::<serde_json::Value>("security")
-            .ok()
-            .and_then(|security_config| security_config.get("enabled")?.as_bool())
-            .unwrap_or(false);
-
-        tracing::debug!(
-            security_config = ?config.get_param::<serde_json::Value>("security"),
-            enabled = result,
-            "Security configuration check completed"
-        );
-
-        result
+        config
+            .get_param::<bool>("security_prompt_enabled")
+            .unwrap_or(false)
     }
 
     /// New method for tool inspection framework - works directly with tool requests
@@ -74,11 +46,15 @@ impl SecurityManager {
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
-        let Some(scanner) = &self.scanner else {
-            // Security disabled, return empty results
+        if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!("🔓 Security scanning disabled - returning empty results");
             return Ok(vec![]);
-        };
+        }
+
+        let scanner = self.scanner.get_or_init(|| {
+            tracing::info!("Security scanner initialized and enabled");
+            PromptInjectionScanner::new()
+        });
 
         let mut results = Vec::new();
 
@@ -88,8 +64,7 @@ impl SecurityManager {
             messages.len()
         );
 
-        // Only analyze CURRENT tool requests, not historical ones from conversation
-        // This prevents re-flagging the same malicious content from previous messages
+        // Analyze each tool request
         for (i, tool_request) in tool_requests.iter().enumerate() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
@@ -100,44 +75,16 @@ impl SecurityManager {
                     "🔍 Starting security analysis for current tool call"
                 );
 
-                // Analyze only the current tool call content, not the entire conversation history
-                // This prevents re-analyzing and re-flagging historical malicious content
                 let analysis_result = scanner
-                    .analyze_tool_call_with_context(tool_call, &[]) // Pass empty messages to avoid historical analysis
+                    .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
 
                 // Get threshold from config - only flag things above threshold
                 let config_threshold = scanner.get_threshold_from_config();
 
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
-                    // Generate a unique finding ID based on normalized tool call content
-                    // This ensures the same malicious content always gets the same finding ID
-                    // regardless of JSON formatting or tool request ID variations
-                    let normalized_content = format!(
-                        "{}:{}",
-                        tool_call.name,
-                        serde_json::to_string(&tool_call.arguments).unwrap_or_default()
-                    );
-                    let mut hasher = DefaultHasher::new();
-                    normalized_content.hash(&mut hasher);
-                    let content_hash = hasher.finish();
-                    let finding_id = format!("SEC-{:016x}", content_hash);
-
-                    // Check if we've already flagged this exact finding before
-                    let mut flagged_set = self.flagged_findings.lock().unwrap();
-                    if flagged_set.contains(&finding_id) {
-                        tracing::debug!(
-                            tool_name = %tool_call.name,
-                            tool_request_id = %tool_request.id,
-                            finding_id = %finding_id,
-                            "🔄 Skipping already flagged security finding - preventing re-flagging"
-                        );
-                        continue;
-                    }
-
-                    // Mark this finding as flagged
-                    flagged_set.insert(finding_id.clone());
-                    drop(flagged_set); // Release the lock
+                    // Generate a globally unique finding ID for each security finding
+                    let finding_id = format!("SEC-{}", Uuid::new_v4().simple());
 
                     tracing::warn!(
                         tool_name = %tool_call.name,

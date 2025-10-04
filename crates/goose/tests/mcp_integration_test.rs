@@ -188,7 +188,7 @@ async fn test_replayed_session(
     let envs = Envs::new(env);
     let extension_config = ExtensionConfig::Stdio {
         name: "test".to_string(),
-        description: Some("Test".to_string()),
+        description: "Test".to_string(),
         cmd,
         args,
         envs,

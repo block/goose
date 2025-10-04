@@ -25,6 +25,7 @@ describe('Extension Manager', () => {
   const mockExtensionConfig = {
     type: 'stdio' as const,
     name: 'test-extension',
+    description: 'test-extension',
     cmd: 'python',
     args: ['script.py'],
     timeout: 300,
