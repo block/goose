@@ -1,0 +1,26 @@
+---
+version: 1.0.0
+title: GitHub PR Summarizer
+description: >
+  Fetches open pull requests from a GitHub repository
+  and summarizes their content into a concise update.
+instructions: |
+  1. Connect to the GitHub extension with your repository link.
+  2. Retrieve open pull requests.
+  3. Pass the PR titles, descriptions, and commit messages into the Summarizer.
+  4. If PR descriptions are incomplete, have Goose analyze commit messages
+     or code changes to provide more context.
+  5. Generate a clear summary that includes:
+     - The total count of open PRs.
+     - A one-sentence TL;DR for each PR.
+     - Extra context from commits/changes if descriptions are lacking.
+activities:
+  - "Use the GitHub extension to list open pull requests \
+     from the repo block/goose"
+  - "Send PR titles, descriptions, and commit messages \
+     to the Summarizer extension"
+  - "Generate a summary that includes PR count and concise details of each PR"
+
+extensions:
+  - github
+  - summarizer
