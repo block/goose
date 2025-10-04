@@ -36,6 +36,7 @@ extensions:
   - type: stdio
     name: filesystem
     cmd: goose
+    args: ["mcp", "filesystem"]
     display_name: Filesystem
     timeout: 300
     bundled: true
