@@ -15,6 +15,7 @@ use super::{
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
+    mistral::MistralProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -47,6 +48,7 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<GithubCopilotProvider, _>(GithubCopilotProvider::from_env);
         registry.register::<GoogleProvider, _>(GoogleProvider::from_env);
         registry.register::<GroqProvider, _>(GroqProvider::from_env);
+        registry.register::<MistralProvider, _>(MistralProvider::from_env);
         registry.register::<LiteLLMProvider, _>(LiteLLMProvider::from_env);
         registry.register::<OllamaProvider, _>(OllamaProvider::from_env);
         registry.register::<OpenAiProvider, _>(OpenAiProvider::from_env);
