@@ -1,3 +1,5 @@
+use crate::agents::chat_recall_extension;
+use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -34,8 +36,8 @@ impl ProcessExit {
     }
 }
 
-pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> =
-    Lazy::new(|| {
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
+    || {
         let mut map = HashMap::new();
 
         map.insert(
@@ -49,8 +51,33 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            chat_recall_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: chat_recall_extension::EXTENSION_NAME,
+                description:
+                    "Enable chat recall to search past conversations and load session summaries",
+                default_enabled: true,
+                client_factory: |ctx| {
+                    Box::new(chat_recall_extension::ChatRecallClient::new(ctx).unwrap())
+                },
+            },
+        );
+
+        map.insert(
+            extension_manager_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: extension_manager_extension::EXTENSION_NAME,
+                description:
+                    "Enable extension management tools for discovering, enabling, and disabling extensions",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
         map
-    });
+    },
+);
 
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionContext {
