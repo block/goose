@@ -380,7 +380,14 @@ pub fn get_usage(usage: &Value) -> Usage {
             _ => None,
         });
 
+    let cache_read_input_tokens = usage
+        .get("prompt_tokens_details")
+        .and_then(|details| details.get("cached_tokens"))
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
     Usage::new(input_tokens, output_tokens, total_tokens)
+        .with_cache_tokens(cache_read_input_tokens, None)
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
@@ -1362,5 +1369,71 @@ data: [DONE]
         }
 
         panic!("Expected tool call message with two calls, but did not see it");
+    }
+
+    #[test]
+    fn test_get_usage_with_cached_tokens() -> anyhow::Result<()> {
+        // Test usage with cached tokens
+        let usage_json = json!({
+            "prompt_tokens": 1675,
+            "completion_tokens": 13,
+            "total_tokens": 1688,
+            "prompt_tokens_details": {
+                "cached_tokens": 1536
+            }
+        });
+
+        let usage = get_usage(&usage_json);
+
+        assert_eq!(usage.input_tokens, Some(1675));
+        assert_eq!(usage.output_tokens, Some(13));
+        assert_eq!(usage.total_tokens, Some(1688));
+        assert_eq!(usage.cache_read_input_tokens, Some(1536));
+        assert_eq!(usage.cache_write_input_tokens, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_usage_without_cached_tokens() -> anyhow::Result<()> {
+        // Test usage without cached tokens (older responses or providers that don't support caching)
+        let usage_json = json!({
+            "prompt_tokens": 73,
+            "completion_tokens": 16,
+            "total_tokens": 89
+        });
+
+        let usage = get_usage(&usage_json);
+
+        assert_eq!(usage.input_tokens, Some(73));
+        assert_eq!(usage.output_tokens, Some(16));
+        assert_eq!(usage.total_tokens, Some(89));
+        assert_eq!(usage.cache_read_input_tokens, None);
+        assert_eq!(usage.cache_write_input_tokens, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_usage_with_zero_cached_tokens() -> anyhow::Result<()> {
+        // Test usage with zero cached tokens (no cache hit)
+        let usage_json = json!({
+            "prompt_tokens": 73,
+            "completion_tokens": 16,
+            "total_tokens": 89,
+            "prompt_tokens_details": {
+                "cached_tokens": 0
+            }
+        });
+
+        let usage = get_usage(&usage_json);
+
+        assert_eq!(usage.input_tokens, Some(73));
+        assert_eq!(usage.output_tokens, Some(16));
+        assert_eq!(usage.total_tokens, Some(89));
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, None);
+
+        Ok(())
     }
 }

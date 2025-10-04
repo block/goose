@@ -2,10 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct OAIUsageDetails {
+    pub cached_tokens: Option<usize>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct OAIUsage {
     pub prompt_tokens: Option<usize>,
     pub completion_tokens: Option<usize>,
     pub total_tokens: Option<usize>,
+    pub prompt_tokens_details: Option<OAIUsageDetails>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

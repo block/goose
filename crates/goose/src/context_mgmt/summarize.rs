@@ -112,6 +112,8 @@ mod tests {
                         input_tokens: Some(100),
                         output_tokens: Some(50),
                         total_tokens: Some(150),
+                        cache_read_input_tokens: None,
+                        cache_write_input_tokens: None,
                     },
                 ),
             ))

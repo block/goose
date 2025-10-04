@@ -277,101 +277,85 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
     Ok(message)
 }
 
-/// Extract usage information from Anthropic's API response
-pub fn get_usage(data: &Value) -> Result<Usage> {
-    // Extract usage data if available
-    if let Some(usage) = data.get("usage") {
-        // Get all token fields for analysis
-        let input_tokens = usage
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+/// Helper function to extract and convert token counts from a JSON object
+fn extract_anthropic_tokens(data: &Value) -> Option<Usage> {
+    let input_tokens = data
+        .get("input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
-        let cache_creation_tokens = usage
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+    let cache_creation_tokens = data
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
-        let cache_read_tokens = usage
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+    let cache_read_tokens = data
+        .get("cache_read_input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
-        let output_tokens = usage
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+    let output_tokens = data
+        .get("output_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
-        // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
-        // The cache pricing should only affect cost calculation, not token count display
-        let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
+    // If we found any token data, process it
+    if input_tokens > 0 || cache_creation_tokens > 0 || cache_read_tokens > 0 || output_tokens > 0 {
         // Convert to i32 with bounds checking
-        let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
+        // NOTE: Anthropic returns these as separate, non-overlapping values:
+        // - input_tokens: new uncached tokens in the request
+        // - cache_creation_input_tokens: tokens written to cache (charged at premium rate)
+        // - cache_read_input_tokens: tokens read from cache (discounted rate)
+        let input_tokens_i32 = input_tokens.min(i32::MAX as u64) as i32;
         let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 =
-            (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+        let cache_read_tokens_i32 = cache_read_tokens.min(i32::MAX as u64) as i32;
+        let cache_write_tokens_i32 = cache_creation_tokens.min(i32::MAX as u64) as i32;
 
-        Ok(Usage::new(
-            Some(total_input_i32),
-            Some(output_tokens_i32),
-            Some(total_tokens_i32),
-        ))
-    } else if data.as_object().is_some() {
-        // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
-        let input_tokens = data
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        // Total tokens is the sum of all input types plus output
+        let total_tokens_i32 = (input_tokens_i32 as i64
+            + cache_write_tokens_i32 as i64
+            + cache_read_tokens_i32 as i64
+            + output_tokens_i32 as i64)
+            .min(i32::MAX as i64) as i32;
 
-        let cache_creation_tokens = data
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = data
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = data
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // If we found any token data, process it
-        if input_tokens > 0
-            || cache_creation_tokens > 0
-            || cache_read_tokens > 0
-            || output_tokens > 0
-        {
-            let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-            let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-            let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 =
-                (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
-
-            Ok(Usage::new(
-                Some(total_input_i32),
+        Some(
+            Usage::new(
+                Some(input_tokens_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
-            ))
-        } else {
-            tracing::debug!("🔍 Anthropic no token data found in object");
-            Ok(Usage::new(None, None, None))
-        }
+            )
+            .with_cache_tokens(Some(cache_read_tokens_i32), Some(cache_write_tokens_i32)),
+        )
     } else {
-        tracing::debug!(
-            "Failed to get usage data: {}",
-            ProviderError::UsageError("No usage data found in response".to_string())
-        );
-        // If no usage data, return None for all values
-        Ok(Usage::new(None, None, None))
+        None
     }
+}
+
+/// Extract usage information from Anthropic's API response
+pub fn get_usage(data: &Value) -> Result<Usage> {
+    // Try extracting from "usage" field first
+    if let Some(usage) = data.get("usage") {
+        if let Some(usage_data) = extract_anthropic_tokens(usage) {
+            return Ok(usage_data);
+        }
+    }
+
+    // Check if the data itself is the usage object (for message_delta events)
+    if data.as_object().is_some() {
+        if let Some(usage_data) = extract_anthropic_tokens(data) {
+            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={:?}, output={:?}, cache_read={:?}, cache_write={:?}",
+                    usage_data.input_tokens, usage_data.output_tokens,
+                    usage_data.cache_read_input_tokens, usage_data.cache_write_input_tokens);
+            return Ok(usage_data);
+        }
+        tracing::debug!("🔍 Anthropic no token data found in object");
+    }
+
+    tracing::debug!(
+        "Failed to get usage data: {}",
+        ProviderError::UsageError("No usage data found in response".to_string())
+    );
+    Ok(Usage::new(None, None, None))
 }
 
 /// Create a complete request payload for Anthropic's API
@@ -727,9 +711,12 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
+        // Anthropic returns: input_tokens=12 (new), cache_creation=12, cache_read=0
+        assert_eq!(usage.input_tokens, Some(12));
         assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.cache_write_input_tokens, Some(12));
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.total_tokens, Some(39)); // 12 + 12 + 0 + 15
 
         Ok(())
     }
@@ -770,9 +757,12 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
+        // Anthropic returns: input_tokens=15 (new), cache_creation=15, cache_read=0
+        assert_eq!(usage.input_tokens, Some(15));
         assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.cache_write_input_tokens, Some(15));
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.total_tokens, Some(50)); // 15 + 15 + 0 + 20
 
         Ok(())
     }
@@ -990,11 +980,16 @@ mod tests {
 
         let usage = get_usage(&response)?;
 
-        // ACTUAL input tokens should be:
-        // 7 + 10000 + 5000 = 15007 total actual tokens
-        assert_eq!(usage.input_tokens, Some(15007));
+        // Anthropic returns separate, non-overlapping values:
+        // - input_tokens: 7 (new uncached tokens)
+        // - cache_creation_input_tokens: 10000 (written to cache)
+        // - cache_read_input_tokens: 5000 (read from cache)
+        assert_eq!(usage.input_tokens, Some(7));
         assert_eq!(usage.output_tokens, Some(50));
-        assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
+        assert_eq!(usage.cache_write_input_tokens, Some(10000));
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        // Total should be sum of all token types
+        assert_eq!(usage.total_tokens, Some(15057)); // 7 + 10000 + 5000 + 50
 
         Ok(())
     }
@@ -1039,5 +1034,323 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    #[test]
+    fn test_cache_hit_scenario() -> Result<()> {
+        // Test scenario where we get a cache hit: large cache read, minimal new tokens
+        let response = json!({
+            "id": "msg_cache_hit",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Using cached context."
+            }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 5,                    // Minimal new input
+                "output_tokens": 12,
+                "cache_creation_input_tokens": 0,     // No cache creation
+                "cache_read_input_tokens": 8000       // Large cache hit
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        assert_eq!(usage.input_tokens, Some(5));
+        assert_eq!(usage.output_tokens, Some(12));
+        assert_eq!(usage.cache_write_input_tokens, Some(0));
+        assert_eq!(usage.cache_read_input_tokens, Some(8000));
+        assert_eq!(usage.total_tokens, Some(8017)); // 5 + 0 + 8000 + 12
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_cache_usage() -> Result<()> {
+        // Test response with no caching at all
+        let response = json!({
+            "id": "msg_no_cache",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "No caching used."
+            }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
+        assert_eq!(usage.cache_write_input_tokens, Some(0));
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.total_tokens, Some(150)); // 100 + 50
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_missing_cache_fields() -> Result<()> {
+        // Test response from older API versions that don't include cache fields
+        let response = json!({
+            "id": "msg_legacy",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Legacy response."
+            }],
+            "model": "claude-3-sonnet-20240229",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 25,
+                "output_tokens": 30
+                // No cache fields at all
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        assert_eq!(usage.input_tokens, Some(25));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.cache_write_input_tokens, Some(0)); // Default to 0
+        assert_eq!(usage.cache_read_input_tokens, Some(0)); // Default to 0
+        assert_eq!(usage.total_tokens, Some(55)); // 25 + 30
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_with_tool_calls() -> Result<()> {
+        // Test cache usage with tool calls
+        let response = json!({
+            "id": "msg_tool_cache",
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Let me help you with that."
+                },
+                {
+                    "type": "tool_use",
+                    "id": "tool_123",
+                    "name": "search",
+                    "input": {
+                        "query": "test query"
+                    }
+                }
+            ],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "tool_use",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 150,
+                "output_tokens": 75,
+                "cache_creation_input_tokens": 200,
+                "cache_read_input_tokens": 1000
+            }
+        });
+
+        let message = response_to_message(&response)?;
+        let usage = get_usage(&response)?;
+
+        // Verify both content types are parsed
+        assert_eq!(message.content.len(), 2);
+        assert!(matches!(message.content[0], MessageContent::Text(_)));
+        assert!(matches!(message.content[1], MessageContent::ToolRequest(_)));
+
+        // Verify cache tokens are tracked correctly
+        assert_eq!(usage.input_tokens, Some(150));
+        assert_eq!(usage.output_tokens, Some(75));
+        assert_eq!(usage.cache_write_input_tokens, Some(200));
+        assert_eq!(usage.cache_read_input_tokens, Some(1000));
+        assert_eq!(usage.total_tokens, Some(1425)); // 150 + 75 + 200 + 1000
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_token_overflow_protection() -> Result<()> {
+        // Test that very large token counts are handled safely
+        let response = json!({
+            "id": "msg_large",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Large response."
+            }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 1000000,
+                "output_tokens": 500000,
+                "cache_creation_input_tokens": 2000000,
+                "cache_read_input_tokens": 3000000
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        // All values should be within i32 bounds
+        assert!(usage.input_tokens.unwrap() <= i32::MAX);
+        assert!(usage.output_tokens.unwrap() <= i32::MAX);
+        assert!(usage.cache_write_input_tokens.unwrap() <= i32::MAX);
+        assert!(usage.cache_read_input_tokens.unwrap() <= i32::MAX);
+        assert!(usage.total_tokens.unwrap() <= i32::MAX);
+
+        // Verify actual values
+        assert_eq!(usage.input_tokens, Some(1000000));
+        assert_eq!(usage.output_tokens, Some(500000));
+        assert_eq!(usage.cache_write_input_tokens, Some(2000000));
+        assert_eq!(usage.cache_read_input_tokens, Some(3000000));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_usage_from_message_delta_event() -> Result<()> {
+        // Test extracting usage when it's at the top level (message_delta events)
+        let delta_data = json!({
+            "input_tokens": 42,
+            "output_tokens": 21,
+            "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 500
+        });
+
+        let usage = get_usage(&delta_data)?;
+
+        assert_eq!(usage.input_tokens, Some(42));
+        assert_eq!(usage.output_tokens, Some(21));
+        assert_eq!(usage.cache_write_input_tokens, Some(100));
+        assert_eq!(usage.cache_read_input_tokens, Some(500));
+        assert_eq!(usage.total_tokens, Some(663)); // 42 + 21 + 100 + 500
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_write_only_scenario() -> Result<()> {
+        // Test first request in a conversation where cache is being populated
+        let response = json!({
+            "id": "msg_cache_write",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Creating cache."
+            }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 50,
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 5000,  // Large cache write
+                "cache_read_input_tokens": 0          // No read yet
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        assert_eq!(usage.input_tokens, Some(50));
+        assert_eq!(usage.output_tokens, Some(20));
+        assert_eq!(usage.cache_write_input_tokens, Some(5000));
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.total_tokens, Some(5070)); // 50 + 20 + 5000 + 0
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_empty_usage_object() -> Result<()> {
+        // Test response with empty usage object - should return None for all fields
+        let response = json!({
+            "id": "msg_empty_usage",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Response."
+            }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {}
+        });
+
+        let usage = get_usage(&response)?;
+
+        // Empty usage object means no token data, all fields should be None
+        assert_eq!(usage.input_tokens, None);
+        assert_eq!(usage.output_tokens, None);
+        assert_eq!(usage.cache_write_input_tokens, None);
+        assert_eq!(usage.cache_read_input_tokens, None);
+        assert_eq!(usage.total_tokens, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_thinking_with_cache() -> Result<()> {
+        // Test thinking response with cache usage
+        let response = json!({
+            "id": "msg_thinking_cache",
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "Let me analyze this...",
+                    "signature": "test_signature"
+                },
+                {
+                    "type": "text",
+                    "text": "Here's my conclusion."
+                }
+            ],
+            "model": "claude-3-7-sonnet-20250219",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 80,
+                "output_tokens": 120,
+                "cache_creation_input_tokens": 300,
+                "cache_read_input_tokens": 2000
+            }
+        });
+
+        let message = response_to_message(&response)?;
+        let usage = get_usage(&response)?;
+
+        // Verify thinking content is parsed
+        assert_eq!(message.content.len(), 2);
+        assert!(matches!(message.content[0], MessageContent::Thinking(_)));
+        assert!(matches!(message.content[1], MessageContent::Text(_)));
+
+        // Verify cache tokens with thinking
+        assert_eq!(usage.input_tokens, Some(80));
+        assert_eq!(usage.output_tokens, Some(120));
+        assert_eq!(usage.cache_write_input_tokens, Some(300));
+        assert_eq!(usage.cache_read_input_tokens, Some(2000));
+        assert_eq!(usage.total_tokens, Some(2500)); // 80 + 120 + 300 + 2000
+
+        Ok(())
     }
 }
