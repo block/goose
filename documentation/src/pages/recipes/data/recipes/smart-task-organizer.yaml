@@ -37,7 +37,7 @@ extensions:
     name: filesystem
     display_name: Filesystem
     timeout: 300
-    bundled: false
+    bundled: true
 prompt: |
   {% if source_type == "files" or source_type == "all" %}
   1. Scan the current directory and subdirectories for files that might contain tasks:
