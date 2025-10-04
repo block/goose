@@ -328,10 +328,12 @@ export function AppInner() {
     if (loadingHub) {
       (async () => {
         try {
-          await loadCurrentChat({
+          const loadedChat = await loadCurrentChat({
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
+          // Update the chat state with the loaded session to ensure sessionId is available globally
+          setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
             // the onboarding flow will trigger
@@ -341,7 +343,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
