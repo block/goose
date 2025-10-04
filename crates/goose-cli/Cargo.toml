@@ -58,6 +58,7 @@ tokio-util = { version = "0.7.15", features = ["compat"] }
 is-terminal = "0.4.16"
 anstream = "0.6.18"
 url = "2.5.7"
+open = "5.3.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
