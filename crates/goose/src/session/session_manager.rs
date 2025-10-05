@@ -1,4 +1,4 @@
-use crate::config::APP_STRATEGY;
+use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
@@ -229,16 +229,13 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let data_dir = choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .data_dir()
-        .join("sessions");
+    let session_dir = Paths::data_dir().join("sessions");
 
-    if !data_dir.exists() {
-        fs::create_dir_all(&data_dir)?;
+    if !session_dir.exists() {
+        fs::create_dir_all(&session_dir)?;
     }
 
-    Ok(data_dir)
+    Ok(session_dir)
 }
 
 fn role_to_string(role: &Role) -> &'static str {

@@ -14,6 +14,7 @@ use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
+use crate::config::paths::Paths;
 use crate::config::{self, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -63,18 +64,13 @@ pub fn normalize_cron_expression(src: &str) -> String {
 }
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
-    let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
-        .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e.to_string()))?;
-    let data_dir = strategy.data_dir();
+    let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
     Ok(data_dir.join("schedules.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
-    let strategy = choose_app_strategy(config::APP_STRATEGY.clone()).map_err(|e| {
-        SchedulerError::StorageError(io::Error::new(io::ErrorKind::NotFound, e.to_string()))
-    })?;
-    let data_dir = strategy.data_dir();
+    let data_dir = Paths::data_dir();
     let recipes_dir = data_dir.join("scheduled_recipes");
     fs::create_dir_all(&recipes_dir).map_err(SchedulerError::StorageError)?;
     tracing::debug!(

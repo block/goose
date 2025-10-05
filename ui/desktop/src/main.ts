@@ -151,6 +151,11 @@ async function ensureTempDirExists(): Promise<string> {
 
 if (started) app.quit();
 
+if (process.env.ENABLE_PLAYWRIGHT) {
+  console.log('[Main] Enabling Playwright remote debugging on port 9222');
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
+
 // In development mode, force registration as the default protocol client
 // In production, register normally
 if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -540,10 +545,9 @@ const createChat = async (
     const settings = loadSettings();
     updateSchedulingEngineEnvironment(settings.schedulingEngine);
 
-    // Start new Goosed process for regular windows
-    // Pass through scheduling engine environment variables
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
+      GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
     };
     const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
       app,
@@ -1696,7 +1700,6 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
-  // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
   // Handle microphone permission requests

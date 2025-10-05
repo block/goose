@@ -1,3 +1,4 @@
+use crate::config::paths::Paths;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
@@ -38,12 +39,7 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    // choose_app_strategy().config_dir()
-    // - macOS/Linux: ~/.config/goose/databricks/oauth
-    // - Windows:     ~\AppData\Roaming\Block\goose\config\databricks\oauth\
-    choose_app_strategy(crate::config::APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .in_config_dir("databricks/oauth")
+    Paths::in_config_dir("databricks/oauth")
 }
 
 impl TokenCache {

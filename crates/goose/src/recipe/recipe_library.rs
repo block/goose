@@ -1,4 +1,4 @@
-use crate::config::APP_STRATEGY;
+use crate::config::paths::Paths;
 use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::Recipe;
 use anyhow::Result;
@@ -9,10 +9,7 @@ use std::path::PathBuf;
 
 pub fn get_recipe_library_dir(is_global: bool) -> PathBuf {
     if is_global {
-        choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir()
-            .join("recipes")
+        Paths::config_dir().join("recipes")
     } else {
         std::env::current_dir().unwrap().join(".goose/recipes")
     }

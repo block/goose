@@ -5,8 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use etcetera::{choose_app_strategy, AppStrategy};
-use goose::config::APP_STRATEGY;
+use goose::config::paths::Paths;
 use goose::config::{Config, ConfigError};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
@@ -582,11 +581,7 @@ pub async fn upsert_permissions(
     )
 )]
 pub async fn backup_config() -> Result<Json<String>, StatusCode> {
-    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir();
-
-    let config_path = config_dir.join("config.yaml");
+    let config_path = Paths::config_dir().join("config.yaml");
 
     if config_path.exists() {
         let file_name = config_path
@@ -647,11 +642,7 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     )
 )]
 pub async fn validate_config() -> Result<Json<String>, StatusCode> {
-    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir();
-
-    let config_path = config_dir.join("config.yaml");
+    let config_path = Paths::config_dir().join("config.yaml");
 
     if !config_path.exists() {
         return Ok(Json("Config file does not exist".to_string()));
