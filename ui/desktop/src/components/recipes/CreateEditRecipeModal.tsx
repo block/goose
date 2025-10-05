@@ -18,6 +18,7 @@ interface CreateEditRecipeModalProps {
   isOpen: boolean;
   onClose: (wasSaved?: boolean) => void;
   recipe?: Recipe;
+  recipeName?: string;
   isCreateMode?: boolean;
 }
 
@@ -25,6 +26,7 @@ export default function CreateEditRecipeModal({
   isOpen,
   onClose,
   recipe,
+  recipeName: initialRecipeName,
   isCreateMode = false,
 }: CreateEditRecipeModalProps) {
   const { getExtensions } = useConfig();
@@ -41,7 +43,7 @@ export default function CreateEditRecipeModal({
         jsonSchema: recipe.response?.json_schema
           ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
-        recipeName: '',
+        recipeName: initialRecipeName || '',
         global: true,
       };
     }
@@ -56,7 +58,7 @@ export default function CreateEditRecipeModal({
       recipeName: '',
       global: true,
     };
-  }, [recipe]);
+  }, [recipe, initialRecipeName]);
 
   const form = useForm({
     defaultValues: getInitialValues(),

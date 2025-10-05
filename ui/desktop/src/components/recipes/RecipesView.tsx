@@ -11,7 +11,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { Recipe, generateDeepLink } from '../../recipe';
+import { generateDeepLink, Recipe } from '../../recipe';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
@@ -339,6 +339,7 @@ export default function RecipesView() {
           isOpen={showEditor}
           onClose={handleEditorClose}
           recipe={selectedRecipe.recipe}
+          recipeName={selectedRecipe.name}
         />
       )}
 

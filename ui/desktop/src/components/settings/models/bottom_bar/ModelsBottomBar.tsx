@@ -17,6 +17,7 @@ import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 import { Recipe } from '../../../../recipe';
+import { generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import CreateEditRecipeModal from '../../../recipes/CreateEditRecipeModal';
 import SaveRecipeDialog from '../../../recipes/shared/SaveRecipeDialog';
 
@@ -265,11 +266,13 @@ export default function ModelsBottomBar({
       )}
 
       {/* View Recipe Modal */}
+      {/* todo: we don't have the actual recipe name when in chat only in recipes list view so we generate it for now */}
       {recipe && (
         <CreateEditRecipeModal
           isOpen={showViewRecipeModal}
           onClose={() => setShowViewRecipeModal(false)}
           recipe={recipe}
+          recipeName={generateRecipeFilename(recipe)}
         />
       )}
     </div>
