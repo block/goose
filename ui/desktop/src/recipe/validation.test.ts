@@ -8,7 +8,6 @@ import {
 import type { Recipe } from '../api/types.gen';
 
 describe('Recipe Validation', () => {
-  // Valid recipe examples based on project recipes
   const validRecipe: Recipe = {
     version: '1.0.0',
     title: 'Test Recipe',
@@ -111,7 +110,6 @@ describe('Recipe Validation', () => {
         if (!result.success) {
           console.log('Author validation errors:', result.errors);
         }
-        // This test may fail due to strict validation - adjust expectations
         expect(typeof result.success).toBe('boolean');
         expect(Array.isArray(result.errors)).toBe(true);
       });
@@ -201,14 +199,12 @@ describe('Recipe Validation', () => {
           ...validRecipe,
           parameters: [
             {
-              // Only key provided, other fields missing
               key: 'test',
             },
           ],
         };
 
         const result = validateRecipe(recipeWithIncompleteParam);
-        // The OpenAPI schema may be more permissive than expected
         expect(typeof result.success).toBe('boolean');
         expect(Array.isArray(result.errors)).toBe(true);
       });
@@ -252,7 +248,6 @@ describe('Recipe Validation', () => {
         };
 
         const result = validateRecipe(recipeWithExtra);
-        // Should either succeed (if passthrough) or fail gracefully
         expect(typeof result.success).toBe('boolean');
         expect(Array.isArray(result.errors)).toBe(true);
       });
@@ -267,7 +262,6 @@ describe('Recipe Validation', () => {
         };
 
         const result = validateRecipe(recipeWithLongStrings);
-        // Should handle gracefully regardless of outcome
         expect(typeof result.success).toBe('boolean');
       });
     });
@@ -356,7 +350,6 @@ describe('Recipe Validation', () => {
 
       it('validates array input as valid JSON schema', () => {
         const result = validateJsonSchema(['not', 'an', 'object']);
-        // Arrays are objects in JavaScript, so this might be valid
         expect(typeof result.success).toBe('boolean');
         expect(Array.isArray(result.errors)).toBe(true);
       });
@@ -487,7 +480,6 @@ describe('Recipe Validation', () => {
       if (!result.success) {
         console.log('ReadmeBot validation errors:', result.errors);
       }
-      // This test may fail due to strict validation - adjust expectations
       expect(typeof result.success).toBe('boolean');
       expect(Array.isArray(result.errors)).toBe(true);
     });
@@ -534,7 +526,6 @@ describe('Recipe Validation', () => {
       if (!result.success) {
         console.log('LintRecipe validation errors:', result.errors);
       }
-      // This test may fail due to strict validation - adjust expectations
       expect(typeof result.success).toBe('boolean');
       expect(Array.isArray(result.errors)).toBe(true);
     });
