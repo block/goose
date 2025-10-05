@@ -172,7 +172,6 @@ function BaseChatContent({
     isCreateRecipeModalOpen,
     setIsCreateRecipeModalOpen,
     handleRecipeCreated,
-    handleStartRecipe,
   } = useRecipeManager(chat, location.state?.recipe);
 
   // Reset recipe usage tracking when recipe changes
@@ -517,7 +516,6 @@ function BaseChatContent({
         onClose={() => setIsCreateRecipeModalOpen(false)}
         sessionId={chat.sessionId}
         onRecipeCreated={handleRecipeCreated}
-        onStartRecipe={handleStartRecipe}
       />
     </div>
   );

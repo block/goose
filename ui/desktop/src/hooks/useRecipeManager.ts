@@ -286,20 +286,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     });
   };
 
-  const handleStartRecipe = (recipe: Recipe) => {
-    if (chatContext) {
-      setRecipeAccepted(false);
-      setIsParameterModalOpen(false);
-
-      chatContext.setChat({
-        ...chatContext.chat,
-        messages: [],
-        recipe: recipe,
-        recipeParameters: null,
-      });
-    }
-  };
-
   return {
     recipe: finalRecipe,
     recipeParameters,
@@ -321,6 +307,5 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     isCreateRecipeModalOpen,
     setIsCreateRecipeModalOpen,
     handleRecipeCreated,
-    handleStartRecipe,
   };
 };

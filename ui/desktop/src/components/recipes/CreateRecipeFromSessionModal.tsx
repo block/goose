@@ -16,7 +16,6 @@ interface CreateRecipeFromSessionModalProps {
   onClose: () => void;
   sessionId: string;
   onRecipeCreated?: (recipe: Recipe) => void;
-  onStartRecipe?: (recipe: Recipe) => void;
 }
 
 export default function CreateRecipeFromSessionModal({
@@ -24,10 +23,8 @@ export default function CreateRecipeFromSessionModal({
   onClose,
   sessionId,
   onRecipeCreated,
-  onStartRecipe,
 }: CreateRecipeFromSessionModalProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const [createdRecipe, setCreatedRecipe] = useState<Recipe | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<string>('');
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
@@ -194,11 +191,10 @@ export default function CreateRecipeFromSessionModal({
         global: formData.global,
       });
 
-      setCreatedRecipe(recipe);
       onRecipeCreated?.(recipe);
+      onClose();
 
       if (runAfterSave) {
-        onClose();
         window.electron.createChatWindow(undefined, undefined, undefined, undefined, recipe);
       }
     } catch (error) {
@@ -213,19 +209,6 @@ export default function CreateRecipeFromSessionModal({
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleStartRecipe = () => {
-    if (createdRecipe) {
-      onStartRecipe?.(createdRecipe);
-      onClose();
-    } else {
-      console.log('No created recipe found');
-    }
-  };
-
-  const handleDone = () => {
-    onClose();
   };
 
   if (!isOpen) return null;
@@ -312,28 +295,7 @@ export default function CreateRecipeFromSessionModal({
           </Button>
 
           <div className="flex gap-3">
-            {isAnalyzing ? (
-              <div />
-            ) : createdRecipe ? (
-              <div data-testid="success-state">
-                <Button
-                  onClick={handleDone}
-                  variant="outline"
-                  className="px-4 py-2 border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors"
-                  data-testid="done-button"
-                >
-                  Done
-                </Button>
-                <Button
-                  onClick={handleStartRecipe}
-                  className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors"
-                  data-testid="start-recipe-button"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Start Recipe
-                </Button>
-              </div>
-            ) : (
+            {!isAnalyzing && (
               <>
                 <Button
                   onClick={() => {
