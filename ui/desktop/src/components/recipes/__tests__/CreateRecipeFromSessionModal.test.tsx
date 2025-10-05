@@ -25,7 +25,6 @@ describe('CreateRecipeFromSessionModal', () => {
     onClose: vi.fn(),
     sessionId: 'test-session-id',
     onRecipeCreated: vi.fn(),
-    onStartRecipe: vi.fn(),
   };
 
   beforeEach(() => {
@@ -249,7 +248,7 @@ describe('CreateRecipeFromSessionModal', () => {
       );
     });
 
-    it('creates recipe when form is submitted', async () => {
+    it('creates recipe and closes modal when form is submitted', async () => {
       const user = userEvent.setup();
       render(<CreateRecipeFromSessionModal {...defaultProps} />);
 
@@ -263,61 +262,9 @@ describe('CreateRecipeFromSessionModal', () => {
       await user.click(screen.getByTestId('create-recipe-button'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('success-state')).toBeInTheDocument();
-        expect(screen.getByTestId('done-button')).toBeInTheDocument();
-        expect(screen.getByTestId('start-recipe-button')).toBeInTheDocument();
+        expect(defaultProps.onRecipeCreated).toHaveBeenCalled();
+        expect(defaultProps.onClose).toHaveBeenCalled();
       });
-
-      expect(defaultProps.onRecipeCreated).toHaveBeenCalled();
-    });
-  });
-
-  describe('Success State Actions', () => {
-    it('calls onStartRecipe when Start Recipe button is clicked', async () => {
-      const user = userEvent.setup();
-      render(<CreateRecipeFromSessionModal {...defaultProps} />);
-
-      // Wait for form and create recipe
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('create-recipe-button')).toBeEnabled();
-        },
-        { timeout: 2000 }
-      );
-
-      await user.click(screen.getByTestId('create-recipe-button'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('start-recipe-button')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByTestId('start-recipe-button'));
-
-      expect(defaultProps.onStartRecipe).toHaveBeenCalled();
-      expect(defaultProps.onClose).toHaveBeenCalled();
-    });
-
-    it('closes modal when Done button is clicked', async () => {
-      const user = userEvent.setup();
-      render(<CreateRecipeFromSessionModal {...defaultProps} />);
-
-      // Wait for form and create recipe
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('create-recipe-button')).toBeEnabled();
-        },
-        { timeout: 2000 }
-      );
-
-      await user.click(screen.getByTestId('create-recipe-button'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('done-button')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByTestId('done-button'));
-
-      expect(defaultProps.onClose).toHaveBeenCalled();
     });
   });
 
@@ -346,7 +293,6 @@ describe('CreateRecipeFromSessionModal', () => {
     });
 
     it('shows different button states based on workflow stage', async () => {
-      const user = userEvent.setup();
       render(<CreateRecipeFromSessionModal {...defaultProps} />);
 
       expect(screen.getByTestId('cancel-button')).toBeInTheDocument();
@@ -359,12 +305,7 @@ describe('CreateRecipeFromSessionModal', () => {
         { timeout: 2000 }
       );
 
-      await user.click(screen.getByTestId('create-recipe-button'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('done-button')).toBeInTheDocument();
-        expect(screen.getByTestId('start-recipe-button')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('create-and-run-recipe-button')).toBeInTheDocument();
     });
   });
 
