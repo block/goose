@@ -81,7 +81,7 @@ export function useAgent(): UseAgentReturn {
           messages: messages?.map((message: ApiMessage) =>
             convertApiMessageToFrontendMessage(message)
           ),
-          recipeConfig: agentSession.recipe,
+          recipe: agentSession.recipe,
           recipeParameters: agentSession.user_recipe_values || null,
         };
       }
@@ -172,7 +172,7 @@ export function useAgent(): UseAgentReturn {
             title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
             messages: messages,
-            recipeConfig: recipe,
+            recipe: recipe,
             recipeParameters: agentSession.user_recipe_values || null,
           };
 

@@ -17,30 +17,29 @@ import { toastSuccess, toastError } from '../../toasts';
 interface CreateEditRecipeModalProps {
   isOpen: boolean;
   onClose: (wasSaved?: boolean) => void;
-  config?: Recipe;
+  recipe?: Recipe;
   isCreateMode?: boolean;
 }
 
 export default function CreateEditRecipeModal({
   isOpen,
   onClose,
-  config,
+  recipe,
   isCreateMode = false,
 }: CreateEditRecipeModalProps) {
   const { getExtensions } = useConfig();
-  const [recipeConfig] = useState<Recipe | undefined>(config);
 
   const getInitialValues = React.useCallback((): RecipeFormData => {
-    if (config) {
+    if (recipe) {
       return {
-        title: config.title || '',
-        description: config.description || '',
-        instructions: config.instructions || '',
-        prompt: config.prompt || '',
-        activities: config.activities || [],
-        parameters: config.parameters || [],
-        jsonSchema: config.response?.json_schema
-          ? JSON.stringify(config.response.json_schema, null, 2)
+        title: recipe.title || '',
+        description: recipe.description || '',
+        instructions: recipe.instructions || '',
+        prompt: recipe.prompt || '',
+        activities: recipe.activities || [],
+        parameters: recipe.parameters || [],
+        jsonSchema: recipe.response?.json_schema
+          ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
         recipeName: '',
         global: true,
@@ -57,7 +56,7 @@ export default function CreateEditRecipeModal({
       recipeName: '',
       global: true,
     };
-  }, [config]);
+  }, [recipe]);
 
   const form = useForm({
     defaultValues: getInitialValues(),
@@ -94,21 +93,21 @@ export default function CreateEditRecipeModal({
   const [global, setGlobal] = useState(form.state.values.global);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize selected extensions for the recipe from config
+  // Initialize selected extensions for the recipe
   const [recipeExtensions] = useState<string[]>(() => {
-    if (config?.extensions) {
-      return config.extensions.map((ext) => ext.name);
+    if (recipe?.extensions) {
+      return recipe.extensions.map((ext) => ext.name);
     }
     return [];
   });
 
-  // Reset form when config changes
+  // Reset form when recipe changes
   useEffect(() => {
-    if (config) {
+    if (recipe) {
       const newValues = getInitialValues();
       form.reset(newValues);
     }
-  }, [config, form, getInitialValues]);
+  }, [recipe, form, getInitialValues]);
 
   // Load extensions when modal opens
   useEffect(() => {
@@ -135,7 +134,7 @@ export default function CreateEditRecipeModal({
     }
   }, [isOpen, getExtensions, recipeExtensions, extensionsLoaded]);
 
-  const getCurrentConfig = useCallback((): Recipe => {
+  const getCurrentRecipe = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
       const formattedParam: Parameter = {
@@ -171,7 +170,7 @@ export default function CreateEditRecipeModal({
     }
 
     return {
-      ...recipeConfig,
+      ...recipe,
       title,
       description,
       instructions,
@@ -197,7 +196,7 @@ export default function CreateEditRecipeModal({
         .filter(Boolean) as ExtensionConfig[],
     };
   }, [
-    recipeConfig,
+    recipe,
     title,
     description,
     instructions,
@@ -248,8 +247,8 @@ export default function CreateEditRecipeModal({
 
       setIsGeneratingDeeplink(true);
       try {
-        const currentConfig = getCurrentConfig();
-        const link = await generateDeepLink(currentConfig);
+        const currentRecipe = getCurrentRecipe();
+        const link = await generateDeepLink(currentRecipe);
         if (!isCancelled) {
           setDeeplink(link);
         }
@@ -279,7 +278,7 @@ export default function CreateEditRecipeModal({
     parameters,
     jsonSchema,
     recipeExtensions,
-    getCurrentConfig,
+    getCurrentRecipe,
   ]);
 
   const handleCopy = () => {
@@ -309,7 +308,7 @@ export default function CreateEditRecipeModal({
 
     setIsSaving(true);
     try {
-      const recipe = getCurrentConfig();
+      const recipe = getCurrentRecipe();
 
       await saveRecipe(recipe, {
         name: (recipeName || '').trim(),
@@ -346,7 +345,7 @@ export default function CreateEditRecipeModal({
 
     setIsSaving(true);
     try {
-      const recipe = getCurrentConfig();
+      const recipe = getCurrentRecipe();
       const recipeName = generateRecipeFilename(recipe);
 
       await saveRecipe(recipe, {
@@ -499,7 +498,7 @@ export default function CreateEditRecipeModal({
       <ScheduleFromRecipeModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
-        recipe={getCurrentConfig()}
+        recipe={getCurrentRecipe()}
         onCreateSchedule={(deepLink) => {
           // Open the schedules view with the deep link pre-filled
           window.electron.createChatWindow(

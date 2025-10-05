@@ -269,7 +269,7 @@ export default function ModelsBottomBar({
         <CreateEditRecipeModal
           isOpen={showViewRecipeModal}
           onClose={() => setShowViewRecipeModal(false)}
-          config={recipe}
+          recipe={recipe}
         />
       )}
     </div>

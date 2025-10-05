@@ -338,7 +338,7 @@ export default function RecipesView() {
         <CreateEditRecipeModal
           isOpen={showEditor}
           onClose={handleEditorClose}
-          config={selectedRecipe.recipe}
+          recipe={selectedRecipe.recipe}
         />
       )}
 
