@@ -1,0 +1,26 @@
+VALID: documentation/src/pages/prompt-library/data/prompts/content-amplifier-pipeline.json — Content Amplifier Pipeline
+
+--- MOCK GOOSE SESSION OUTPUT ---
+
+User prompt:
+Take this YouTube video about machine learning fundamentals and create a comprehensive learning package with article, visuals, and deployed website.
+
+[Step 1] Transcript Extraction (YouTube Transcript Extension)
+- Extracted transcript (simulated):
+  00:00 Intro
+  02:34 Gradient descent explained
+  15:10 Neural networks overview
+  28:45 Training tips and pitfalls
+
+[Step 2] Visual Summary Creation (Auto Visualiser Extension)
+- Generated diagrams: neural_network.svg, gradient_descent.svg, training_curve.png
+- Created learning progress chart: progress_chart.png
+
+[Step 3] Article Generation (Dev.to Extension)
+- Drafted article: "Machine Learning Fundamentals — A Practical Guide"
+- Article includes generated visuals inline and code examples
+
+[Step 4] Website Deployment (Vercel Extension)
+- Prepared site bundle and deployed (simulated): https://ml-fundamentals-example.vercel.app
+
+Result: Content transformation complete! (this is a simulated run; real run requires Goose runtime and MCP servers)
