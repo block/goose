@@ -1,4 +1,4 @@
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::search_recipe::load_recipe_file;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use std::collections::HashSet;
@@ -116,7 +116,7 @@ fn discover_recipe_secrets_recursive(
 /// For secret discovery, we only need the recipe structure (extensions and env_keys),
 /// not parameter-substituted content, so we parse the raw YAML directly for speed and robustness.
 fn load_sub_recipe(recipe_path: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
-    let recipe_file = retrieve_recipe_file(recipe_path)?;
+    let recipe_file = load_recipe_file(recipe_path)?;
     let recipe: Recipe = serde_yaml::from_str(&recipe_file.content)?;
     Ok(recipe)
 }

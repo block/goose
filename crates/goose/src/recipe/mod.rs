@@ -2,20 +2,23 @@ use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
+use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 pub mod build_recipe;
+pub mod local_recipes;
 pub mod read_recipe_file_content;
-pub mod recipe_library;
 pub mod template_recipe;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
 fn default_version() -> String {
     "1.0.0".to_string()
@@ -308,6 +311,12 @@ impl Recipe {
             retry: None,
         }
     }
+
+    pub fn from_file_path(file_path: &Path) -> Result<Self> {
+        let file = read_recipe_file(file_path)?;
+        Self::from_content(&file.content)
+    }
+
     pub fn from_content(content: &str) -> Result<Self> {
         let recipe: Recipe =
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {

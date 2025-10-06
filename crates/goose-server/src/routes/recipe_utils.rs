@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use goose::recipe::recipe_library::list_all_recipes_from_library;
+use goose::recipe::local_recipes::list_local_recipes;
 use goose::recipe::Recipe;
 
 use std::path::Path;
@@ -29,7 +29,7 @@ fn short_id_from_path(path: &str) -> String {
 }
 
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
-    let recipes_with_path = list_all_recipes_from_library()?;
+    let recipes_with_path = list_local_recipes()?;
     let mut recipe_manifests_with_path = Vec::new();
     for (file_path, recipe) in recipes_with_path {
         let Ok(last_modified) = fs::metadata(file_path.clone())

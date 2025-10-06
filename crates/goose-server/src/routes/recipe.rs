@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::recipe::recipe_library;
+use goose::recipe::local_recipes;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::SessionManager;
@@ -324,7 +324,7 @@ async fn save_recipe(
         None => None,
     };
 
-    match recipe_library::save_recipe_to_file(request.recipe, request.is_global, file_path) {
+    match local_recipes::save_recipe_to_file(request.recipe, request.is_global, file_path) {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
