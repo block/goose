@@ -288,10 +288,11 @@
     "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [
+    "environmentVariables": [],
+    "headers": [
       {
-        "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "description": "Required environment variable",
+        "name": "Authorization",
+        "description": "GitHub Personal Access Token",
         "required": true
       }
     ],
