@@ -9,9 +9,9 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a Goose extension, enabling Goose to call thousands tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
+This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a Goose extension, enabling Goose to call thousands of tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
 
-:::tip TLDR
+:::tip Quick setup
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
   Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
