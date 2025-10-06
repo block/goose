@@ -10,25 +10,25 @@
     {
       "name": "YouTube Transcript Extension",
       "description": "Extracts and processes YouTube video transcripts for analysis and transformation.",
-      "is_builtin": false,
+      "is_builtin": true,
       "environmentVariables": []
     },
     {
       "name": "Auto Visualiser Extension",
       "description": "Automatically generates data visualizations and concept diagrams from text content.",
-      "is_builtin": false,
+      "is_builtin": true,
       "environmentVariables": []
     },
     {
       "name": "Dev.to Extension",
       "description": "Creates and publishes technical articles on the Dev.to platform.",
-      "is_builtin": false,
+      "is_builtin": true,
       "environmentVariables": []
     },
     {
       "name": "Vercel Extension",
       "description": "Deploys websites and web applications to Vercel's hosting platform.",
-      "is_builtin": false,
+      "is_builtin": true,
       "environmentVariables": []
     }
   ]
