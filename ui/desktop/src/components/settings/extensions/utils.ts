@@ -111,10 +111,9 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
     headers,
-    installation_notes:
-      'installation_notes' in extension
-        ? (extension as { installation_notes?: string }).installation_notes
-        : undefined,
+    installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
+      | string
+      | undefined,
   };
 }
 

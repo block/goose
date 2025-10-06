@@ -10,8 +10,7 @@ function getStdioConfig(
   parsedUrl: URL,
   name: string,
   description: string,
-  timeout: number,
-  installation_notes?: string | null
+  timeout: number
 ) {
   // Validate that the command is one of the allowed commands
   const allowedCommands = [
@@ -44,7 +43,7 @@ function getStdioConfig(
 
   const envList = parsedUrl.searchParams.getAll('env');
 
-  const config: ExtensionConfig & { installation_notes?: string } = {
+  const config: ExtensionConfig = {
     name: name,
     type: 'stdio',
     cmd: cmd,
@@ -60,7 +59,6 @@ function getStdioConfig(
           )
         : undefined,
     timeout: timeout,
-    ...(installation_notes ? { installation_notes } : {}),
   };
 
   return config;
@@ -69,20 +67,13 @@ function getStdioConfig(
 /**
  * Build an extension config for SSE from the deeplink URL
  */
-function getSseConfig(
-  remoteUrl: string,
-  name: string,
-  description: string,
-  timeout: number,
-  installation_notes?: string | null
-) {
-  const config: ExtensionConfig & { installation_notes?: string } = {
+function getSseConfig(remoteUrl: string, name: string, description: string, timeout: number) {
+  const config: ExtensionConfig = {
     name,
     type: 'sse',
     uri: remoteUrl,
     description,
     timeout: timeout,
-    ...(installation_notes ? { installation_notes } : {}),
   };
 
   return config;
@@ -97,10 +88,9 @@ function getStreamableHttpConfig(
   description: string,
   timeout: number,
   headers?: { [key: string]: string },
-  envs?: { [key: string]: string },
-  installation_notes?: string | null
+  envs?: { [key: string]: string }
 ) {
-  const config: ExtensionConfig & { installation_notes?: string } = {
+  const config: ExtensionConfig = {
     name,
     type: 'streamable_http',
     uri: remoteUrl,
@@ -108,7 +98,6 @@ function getStreamableHttpConfig(
     timeout: timeout,
     headers: headers,
     envs: envs,
-    ...(installation_notes ? { installation_notes } : {}),
   };
 
   return config;
@@ -188,19 +177,16 @@ export async function addExtensionFromDeepLink(
         )
       : undefined;
 
-  const config = remoteUrl
+  const baseConfig = remoteUrl
     ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(
-          remoteUrl,
-          name,
-          description || '',
-          timeout,
-          headers,
-          envs,
-          installation_notes
-        )
-      : getSseConfig(remoteUrl, name, description || '', timeout, installation_notes)
-    : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout, installation_notes);
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
+      : getSseConfig(remoteUrl, name, description || '', timeout)
+    : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
+
+  const config = {
+    ...baseConfig,
+    ...(installation_notes ? { installation_notes } : {}),
+  };
 
   // Check if extension requires env vars or headers and go to settings if so
   const hasEnvVars = config.envs && Object.keys(config.envs).length > 0;
