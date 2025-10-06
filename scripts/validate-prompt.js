@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// validate-prompt.js
+// Simple Node.js script to validate the minimal prompt JSON schema used by the
+// documentation prompt library. It's intended as a developer convenience and
+// is not part of Goose runtime.
+// Usage: node scripts/validate-prompt.js path/to/prompt.json
 const fs = require('fs');
 const path = require('path');
 

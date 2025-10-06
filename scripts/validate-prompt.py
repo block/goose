@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+scripts/validate-prompt.py
+Simple Python validator for prompt JSON files in the prompt library.
+This is a convenience script to check required fields and extension counts
+before opening a PR. It is not executed by Goose itself.
+
+Usage:
+    python3 scripts/validate-prompt.py path/to/prompt.json
+"""
 import sys
 import json
 from pathlib import Path
