@@ -21,6 +21,7 @@ const mockElectron = {
 
 describe('ExtensionInstallModal', () => {
   const mockAddExtension = vi.fn();
+  const mockSetView = vi.fn();
 
   const getAddExtensionEventHandler = () => {
     const addExtensionCall = mockElectron.on.mock.calls.find((call) => call[0] === 'add-extension');
@@ -43,7 +44,7 @@ describe('ExtensionInstallModal', () => {
     it('should handle trusted extension (default behaviour, no allowlist)', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -60,7 +61,7 @@ describe('ExtensionInstallModal', () => {
     it('should handle trusted extension (from allowlist)', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue(['npx test-extension']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -78,7 +79,7 @@ describe('ExtensionInstallModal', () => {
       });
       mockElectron.getAllowedExtensions.mockResolvedValue(['uvx allowed-package']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -94,27 +95,29 @@ describe('ExtensionInstallModal', () => {
       expect(screen.getAllByRole('button')).toHaveLength(3);
     });
 
-
-    it("should handle i-ching-mcp-server as allowed command", async () => {
+    it('should handle i-ching-mcp-server as allowed command', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
       await act(async () => {
-        await eventHandler({}, "goose://extension?cmd=i-ching-mcp-server&id=i-ching&name=I%20Ching&description=I%20Ching%20divination");
+        await eventHandler(
+          {},
+          'goose://extension?cmd=i-ching-mcp-server&id=i-ching&name=I%20Ching&description=I%20Ching%20divination'
+        );
       });
 
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getByText("Confirm Extension Installation")).toBeInTheDocument();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Extension Installation')).toBeInTheDocument();
       expect(screen.getByText(/I Ching extension/)).toBeInTheDocument();
-      expect(screen.getAllByRole("button")).toHaveLength(3);
+      expect(screen.getAllByRole('button')).toHaveLength(3);
     });
     it('should handle blocked extension', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue(['uvx allowed-package']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -133,7 +136,7 @@ describe('ExtensionInstallModal', () => {
     it('should dismiss modal correctly', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -154,7 +157,7 @@ describe('ExtensionInstallModal', () => {
       vi.mocked(addExtensionFromDeepLink).mockResolvedValue(undefined);
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} />);
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
 
       const eventHandler = getAddExtensionEventHandler();
 

@@ -14,7 +14,16 @@ function getStdioConfig(
   timeout: number
 ) {
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['cu', 'docker', 'jbang', 'npx', 'uvx', 'goosed', 'npx.cmd', 'i-ching-mcp-server'];
+  const allowedCommands = [
+    'cu',
+    'docker',
+    'jbang',
+    'npx',
+    'uvx',
+    'goosed',
+    'npx.cmd',
+    'i-ching-mcp-server',
+  ];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(
       'Invalid Command',
@@ -80,7 +89,8 @@ function getStreamableHttpConfig(
   name: string,
   description: string,
   timeout: number,
-  headers?: { [key: string]: string }
+  headers?: { [key: string]: string },
+  envs?: { [key: string]: string }
 ) {
   const config: ExtensionConfig = {
     name,
@@ -89,6 +99,7 @@ function getStreamableHttpConfig(
     description,
     timeout: timeout,
     headers: headers,
+    envs: envs,
   };
 
   return config;
@@ -106,14 +117,9 @@ export async function addExtensionFromDeepLink(
   ) => Promise<void>,
   setView: (
     view: string,
-    options:
-      | { extensionId: string; showEnvVars: boolean }
-      | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
+    options: { showEnvVars: boolean; deepLinkConfig?: ExtensionConfig }
   ) => void
 ) {
-  console.log('=== addExtensionFromDeepLink Debug ===');
-  console.log('URL:', url);
-
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
@@ -160,9 +166,21 @@ export async function addExtensionFromDeepLink(
         )
       : undefined;
 
+  // Parse env vars for remote extensions (same logic as stdio)
+  const envList = parsedUrl.searchParams.getAll('env');
+  const envs =
+    envList.length > 0
+      ? Object.fromEntries(
+          envList.map((env) => {
+            const [key] = env.split('=');
+            return [key, ''];
+          })
+        )
+      : undefined;
+
   const config = remoteUrl
     ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers)
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
@@ -172,9 +190,10 @@ export async function addExtensionFromDeepLink(
     config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
 
   if (hasEnvVars || hasHeaders) {
-    console.log('Environment variables or headers required, redirecting to settings');
-    console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
-    setView('settings', { deepLinkConfig: config, showEnvVars: true });
+    console.log(
+      'Environment variables or headers required, redirecting to extensions with env variables modal showing'
+    );
+    setView('extensions', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
 
