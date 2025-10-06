@@ -1,6 +1,6 @@
 ---
 title: Apify Extension
-description: Add Apify as a Goose Extension
+description: Add Apify MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,7 +9,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Apify MCP Server](https://github.com/apify/apify-mcp-server) as a Goose extension, enabling Goose to fetch context directly from Apify’s 6,000+ ready-to-use web scrapers.
+This tutorial covers how to add the [Apify MCP Server](https://mcp.apify.com) as a Goose extension, enabling Goose to call thousands tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -28,10 +28,6 @@ This tutorial covers how to add the [Apify MCP Server](https://github.com/apify/
 :::
 
 ## Configuration
-
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -59,8 +55,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-The Apify MCP server connects Goose with [Apify](https://apify.com), a platform for web scraping and automation.  
-On Apify, tasks are packaged as **Actors** — serverless apps that run scrapers, crawlers, or automation scripts.  
+The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of read-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
+
+In this example, Goose will find an Actor for [scraping LinkedIn posts](https://apify.com/store/categories?search=linkedin) to perform a quick research.
 
 - **Thousands of public Actors** for sites like LinkedIn, Google, Amazon, Airbnb  
 - **Custom Actors** you can build and run privately  
