@@ -71,7 +71,7 @@ pub fn retrieve_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     ))
 }
 
-pub fn discover_local_recipes() -> Result<Vec<(PathBuf, Recipe)>> {
+pub fn list_local_recipes() -> Result<Vec<(PathBuf, Recipe)>> {
     let mut recipes = Vec::new();
     for dir in local_recipe_dirs() {
         if let Ok(dir_recipes) = scan_directory_for_recipes(&dir) {

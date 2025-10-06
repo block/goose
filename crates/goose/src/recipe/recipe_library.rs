@@ -1,4 +1,4 @@
-use crate::recipe::search_local_recipes::{discover_local_recipes, get_recipe_library_dir};
+use crate::recipe::search_local_recipes::{list_local_recipes, get_recipe_library_dir};
 use crate::recipe::Recipe;
 use serde_yaml;
 use std::fs;
@@ -44,7 +44,7 @@ pub fn save_recipe_to_file(
             default_file_path
         }
     };
-    let all_recipes = discover_local_recipes()?;
+    let all_recipes = list_local_recipes()?;
 
     for (existing_path, existing_recipe) in &all_recipes {
         if existing_recipe.title == recipe.title && existing_path != &file_path_value {
