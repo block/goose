@@ -1,15 +1,19 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
+use crate::config::ExtensionConfigManager;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Implementation,
+    InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
+    ProtocolVersion, ReadResourceResult, ServerCapabilities, ServerNotification, Tool,
+    ToolAnnotations, ToolsCapability,
 };
 use rmcp::object;
 use serde_json::Value;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -76,7 +80,10 @@ impl ExtensionManagerClient {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 match extension_manager.search_available_extensions().await {
                     Ok(content) => Ok(content),
-                    Err(e) => Err(format!("Failed to search available extensions: {}", e.message)),
+                    Err(e) => Err(format!(
+                        "Failed to search available extensions: {}",
+                        e.message
+                    )),
                 }
             } else {
                 Err("Extension manager is no longer available".to_string())
@@ -109,11 +116,141 @@ impl ExtensionManagerClient {
             return Err("Action must be either 'enable' or 'disable'".to_string());
         }
 
-        // This would normally call the extension manager's manage_extensions method
-        Ok(vec![Content::text(format!(
-            "Extension management functionality would {} extension '{}' here",
-            action, extension_name
-        ))])
+        // Call the actual manage_extensions implementation
+        match self
+            .manage_extensions_impl(action.to_string(), extension_name.to_string())
+            .await
+        {
+            Ok(content) => Ok(content),
+            Err(error_data) => Err(error_data.message.to_string()),
+        }
+    }
+
+    /// Implementation of the manage_extensions logic migrated from agent.rs
+    async fn manage_extensions_impl(
+        &self,
+        action: String,
+        extension_name: String,
+    ) -> Result<Vec<Content>, ErrorData> {
+        // Get references from context
+        let extension_manager = self
+            .context
+            .extension_manager
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Extension manager is no longer available".to_string(),
+                    None,
+                )
+            })?;
+
+        let tool_route_manager = self
+            .context
+            .tool_route_manager
+            .as_ref()
+            .and_then(|weak| weak.upgrade());
+
+        // Update tool router index if router is functional
+        if let Some(tool_route_manager) = &tool_route_manager {
+            if tool_route_manager.is_router_functional().await {
+                let selector = tool_route_manager.get_router_tool_selector().await;
+                if let Some(selector) = selector {
+                    let selector_action = if action == "disable" { "remove" } else { "add" };
+                    let selector = Arc::new(selector);
+                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                        &selector,
+                        &extension_manager,
+                        &extension_name,
+                        selector_action,
+                    )
+                    .await
+                    {
+                        return Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update LLM index: {}", e),
+                            None,
+                        ));
+                    }
+                }
+            }
+        }
+
+        if action == "disable" {
+            let result = extension_manager
+                .remove_extension(&extension_name)
+                .await
+                .map(|_| {
+                    vec![Content::text(format!(
+                        "The extension '{}' has been disabled successfully",
+                        extension_name
+                    ))]
+                })
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
+            return result;
+        }
+
+        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
+            Ok(Some(config)) => config,
+            Ok(None) => {
+                return Err(ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!(
+                        "Extension '{}' not found. Please check the extension name and try again.",
+                        extension_name
+                    ),
+                    None,
+                ));
+            }
+            Err(e) => {
+                return Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to get extension config: {}", e),
+                    None,
+                ));
+            }
+        };
+
+        let result = extension_manager
+            .add_extension(config)
+            .await
+            .map(|_| {
+                vec![Content::text(format!(
+                    "The extension '{}' has been installed successfully",
+                    extension_name
+                ))]
+            })
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
+
+        // Update LLM index if operation was successful and LLM routing is functional
+        if result.is_ok() {
+            if let Some(tool_route_manager) = &tool_route_manager {
+                if tool_route_manager.is_router_functional().await {
+                    let selector = tool_route_manager.get_router_tool_selector().await;
+                    if let Some(selector) = selector {
+                        let llm_action = if action == "disable" { "remove" } else { "add" };
+                        let selector = Arc::new(selector);
+                        if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                            &selector,
+                            &extension_manager,
+                            &extension_name,
+                            llm_action,
+                        )
+                        .await
+                        {
+                            return Err(ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                format!("Failed to update LLM index: {}", e),
+                                None,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        result
     }
 
     async fn handle_list_resources(
@@ -125,8 +262,11 @@ impl ExtensionManagerClient {
                 let params = arguments
                     .map(serde_json::Value::Object)
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                
-                match extension_manager.list_resources(params, tokio_util::sync::CancellationToken::default()).await {
+
+                match extension_manager
+                    .list_resources(params, tokio_util::sync::CancellationToken::default())
+                    .await
+                {
                     Ok(content) => Ok(content),
                     Err(e) => Err(format!("Failed to list resources: {}", e.message)),
                 }
@@ -147,8 +287,11 @@ impl ExtensionManagerClient {
                 let params = arguments
                     .map(serde_json::Value::Object)
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                
-                match extension_manager.read_resource(params, tokio_util::sync::CancellationToken::default()).await {
+
+                match extension_manager
+                    .read_resource(params, tokio_util::sync::CancellationToken::default())
+                    .await
+                {
                     Ok(content) => Ok(content),
                     Err(e) => Err(format!("Failed to read resource: {}", e.message)),
                 }

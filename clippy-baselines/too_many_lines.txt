@@ -34,6 +34,7 @@ crates/goose-server/src/routes/reply.rs::reply_handler
 crates/goose/src/agents/agent.rs::create_recipe
 crates/goose/src/agents/agent.rs::reply_internal
 crates/goose/src/agents/extension_manager.rs::add_extension
+crates/goose/src/agents/extension_manager_extension.rs::manage_extensions_impl
 crates/goose/src/providers/azure.rs::post
 crates/goose/src/providers/databricks.rs::post_with_retry
 crates/goose/src/providers/formats/anthropic.rs::format_messages

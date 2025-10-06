@@ -11,11 +11,7 @@ use uuid::Uuid;
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
+use crate::agents::platform_tools::{PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME};
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
@@ -100,7 +96,7 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub(super) tool_route_manager: ToolRouteManager,
+    pub tool_route_manager: Arc<ToolRouteManager>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -174,7 +170,7 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_route_manager: ToolRouteManager::new(),
+            tool_route_manager: Arc::new(ToolRouteManager::new()),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
@@ -404,28 +400,6 @@ impl Agent {
             return (request_id, Ok(ToolCallResult::from(result)));
         }
 
-        if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
-            let extension_name = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("extension_name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let action = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("action"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let (request_id, result) = self
-                .manage_extensions(action, extension_name, request_id)
-                .await;
-
-            return (request_id, Ok(ToolCallResult::from(result)));
-        }
-
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
@@ -560,18 +534,6 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
-        } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
-            // Check if the tool is read_resource and handle it separately
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            ToolCallResult::from(
-                self.extension_manager
-                    .read_resource(arguments, cancellation_token.unwrap_or_default())
-                    .await,
-            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -812,6 +774,7 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.extend([
+                platform_tools::search_available_extensions_tool(),
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
             ]);
