@@ -103,7 +103,7 @@ const getDocumentationPath = (serverId: string): string => {
                            Can be enabled on the Extensions page in Goose
                         </span>
                       </div>
-                    ) : (
+                    ) : server.show_install_command !== false ? (
                       <>
                         <div className="flex items-center gap-2 text-textStandard">
                           <Terminal className="h-4 w-4" />
@@ -129,13 +129,13 @@ const getDocumentationPath = (serverId: string): string => {
                           )}
                         </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
 
                   {server.environmentVariables && (
                     <div className="space-y-4">
                       <h2 className="text-lg font-medium text-textStandard m-0">
-                        Environment Variables
+                        {server.type === "streamable-http" ? "Request Headers" : "Environment Variables"}
                       </h2>
                       {server.environmentVariables.length > 0 ? (
                         <div>
@@ -161,7 +161,7 @@ const getDocumentationPath = (serverId: string): string => {
                       ) : (
                         <div className="text-textSubtle text-sm flex items-center gap-2">
                           <Info className="h-4 w-4" />
-                          No environment variables needed
+                          {server.type === "streamable-http" ? "No request headers needed" : "No environment variables needed"}
                         </div>
                       )}
                     </div>
@@ -215,7 +215,7 @@ const getDocumentationPath = (serverId: string): string => {
                       >
                         Built-in
                       </div>
-                    ) : (
+                    ) : server.show_install_link !== false ? (
                       <a
                         href={getGooseInstallLink(server)}
                         target="_blank"
@@ -225,7 +225,7 @@ const getDocumentationPath = (serverId: string): string => {
                         <span>Install</span>
                         <Download className="h-4 w-4" />
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
