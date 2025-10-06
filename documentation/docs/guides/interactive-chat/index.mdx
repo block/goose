@@ -6,8 +6,9 @@ description: Transform text-based responses into graphical components and intera
 
 import Card from '@site/src/components/Card';
 import styles from '@site/src/components/Card/styles.module.css';
+import VideoCarousel from '@site/src/components/VideoCarousel';
 
-<h1 className={styles.pageTitle}>Rich Interactive Chat</h1>
+<h1 className={styles.pageTitle}>Rich Interactive Chat with MCP-UI</h1>
 <p className={styles.pageDescription}>
   Goose Desktop supports extensions that transform text-only responses into graphical, interactive experiences. Instead of reading through lists and descriptions, you can click, explore, and interact with UI components directly in your conversations.
 </p>
@@ -63,4 +64,21 @@ import styles from '@site/src/components/Card/styles.module.css';
       link="/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible"
     />
   </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/GS-kmreZDgU',
+      title: 'Livestream - MCP-UI: The Future of Agentic Interfaces',
+      description: 'The goose team talks with MCP-UI creators about the future of visual interfaces',
+      duration: '55:32'
+    }
+  ]}
+/>
 </div>
