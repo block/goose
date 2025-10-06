@@ -9,7 +9,6 @@ use crate::developer::analyze::types::{
     ReferenceType,
 };
 
-/// Manages tree-sitter parsers for different languages
 #[derive(Clone)]
 pub struct ParserManager {
     parsers: Arc<Mutex<HashMap<String, Arc<Mutex<Parser>>>>>,
@@ -23,7 +22,6 @@ impl ParserManager {
         }
     }
 
-    /// Get or create a parser for the specified language
     pub fn get_or_create_parser(&self, language: &str) -> Result<Arc<Mutex<Parser>>, ErrorData> {
         let mut cache = lock_or_recover(&self.parsers, |c| c.clear());
 
@@ -67,10 +65,8 @@ impl ParserManager {
         Ok(parser_arc)
     }
 
-    /// Parse source code and return the syntax tree
     pub fn parse(&self, content: &str, language: &str) -> Result<Tree, ErrorData> {
         let parser_arc = self.get_or_create_parser(language)?;
-        // Parser doesn't have a clear() method, so we just continue with it
         let mut parser = lock_or_recover(&parser_arc, |_| {});
 
         parser.parse(content, None).ok_or_else(|| {
@@ -90,11 +86,9 @@ impl Default for ParserManager {
     }
 }
 
-/// Extract code elements from a parsed tree
 pub struct ElementExtractor;
 
 impl ElementExtractor {
-    /// Find a child node matching one of the specified kinds
     fn find_child_by_kind<'a>(
         node: &'a tree_sitter::Node,
         kinds: &[&str],
@@ -104,7 +98,6 @@ impl ElementExtractor {
             .find(|child| kinds.contains(&child.kind()))
     }
 
-    /// Extract text from a child node matching one of the specified kinds
     fn extract_text_from_child(
         node: &tree_sitter::Node,
         source: &str,
@@ -113,7 +106,6 @@ impl ElementExtractor {
         Self::find_child_by_kind(node, kinds).map(|child| source[child.byte_range()].to_string())
     }
 
-    /// Extract code elements with optional semantic analysis
     pub fn extract_with_depth(
         tree: &Tree,
         source: &str,
@@ -128,20 +120,16 @@ impl ElementExtractor {
             depth
         );
 
-        // First get the structural analysis
         let mut result = Self::extract_elements(tree, source, language)?;
 
-        // For structure mode, clear the detailed vectors but keep the counts
         if depth == "structure" {
             result.functions.clear();
             result.classes.clear();
             result.imports.clear();
         } else if depth == "semantic" {
-            // For semantic mode, also extract calls
             let calls = Self::extract_calls(tree, source, language)?;
             result.calls = calls;
 
-            // Also populate references from the calls
             for call in &result.calls {
                 result.references.push(ReferenceInfo {
                     symbol: call.callee_name.clone(),
@@ -157,7 +145,6 @@ impl ElementExtractor {
             // - Type instantiation (struct literals, object creation)
             // - Field/variable/parameter type references
             // - Method-to-type associations
-            // The presence of a non-empty reference query indicates support for this feature.
             if !languages::get_reference_query(language).is_empty() {
                 let references = Self::extract_references(tree, source, language)?;
                 result.references.extend(references);
@@ -167,7 +154,6 @@ impl ElementExtractor {
         Ok(result)
     }
 
-    /// Extract basic code elements (functions, classes, imports)
     pub fn extract_elements(
         tree: &Tree,
         source: &str,
@@ -175,16 +161,13 @@ impl ElementExtractor {
     ) -> Result<AnalysisResult, ErrorData> {
         use crate::developer::analyze::languages;
 
-        // Get language-specific query
         let query_str = languages::get_element_query(language);
         if query_str.is_empty() {
             return Ok(Self::empty_analysis_result());
         }
 
-        // Parse and process the query
         let (functions, classes, imports) = Self::process_element_query(tree, source, query_str)?;
 
-        // Detect main function
         let main_line = functions.iter().find(|f| f.name == "main").map(|f| f.line);
 
         Ok(AnalysisResult {
@@ -201,7 +184,6 @@ impl ElementExtractor {
         })
     }
 
-    /// Process element query and extract functions, classes, imports
     fn process_element_query(
         tree: &Tree,
         source: &str,
@@ -233,7 +215,6 @@ impl ElementExtractor {
 
                 match query.capture_names()[capture.index as usize] {
                     "func" | "const" => {
-                        // Treat constants like functions (defined once, referenced many times)
                         functions.push(FunctionInfo {
                             name: text.to_string(),
                             line,
@@ -265,7 +246,6 @@ impl ElementExtractor {
         Ok((functions, classes, imports))
     }
 
-    /// Extract function calls from the parse tree
     fn extract_calls(
         tree: &Tree,
         source: &str,
@@ -276,10 +256,9 @@ impl ElementExtractor {
 
         let mut calls = Vec::new();
 
-        // Get language-specific call query
         let query_str = languages::get_call_query(language);
         if query_str.is_empty() {
-            return Ok(calls); // No call query for this language
+            return Ok(calls);
         }
 
         let query = Query::new(&tree.language(), query_str).map_err(|e| {
@@ -300,7 +279,6 @@ impl ElementExtractor {
                 let text = &source[node.byte_range()];
                 let start_pos = node.start_position();
 
-                // Get the line of code for context
                 let line_start = source[..node.start_byte()]
                     .rfind('\n')
                     .map(|i| i + 1)
@@ -311,10 +289,8 @@ impl ElementExtractor {
                     .unwrap_or(source.len());
                 let context = source[line_start..line_end].trim().to_string();
 
-                // Find the containing function
                 let caller_name = Self::find_containing_function(&node, source, language);
 
-                // Add the call based on capture name
                 match query.capture_names()[capture.index as usize] {
                     "function.call"
                     | "method.call"
@@ -339,7 +315,6 @@ impl ElementExtractor {
         Ok(calls)
     }
 
-    /// Extract struct/type references from the parse tree
     fn extract_references(
         tree: &Tree,
         source: &str,
@@ -350,7 +325,6 @@ impl ElementExtractor {
 
         let mut references = Vec::new();
 
-        // Get language-specific reference query
         let query_str = languages::get_reference_query(language);
         if query_str.is_empty() {
             return Ok(references);
@@ -374,7 +348,6 @@ impl ElementExtractor {
                 let text = &source[node.byte_range()];
                 let start_pos = node.start_position();
 
-                // Get the line of code for context
                 let line_start = source[..node.start_byte()]
                     .rfind('\n')
                     .map(|i| i + 1)
@@ -387,20 +360,18 @@ impl ElementExtractor {
 
                 let capture_name = query.capture_names()[capture.index as usize];
 
-                // Map capture types to reference types with appropriate semantics
                 let (ref_type, symbol, associated_type) = match capture_name {
                     "method.receiver" => {
-                        // For method receivers, extract the method name and associate it with the type
                         let method_name =
                             Self::find_method_name_for_receiver(&node, source, language);
                         if let Some(method_name) = method_name {
                             (
                                 ReferenceType::MethodDefinition,
                                 method_name,
-                                Some(text.to_string()), // type name
+                                Some(text.to_string()),
                             )
                         } else {
-                            continue; // Skip if we can't find the method name
+                            continue;
                         }
                     }
                     "struct.literal" => (ReferenceType::TypeInstantiation, text.to_string(), None),
@@ -429,7 +400,6 @@ impl ElementExtractor {
         Ok(references)
     }
 
-    /// Find the method name for a method receiver node
     fn find_method_name_for_receiver(
         receiver_node: &tree_sitter::Node,
         source: &str,
@@ -437,11 +407,9 @@ impl ElementExtractor {
     ) -> Option<String> {
         use crate::developer::analyze::languages;
 
-        // Delegate to language-specific implementations
         languages::find_method_for_receiver(receiver_node, source, language)
     }
 
-    /// Find which function contains a given node
     fn find_containing_function(
         node: &tree_sitter::Node,
         source: &str,
@@ -454,7 +422,6 @@ impl ElementExtractor {
 
         let mut current = *node;
 
-        // Walk up the tree to find a function definition
         while let Some(parent) = current.parent() {
             let kind = parent.kind();
 
@@ -479,10 +446,9 @@ impl ElementExtractor {
             current = parent;
         }
 
-        None // No containing function found (module-level call)
+        None
     }
 
-    /// Create an empty analysis result
     fn empty_analysis_result() -> AnalysisResult {
         AnalysisResult {
             functions: vec![],

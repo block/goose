@@ -65,13 +65,11 @@ impl CallGraph {
                 }
             }
 
-            // Record type references
             for reference in &result.references {
                 use crate::developer::analyze::types::ReferenceType;
 
                 match &reference.ref_type {
                     ReferenceType::MethodDefinition => {
-                        // Method defined on a type: create outgoing link from type to method
                         if let Some(type_name) = &reference.associated_type {
                             tracing::trace!(
                                 "Linking method {} to type {}",
@@ -89,7 +87,6 @@ impl CallGraph {
                     | ReferenceType::FieldType
                     | ReferenceType::VariableType
                     | ReferenceType::ParameterType => {
-                        // Type usage: create incoming reference to the type
                         graph
                             .callers
                             .entry(reference.symbol.clone())

@@ -60,7 +60,7 @@ pub const CALL_QUERY: &str = r#"
 /// Swift has special cases like init_declaration and deinit_declaration
 /// that should return fixed names instead of extracting from children.
 pub fn extract_function_name_for_kind(
-    node: &tree_sitter::Node,
+    _node: &tree_sitter::Node,
     _source: &str,
     kind: &str,
 ) -> Option<String> {

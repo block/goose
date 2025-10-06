@@ -59,20 +59,17 @@ func main() {
     let result = parse_and_extract(code);
     let graph = build_test_graph(vec![("test.go", code)]);
 
-    // Struct definitions
     assert_eq!(result.class_count, 2);
     let struct_names: HashSet<_> = result.classes.iter().map(|c| c.name.as_str()).collect();
     assert!(struct_names.contains("Config"));
     assert!(struct_names.contains("Handler"));
 
-    // Method definitions
     assert_eq!(result.function_count, 3);
     let method_names: HashSet<_> = result.functions.iter().map(|f| f.name.as_str()).collect();
     assert!(method_names.contains("Start"));
     assert!(method_names.contains("Stop"));
     assert!(method_names.contains("main"));
 
-    // Method-to-type associations
     let handler_methods: Vec<_> = result
         .references
         .iter()
@@ -87,7 +84,6 @@ func main() {
         handler_methods.len()
     );
 
-    // Field types
     let field_type_refs: Vec<_> = result
         .references
         .iter()
@@ -98,7 +94,6 @@ func main() {
         "Expected to find field type references"
     );
 
-    // Struct literals
     let config_literals: Vec<_> = result
         .references
         .iter()
@@ -109,14 +104,12 @@ func main() {
         "Expected to find Config struct literals"
     );
 
-    // Call graph: incoming chains (struct usage)
     let incoming = graph.find_incoming_chains("Handler", 1);
     assert!(
         !incoming.is_empty(),
         "Expected to find incoming references to Handler"
     );
 
-    // Call graph: outgoing chains (methods on Handler)
     let outgoing = graph.find_outgoing_chains("Handler", 1);
     assert!(!outgoing.is_empty(), "Expected to find methods on Handler");
 }

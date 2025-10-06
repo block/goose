@@ -12,17 +12,17 @@
 //! 2. Define `ELEMENT_QUERY` and `CALL_QUERY` constants
 //! 3. Optionally define `REFERENCE_QUERY` for advanced type tracking
 //! 4. Add `pub mod yourlang;` below
-//! 5. **Add a single case to `get_language_info()`** - that's it!
+//! 5. Add language configuration to registry in `get_language_info()`
 //!
 //! ## Optional Features
 //!
 //! Languages can opt into additional features by implementing:
 //!
-//! - **Reference tracking**: Define `REFERENCE_QUERY` to track type instantiation,
+//! - Reference tracking: Define `REFERENCE_QUERY` to track type instantiation,
 //!   field types, and method-to-type associations (see Go and Ruby)
-//! - **Custom function naming**: Implement `extract_function_name_for_kind()` for
+//! - Custom function naming: Implement `extract_function_name_for_kind()` for
 //!   special cases like Swift's init/deinit or Rust's impl blocks
-//! - **Method receiver lookup**: Implement `find_method_for_receiver()` to associate
+//! - Method receiver lookup: Implement `find_method_for_receiver()` to associate
 //!   methods with their containing types (see Go and Ruby)
 
 pub mod go;
@@ -33,6 +33,12 @@ pub mod python;
 pub mod ruby;
 pub mod rust;
 pub mod swift;
+
+/// Handler for extracting function names from special node kinds
+type ExtractFunctionNameHandler = fn(&tree_sitter::Node, &str, &str) -> Option<String>;
+
+/// Handler for finding method names from receiver nodes
+type FindMethodForReceiverHandler = fn(&tree_sitter::Node, &str) -> Option<String>;
 
 /// Language configuration containing all language-specific information
 ///
@@ -50,15 +56,12 @@ struct LanguageInfo {
     /// Node kinds that represent function name identifiers
     function_name_kinds: &'static [&'static str],
     /// Optional handler for language-specific function name extraction
-    extract_function_name_handler: Option<fn(&tree_sitter::Node, &str, &str) -> Option<String>>,
+    extract_function_name_handler: Option<ExtractFunctionNameHandler>,
     /// Optional handler for finding method names from receiver nodes
-    find_method_for_receiver_handler: Option<fn(&tree_sitter::Node, &str) -> Option<String>>,
+    find_method_for_receiver_handler: Option<FindMethodForReceiverHandler>,
 }
 
-/// Get language configuration - SINGLE SOURCE OF TRUTH
-///
-/// Add new languages here. This is the only place you need to update
-/// when adding support for a new language.
+/// Language configuration registry
 fn get_language_info(language: &str) -> Option<LanguageInfo> {
     match language {
         "python" => Some(LanguageInfo {

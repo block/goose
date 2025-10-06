@@ -28,16 +28,13 @@ end
         let tree = parser.parse(source, "ruby").unwrap();
         let result = ElementExtractor::extract_elements(&tree, source, "ruby").unwrap();
 
-        // Should find MyClass
         assert_eq!(result.class_count, 1);
         assert!(result.classes.iter().any(|c| c.name == "MyClass"));
 
-        // Should find methods
         assert!(result.function_count > 0);
         assert!(result.functions.iter().any(|f| f.name == "initialize"));
         assert!(result.functions.iter().any(|f| f.name == "greet"));
 
-        // Should find require statement
         assert!(result.import_count > 0);
     }
 
@@ -55,7 +52,6 @@ end
         let tree = parser.parse(source, "ruby").unwrap();
         let result = ElementExtractor::extract_elements(&tree, source, "ruby").unwrap();
 
-        // attr_* should be recognized as functions
         assert!(
             result.function_count >= 3,
             "Expected at least 3 functions from attr_* declarations, got {}",
@@ -97,7 +93,6 @@ end
         let result =
             ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
 
-        // Should find method calls
         assert!(result.calls.len() > 0, "Should find method calls");
         assert!(result.calls.iter().any(|c| c.callee_name == "puts"));
     }
@@ -144,20 +139,17 @@ end
         let result =
             ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
 
-        // Should find class definitions
         assert_eq!(result.class_count, 2);
         let class_names: HashSet<_> = result.classes.iter().map(|c| c.name.as_str()).collect();
         assert!(class_names.contains("User"));
         assert!(class_names.contains("Post"));
 
-        // Should find method definitions
         assert!(result.function_count > 0);
         let method_names: HashSet<_> = result.functions.iter().map(|f| f.name.as_str()).collect();
         assert!(method_names.contains("initialize"));
         assert!(method_names.contains("greet"));
         assert!(method_names.contains("publish"));
 
-        // Should find constant definitions
         let constant_refs: Vec<_> = result
             .references
             .iter()
@@ -168,7 +160,6 @@ end
             "Expected to find constant references"
         );
 
-        // Should find class instantiation (User.new, Post.new)
         let instantiations: Vec<_> = result
             .references
             .iter()
@@ -183,7 +174,6 @@ end
         assert!(instantiated_types.contains("User"));
         assert!(instantiated_types.contains("Post"));
 
-        // Should find constant usage in method calls
         let constant_usages: Vec<_> = result
             .references
             .iter()
@@ -199,7 +189,6 @@ end
     fn test_ruby_call_chains() {
         let parser = ParserManager::new();
 
-        // First file: defines User class
         let file1 = r#"
 class User
   def initialize(name)
@@ -216,7 +205,6 @@ class User
 end
 "#;
 
-        // Second file: uses User class
         let file2 = r#"
 require_relative 'user'
 
@@ -230,7 +218,6 @@ def show_user(name)
 end
 "#;
 
-        // Parse both files
         let tree1 = parser.parse(file1, "ruby").unwrap();
         let result1 =
             ElementExtractor::extract_with_depth(&tree1, file1, "ruby", "semantic").unwrap();
@@ -239,35 +226,30 @@ end
         let result2 =
             ElementExtractor::extract_with_depth(&tree2, file2, "ruby", "semantic").unwrap();
 
-        // Build call graph
         let results = vec![
             (PathBuf::from("user.rb"), result1),
             (PathBuf::from("main.rb"), result2),
         ];
         let graph = CallGraph::build_from_results(&results);
 
-        // Test: User class should have incoming references (instantiation)
         let incoming_user = graph.find_incoming_chains("User", 1);
         assert!(
             !incoming_user.is_empty(),
             "Expected incoming references to User class"
         );
 
-        // Test: display method should have outgoing calls
         let outgoing_display = graph.find_outgoing_chains("display", 1);
         assert!(
             !outgoing_display.is_empty(),
             "Expected display to call format_output"
         );
 
-        // Test: create_user should have outgoing chains (deeper depth)
         let outgoing_create = graph.find_outgoing_chains("create_user", 2);
         assert!(
             !outgoing_create.is_empty(),
             "Expected create_user to have call chains"
         );
 
-        // Test: show_user calls create_user (incoming chain)
         let incoming_create = graph.find_incoming_chains("create_user", 1);
         assert!(
             !incoming_create.is_empty(),

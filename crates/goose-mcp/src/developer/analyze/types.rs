@@ -2,13 +2,10 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Parameters for the analyze tool
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
-    /// Absolute path. Step 1: Directory for overview. Step 2: File for details. Step 3: Directory with focus param for call graphs
     pub path: String,
 
-    /// Symbol name for call graph analysis (Step 3). Requires directory path with broad enough scope to capture all relevant symbol references
     pub focus: Option<String>,
 
     /// Call graph depth. 0=where defined, 1=direct callers/callees, 2+=transitive chains
@@ -64,11 +61,11 @@ pub struct ClassInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallInfo {
-    pub caller_name: Option<String>, // Function containing this call
-    pub callee_name: String,         // Function being called
+    pub caller_name: Option<String>,
+    pub callee_name: String,
     pub line: usize,
     pub column: usize,
-    pub context: String, // Line of code containing the call
+    pub context: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
