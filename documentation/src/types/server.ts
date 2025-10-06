@@ -14,4 +14,9 @@ export interface MCPServer {
     description: string;
     required: boolean;
   }[];
+  headers?: {
+    name: string;
+    description: string;
+    required: boolean;
+  }[];
 }
