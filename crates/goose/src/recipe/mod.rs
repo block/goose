@@ -309,24 +309,51 @@ impl Recipe {
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe =
+        // Use YAML as the common format since JSON is a subset of YAML (always safe conversion)
+        let mut value: serde_yaml::Value =
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
-                if let Some(nested_recipe) = json_value.get("recipe") {
-                    serde_json::from_value(nested_recipe.clone())?
+                let json_val = if let Some(nested_recipe) = json_value.get("recipe") {
+                    nested_recipe.clone()
                 } else {
-                    serde_json::from_str(content)?
-                }
+                    json_value
+                };
+                // Convert JSON value to YAML value (always safe - JSON is subset of YAML)
+                serde_yaml::to_value(json_val)?
             } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
                 if let Some(nested_recipe) = yaml_value.get("recipe") {
-                    serde_yaml::from_value(nested_recipe.clone())?
+                    nested_recipe.clone()
                 } else {
-                    serde_yaml::from_str(content)?
+                    yaml_value
                 }
             } else {
                 return Err(anyhow::anyhow!(
                     "Unsupported format. Expected JSON or YAML."
                 ));
             };
+
+        // Fix null/empty descriptions in extensions before deserialization
+        if let Some(extensions) = value.get_mut("extensions").and_then(|v| v.as_sequence_mut()) {
+            for ext in extensions.iter_mut() {
+                if let Some(obj) = ext.as_mapping_mut() {
+                    let name_key = serde_yaml::Value::String("name".to_string());
+                    let desc_key = serde_yaml::Value::String("description".to_string());
+
+                    if let Some(name) = obj.get(&name_key).and_then(|n| n.as_str()) {
+                        let desc_is_invalid = obj
+                            .get(&desc_key)
+                            .map(|d| d.is_null() || (d.is_string() && d.as_str().unwrap_or("").is_empty()))
+                            .unwrap_or(false);
+
+                        if desc_is_invalid {
+                            obj.insert(desc_key, serde_yaml::Value::String(name.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Now deserialize into Recipe struct
+        let recipe: Recipe = serde_yaml::from_value(value)?;
 
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
