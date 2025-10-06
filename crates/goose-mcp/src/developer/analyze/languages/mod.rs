@@ -38,7 +38,8 @@ pub mod swift;
 type ExtractFunctionNameHandler = fn(&tree_sitter::Node, &str, &str) -> Option<String>;
 
 /// Handler for finding method names from receiver nodes
-type FindMethodForReceiverHandler = fn(&tree_sitter::Node, &str) -> Option<String>;
+/// Takes: (receiver_node, source, ast_recursion_limit)
+type FindMethodForReceiverHandler = fn(&tree_sitter::Node, &str, Option<usize>) -> Option<String>;
 
 /// Language configuration containing all language-specific information
 ///
@@ -63,6 +64,8 @@ pub struct LanguageInfo {
 }
 
 /// Get language configuration for a given language
+///
+/// Returns `Some(LanguageInfo)` if the language is supported, `None` otherwise.
 pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
     match language {
         "python" => Some(LanguageInfo {

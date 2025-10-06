@@ -81,7 +81,7 @@ impl CodeAnalyzer {
             AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser)?,
             AnalysisMode::Semantic => {
                 if path.is_file() {
-                    let result = self.analyze_file(&path, &mode)?;
+                    let result = self.analyze_file(&path, &mode, &params)?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
                     self.analyze_directory(&path, &params, &traverser, &mode)?
@@ -89,7 +89,7 @@ impl CodeAnalyzer {
             }
             AnalysisMode::Structure => {
                 if path.is_file() {
-                    let result = self.analyze_file(&path, &mode)?;
+                    let result = self.analyze_file(&path, &mode, &params)?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
                     self.analyze_directory(&path, &params, &traverser, &mode)?
@@ -150,7 +150,12 @@ impl CodeAnalyzer {
         }
     }
 
-    fn analyze_file(&self, path: &Path, mode: &AnalysisMode) -> Result<AnalysisResult, ErrorData> {
+    fn analyze_file(
+        &self,
+        path: &Path,
+        mode: &AnalysisMode,
+        params: &AnalyzeParams,
+    ) -> Result<AnalysisResult, ErrorData> {
         tracing::debug!("Analyzing file {:?} in {:?} mode", path, mode);
 
         let metadata = std::fs::metadata(path).map_err(|e| {
@@ -209,7 +214,13 @@ impl CodeAnalyzer {
         let tree = self.parser_manager.parse(&content, language)?;
 
         let depth = mode.as_str();
-        let mut result = ElementExtractor::extract_with_depth(&tree, &content, language, depth)?;
+        let mut result = ElementExtractor::extract_with_depth(
+            &tree,
+            &content,
+            language,
+            depth,
+            params.ast_recursion_limit,
+        )?;
 
         result.line_count = line_count;
 
@@ -230,7 +241,7 @@ impl CodeAnalyzer {
         let mode = *mode;
 
         let results = traverser.collect_directory_results(path, params.max_depth, |file_path| {
-            self.analyze_file(file_path, &mode)
+            self.analyze_file(file_path, &mode, params)
         })?;
 
         Ok(Formatter::format_directory_structure(
@@ -272,7 +283,7 @@ impl CodeAnalyzer {
         let all_results: Result<Vec<_>, _> = files_to_analyze
             .par_iter()
             .map(|file_path| {
-                self.analyze_file(file_path, &AnalysisMode::Semantic)
+                self.analyze_file(file_path, &AnalysisMode::Semantic, params)
                     .map(|result| (file_path.clone(), result))
             })
             .collect();

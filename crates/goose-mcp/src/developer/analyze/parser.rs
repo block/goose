@@ -111,6 +111,7 @@ impl ElementExtractor {
         source: &str,
         language: &str,
         depth: &str,
+        ast_recursion_limit: Option<usize>,
     ) -> Result<AnalysisResult, ErrorData> {
         use crate::developer::analyze::languages;
 
@@ -147,7 +148,8 @@ impl ElementExtractor {
             // - Method-to-type associations
             if let Some(info) = languages::get_language_info(language) {
                 if !info.reference_query.is_empty() {
-                    let references = Self::extract_references(tree, source, language)?;
+                    let references =
+                        Self::extract_references(tree, source, language, ast_recursion_limit)?;
                     result.references.extend(references);
                 }
             }
@@ -325,6 +327,7 @@ impl ElementExtractor {
         tree: &Tree,
         source: &str,
         language: &str,
+        ast_recursion_limit: Option<usize>,
     ) -> Result<Vec<ReferenceInfo>, ErrorData> {
         use crate::developer::analyze::languages;
         use tree_sitter::{Query, QueryCursor};
@@ -370,8 +373,12 @@ impl ElementExtractor {
 
                 let (ref_type, symbol, associated_type) = match capture_name {
                     "method.receiver" => {
-                        let method_name =
-                            Self::find_method_name_for_receiver(&node, source, language);
+                        let method_name = Self::find_method_name_for_receiver(
+                            &node,
+                            source,
+                            language,
+                            ast_recursion_limit,
+                        );
                         if let Some(method_name) = method_name {
                             (
                                 ReferenceType::MethodDefinition,
@@ -412,12 +419,13 @@ impl ElementExtractor {
         receiver_node: &tree_sitter::Node,
         source: &str,
         language: &str,
+        ast_recursion_limit: Option<usize>,
     ) -> Option<String> {
         use crate::developer::analyze::languages;
 
         languages::get_language_info(language)
             .and_then(|info| info.find_method_for_receiver_handler)
-            .and_then(|handler| handler(receiver_node, source))
+            .and_then(|handler| handler(receiver_node, source, ast_recursion_limit))
     }
 
     fn find_containing_function(

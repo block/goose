@@ -16,6 +16,10 @@ pub struct AnalyzeParams {
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
 
+    /// Maximum depth for recursive AST traversal (prevents stack overflow in deeply nested code)
+    #[serde(default)]
+    pub ast_recursion_limit: Option<usize>,
+
     /// Allow large outputs without warning (default: false)
     #[serde(default)]
     pub force: bool,

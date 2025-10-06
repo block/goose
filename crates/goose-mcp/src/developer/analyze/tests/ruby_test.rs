@@ -91,9 +91,9 @@ end
 
         let tree = parser.parse(source, "ruby").unwrap();
         let result =
-            ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
+            ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic", None).unwrap();
 
-        assert!(result.calls.len() > 0, "Should find method calls");
+        assert!(!result.calls.is_empty(), "Should find method calls");
         assert!(result.calls.iter().any(|c| c.callee_name == "puts"));
     }
 
@@ -137,7 +137,7 @@ end
 
         let tree = parser.parse(source, "ruby").unwrap();
         let result =
-            ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic").unwrap();
+            ElementExtractor::extract_with_depth(&tree, source, "ruby", "semantic", None).unwrap();
 
         assert_eq!(result.class_count, 2);
         let class_names: HashSet<_> = result.classes.iter().map(|c| c.name.as_str()).collect();
@@ -220,11 +220,11 @@ end
 
         let tree1 = parser.parse(file1, "ruby").unwrap();
         let result1 =
-            ElementExtractor::extract_with_depth(&tree1, file1, "ruby", "semantic").unwrap();
+            ElementExtractor::extract_with_depth(&tree1, file1, "ruby", "semantic", None).unwrap();
 
         let tree2 = parser.parse(file2, "ruby").unwrap();
         let result2 =
-            ElementExtractor::extract_with_depth(&tree2, file2, "ruby", "semantic").unwrap();
+            ElementExtractor::extract_with_depth(&tree2, file2, "ruby", "semantic", None).unwrap();
 
         let results = vec![
             (PathBuf::from("user.rb"), result1),

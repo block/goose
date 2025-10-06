@@ -7,7 +7,7 @@ use std::path::PathBuf;
 fn parse_and_extract(code: &str) -> AnalysisResult {
     let manager = ParserManager::new();
     let tree = manager.parse(code, "go").unwrap();
-    ElementExtractor::extract_with_depth(&tree, code, "go", "semantic").unwrap()
+    ElementExtractor::extract_with_depth(&tree, code, "go", "semantic", None).unwrap()
 }
 
 fn build_test_graph(files: Vec<(&str, &str)>) -> CallGraph {
@@ -17,7 +17,7 @@ fn build_test_graph(files: Vec<(&str, &str)>) -> CallGraph {
         .map(|(path, code)| {
             let tree = manager.parse(code, "go").unwrap();
             let result =
-                ElementExtractor::extract_with_depth(&tree, code, "go", "semantic").unwrap();
+                ElementExtractor::extract_with_depth(&tree, code, "go", "semantic", None).unwrap();
             (PathBuf::from(*path), result)
         })
         .collect();
@@ -75,7 +75,7 @@ func main() {
         .iter()
         .filter(|r| {
             r.ref_type == ReferenceType::MethodDefinition
-                && r.associated_type.as_ref().map(|s| s.as_str()) == Some("Handler")
+                && r.associated_type.as_deref() == Some("Handler")
         })
         .collect();
     assert!(

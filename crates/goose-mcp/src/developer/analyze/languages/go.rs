@@ -76,7 +76,11 @@ pub const REFERENCE_QUERY: &str = r#"
 ///
 /// This walks up the tree to find the method_declaration parent and extracts
 /// the method name, used for associating methods with their receiver types.
-pub fn find_method_for_receiver(receiver_node: &tree_sitter::Node, source: &str) -> Option<String> {
+pub fn find_method_for_receiver(
+    receiver_node: &tree_sitter::Node,
+    source: &str,
+    _ast_recursion_limit: Option<usize>,
+) -> Option<String> {
     let mut current = *receiver_node;
     while let Some(parent) = current.parent() {
         if parent.kind() == "method_declaration" {

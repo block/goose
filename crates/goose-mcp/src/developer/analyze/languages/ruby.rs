@@ -87,13 +87,19 @@ pub const REFERENCE_QUERY: &str = r#"
 ///
 /// For Ruby, the receiver_node is the class constant. This finds methods
 /// within that class node, used for associating methods with their classes.
-pub fn find_method_for_receiver(receiver_node: &tree_sitter::Node, source: &str) -> Option<String> {
+pub fn find_method_for_receiver(
+    receiver_node: &tree_sitter::Node,
+    source: &str,
+    ast_recursion_limit: Option<usize>,
+) -> Option<String> {
+    let max_depth = ast_recursion_limit.unwrap_or(10);
+
     // For Ruby, receiver_node is the class constant
     if receiver_node.kind() == "constant" {
         let mut current = *receiver_node;
         while let Some(parent) = current.parent() {
             if parent.kind() == "class" {
-                return find_first_method_in_class(&parent, source);
+                return find_first_method_in_class(&parent, source, max_depth);
             }
             current = parent;
         }
@@ -102,19 +108,32 @@ pub fn find_method_for_receiver(receiver_node: &tree_sitter::Node, source: &str)
 }
 
 /// Find the first method name within a Ruby class node
-fn find_first_method_in_class(class_node: &tree_sitter::Node, source: &str) -> Option<String> {
+fn find_first_method_in_class(
+    class_node: &tree_sitter::Node,
+    source: &str,
+    max_depth: usize,
+) -> Option<String> {
     for i in 0..class_node.child_count() {
         if let Some(child) = class_node.child(i) {
             if child.kind() == "body_statement" {
-                return find_method_in_body(&child, source);
+                return find_method_in_body_with_depth(&child, source, 0, max_depth);
             }
         }
     }
     None
 }
 
-/// Recursively find a method within a body_statement node
-fn find_method_in_body(node: &tree_sitter::Node, source: &str) -> Option<String> {
+/// Recursively find a method within a body_statement node with depth limit
+fn find_method_in_body_with_depth(
+    node: &tree_sitter::Node,
+    source: &str,
+    depth: usize,
+    max_depth: usize,
+) -> Option<String> {
+    if depth >= max_depth {
+        return None;
+    }
+
     for i in 0..node.child_count() {
         if let Some(child) = node.child(i) {
             if child.kind() == "method" {
