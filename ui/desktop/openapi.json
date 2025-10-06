@@ -1206,6 +1206,35 @@
         }
       }
     },
+    "/reply": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "reply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Streaming response initiated"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -1749,6 +1778,54 @@
         ]
       }
     },
+    "/sessions/{session_id}/user_recipe_values": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_user_recipe_values",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionUserRecipeValuesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session user recipe values updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/status": {
       "get": {
         "tags": [
@@ -1842,6 +1919,32 @@
           "metadata": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "messages",
+          "session_id"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -2049,19 +2152,9 @@
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
-          "messages",
-          "title",
-          "description",
           "session_id"
         ],
         "properties": {
-          "activities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
           "author": {
             "allOf": [
               {
@@ -2070,19 +2163,7 @@
             ],
             "nullable": true
           },
-          "description": {
-            "type": "string"
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            }
-          },
           "session_id": {
-            "type": "string"
-          },
-          "title": {
             "type": "string"
           }
         }
@@ -2258,6 +2339,7 @@
             "description": "Server-sent events client with a URI endpoint",
             "required": [
               "name",
+              "description",
               "uri",
               "type"
             ],
@@ -2270,12 +2352,10 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "description": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "env_keys": {
                 "type": "array",
@@ -2312,6 +2392,7 @@
             "description": "Standard I/O client with command and arguments",
             "required": [
               "name",
+              "description",
               "cmd",
               "args",
               "type"
@@ -2331,15 +2412,13 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "cmd": {
                 "type": "string"
               },
               "description": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "env_keys": {
                 "type": "array",
@@ -2370,9 +2449,10 @@
           },
           {
             "type": "object",
-            "description": "Built-in extension that is part of the goose binary",
+            "description": "Built-in extension that is part of the bundled goose MCP server",
             "required": [
               "name",
+              "description",
               "type"
             ],
             "properties": {
@@ -2384,12 +2464,10 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "description": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "display_name": {
                 "type": "string",
@@ -2415,9 +2493,44 @@
           },
           {
             "type": "object",
+            "description": "Platform extensions that have direct access to the agent etc and run in the agent process",
+            "required": [
+              "name",
+              "description",
+              "type"
+            ],
+            "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "bundled": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "platform"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification",
             "required": [
               "name",
+              "description",
               "uri",
               "type"
             ],
@@ -2430,12 +2543,10 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "description": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "env_keys": {
                 "type": "array",
@@ -2478,6 +2589,7 @@
             "description": "Frontend-provided tools that will be called through the frontend",
             "required": [
               "name",
+              "description",
               "tools",
               "type"
             ],
@@ -2490,8 +2602,10 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with goose",
                 "nullable": true
+              },
+              "description": {
+                "type": "string"
               },
               "instructions": {
                 "type": "string",
@@ -2522,6 +2636,7 @@
             "description": "Inline Python code that will be executed using uvx",
             "required": [
               "name",
+              "description",
               "code",
               "type"
             ],
@@ -2545,9 +2660,7 @@
                 "nullable": true
               },
               "description": {
-                "type": "string",
-                "description": "Description of what the extension does",
-                "nullable": true
+                "type": "string"
               },
               "name": {
                 "type": "string",
@@ -3788,6 +3901,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "user_recipe_values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "working_dir": {
             "type": "string"
           }
@@ -4289,6 +4409,21 @@
           "description": {
             "type": "string",
             "description": "Updated description (name) for the session (max 200 characters)"
+          }
+        }
+      },
+      "UpdateSessionUserRecipeValuesRequest": {
+        "type": "object",
+        "required": [
+          "userRecipeValues"
+        ],
+        "properties": {
+          "userRecipeValues": {
+            "type": "object",
+            "description": "Recipe parameter values entered by the user",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },

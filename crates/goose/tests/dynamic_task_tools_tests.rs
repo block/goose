@@ -176,7 +176,8 @@ mod tests {
             "extensions": [
                 {
                     "type": "builtin",
-                    "name": "developer"
+                    "name": "developer",
+                    "description": "developer"
                 }
             ]
         });
@@ -421,6 +422,7 @@ mod tests {
                 {
                     "type": "stdio",
                     "name": "custom",
+                    "description": "Custom stdio",
                     "cmd": "echo",
                     "args": ["test"]
                 }

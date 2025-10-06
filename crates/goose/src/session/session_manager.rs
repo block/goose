@@ -11,6 +11,7 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Pool, Sqlite};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 1;
+const CURRENT_SCHEMA_VERSION: i32 = 2;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -39,6 +40,7 @@ pub struct Session {
     pub accumulated_output_tokens: Option<i32>,
     pub schedule_id: Option<String>,
     pub recipe: Option<Recipe>,
+    pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
 }
@@ -56,6 +58,7 @@ pub struct SessionUpdateBuilder {
     accumulated_output_tokens: Option<Option<i32>>,
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
+    user_recipe_values: Option<Option<HashMap<String, String>>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -82,6 +85,7 @@ impl SessionUpdateBuilder {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe: None,
+            user_recipe_values: None,
         }
     }
 
@@ -140,6 +144,14 @@ impl SessionUpdateBuilder {
         self
     }
 
+    pub fn user_recipe_values(
+        mut self,
+        user_recipe_values: Option<HashMap<String, String>>,
+    ) -> Self {
+        self.user_recipe_values = Some(user_recipe_values);
+        self
+    }
+
     pub async fn apply(self) -> Result<()> {
         SessionManager::apply_update(self).await
     }
@@ -156,36 +168,10 @@ impl SessionManager {
     }
 
     pub async fn create_session(working_dir: PathBuf, description: String) -> Result<Session> {
-        let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let storage = Self::instance().await?;
-
-        let mut tx = storage.pool.begin().await?;
-
-        let max_idx = sqlx::query_scalar::<_, Option<i32>>(
-            "SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER)) FROM sessions WHERE id LIKE ?",
-        )
-        .bind(format!("{}_%", today))
-        .fetch_one(&mut *tx)
-        .await?
-        .unwrap_or(0);
-
-        let session_id = format!("{}_{}", today, max_idx + 1);
-
-        sqlx::query(
-            r#"
-        INSERT INTO sessions (id, description, working_dir, extension_data)
-        VALUES (?, ?, ?, '{}')
-    "#,
-        )
-        .bind(&session_id)
-        .bind(&description)
-        .bind(working_dir.to_string_lossy().as_ref())
-        .execute(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-
-        Self::get_session(&session_id, false).await
+        Self::instance()
+            .await?
+            .create_session(working_dir, description)
+            .await
     }
 
     pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
@@ -291,6 +277,7 @@ impl Default for Session {
             accumulated_output_tokens: None,
             schedule_id: None,
             recipe: None,
+            user_recipe_values: None,
             conversation: None,
             message_count: 0,
         }
@@ -311,6 +298,10 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let recipe_json: Option<String> = row.try_get("recipe_json")?;
         let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let user_recipe_values_json: Option<String> = row.try_get("user_recipe_values_json")?;
+        let user_recipe_values =
+            user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
@@ -327,6 +318,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
             schedule_id: row.try_get("schedule_id")?,
             recipe,
+            user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
         })
@@ -412,7 +404,8 @@ impl SessionStorage {
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
-                recipe_json TEXT
+                recipe_json TEXT,
+                user_recipe_values_json TEXT
             )
         "#,
         )
@@ -498,14 +491,19 @@ impl SessionStorage {
             None => None,
         };
 
+        let user_recipe_values_json = match &session.user_recipe_values {
+            Some(user_recipe_values) => Some(serde_json::to_string(user_recipe_values)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
             id, description, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, user_recipe_values_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(&session.id)
@@ -522,6 +520,7 @@ impl SessionStorage {
         .bind(session.accumulated_output_tokens)
         .bind(&session.schedule_id)
         .bind(recipe_json)
+        .bind(user_recipe_values_json)
         .execute(&self.pool)
         .await?;
 
@@ -598,6 +597,15 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            2 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN user_recipe_values_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -606,13 +614,39 @@ impl SessionStorage {
         Ok(())
     }
 
+    async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
+        let today = chrono::Utc::now().format("%Y%m%d").to_string();
+        Ok(sqlx::query_as(
+            r#"
+                INSERT INTO sessions (id, description, working_dir, extension_data)
+                VALUES (
+                    ? || '_' || CAST(COALESCE((
+                        SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
+                        FROM sessions
+                        WHERE id LIKE ? || '_%'
+                    ), 0) + 1 AS TEXT),
+                    ?,
+                    ?,
+                    '{}'
+                )
+                RETURNING *
+                "#,
+        )
+        .bind(&today)
+        .bind(&today)
+        .bind(&description)
+        .bind(working_dir.to_string_lossy().as_ref())
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         let mut session = sqlx::query_as::<_, Session>(
             r#"
         SELECT id, working_dir, description, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json
+               schedule_id, recipe_json, user_recipe_values_json
         FROM sessions
         WHERE id = ?
     "#,
@@ -669,6 +703,7 @@ impl SessionStorage {
         );
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
+        add_update!(builder.user_recipe_values, "user_recipe_values_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -714,6 +749,12 @@ impl SessionStorage {
         if let Some(recipe) = builder.recipe {
             let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
             q = q.bind(recipe_json);
+        }
+        if let Some(user_recipe_values) = builder.user_recipe_values {
+            let user_recipe_values_json = user_recipe_values
+                .map(|urv| serde_json::to_string(&urv))
+                .transpose()?;
+            q = q.bind(user_recipe_values_json);
         }
 
         q = q.bind(&builder.session_id);
@@ -805,7 +846,7 @@ impl SessionStorage {
         SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json,
+               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                COUNT(m.id) as message_count
         FROM sessions s
         INNER JOIN messages m ON s.id = m.session_id
@@ -857,5 +898,107 @@ impl SessionStorage {
             total_sessions: row.0 as usize,
             total_tokens: row.1.unwrap_or(0),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::{Message, MessageContent};
+    use tempfile::TempDir;
+
+    const NUM_CONCURRENT_SESSIONS: i32 = 10;
+
+    #[tokio::test]
+    async fn test_concurrent_session_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_sessions.db");
+
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let mut handles = vec![];
+
+        for i in 0..NUM_CONCURRENT_SESSIONS {
+            let session_storage = Arc::clone(&storage);
+            let handle = tokio::spawn(async move {
+                let working_dir = PathBuf::from(format!("/tmp/test_{}", i));
+                let description = format!("Test session {}", i);
+
+                let session = session_storage
+                    .create_session(working_dir.clone(), description)
+                    .await
+                    .unwrap();
+
+                session_storage
+                    .add_message(
+                        &session.id,
+                        &Message {
+                            id: None,
+                            role: Role::User,
+                            created: chrono::Utc::now().timestamp_millis(),
+                            content: vec![MessageContent::text("hello world")],
+                            metadata: Default::default(),
+                        },
+                    )
+                    .await
+                    .unwrap();
+
+                session_storage
+                    .add_message(
+                        &session.id,
+                        &Message {
+                            id: None,
+                            role: Role::Assistant,
+                            created: chrono::Utc::now().timestamp_millis(),
+                            content: vec![MessageContent::text("sup world?")],
+                            metadata: Default::default(),
+                        },
+                    )
+                    .await
+                    .unwrap();
+
+                session_storage
+                    .apply_update(
+                        SessionUpdateBuilder::new(session.id.clone())
+                            .description(format!("Updated session {}", i))
+                            .total_tokens(Some(100 * i)),
+                    )
+                    .await
+                    .unwrap();
+
+                let updated = session_storage
+                    .get_session(&session.id, true)
+                    .await
+                    .unwrap();
+                assert_eq!(updated.message_count, 2);
+                assert_eq!(updated.total_tokens, Some(100 * i));
+
+                session.id
+            });
+            handles.push(handle);
+        }
+
+        let mut results = vec![];
+        for handle in handles {
+            results.push(handle.await.unwrap());
+        }
+
+        assert_eq!(results.len(), NUM_CONCURRENT_SESSIONS as usize);
+
+        let unique_ids: std::collections::HashSet<_> = results.iter().collect();
+        assert_eq!(unique_ids.len(), NUM_CONCURRENT_SESSIONS as usize);
+
+        let sessions = storage.list_sessions().await.unwrap();
+        assert_eq!(sessions.len(), NUM_CONCURRENT_SESSIONS as usize);
+
+        for session in &sessions {
+            assert_eq!(session.message_count, 2);
+            assert!(session.description.starts_with("Updated session"));
+        }
+
+        let insights = storage.get_insights().await.unwrap();
+        assert_eq!(insights.total_sessions, NUM_CONCURRENT_SESSIONS as usize);
+        let expected_tokens = 100 * NUM_CONCURRENT_SESSIONS * (NUM_CONCURRENT_SESSIONS - 1) / 2;
+        assert_eq!(insights.total_tokens, expected_tokens as i64);
     }
 }

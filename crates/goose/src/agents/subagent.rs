@@ -1,8 +1,7 @@
 use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
-    agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
-    config::ExtensionConfigManager,
+    config::get_all_extensions,
     prompt_template::render_global_file,
     providers::errors::ProviderError,
 };
@@ -68,12 +67,11 @@ impl SubAgent {
             extensions.clone()
         } else {
             // Default behavior: use all enabled extensions
-            ExtensionConfigManager::get_all()
-                .unwrap_or_default()
+            get_all_extensions()
                 .into_iter()
                 .filter(|ext| ext.enabled)
                 .map(|ext| ext.config)
-                .collect::<Vec<ExtensionConfig>>()
+                .collect()
         };
 
         // Add the determined extensions to the subagent's extension manager
