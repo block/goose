@@ -4,12 +4,6 @@ export type EnvironmentVariable = {
   required: boolean;
 };
 
-export type Header = {
-  name: string;
-  description: string;
-  required: boolean;
-};
-
 export type Extension = {
   name: string;
   command?: string;
@@ -18,7 +12,6 @@ export type Extension = {
   link?: string;
   installation_notes?: string;
   environmentVariables?: EnvironmentVariable[];
-  headers?: Header[];
 };
 
 export type Prompt = {
