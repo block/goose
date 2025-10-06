@@ -55,17 +55,17 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 ## Example Usage
 
-The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
+The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases. Learn more about Apify Actors in the [official documentation](https://docs.apify.com/platform/actors)
 
 In this example, Goose will use the [RAG Website Browser](https://console.apify.com/actors/3ox4R101TgZz67sLr/input) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
 
-#### Goose Prompt
+### Goose Prompt
 
 ```
 ( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes).
 ```
 
-#### Goose Output
+### Goose Output
 
 ```
 Here are some top-rated Italian restaurants in Prague that meet your criteria for verifiable credibility:
