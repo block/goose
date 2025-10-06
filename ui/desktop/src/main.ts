@@ -174,9 +174,10 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
   app.setAsDefaultProtocolClient('goose');
 }
 
-// Only apply single instance lock on Windows where it's needed for deep links
+// Apply single instance lock on Windows and Linux where it's needed for deep links
+// macOS uses the 'open-url' event instead
 let gotTheLock = true;
-if (process.platform === 'win32') {
+if (process.platform !== 'darwin') {
   gotTheLock = app.requestSingleInstanceLock();
 
   if (!gotTheLock) {
@@ -226,7 +227,7 @@ if (process.platform === 'win32') {
     });
   }
 
-  // Handle protocol URLs on Windows startup
+  // Handle protocol URLs on Windows and Linux startup
   const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
   if (protocolUrl) {
     app.whenReady().then(() => {
