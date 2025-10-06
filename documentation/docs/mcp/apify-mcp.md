@@ -57,56 +57,56 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
 
-In this example, Goose will find an Actor for [scraping LinkedIn posts](https://apify.com/store/categories?search=linkedin) to perform a quick research.
+In this example, Goose will find an Actor for [Apify RAG Scraper](https://apify.com/store/categories?search=linkedin) to perform a quick research.
 
 #### Goose Prompt
 
 ```
-( O)> Use the LinkedIn Posts Search Scraper to find all posts mentioning 'artificial intelligence' AND 'healthcare' from the past month. Extract post content, author information, company affiliations, and engagement metrics. Sort by relevance and identify thought leaders in healthcare AI.
+( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes).
 ```
 
 #### Goose Output
 
 ```
+Here are some top-rated Italian restaurants in Prague that meet your criteria for verifiable credibility:
 
-The search for LinkedIn posts mentioning **"artificial intelligence"** and **"healthcare"** from the past month has returned a total of **48 posts**. Here’s a summary of the first **29 results**:
+### 1. [Divinis](https://guide.michelin.com/us/en/prague/prague/restaurant/divinis)
+- **Rating:** 4.7
+- **Review Count:** Approximately 200+ on Google
+- **Address:** Prague, Czechia
+- **Cuisine Style:** Italian
+- **Summary:** Divinis is celebrated for its creative Italian cuisine, featuring a selection of fresh pasta and seafood dishes. The ambiance is elegant yet cozy, making it perfect for date nights. The restaurant holds a Michelin Bib Gourmand designation, indicating good quality at a reasonable price.
 
-### Sample Results
-1. **[Post by Dr. Samitria Beasley](https://www.linkedin.com/posts/dr-samitria-beasley-dha-mba-cpc-crc-401b9b70_ai-in-healthcare-will-change-many-careers-activity-7378540378960064512-8N1L?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAF8LBu8BX77nJLnHq2BuG0Oqb7swvZMxG94)**  
-   - **Content:** "AI in Healthcare will change many careers."  
-   - **Author:** Dr. Samitria Beasley  
-   - **Profile:** [Link](https://www.linkedin.com/in/dr-samitria-beasley-dha-mba-cpc-crc-401b9b70?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAA8gKYEBuqDo_9hdw-oKEGJo0zaLatRClcg)  
-   - **Engagement:** 5 reactions  
+### 2. [CottoCrudo](https://guide.michelin.com/us/en/prague/prague/restaurant/cottocrudo)
+- **Rating:** 4.7+
+- **Review Count:** Over 200 reviews on various platforms
+- **Address:** Prague, Czechia
+- **Cuisine Style:** Italian
+- **Summary:** Located in the Four Seasons Hotel, CottoCrudo offers a luxurious dining experience with a focus on authentic Italian flavors prepared with locally sourced ingredients. The restaurant features an open kitchen concept, allowing guests to watch chefs at work. It is well-known for its vibrant atmosphere and extensive wine list.
 
-2. **[Post by Anderson A.](https://www.linkedin.com/posts/activity-7379847744380854272-1O1Z?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAF8LBu8BX77nJLnHq2BuG0Oqb7swvZMxG94)**  
-   - **Content:** "AI in Healthcare: Balancing Innovation with Human Dignity..."  
-   - **Author:** Anderson A.  
-   - **Profile:** [Link](https://www.linkedin.com/in/andersonandrade25?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAFL9_2cBzioLyEJYJlqiUISyXJdjJQWIhY8)  
-   - **Engagement:** No reactions yet  
+### 3. [La Finestra in Cucina](https://guide.michelin.com/us/en/prague/prague/restaurant/la-finestra)
+- **Rating:** 4.8
+- **Review Count:** Approximately 1,300 reviews on Google
+- **Address:** Prague, Czechia
+- **Cuisine Style:** Italian
+- **Summary:** This restaurant is a favorite among locals and tourists alike for its authentic Italian dishes and warm hospitality. Signature dishes include handmade pastas and perfectly grilled meats. The ambiance is stylish yet comfortable, ideal for both casual dinners and special occasions.
 
-3. **[Post by Sarkis Hakopdjanian](https://www.linkedin.com/posts/sarkis-hakopdjanian_ai-artificialintelligence-aiinhealthcare-activity-7378821010919321600-WMRb?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAF8LBu8BX77nJLnHq2BuG0Oqb7swvZMxG94)**  
-   - **Content:** "AI in healthcare is being used to work smarter and faster..."  
-   - **Author:** Sarkis Hakopdjanian  
-   - **Profile:** [Link](https://www.linkedin.com/in/sarkis-hakopdjanian?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAAXXFqQBVDa-M5oSdYbz7kZcqTWzZyVbBvI)  
-   - **Engagement:** 2 reactions  
+### 4. [Aromi](https://guide.michelin.com/us/en/prague/prague/restaurant/aromi)
+- **Rating:** 4.6
+- **Review Count:** Over 200 reviews across platforms.
+- **Address:** Prague, Czechia
+- **Cuisine Style:** Italian
+- **Summary:** Aromi specializes in Italian seafood and pasta, and its menu features fresh ingredients and classic recipes. The restaurant’s sleek interior and attentive service create a refined dining experience. Aromi is well-regarded for its dedicated attention to detail and a relaxing atmosphere.
 
-4. **[Post by Data Mining Insights](https://www.linkedin.com/posts/data-mining-insight_artificial-artificial-artificial-activity-7379847713661706240-XkH2?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAF8LBu8BX77nJLnHq2BuG0Oqb7swvZMxG94)**  
-   - **Content:** "Artificial Intelligence In Healthcare Sector in the Real World: 5 Uses..."  
-   - **Author:** Data Mining Insights  
-   - **Profile:** [Link](https://www.linkedin.com/company/data-mining-insight/posts)  
-   - **Engagement:** No reactions yet  
+### 5. [Casa De Carli](https://guide.michelin.com/us/en/prague/prague/restaurant/casa-de-carli)
+- **Rating:** 4.5
+- **Review Count:** Over 200 reviews.
+- **Address:** Prague, Czechia
+- **Cuisine Style:** Italian
+- **Summary:** Casa De Carli is known for its charming decor and welcoming atmosphere. The menu offers a range of traditional Italian dishes, with an emphasis on homemade pasta. This restaurant often receives praise for its exceptional service and quality of food.
 
-5. **[Post by Dr. Sivakumar Subramaniam](https://www.linkedin.com/posts/drsivakumarsubramaniam_aiinhealthcare-digitalhealth-ethicalai-activity-7378267235427106816-hLyE?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAF8LBu8BX77nJLnHq2BuG0Oqb7swvZMxG94)**  
-   - **Content:** "The future of healthcare is here - and Artificial Intelligence (AI)..."  
-   - **Author:** Dr. Sivakumar Subramaniam  
-   - **Profile:** [Link](https://www.linkedin.com/in/drsivakumarsubramaniam?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAAJmMngBV57EIcsSBpd_8tqfKFCiBNxrA1A)  
-   - **Engagement:** 12 reactions, 7 comments  
+---
 
-### Observations
-- A range of topics related to artificial intelligence in healthcare, including innovation, ethical concerns, and practical implications for patient care.
-- Prominent figures in healthcare advocating for responsible AI usage and collaboration.
-  
-### Next Steps
-If you would like to explore more posts or analyze specific thought leaders, let me know! I can retrieve additional data or focus on specific interests such as engagement metrics or author influence.
+These restaurants not only have high ratings and substantial review counts but also feature recognitions that affirm their credibility and quality in Italian fine dining.
 
 ```
