@@ -118,6 +118,23 @@
     "environmentVariables": []
   },
   {
+    "id": "apify-mcp-server",
+    "name": "Apify",
+    "description": "Access thousands of ready-made web scraping and automation Actors from the Apify platform.",
+    "command": "npx -y apify-mcp-server@latest",
+    "link": "https://github.com/apify/apify-mcp-server",
+    "installation_notes": "Install using npx. Requires an Apify API token.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "APIFY_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "cloudflare-mcp",
     "name": "Cloudflare",
     "description": "Cloudflare API integration for DNS and domain management",
