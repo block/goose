@@ -88,7 +88,7 @@ pub struct ToolCategorizeResult {
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub extension_manager: ExtensionManager,
+    pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -163,7 +163,7 @@ impl Agent {
 
         Self {
             provider: Mutex::new(None),
-            extension_manager: ExtensionManager::new(),
+            extension_manager: Arc::new(ExtensionManager::new()),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -572,19 +572,6 @@ impl Agent {
                     .read_resource(arguments, cancellation_token.unwrap_or_default())
                     .await,
             )
-        } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            ToolCallResult::from(
-                self.extension_manager
-                    .list_resources(arguments, cancellation_token.unwrap_or_default())
-                    .await,
-            )
-        } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
-            ToolCallResult::from(self.extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(

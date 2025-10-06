@@ -79,9 +79,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
     },
 );
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
+    pub extension_manager: Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
 }
 
 #[derive(Debug, Clone)]

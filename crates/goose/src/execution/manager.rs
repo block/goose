@@ -116,10 +116,14 @@ impl AgentManager {
 
         let agent = Arc::new(Agent::new());
         agent.set_scheduler(Arc::clone(&self.scheduler)).await;
+        // We can't pass a reference to self here due to circular reference issues
+        // The extension_manager_extension will need to get the reference from the context
+        // when it's actually needed, not when it's created
         agent
             .extension_manager
             .set_context(PlatformExtensionContext {
                 session_id: Some(session_id.clone()),
+                extension_manager: None, // Will be set later when platform extensions are added
             })
             .await;
         if let Some(provider) = &*self.default_provider.read().await {

@@ -13,7 +13,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-pub static EXTENSION_NAME: &str = "extension_manager";
+pub static EXTENSION_NAME: &str = "extensionmanager";
 
 // Tool name constants
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
@@ -72,11 +72,18 @@ impl ExtensionManagerClient {
     }
 
     async fn handle_search_available_extensions(&self) -> Result<Vec<Content>, String> {
-        // This would normally call the extension manager's search_available_extensions method
-        // For now, we'll return a placeholder response
-        Ok(vec![Content::text(
-            "Extension search functionality would be implemented here".to_string(),
-        )])
+        if let Some(weak_ref) = &self.context.extension_manager {
+            if let Some(extension_manager) = weak_ref.upgrade() {
+                match extension_manager.search_available_extensions().await {
+                    Ok(content) => Ok(content),
+                    Err(e) => Err(format!("Failed to search available extensions: {}", e.message)),
+                }
+            } else {
+                Err("Extension manager is no longer available".to_string())
+            }
+        } else {
+            Err("Extension manager not available in context".to_string())
+        }
     }
 
     async fn handle_manage_extensions(
@@ -113,54 +120,44 @@ impl ExtensionManagerClient {
         &self,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
-        let extension_name = arguments
-            .as_ref()
-            .and_then(|args| args.get("extension_name"))
-            .and_then(|v| v.as_str());
-
-        // This would normally call the extension manager's list_resources method
-        let response = if let Some(name) = extension_name {
-            format!(
-                "Resource listing functionality would list resources for extension '{}' here",
-                name
-            )
+        if let Some(weak_ref) = &self.context.extension_manager {
+            if let Some(extension_manager) = weak_ref.upgrade() {
+                let params = arguments
+                    .map(serde_json::Value::Object)
+                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                
+                match extension_manager.list_resources(params, tokio_util::sync::CancellationToken::default()).await {
+                    Ok(content) => Ok(content),
+                    Err(e) => Err(format!("Failed to list resources: {}", e.message)),
+                }
+            } else {
+                Err("Extension manager is no longer available".to_string())
+            }
         } else {
-            "Resource listing functionality would list all resources here".to_string()
-        };
-
-        Ok(vec![Content::text(response)])
+            Err("Extension manager not available in context".to_string())
+        }
     }
 
     async fn handle_read_resource(
         &self,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
-        let uri = arguments
-            .as_ref()
-            .ok_or("Missing arguments")?
-            .get("uri")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing required parameter: uri")?;
-
-        let extension_name = arguments
-            .as_ref()
-            .and_then(|args| args.get("extension_name"))
-            .and_then(|v| v.as_str());
-
-        // This would normally call the extension manager's read_resource method
-        let response = if let Some(name) = extension_name {
-            format!(
-                "Resource reading functionality would read resource '{}' from extension '{}' here",
-                uri, name
-            )
+        if let Some(weak_ref) = &self.context.extension_manager {
+            if let Some(extension_manager) = weak_ref.upgrade() {
+                let params = arguments
+                    .map(serde_json::Value::Object)
+                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                
+                match extension_manager.read_resource(params, tokio_util::sync::CancellationToken::default()).await {
+                    Ok(content) => Ok(content),
+                    Err(e) => Err(format!("Failed to read resource: {}", e.message)),
+                }
+            } else {
+                Err("Extension manager is no longer available".to_string())
+            }
         } else {
-            format!(
-                "Resource reading functionality would read resource '{}' from any extension here",
-                uri
-            )
-        };
-
-        Ok(vec![Content::text(response)])
+            Err("Extension manager not available in context".to_string())
+        }
     }
 
     fn get_tools() -> Vec<Tool> {
