@@ -812,7 +812,6 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.extend([
-                platform_tools::search_available_extensions_tool(),
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
             ]);
