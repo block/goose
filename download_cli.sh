@@ -122,7 +122,6 @@ case "$ARCH" in
     ;;
 esac
 
-# Debug output (safely handle undefined variables)
 echo "WINDIR: ${WINDIR:-<not set>}"
 echo "OSTYPE: $OSTYPE"
 echo "uname -s: $(uname -s)"
