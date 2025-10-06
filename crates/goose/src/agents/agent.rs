@@ -24,6 +24,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
+use crate::agents::subagent_execution_tool::lib::ExecutionMode;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
@@ -44,8 +45,6 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
-use crate::session::extension_data::ExtensionState;
-use crate::session::{extension_data, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -300,6 +299,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -307,7 +307,12 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .dispatch_tool_call(
+                        tool_call,
+                        request.id.clone(),
+                        cancel_token.clone(),
+                        session.clone(),
+                    )
                     .await;
 
                 tool_futures.push((
@@ -387,6 +392,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -476,15 +482,30 @@ impl Agent {
                 .map(|s| s.working_dir.clone())
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-            let task_config = TaskConfig::new(provider, parent_session_id, parent_working_dir);
+            let task_config = TaskConfig::new(
+                provider,
+                parent_session_id,
+                parent_working_dir,
+                get_enabled_extensions(),
+            );
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
+            let task_ids: Vec<String> = arguments
+                .get("task_ids")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let execution_mode = arguments
+                .get("execution_mode")
+                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
+                .unwrap_or_default();
+
             subagent_execute_task_tool::run_tasks(
-                arguments,
+                task_ids,
+                execution_mode,
                 task_config,
                 &self.tasks_manager,
                 cancellation_token,
@@ -1186,6 +1207,7 @@ impl Agent {
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1196,6 +1218,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                         &inspection_results,
                                     );
 

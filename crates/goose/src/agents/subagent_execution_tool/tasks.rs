@@ -91,7 +91,11 @@ async fn handle_inline_recipe_task(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    task_config.extensions = recipe.extensions.clone();
+    if let Some(exts) = recipe.extensions {
+        if !exts.is_empty() {
+            task_config.extensions = exts.clone();
+        }
+    }
 
     let instruction = recipe
         .instructions

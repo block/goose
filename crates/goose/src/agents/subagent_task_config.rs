@@ -1,3 +1,4 @@
+use crate::agents::ExtensionConfig;
 use crate::providers::base::Provider;
 use std::env;
 use std::fmt;
@@ -16,8 +17,8 @@ pub struct TaskConfig {
     pub provider: Arc<dyn Provider>,
     pub parent_session_id: String,
     pub parent_working_dir: PathBuf,
+    pub extensions: Vec<ExtensionConfig>,
     pub max_turns: Option<usize>,
-    pub extensions: Option<Vec<crate::agents::extension::ExtensionConfig>>,
 }
 
 impl fmt::Debug for TaskConfig {
@@ -38,18 +39,19 @@ impl TaskConfig {
         provider: Arc<dyn Provider>,
         parent_session_id: String,
         parent_working_dir: PathBuf,
+        extensions: Vec<ExtensionConfig>,
     ) -> Self {
         Self {
             provider,
             parent_session_id,
             parent_working_dir,
+            extensions,
             max_turns: Some(
                 env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
                     .ok()
                     .and_then(|val| val.parse::<usize>().ok())
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
-            extensions: None,
         }
     }
 }

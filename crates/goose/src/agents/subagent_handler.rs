@@ -1,6 +1,5 @@
 use crate::{
-    agents::{subagent_task_config::TaskConfig, AgentEvent, ExtensionConfig, SessionConfig},
-    config::ExtensionConfigManager,
+    agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
     session::SessionManager,
@@ -100,9 +99,9 @@ fn get_agent_messages(
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
         let parent_session_id = task_config.parent_session_id;
-        let current_dir = task_config.parent_working_dir;
+        let working_dir = task_config.parent_working_dir;
         let session = SessionManager::create_session(
-            current_dir.clone(),
+            working_dir.clone(),
             format!("Subagent task for: {}", parent_session_id),
         )
         .await
@@ -117,20 +116,7 @@ fn get_agent_messages(
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
-        let extensions_to_add = if let Some(ref extensions) = task_config.extensions {
-            // Use the explicitly specified extensions
-            extensions.clone()
-        } else {
-            // Default behavior: use all enabled extensions
-            ExtensionConfigManager::get_all()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|ext| ext.enabled)
-                .map(|ext| ext.config)
-                .collect::<Vec<ExtensionConfig>>()
-        };
-
-        for extension in extensions_to_add {
+        for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {
                 debug!(
                     "Failed to add extension '{}' to subagent: {}",
@@ -146,7 +132,7 @@ fn get_agent_messages(
             );
         let session_config = SessionConfig {
             id: session.id,
-            working_dir: current_dir,
+            working_dir,
             schedule_id: None,
             execution_mode: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
