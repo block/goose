@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use goose::recipe::search_local_recipes::list_local_recipes;
+use goose::recipe::local_recipes::list_local_recipes;
 use goose::recipe::Recipe;
 
 use std::path::Path;
