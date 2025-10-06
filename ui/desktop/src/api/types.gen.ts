@@ -547,59 +547,6 @@ export type RawTextContent = {
     text: string;
 };
 
-/**
- * A Recipe represents a personalized, user-generated agent configuration that defines
- * specific behaviors and capabilities within the goose system.
- *
- * # Fields
- *
- * ## Required Fields
- * * `version` - Semantic version of the Recipe file format (defaults to "1.0.0")
- * * `title` - Short, descriptive name of the Recipe
- * * `description` - Detailed description explaining the Recipe's purpose and functionality
- * * `Instructions` - Instructions that defines the Recipe's behavior
- *
- * ## Optional Fields
- * * `prompt` - the initial prompt to the session to start with
- * * `extensions` - List of extension configurations required by the Recipe
- * * `context` - Supplementary context information for the Recipe
- * * `activities` - Activity labels that appear when loading the Recipe
- * * `author` - Information about the Recipe's creator and metadata
- * * `parameters` - Additional parameters for the Recipe
- * * `response` - Response configuration including JSON schema validation
- * * `retry` - Retry configuration for automated validation and recovery
- * # Example
- *
- *
- * use goose::recipe::Recipe;
- *
- * // Using the builder pattern
- * let recipe = Recipe::builder()
- * .title("Example Agent")
- * .description("An example Recipe configuration")
- * .instructions("Act as a helpful assistant")
- * .build()
- * .expect("Missing required fields");
- *
- * // Or using struct initialization
- * let recipe = Recipe {
- * version: "1.0.0".to_string(),
- * title: "Example Agent".to_string(),
- * description: "An example Recipe configuration".to_string(),
- * instructions: Some("Act as a helpful assistant".to_string()),
- * prompt: None,
- * extensions: None,
- * context: None,
- * activities: None,
- * author: None,
- * settings: None,
- * parameters: None,
- * response: None,
- * sub_recipes: None,
- * retry: None,
- * };
- *
- */
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;

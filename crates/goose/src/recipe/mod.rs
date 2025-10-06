@@ -245,7 +245,8 @@ impl Recipe {
     }
     pub fn from_content(content: &str) -> Result<Self> {
         // Parse using YAML parser (since JSON is a subset of YAML, this handles both)
-        let mut value: serde_yaml::Value = serde_yaml::from_str(content)?;
+        let mut value: serde_yaml::Value = serde_yaml::from_str(content)
+            .map_err(|e| anyhow::anyhow!("Failed to parse recipe content as YAML/JSON: {}", e))?;
 
         // Handle nested legacy recipe format
         if let Some(nested_recipe) = value.get("recipe") {
@@ -269,7 +270,8 @@ impl Recipe {
             }
         }
 
-        let recipe: Recipe = serde_yaml::from_value(value)?;
+        let recipe: Recipe = serde_yaml::from_value(value)
+            .map_err(|e| anyhow::anyhow!("Failed to deserialize recipe: {}", e))?;
 
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
