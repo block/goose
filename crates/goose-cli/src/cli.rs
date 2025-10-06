@@ -1006,7 +1006,7 @@ pub async fn cli() -> Result<()> {
                         .unwrap_or(&recipe_name);
 
                     let recipe_version =
-                        crate::recipes::search_recipe::retrieve_recipe_file(&recipe_name)
+                        crate::recipes::search_recipe::load_recipe_file(&recipe_name)
                             .ok()
                             .and_then(|rf| {
                                 goose::recipe::template_recipe::parse_recipe_content(

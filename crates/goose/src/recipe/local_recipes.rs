@@ -36,7 +36,7 @@ fn local_recipe_dirs() -> Vec<PathBuf> {
     local_dirs
 }
 
-pub fn retrieve_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
+pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     if RECIPE_FILE_EXTENSIONS
         .iter()
         .any(|ext| recipe_name.ends_with(&format!(".{}", ext)))
@@ -54,7 +54,7 @@ pub fn retrieve_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 
     let search_dirs = local_recipe_dirs();
     for dir in &search_dirs {
-        if let Ok(result) = read_recipe_in_dir(dir, recipe_name) {
+        if let Ok(result) = load_recipe_file_from_dir(dir, recipe_name) {
             return Ok(result);
         }
     }
@@ -94,7 +94,7 @@ fn is_file_name(recipe_name: &str) -> bool {
     Path::new(recipe_name).extension().is_some()
 }
 
-fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<RecipeFile> {
+fn load_recipe_file_from_dir(dir: &Path, recipe_name: &str) -> Result<RecipeFile> {
     for ext in RECIPE_FILE_EXTENSIONS {
         let recipe_path = dir.join(format!("{}.{}", recipe_name, ext));
         if let Ok(result) = read_recipe_file(recipe_path) {
