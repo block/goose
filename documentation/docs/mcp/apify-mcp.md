@@ -55,7 +55,7 @@ This tutorial covers how to add the [Apify MCP Server](https://mcp.apify.com) as
 
 ## Example Usage
 
-The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of read-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
+The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
 
 In this example, Goose will find an Actor for [scraping LinkedIn posts](https://apify.com/store/categories?search=linkedin) to perform a quick research.
 
