@@ -20,15 +20,15 @@
     "id": "alby-mcp",
     "name": "Alby",
     "description": "Bitcoin Lightning Network integration",
-    "command": "npx -y @getalby/alby-mcp-server",
+    "command": "npx -y @getalby/mcp",
     "link": "https://github.com/getalby/mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": [
       {
-        "name": "ALBY_API_TOKEN",
-        "description": "Required environment variable",
+        "name": "NWC_CONNECTION_STRING",
+        "description": "NWC connection secret from your lightning wallet",
         "required": true
       }
     ]
