@@ -12,6 +12,25 @@ release-binary:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
 
+# release-windows docker build command
+win_docker_build_sh := '''rustup target add x86_64-pc-windows-gnu && \
+	apt-get update && \
+	apt-get install -y mingw-w64 protobuf-compiler cmake && \
+	export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
+	export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
+	export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
+	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
+	export PKG_CONFIG_ALLOW_CROSS=1 && \
+	export PROTOC=/usr/bin/protoc && \
+	export PATH=/usr/bin:\$PATH && \
+	protoc --version && \
+	cargo build --release --target x86_64-pc-windows-gnu && \
+	GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
+	cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+	cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+	cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/
+'''
+
 # Build Windows executable
 release-windows:
     #!/usr/bin/env sh
@@ -23,25 +42,16 @@ release-windows:
             -v goose-windows-cache:/usr/local/cargo/registry \
             -w /usr/src/myapp \
             rust:latest \
-            sh -c "rustup target add x86_64-pc-windows-gnu && \
-                apt-get update && \
-                apt-get install -y mingw-w64 protobuf-compiler cmake && \
-                export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
-                export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
-                export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
-                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
-                export PKG_CONFIG_ALLOW_CROSS=1 && \
-                export PROTOC=/usr/bin/protoc && \
-                export PATH=/usr/bin:\$PATH && \
-                protoc --version && \
-                cargo build --release --target x86_64-pc-windows-gnu && \
-                GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
-                cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
+            sh -c "{{win_docker_build_sh}}"
     else
         echo "Building Windows executable using Docker through PowerShell..."
-        powershell.exe -Command "docker volume create goose-windows-cache; docker run --rm -v ${PWD}:/usr/src/myapp -v goose-windows-cache:/usr/local/cargo/registry -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu && GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/'"
+        powershell.exe -Command "docker volume create goose-windows-cache; \`
+            docker run --rm \`
+                -v ${PWD}:/usr/src/myapp \`
+                -v goose-windows-cache:/usr/local/cargo/registry \`
+                -w /usr/src/myapp \`
+                rust:latest \`
+                sh -c '{{win_docker_build_sh}}'"
     fi
     echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
