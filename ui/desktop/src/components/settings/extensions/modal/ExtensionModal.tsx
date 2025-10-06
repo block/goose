@@ -12,7 +12,7 @@ import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
-import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api';
@@ -329,6 +329,20 @@ export default function ExtensionModal({
             </div>
           ) : (
             <div className="py-4 space-y-6">
+              {formData.installation_notes && (
+                <div className="bg-bgSubtle border border-borderSubtle rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-medium text-textStandard mb-1">
+                        Installation Notes
+                      </h4>
+                      <p className="text-sm text-textSubtle">{formData.installation_notes}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Form Fields */}
               {/* Name and Type */}
               <ExtensionInfoFields
