@@ -57,7 +57,7 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases.
 
-In this example, Goose will find an Actor for [Apify RAG Scraper](https://apify.com/store/categories?search=linkedin) to perform a quick research.
+In this example, Goose will use the [RAG Website Browser](https://console.apify.com/actors/3ox4R101TgZz67sLr/input) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
 
 #### Goose Prompt
 
