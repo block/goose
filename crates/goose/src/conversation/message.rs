@@ -1,11 +1,11 @@
+use crate::mcp_utils::ToolResult;
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolResult};
 use rmcp::model::{
-    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
-    RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
+    AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
+    PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
+    ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
@@ -46,7 +46,7 @@ pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<ToolCall>,
+    pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
 impl ToolRequest {
@@ -81,7 +81,7 @@ pub struct ToolResponse {
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
-    pub arguments: Value,
+    pub arguments: JsonObject,
     pub prompt: Option<String>,
 }
 
@@ -102,7 +102,7 @@ pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<ToolCall>,
+    pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -188,7 +188,10 @@ impl MessageContent {
         )
     }
 
-    pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
+    pub fn tool_request<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+    ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
@@ -205,7 +208,7 @@ impl MessageContent {
     pub fn tool_confirmation_request<S: Into<String>>(
         id: S,
         tool_name: String,
-        arguments: Value,
+        arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
         MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
@@ -227,7 +230,10 @@ impl MessageContent {
         MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
     }
 
-    pub fn frontend_tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
+    pub fn frontend_tool_request<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+    ) -> Self {
         MessageContent::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
             tool_call,
@@ -373,7 +379,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -456,7 +462,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -468,19 +474,6 @@ pub struct Message {
     pub content: Vec<MessageContent>,
     #[serde(default)]
     pub metadata: MessageMetadata,
-}
-
-impl fmt::Debug for Message {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let joined_content: String = self
-            .content
-            .iter()
-            .map(|c| format!("{c}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        write!(f, "{:?}: {}", self.role, joined_content)
-    }
 }
 
 fn default_created() -> i64 {
@@ -557,7 +550,7 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<ToolCall>,
+        tool_call: ToolResult<CallToolRequestParam>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
@@ -576,7 +569,7 @@ impl Message {
         self,
         id: S,
         tool_name: String,
-        arguments: Value,
+        arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
         self.with_content(MessageContent::tool_confirmation_request(
@@ -587,7 +580,7 @@ impl Message {
     pub fn with_frontend_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<ToolCall>,
+        tool_call: ToolResult<CallToolRequestParam>,
     ) -> Self {
         self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
@@ -728,13 +721,13 @@ impl Message {
 mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
-    use mcp_core::ToolCall;
     use rmcp::model::{
-        AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
-        RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
+        RawEmbeddedResource, RawImageContent, ResourceContents,
     };
     use rmcp::model::{ErrorCode, ErrorData};
-    use serde_json::{json, Value};
+    use rmcp::object;
+    use serde_json::Value;
 
     #[test]
     fn test_sanitize_with_text() {
@@ -756,7 +749,10 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
+                Ok(CallToolRequestParam {
+                    name: "test_tool".into(),
+                    arguments: Some(object!({"param": "value"})),
+                }),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -856,7 +852,7 @@ mod tests {
             assert_eq!(req.id, "tool123");
             if let Ok(tool_call) = &req.tool_call {
                 assert_eq!(tool_call.name, "test_tool");
-                assert_eq!(tool_call.arguments, json!({"param": "value"}));
+                assert_eq!(tool_call.arguments, Some(object!({"param": "value"})))
             } else {
                 panic!("Expected successful tool call");
             }
@@ -1010,9 +1006,9 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(ToolCall {
-            name: "test_tool".to_string(),
-            arguments: serde_json::json!({}),
+        let tool_call = Ok(CallToolRequestParam {
+            name: "test_tool".into(),
+            arguments: Some(object!({})),
         });
 
         let message = Message::assistant().with_tool_request("req1", tool_call);

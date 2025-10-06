@@ -1,6 +1,7 @@
 // Extension data management for sessions
 // Provides a simple way to store extension-specific data with versioned keys
 
+use crate::config::ExtensionConfig;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -92,6 +93,23 @@ impl TodoState {
     /// Create a new TODO state
     pub fn new(content: String) -> Self {
         Self { content }
+    }
+}
+
+/// Enabled extensions state implementation for storing which extensions are active
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnabledExtensionsState {
+    pub extensions: Vec<ExtensionConfig>,
+}
+
+impl ExtensionState for EnabledExtensionsState {
+    const EXTENSION_NAME: &'static str = "enabled_extensions";
+    const VERSION: &'static str = "v0";
+}
+
+impl EnabledExtensionsState {
+    pub fn new(extensions: Vec<ExtensionConfig>) -> Self {
+        Self { extensions }
     }
 }
 

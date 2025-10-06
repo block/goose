@@ -124,6 +124,7 @@ impl BedrockProvider {
             .set_messages(Some(
                 messages
                     .iter()
+                    .filter(|m| m.is_agent_visible())
                     .map(to_bedrock_message)
                     .collect::<Result<_>>()?,
             ));
@@ -137,10 +138,10 @@ impl BedrockProvider {
             .await
             .map_err(|err| match err.into_service_error() {
                 ConverseError::ThrottlingException(throttle_err) => {
-                    ProviderError::RateLimitExceeded(format!(
-                        "Bedrock throttling error: {:?}",
-                        throttle_err
-                    ))
+                    ProviderError::RateLimitExceeded {
+                        details: format!("Bedrock throttling error: {:?}", throttle_err),
+                        retry_delay: None,
+                    }
                 }
                 ConverseError::AccessDeniedException(err) => {
                     ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))

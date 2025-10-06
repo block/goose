@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use goose::agents::Agent;
 use goose::scheduler::{ScheduledJob, SchedulerError};
 use goose::scheduler_trait::SchedulerTrait;
-use goose::session::storage::SessionMetadata;
+use goose::session::Session;
 
 #[derive(Debug, Clone)]
 pub enum MockBehavior {
@@ -29,10 +29,17 @@ pub struct ConfigurableMockScheduler {
     running_jobs: Arc<Mutex<HashSet<String>>>,
     call_log: Arc<Mutex<Vec<String>>>,
     behaviors: Arc<Mutex<HashMap<String, MockBehavior>>>,
-    sessions_data: Arc<Mutex<HashMap<String, Vec<(String, SessionMetadata)>>>>,
+    #[allow(clippy::type_complexity)]
+    sessions_data: Arc<Mutex<HashMap<String, Vec<(String, Session)>>>>,
 }
 
 #[allow(dead_code)]
+impl Default for ConfigurableMockScheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigurableMockScheduler {
     pub fn new() -> Self {
         Self {
@@ -42,36 +49,6 @@ impl ConfigurableMockScheduler {
             behaviors: Arc::new(Mutex::new(HashMap::new())),
             sessions_data: Arc::new(Mutex::new(HashMap::new())),
         }
-    }
-
-    pub async fn with_behavior(self, method: &str, behavior: MockBehavior) -> Self {
-        self.behaviors
-            .lock()
-            .await
-            .insert(method.to_string(), behavior);
-        self
-    }
-
-    pub async fn with_existing_job(self, job: ScheduledJob) -> Self {
-        self.jobs.lock().await.insert(job.id.clone(), job);
-        self
-    }
-
-    pub async fn with_running_job(self, job_id: &str) -> Self {
-        self.running_jobs.lock().await.insert(job_id.to_string());
-        self
-    }
-
-    pub async fn with_sessions_data(
-        self,
-        job_id: &str,
-        sessions: Vec<(String, SessionMetadata)>,
-    ) -> Self {
-        self.sessions_data
-            .lock()
-            .await
-            .insert(job_id.to_string(), sessions);
-        self
     }
 
     pub async fn get_calls(&self) -> Vec<String> {
@@ -207,7 +184,7 @@ impl SchedulerTrait for ConfigurableMockScheduler {
         &self,
         sched_id: &str,
         limit: usize,
-    ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
         self.log_call("sessions").await;
 
         match self.get_behavior("sessions").await {
@@ -337,6 +314,12 @@ pub struct ScheduleToolTestBuilder {
     scheduler: Arc<ConfigurableMockScheduler>,
 }
 
+impl Default for ScheduleToolTestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScheduleToolTestBuilder {
     pub fn new() -> Self {
         Self {
@@ -379,11 +362,7 @@ impl ScheduleToolTestBuilder {
         self
     }
 
-    pub async fn with_sessions_data(
-        self,
-        job_id: &str,
-        sessions: Vec<(String, SessionMetadata)>,
-    ) -> Self {
+    pub async fn with_sessions_data(self, job_id: &str, sessions: Vec<(String, Session)>) -> Self {
         {
             let mut sessions_data = self.scheduler.sessions_data.lock().await;
             sessions_data.insert(job_id.to_string(), sessions);
@@ -398,13 +377,14 @@ impl ScheduleToolTestBuilder {
     }
 }
 
-// Helper function to create test session metadata
-pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> SessionMetadata {
-    SessionMetadata {
-        message_count,
+pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> Session {
+    Session {
+        id: "".to_string(),
         working_dir: PathBuf::from(working_dir),
         description: "Test session".to_string(),
+        created_at: Default::default(),
         schedule_id: Some("test_job".to_string()),
+        recipe: None,
         total_tokens: Some(100),
         input_tokens: Some(50),
         output_tokens: Some(50),
@@ -412,6 +392,9 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
         extension_data: Default::default(),
-        recipe: None,
+        updated_at: Default::default(),
+        conversation: None,
+        message_count,
+        user_recipe_values: None,
     }
 }

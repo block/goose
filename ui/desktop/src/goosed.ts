@@ -9,7 +9,7 @@ import { App } from 'electron';
 import { Buffer } from 'node:buffer';
 
 import { status } from './api';
-import { client } from './api/client.gen';
+import { Client } from './api/client';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
@@ -26,14 +26,13 @@ export const findAvailablePort = (): Promise<number> => {
   });
 };
 
-// Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (): Promise<boolean> => {
+export const checkServerStatus = async (client: Client): Promise<boolean> => {
   const interval = 100;
   const maxAttempts = 200;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await status({ throwOnError: true });
+      await status({ client, throwOnError: true });
       return true;
     } catch {
       if (attempt === maxAttempts) {
@@ -47,24 +46,9 @@ const checkServerStatus = async (): Promise<boolean> => {
 
 const connectToExternalBackend = async (
   workingDir: string,
-  port: number = 3000,
-  serverSecret: string
+  port: number = 3000
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
-
-  // Configure the client BEFORE checking server status
-  client.setConfig({
-    baseUrl: `http://127.0.0.1:${port}`,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': serverSecret,
-    },
-  });
-
-  const isReady = await checkServerStatus();
-  if (!isReady) {
-    throw new Error(`External goosed server not accessible on port ${port}`);
-  }
 
   const mockProcess = {
     pid: undefined,
@@ -104,7 +88,7 @@ export const startGoosed = async (
   dir = path.resolve(path.normalize(dir));
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return connectToExternalBackend(dir, 3000, serverSecret);
+    return connectToExternalBackend(dir, 3000);
   }
 
   // Validate that the directory actually exists and is a directory
@@ -262,18 +246,6 @@ export const startGoosed = async (
     throw err; // Propagate the error
   });
 
-  client.setConfig({
-    baseUrl: `http://127.0.0.1:${port}`,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': serverSecret,
-    },
-  });
-
-  // Wait for the server to be ready
-  const isReady = await checkServerStatus();
-  log.info(`Goosed isReady ${isReady}`);
-
   const try_kill_goose = () => {
     try {
       if (isWindows) {
@@ -287,14 +259,7 @@ export const startGoosed = async (
     }
   };
 
-  if (!isReady) {
-    log.error(`Goosed server failed to start on port ${port}`);
-    try_kill_goose();
-    throw new Error(`Goosed server failed to start on port ${port}`);
-  }
-
   // Ensure goosed is terminated when the app quits
-  // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
     try_kill_goose();

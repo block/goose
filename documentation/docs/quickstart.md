@@ -14,35 +14,35 @@ import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopIns
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
 import { PanelLeft } from 'lucide-react';
 
-# Goose in 5 minutes
+# goose in 5 minutes
 
-Goose is an extensible open source AI agent that enhances your software development by automating coding tasks. 
+goose is an extensible open source AI agent that enhances your software development by automating coding tasks. 
 
 This quick tutorial will guide you through:
 
-- ✅ Installing Goose
+- ✅ Installing goose
 - ✅ Configuring your LLM
 - ✅ Building a small app
 - ✅ Adding an MCP server
 
 Let's begin 🚀
 
-## Install Goose
+## Install goose
 
 <Tabs>
   <TabItem value="mac" label="macOS" default>
-    Choose to install the Desktop and/or CLI version of Goose:
+    Choose to install the Desktop and/or CLI version of goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         <MacDesktopInstallButtons/>
         <div style={{ marginTop: '1rem' }}>
           1. Unzip the downloaded zip file.
-          2. Run the executable file to launch the Goose Desktop application.
+          2. Run the executable file to launch the goose Desktop application.
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
-        Run the following command to install Goose:
+      <TabItem value="cli" label="goose CLI">
+        Run the following command to install goose:
 
         ```sh
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
@@ -52,22 +52,22 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="linux" label="Linux">
-    Choose to install the Desktop and/or CLI version of Goose:
+    Choose to install the Desktop and/or CLI version of goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         <LinuxDesktopInstallButtons/>
         <div style={{ marginTop: '1rem' }}>
           **For Debian/Ubuntu-based distributions:**
           1. Download the DEB file
           2. Navigate to the directory where it is saved in a terminal
           3. Run `sudo dpkg -i (filename).deb`
-          4. Launch Goose from the app menu
+          4. Launch goose from the app menu
 
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
-        Run the following command to install the Goose CLI on Linux:
+      <TabItem value="cli" label="goose CLI">
+        Run the following command to install the goose CLI on Linux:
 
         ```sh
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
@@ -77,19 +77,19 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    Choose to install the Desktop and/or CLI version of Goose:
+    Choose to install the Desktop and/or CLI version of goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         <WindowsDesktopInstallButtons/>
         <div style={{ marginTop: '1rem' }}>
           1. Unzip the downloaded zip file.
-          2. Run the executable file to launch the Goose Desktop application.
+          2. Run the executable file to launch the goose Desktop application.
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
         
-        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
+        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the goose CLI natively on Windows:
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash

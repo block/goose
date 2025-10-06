@@ -37,7 +37,7 @@ vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./api/sdk.gen', () => {
+vi.mock('./api', () => {
   const test_chat = {
     data: {
       session_id: 'test',
@@ -123,16 +123,14 @@ vi.mock('./contexts/ChatContext', () => ({
       title: 'Test Chat',
       messages: [],
       messageHistoryIndex: 0,
-      recipeConfig: null,
+      recipe: null,
     },
     setChat: vi.fn(),
     setPairChat: vi.fn(), // Keep this from HEAD
     resetChat: vi.fn(),
     hasActiveSession: false,
-    setRecipeConfig: vi.fn(),
-    clearRecipeConfig: vi.fn(),
-    setRecipeParameters: vi.fn(),
-    clearRecipeParameters: vi.fn(),
+    setRecipe: vi.fn(),
+    clearRecipe: vi.fn(),
     draft: '',
     setDraft: vi.fn(),
     clearDraft: vi.fn(),
@@ -303,7 +301,7 @@ describe('App Component - Brand New State', () => {
 
   it('should handle config recovery gracefully', async () => {
     // Mock config error that triggers recovery
-    const { readAllConfig, recoverConfig } = await import('./api/sdk.gen');
+    const { readAllConfig, recoverConfig } = await import('./api');
     console.log(recoverConfig);
     vi.mocked(readAllConfig).mockRejectedValueOnce(new Error('Config read error'));
 

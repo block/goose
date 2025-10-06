@@ -1,32 +1,36 @@
 use anyhow::Result;
+use axum::response::Redirect;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Request, State,
     },
+    http::StatusCode,
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
+use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
-use goose::conversation::Conversation;
-use goose::session;
+use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::error;
+use webbrowser;
 
-type SessionStore = Arc<RwLock<std::collections::HashMap<String, Arc<Mutex<Conversation>>>>>;
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
 
 #[derive(Clone)]
 struct AppState {
     agent: Arc<Agent>,
-    sessions: SessionStore,
     cancellations: CancellationStore,
+    auth_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -77,7 +81,59 @@ enum WebSocketMessage {
     Complete { message: String },
 }
 
-pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Skip auth for health check
+    if req.uri().path() == "/api/health" {
+        return Ok(next.run(req).await);
+    }
+
+    // If no auth token is configured, skip authentication entirely
+    let Some(ref expected_token) = state.auth_token else {
+        return Ok(next.run(req).await);
+    };
+
+    // Check for Bearer token first
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                if token == expected_token {
+                    return Ok(next.run(req).await);
+                }
+            }
+
+            // Check for Basic auth (password-only, ignore username)
+            if let Some(basic_token) = auth_str.strip_prefix("Basic ") {
+                if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(basic_token) {
+                    if let Ok(credentials) = String::from_utf8(decoded) {
+                        if credentials.ends_with(expected_token) {
+                            return Ok(next.run(req).await);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Authentication failed - return 401 with WWW-Authenticate header
+    let mut response = Response::new("Authentication required".into());
+    *response.status_mut() = StatusCode::UNAUTHORIZED;
+    response.headers_mut().insert(
+        "WWW-Authenticate",
+        "Basic realm=\"Goose Web Interface\"".parse().unwrap(),
+    );
+    Ok(response)
+}
+
+pub async fn handle_web(
+    port: u16,
+    host: String,
+    open: bool,
+    auth_token: Option<String>,
+) -> Result<()> {
     // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
@@ -108,23 +164,17 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
     agent.update_provider(provider).await?;
 
     // Load and enable extensions from config
-    let extensions = goose::config::ExtensionConfigManager::get_all()?;
-    for ext_config in extensions {
-        if ext_config.enabled {
-            if let Err(e) = agent.add_extension(ext_config.config.clone()).await {
-                eprintln!(
-                    "Warning: Failed to load extension {}: {}",
-                    ext_config.config.name(),
-                    e
-                );
-            }
+    let enabled_configs = goose::config::get_enabled_extensions();
+    for config in enabled_configs {
+        if let Err(e) = agent.add_extension(config.clone()).await {
+            eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
         }
     }
 
     let state = AppState {
         agent: Arc::new(agent),
-        sessions: Arc::new(RwLock::new(std::collections::HashMap::new())),
         cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        auth_token,
     };
 
     // Build router
@@ -136,6 +186,10 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         .route("/api/sessions", get(list_sessions))
         .route("/api/sessions/{session_id}", get(get_session))
         .route("/static/{*path}", get(serve_static))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -146,7 +200,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
 
-    println!("\n🪿 Starting Goose web server");
+    println!("\n🪿 Starting goose web server");
     println!("   Provider: {} | Model: {}", provider_name, model);
     println!(
         "   Working directory: {}",
@@ -169,8 +223,15 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
     Ok(())
 }
 
-async fn serve_index() -> Html<&'static str> {
-    Html(include_str!("../../static/index.html"))
+async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
+    let session = SessionManager::create_session(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        "Web session".to_string(),
+    )
+    .await
+    .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+
+    Ok(Redirect::to(&format!("/session/{}", session.id)))
 }
 
 async fn serve_session(
@@ -222,23 +283,19 @@ async fn health_check() -> Json<serde_json::Value> {
 }
 
 async fn list_sessions() -> Json<serde_json::Value> {
-    match session::list_sessions() {
+    match SessionManager::list_sessions().await {
         Ok(sessions) => {
-            let session_info: Vec<serde_json::Value> = sessions
-                .into_iter()
-                .filter_map(|(name, path)| {
-                    session::read_metadata(&path).ok().map(|metadata| {
-                        serde_json::json!({
-                            "name": name,
-                            "path": path,
-                            "description": metadata.description,
-                            "message_count": metadata.message_count,
-                            "working_dir": metadata.working_dir
-                        })
-                    })
-                })
-                .collect();
+            let mut session_info = Vec::new();
 
+            for session in sessions {
+                session_info.push(serde_json::json!({
+                    "name": session.id,
+                    "path": session.id,
+                    "description": session.description,
+                    "message_count": session.message_count,
+                    "working_dir": session.working_dir
+                }));
+            }
             Json(serde_json::json!({
                 "sessions": session_info
             }))
@@ -251,30 +308,14 @@ async fn list_sessions() -> Json<serde_json::Value> {
 async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
-    let session_file = match session::get_path(session::Identifier::Name(session_id)) {
-        Ok(path) => path,
-        Err(e) => {
-            return Json(serde_json::json!({
-                "error": format!("Invalid session ID: {}", e)
-            }));
-        }
-    };
-
-    let error_response = |e: Box<dyn std::error::Error>| {
-        Json(serde_json::json!({
+    match SessionManager::get_session(&session_id, true).await {
+        Ok(session) => Json(serde_json::json!({
+            "metadata": session,
+            "messages": session.conversation.unwrap_or_default().messages()
+        })),
+        Err(e) => Json(serde_json::json!({
             "error": e.to_string()
-        }))
-    };
-
-    match session::read_messages(&session_file) {
-        Ok(messages) => match session::read_metadata(&session_file) {
-            Ok(metadata) => Json(serde_json::json!({
-                "metadata": metadata,
-                "messages": messages
-            })),
-            Err(e) => error_response(e.into()),
-        },
-        Err(e) => error_response(e.into()),
+        })),
     }
 }
 
@@ -299,46 +340,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                             session_id,
                             ..
                         }) => {
-                            // Get session file path from session_id
-                            let session_file = match session::get_path(session::Identifier::Name(
-                                session_id.clone(),
-                            )) {
-                                Ok(path) => path,
-                                Err(e) => {
-                                    tracing::error!("Failed to get session path: {}", e);
-                                    continue;
-                                }
-                            };
-
-                            // Get or create session in memory (for fast access during processing)
-                            let session_messages = {
-                                let sessions = state.sessions.read().await;
-                                if let Some(session) = sessions.get(&session_id) {
-                                    session.clone()
-                                } else {
-                                    drop(sessions);
-                                    let mut sessions = state.sessions.write().await;
-
-                                    // Load existing messages from JSONL file if it exists
-                                    let existing_messages =
-                                        session::read_messages(&session_file).unwrap_or_default();
-
-                                    let new_session = Arc::new(Mutex::new(existing_messages));
-                                    sessions.insert(session_id.clone(), new_session.clone());
-                                    new_session
-                                }
-                            };
-
-                            // Clone sender for async processing
                             let sender_clone = sender.clone();
                             let agent = state.agent.clone();
+                            let session_id_clone = session_id.clone();
 
-                            // Process message in a separate task to allow streaming
                             let task_handle = tokio::spawn(async move {
                                 let result = process_message_streaming(
                                     &agent,
-                                    session_messages,
-                                    session_file,
+                                    session_id_clone,
                                     content,
                                     sender_clone,
                                 )
@@ -349,25 +358,21 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 }
                             });
 
-                            // Store the abort handle
                             {
                                 let mut cancellations = state.cancellations.write().await;
                                 cancellations
                                     .insert(session_id.clone(), task_handle.abort_handle());
                             }
 
-                            // Wait for task completion and handle abort
+                            // Handle task completion and cleanup
                             let sender_for_abort = sender.clone();
                             let session_id_for_cleanup = session_id.clone();
                             let cancellations_for_cleanup = state.cancellations.clone();
 
                             tokio::spawn(async move {
                                 match task_handle.await {
-                                    Ok(_) => {
-                                        // Task completed normally
-                                    }
+                                    Ok(_) => {}
                                     Err(e) if e.is_cancelled() => {
-                                        // Task was aborted
                                         let mut sender = sender_for_abort.lock().await;
                                         let _ = sender
                                             .send(Message::Text(
@@ -387,11 +392,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     }
                                 }
 
-                                // Clean up cancellation token
-                                {
-                                    let mut cancellations = cancellations_for_cleanup.write().await;
-                                    cancellations.remove(&session_id_for_cleanup);
-                                }
+                                let mut cancellations = cancellations_for_cleanup.write().await;
+                                cancellations.remove(&session_id_for_cleanup);
                             });
                         }
                         Ok(WebSocketMessage::Cancel { session_id }) => {
@@ -436,27 +438,16 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
 async fn process_message_streaming(
     agent: &Agent,
-    session_messages: Arc<Mutex<Conversation>>,
-    session_file: std::path::PathBuf,
+    session_id: String,
     content: String,
     sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<()> {
     use futures::StreamExt;
     use goose::agents::SessionConfig;
     use goose::conversation::message::MessageContent;
-    use goose::session;
 
-    // Create a user message
     let user_message = GooseMessage::user().with_text(content.clone());
 
-    // Messages will be auto-compacted in agent.reply() if needed
-    let messages: Conversation = {
-        let mut session_msgs = session_messages.lock().await;
-        session_msgs.push(user_message.clone());
-        session_msgs.clone()
-    };
-
-    // Persist messages to JSONL file with provider for automatic description generation
     let provider = agent.provider().await;
     if provider.is_err() {
         let error_msg = "I'm not properly configured yet. Please configure a provider through the CLI first using `goose configure`.".to_string();
@@ -475,19 +466,13 @@ async fn process_message_streaming(
         return Ok(());
     }
 
-    let provider = provider.unwrap();
-    let working_dir = Some(std::env::current_dir()?);
-    session::persist_messages(
-        &session_file,
-        &messages,
-        Some(provider.clone()),
-        working_dir.clone(),
-    )
-    .await?;
+    let session = SessionManager::get_session(&session_id, true).await?;
+    let mut messages = session.conversation.unwrap_or_default();
+    messages.push(user_message);
 
     let session_config = SessionConfig {
-        id: session::Identifier::Path(session_file.clone()),
-        working_dir: std::env::current_dir()?,
+        id: session.id.clone(),
+        working_dir: session.working_dir,
         schedule_id: None,
         execution_mode: None,
         max_turns: None,
@@ -502,29 +487,11 @@ async fn process_message_streaming(
             while let Some(result) = stream.next().await {
                 match result {
                     Ok(AgentEvent::Message(message)) => {
-                        // Add message to our session
-                        {
-                            let mut session_msgs = session_messages.lock().await;
-                            session_msgs.push(message.clone());
-                        }
+                        SessionManager::add_message(&session_id, &message).await?;
 
-                        // Persist messages to JSONL file (no provider needed for assistant messages)
-                        let current_messages = {
-                            let session_msgs = session_messages.lock().await;
-                            session_msgs.clone()
-                        };
-                        session::persist_messages(
-                            &session_file,
-                            &current_messages,
-                            None,
-                            working_dir.clone(),
-                        )
-                        .await?;
-                        // Handle different message content types
                         for content in &message.content {
                             match content {
                                 MessageContent::Text(text) => {
-                                    // Send the text response
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -539,7 +506,6 @@ async fn process_message_streaming(
                                         .await;
                                 }
                                 MessageContent::ToolRequest(req) => {
-                                    // Send tool request notification
                                     let mut sender = sender.lock().await;
                                     if let Ok(tool_call) = &req.tool_call {
                                         let _ = sender
@@ -547,8 +513,10 @@ async fn process_message_streaming(
                                                 serde_json::to_string(
                                                     &WebSocketMessage::ToolRequest {
                                                         id: req.id.clone(),
-                                                        tool_name: tool_call.name.clone(),
-                                                        arguments: tool_call.arguments.clone(),
+                                                        tool_name: tool_call.name.to_string(),
+                                                        arguments: Value::from(
+                                                            tool_call.arguments.clone(),
+                                                        ),
                                                     },
                                                 )
                                                 .unwrap()
@@ -557,21 +525,21 @@ async fn process_message_streaming(
                                             .await;
                                     }
                                 }
-                                MessageContent::ToolResponse(_resp) => {
-                                    // Tool responses are already included in the complete message stream
-                                    // and will be persisted to session history. No need to send separate
-                                    // WebSocket messages as this would cause duplicates.
-                                }
+                                MessageContent::ToolResponse(_resp) => {}
                                 MessageContent::ToolConfirmationRequest(confirmation) => {
-                                    // Send tool confirmation request
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
                                             serde_json::to_string(
                                                 &WebSocketMessage::ToolConfirmation {
                                                     id: confirmation.id.clone(),
-                                                    tool_name: confirmation.tool_name.clone(),
-                                                    arguments: confirmation.arguments.clone(),
+                                                    tool_name: confirmation
+                                                        .tool_name
+                                                        .to_string()
+                                                        .clone(),
+                                                    arguments: Value::from(
+                                                        confirmation.arguments.clone(),
+                                                    ),
                                                     needs_confirmation: true,
                                                 },
                                             )
@@ -580,8 +548,6 @@ async fn process_message_streaming(
                                         ))
                                         .await;
 
-                                    // For now, auto-approve in web mode
-                                    // TODO: Implement proper confirmation UI
                                     agent.handle_confirmation(
                                         confirmation.id.clone(),
                                         goose::permission::PermissionConfirmation {
@@ -591,7 +557,6 @@ async fn process_message_streaming(
                                     ).await;
                                 }
                                 MessageContent::Thinking(thinking) => {
-                                    // Send thinking indicator
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -604,7 +569,6 @@ async fn process_message_streaming(
                                         .await;
                                 }
                                 MessageContent::ContextLengthExceeded(msg) => {
-                                    // Send context exceeded notification
                                     let mut sender = sender.lock().await;
                                     let _ = sender
                                         .send(Message::Text(
@@ -618,55 +582,27 @@ async fn process_message_streaming(
                                         ))
                                         .await;
 
-                                    // For now, auto-summarize in web mode
-                                    // TODO: Implement proper UI for context handling
                                     let (summarized_messages, _, _) =
                                         agent.summarize_context(messages.messages()).await?;
-                                    {
-                                        let mut session_msgs = session_messages.lock().await;
-                                        *session_msgs = summarized_messages;
-                                    }
+                                    SessionManager::replace_conversation(
+                                        &session_id,
+                                        &summarized_messages,
+                                    )
+                                    .await?;
                                 }
-                                _ => {
-                                    // Handle other message types as needed
-                                }
+                                _ => {}
                             }
                         }
                     }
-                    Ok(AgentEvent::HistoryReplaced(new_messages)) => {
-                        // Replace the session's message history with the compacted messages
-                        {
-                            let mut session_msgs = session_messages.lock().await;
-                            *session_msgs = Conversation::new_unvalidated(new_messages);
-                        }
-
-                        // Persist the updated messages to the JSONL file
-                        let current_messages = {
-                            let session_msgs = session_messages.lock().await;
-                            session_msgs.clone()
-                        };
-
-                        if let Err(e) = session::persist_messages(
-                            &session_file,
-                            &current_messages,
-                            None, // No provider needed for persisting
-                            working_dir.clone(),
-                        )
-                        .await
-                        {
-                            error!("Failed to persist compacted messages: {}", e);
-                        }
+                    Ok(AgentEvent::HistoryReplaced(_new_messages)) => {
+                        tracing::info!("History replaced, compacting happened in reply");
                     }
                     Ok(AgentEvent::McpNotification(_notification)) => {
-                        // Handle MCP notifications if needed
-                        // For now, we'll just log them
                         tracing::info!("Received MCP notification in web interface");
                     }
                     Ok(AgentEvent::ModelChange { model, mode }) => {
-                        // Log model change
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
-
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         let mut sender = sender.lock().await;
@@ -699,7 +635,6 @@ async fn process_message_streaming(
         }
     }
 
-    // Send completion message
     let mut sender = sender.lock().await;
     let _ = sender
         .send(Message::Text(
@@ -713,6 +648,3 @@ async fn process_message_streaming(
 
     Ok(())
 }
-
-// Add webbrowser dependency for opening browser
-use webbrowser;

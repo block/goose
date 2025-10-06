@@ -98,7 +98,7 @@ export default function Pair({
     }
   }, [agentState, setView]);
 
-  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
+  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipe || null);
 
   const handleMessageSubmit = (message: string) => {
     // Clean up any auto submit state:

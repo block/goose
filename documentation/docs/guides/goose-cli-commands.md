@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 35
 title: CLI Commands
 sidebar_label: CLI Commands
 toc_max_heading_level: 4
@@ -338,6 +338,22 @@ Run an enabled MCP server specified by `<name>` (e.g. `'Google Drive'`).
 ```bash
 goose mcp <name>
 ```
+
+---
+
+#### acp
+Run Goose as an Agent Client Protocol (ACP) agent server over stdio. This enables Goose to work with ACP-compatible clients like Zed.
+
+ACP is an emerging protocol specification that standardizes communication between AI agents and client applications, making it easier for clients to integrate with various AI agents.
+
+**Usage:**
+```bash
+goose acp
+```
+
+:::info
+This command is automatically invoked by ACP-compatible clients and is not typically run directly by users. The client manages the lifecycle of the `goose acp` process. See [Using Goose in ACP Clients](/docs/guides/acp-clients) for details.
+:::
 
 ---
 

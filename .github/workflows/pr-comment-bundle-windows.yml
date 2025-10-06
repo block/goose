@@ -95,6 +95,6 @@ jobs:
             [🪟 Download Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
 
             **Instructions:**
-            After downloading, unzip the file and run Goose.exe. The app is signed for Windows.
+            After downloading, unzip the file and run goose.exe. The app is signed for Windows.
 
             This link is provided by nightly.link and will work even if you're not logged into GitHub.

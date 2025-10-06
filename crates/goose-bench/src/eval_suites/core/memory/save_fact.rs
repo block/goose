@@ -51,7 +51,7 @@ impl Evaluation for MemoryRememberMemory {
                             }
 
                             // Parse the arguments as JSON
-                            if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
+                            if let Ok(args) = serde_json::from_value::<Value>(serde_json::Value::Object(tool_call.arguments.clone().unwrap_or_default())) {
                                 // Check all required parameters match exactly
                                 args.get("category").and_then(Value::as_str).is_some_and(|s| s.contains("fact")) &&
                                     args.get("data").and_then(Value::as_str) == Some("The capital of France is Paris.") &&

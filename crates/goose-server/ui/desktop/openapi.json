@@ -1149,7 +1149,7 @@
             "properties": {
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with Goose",
+                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "description": {
@@ -1204,7 +1204,7 @@
               },
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with Goose",
+                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "cmd": {
@@ -1251,7 +1251,7 @@
             "properties": {
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with Goose",
+                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "display_name": {
@@ -1287,7 +1287,7 @@
             "properties": {
               "bundled": {
                 "type": "boolean",
-                "description": "Whether this extension is bundled with Goose",
+                "description": "Whether this extension is bundled with goose",
                 "nullable": true
               },
               "instructions": {

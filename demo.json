@@ -1,6 +1,6 @@
 {
   "demo": {
-    "title": "Goose File Operations Demo",
+    "title": "goose File Operations Demo",
     "version": "1.0.0",
     "features": [
       "File creation",
@@ -9,7 +9,7 @@
       "Multiple formats"
     ],
     "metadata": {
-      "created_by": "Goose AI Assistant",
+      "created_by": "goose AI Assistant",
       "created_at": "2025-07-02T17:33:32Z",
       "file_type": "demonstration"
     }

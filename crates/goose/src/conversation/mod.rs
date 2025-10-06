@@ -1,13 +1,14 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent, MessageMetadata};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
+use utoipa::ToSchema;
 
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]
@@ -86,7 +87,7 @@ impl Conversation {
         }
     }
 
-    pub fn iter(&self) -> std::slice::Iter<Message> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Message> {
         self.0.iter()
     }
 
@@ -100,6 +101,25 @@ impl Conversation {
 
     pub fn clear(&mut self) {
         self.0.clear();
+    }
+
+    pub fn filtered_messages<F>(&self, filter: F) -> Vec<Message>
+    where
+        F: Fn(&MessageMetadata) -> bool,
+    {
+        self.0
+            .iter()
+            .filter(|msg| filter(&msg.metadata))
+            .cloned()
+            .collect()
+    }
+
+    pub fn agent_visible_messages(&self) -> Vec<Message> {
+        self.filtered_messages(|meta| meta.agent_visible)
+    }
+
+    pub fn user_visible_messages(&self) -> Vec<Message> {
+        self.filtered_messages(|meta| meta.user_visible)
     }
 
     fn validate(self) -> Result<Self, InvalidConversation> {
@@ -122,6 +142,23 @@ impl Default for Conversation {
     }
 }
 
+impl IntoIterator for Conversation {
+    type Item = Message;
+    type IntoIter = std::vec::IntoIter<Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+impl<'a> IntoIterator for &'a Conversation {
+    type Item = &'a Message;
+    type IntoIter = std::slice::Iter<'a, Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Fix a conversation that we're about to send to an LLM. So the last and first
 /// messages should always be from the user.
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
@@ -131,20 +168,61 @@ pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String
 }
 
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
-    let (messages_1, empty_removed) = remove_empty_messages(messages);
-    let (messages_2, tool_calling_fixed) = fix_tool_calling(messages_1);
-    let (messages_3, messages_merged) = merge_consecutive_messages(messages_2);
-    let (messages_4, lead_trail_fixed) = fix_lead_trail(messages_3);
-    let (messages_5, populated_if_empty) = populate_if_empty(messages_4);
+    [
+        merge_text_content_items,
+        remove_empty_messages,
+        fix_tool_calling,
+        merge_consecutive_messages,
+        fix_lead_trail,
+        populate_if_empty,
+    ]
+    .into_iter()
+    .fold(
+        (messages, Vec::new()),
+        |(msgs, mut all_issues), processor| {
+            let (new_msgs, issues) = processor(msgs);
+            all_issues.extend(issues);
+            (new_msgs, all_issues)
+        },
+    )
+}
 
-    let mut issues = Vec::new();
-    issues.extend(empty_removed);
-    issues.extend(tool_calling_fixed);
-    issues.extend(messages_merged);
-    issues.extend(lead_trail_fixed);
-    issues.extend(populated_if_empty);
+fn merge_text_content_in_message(mut msg: Message) -> Message {
+    if msg.role != Role::Assistant {
+        return msg;
+    }
+    msg.content = msg
+        .content
+        .into_iter()
+        .fold(Vec::new(), |mut content, item| {
+            match item {
+                MessageContent::Text(text) => {
+                    if let Some(MessageContent::Text(ref mut last)) = content.last_mut() {
+                        last.text.push_str(&text.text);
+                    } else {
+                        content.push(MessageContent::Text(text));
+                    }
+                }
+                other => content.push(other),
+            }
+            content
+        });
+    msg
+}
 
-    (messages_5, issues)
+fn merge_text_content_items(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    messages.into_iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut messages, mut issues), message| {
+            let content_len = message.content.len();
+            let message = merge_text_content_in_message(message);
+            if content_len != message.content.len() {
+                issues.push(String::from("Merged text content"))
+            }
+            messages.push(message);
+            (messages, issues)
+        },
+    )
 }
 
 fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -152,7 +230,11 @@ fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) 
     let filtered_messages = messages
         .into_iter()
         .filter(|msg| {
-            if msg.content.is_empty() {
+            if msg
+                .content
+                .iter()
+                .all(|c| c.as_text().is_some_and(str::is_empty))
+            {
                 issues.push("Removed empty message".to_string());
                 false
             } else {
@@ -362,9 +444,26 @@ pub fn debug_conversation_fix(
 mod tests {
     use crate::conversation::message::Message;
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-    use mcp_core::tool::ToolCall;
-    use rmcp::model::Role;
-    use serde_json::json;
+    use rmcp::model::{CallToolRequestParam, Role};
+    use rmcp::object;
+
+    macro_rules! assert_has_issues_unordered {
+        ($fixed:expr, $issues:expr, $($expected:expr),+ $(,)?) => {
+            {
+                let mut expected: Vec<&str> = vec![$($expected),+];
+                let mut actual: Vec<&str> = $issues.iter().map(|s| s.as_str()).collect();
+                expected.sort();
+                actual.sort();
+
+                if actual != expected {
+                    panic!(
+                        "assertion failed: issues don't match\nexpected: {:?}\n  actual: {:?}. Fixed conversation is:\n{:#?}",
+                        expected, $issues, $fixed,
+                    );
+                }
+            }
+        };
+    }
 
     fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages.clone()));
@@ -379,7 +478,7 @@ mod tests {
             0,
             "Fixed conversation should have no issues, but found: {:?}\n\n{}",
             issues_with_fixed,
-            debug_conversation_fix(&messages, &fixed.messages(), &issues)
+            debug_conversation_fix(&messages, fixed.messages(), &issues)
         );
         (fixed.messages().clone(), issues)
     }
@@ -392,10 +491,10 @@ mod tests {
                 .with_text("I'll help you search.")
                 .with_tool_request(
                     "search_1",
-                    Ok(ToolCall::new(
-                        "web_search",
-                        json!({"query": "rust programming"}),
-                    )),
+                    Ok(CallToolRequestParam {
+                        name: "web_search".into(),
+                        arguments: Some(object!({"query": "rust programming"})),
+                    }),
                 ),
             Message::user().with_tool_response("search_1", Ok(vec![])),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
@@ -437,24 +536,28 @@ mod tests {
                 .with_tool_response("orphan_1", Ok(vec![])), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
-                .with_tool_request("bad_req", Ok(ToolCall::new("search", json!({}))))
+                .with_tool_request(
+                    "bad_req",
+                    Ok(CallToolRequestParam {
+                        name: "search".into(),
+                        arguments: Some(object!({})),
+                    }),
+                )
                 .with_text("User with bad tool request"),
         ];
 
         let (fixed, issues) = run_verify(messages);
 
         assert_eq!(fixed.len(), 3);
-        assert_eq!(issues.len(), 4);
 
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Merged consecutive user messages")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed tool response 'orphan_1' from assistant message")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed tool request 'bad_req' from user message")));
+        assert_has_issues_unordered!(
+            fixed,
+            issues,
+            "Merged consecutive assistant messages",
+            "Merged consecutive user messages",
+            "Removed tool response 'orphan_1' from assistant message",
+            "Removed tool request 'bad_req' from user message",
+        );
 
         assert_eq!(fixed[0].role, Role::User);
         assert_eq!(fixed[1].role, Role::Assistant);
@@ -472,21 +575,40 @@ mod tests {
         let messages = vec![
             Message::assistant()
                 .with_text("I'll search for you")
-                .with_tool_request("search_1", Ok(ToolCall::new("search", json!({})))),
+                .with_tool_request(
+                    "search_1",
+                    Ok(CallToolRequestParam {
+                        name: "search".into(),
+                        arguments: Some(object!({})),
+                    }),
+                ),
             Message::user(),
             Message::user().with_tool_response("wrong_id", Ok(vec![])),
-            Message::assistant()
-                .with_tool_request("search_2", Ok(ToolCall::new("search", json!({})))),
+            Message::assistant().with_tool_request(
+                "search_2",
+                Ok(CallToolRequestParam {
+                    name: "search".into(),
+                    arguments: Some(object!({})),
+                }),
+            ),
         ];
 
         let (fixed, issues) = run_verify(messages);
 
         assert_eq!(fixed.len(), 1);
 
-        assert!(issues.iter().any(|i| i.contains("Removed empty message")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed orphaned tool response 'wrong_id'")));
+        assert_has_issues_unordered!(
+            fixed,
+            issues,
+            "Removed empty message",
+            "Removed orphaned tool response 'wrong_id'",
+            "Removed orphaned tool request 'search_1'",
+            "Removed orphaned tool request 'search_2'",
+            "Removed empty message",
+            "Removed empty message",
+            "Removed leading assistant message",
+            "Added placeholder user message to empty conversation",
+        );
 
         assert_eq!(fixed[0].role, Role::User);
         assert_eq!(fixed[0].as_concat_text(), "Hello");
@@ -496,14 +618,18 @@ mod tests {
     fn test_real_world_consecutive_assistant_messages() {
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("run ls in the current directory and then run a word count on the smallest file"),
+
             Message::assistant()
                 .with_text("I'll help you run `ls` in the current directory and then perform a word count on the smallest file. Let me start by listing the directory contents.")
-                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(ToolCall::new("developer__shell", json!({"command": "ls -la"})))),
+                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(CallToolRequestParam { name: "developer__shell".into(), arguments: Some(object!({"command": "ls -la"})) })),
+
             Message::assistant()
                 .with_text("Now I'll identify the smallest file by size. Looking at the output, I can see that both `slack.yaml` and `subrecipes.yaml` have a size of 0 bytes, making them the smallest files. I'll run a word count on one of them:")
-                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(ToolCall::new("developer__shell", json!({"command": "wc slack.yaml"})))),
+                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParam { name: "developer__shell".into(), arguments: Some(object!({"command": "wc slack.yaml"})) })),
+
             Message::user()
                 .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(vec![])),
+
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
             Message::user().with_text("thanks!"),
@@ -512,9 +638,12 @@ mod tests {
         let (fixed, issues) = fix_conversation(conversation);
 
         assert_eq!(fixed.len(), 5);
-        assert_eq!(issues.len(), 2);
-        assert!(issues[0].contains("Removed orphaned tool request"));
-        assert!(issues[1].contains("Merged consecutive assistant messages"));
+        assert_has_issues_unordered!(
+            fixed,
+            issues,
+            "Removed orphaned tool request 'toolu_bdrk_018adWbP4X26CfoJU5hkhu3i'",
+            "Merged consecutive assistant messages"
+        )
     }
 
     #[test]
@@ -523,12 +652,104 @@ mod tests {
             Message::user().with_text("Search for something"),
             Message::assistant()
                 .with_text("I'll search for you")
-                .with_tool_request("search_1", Ok(ToolCall::new("search", json!({})))),
+                .with_tool_request(
+                    "search_1",
+                    Ok(CallToolRequestParam {
+                        name: "search".into(),
+                        arguments: Some(object!({})),
+                    }),
+                ),
             Message::user().with_tool_response("search_1", Ok(vec![])),
             Message::user().with_text("Thanks!"),
         ];
 
         let (_fixed, issues) = run_verify(messages);
-        assert_eq!(issues.len(), 0);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn test_merge_text_content_items() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let mut message = Message::assistant().with_text("Hello");
+
+        message.content.push(MessageContent::Text(
+            RawTextContent {
+                text: " world".to_string(),
+                meta: None,
+            }
+            .no_annotation(),
+        ));
+        message.content.push(MessageContent::Text(
+            RawTextContent {
+                text: "!".to_string(),
+                meta: None,
+            }
+            .no_annotation(),
+        ));
+
+        let messages = vec![
+            Message::user().with_text("hello"),
+            message,
+            Message::user().with_text("thanks"),
+        ];
+
+        let (fixed, issues) = run_verify(messages);
+
+        assert_eq!(fixed.len(), 3);
+        assert_has_issues_unordered!(fixed, issues, "Merged text content");
+
+        let fixed_msg = &fixed[1];
+        assert_eq!(fixed_msg.content.len(), 1);
+
+        if let MessageContent::Text(text_content) = &fixed_msg.content[0] {
+            assert_eq!(text_content.text, "Hello world!");
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[test]
+    fn test_merge_text_content_items_with_mixed_content() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let mut image_message = Message::assistant().with_text("Look at");
+
+        image_message.content.push(MessageContent::Text(
+            RawTextContent {
+                text: " this image:".to_string(),
+                meta: None,
+            }
+            .no_annotation(),
+        ));
+
+        image_message = image_message.with_image("", "");
+
+        let messages = vec![
+            Message::user().with_text("hello"),
+            image_message,
+            Message::user().with_text("thanks"),
+        ];
+
+        let (fixed, issues) = run_verify(messages);
+
+        assert_eq!(fixed.len(), 3);
+        assert_has_issues_unordered!(fixed, issues, "Merged text content");
+        let fixed_msg = &fixed[1];
+
+        assert_eq!(fixed_msg.content.len(), 2);
+        if let MessageContent::Text(text_content) = &fixed_msg.content[0] {
+            assert_eq!(text_content.text, "Look at this image:");
+        } else {
+            panic!("Expected first item to be text content");
+        }
+
+        if let MessageContent::Image(_) = &fixed_msg.content[1] {
+            // Good
+        } else {
+            panic!("Expected second item to be an image");
+        }
     }
 }

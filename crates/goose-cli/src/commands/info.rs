@@ -30,19 +30,19 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     let basic_padding = paths.iter().map(|(l, _)| l.len()).max().unwrap_or(0) + 4;
 
     // Print version information
-    println!("{}", style("Goose Version:").cyan().bold());
+    println!("{}", style("goose Version:").cyan().bold());
     print_aligned("Version:", env!("CARGO_PKG_VERSION"), basic_padding);
     println!();
 
     // Print location information
-    println!("{}", style("Goose Locations:").cyan().bold());
+    println!("{}", style("goose Locations:").cyan().bold());
     for (label, path) in &paths {
         print_aligned(label, path, basic_padding);
     }
 
     // Print verbose info if requested
     if verbose {
-        println!("\n{}", style("Goose Configuration:").cyan().bold());
+        println!("\n{}", style("goose Configuration:").cyan().bold());
         match config.load_values() {
             Ok(values) => {
                 if values.is_empty() {

@@ -8,11 +8,9 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
-import { fetchSessions, updateSessionMetadata, deleteSession, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { View, ViewOptions } from '../../utils/navigationUtils';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
@@ -21,6 +19,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { deleteSession, listSessions, Session, updateSessionDescription } from '../../api';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -37,7 +36,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     useEffect(() => {
       if (session && isOpen) {
-        setDescription(session.metadata.description || session.id);
+        setDescription(session.description || session.id);
       } else if (!isOpen) {
         // Reset state when modal closes
         setDescription('');
@@ -49,14 +48,18 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (!session || disabled) return;
 
       const trimmedDescription = description.trim();
-      if (trimmedDescription === session.metadata.description) {
+      if (trimmedDescription === session.description) {
         onClose();
         return;
       }
 
       setIsUpdating(true);
       try {
-        await updateSessionMetadata(session.id, trimmedDescription);
+        await updateSessionDescription({
+          path: { session_id: session.id },
+          body: { description: trimmedDescription },
+          throwOnError: true,
+        });
         await onSave(session.id, trimmedDescription);
 
         // Close modal, then show success toast on a timeout to let the UI update complete.
@@ -68,8 +71,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('Failed to update session description:', errorMessage);
         toast.error(`Failed to update session description: ${errorMessage}`);
-        // Reset to original description on error
-        setDescription(session.metadata.description || session.id);
+        setDescription(session.description || session.id);
       } finally {
         setIsUpdating(false);
       }
@@ -162,7 +164,6 @@ interface SearchContainerElement extends HTMLDivElement {
 }
 
 interface SessionListViewProps {
-  setView: (view: View, viewOptions?: ViewOptions) => void;
   onSelectSession: (sessionId: string) => void;
   selectedSessionId?: string | null;
 }
@@ -181,6 +182,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       count: number;
       currentIndex: number;
     } | null>(null);
+
+    const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
@@ -207,13 +210,41 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     };
 
+    const visibleDateGroups = useMemo(() => {
+      return dateGroups.slice(0, visibleGroupsCount);
+    }, [dateGroups, visibleGroupsCount]);
+
+    const handleScroll = useCallback(
+      (target: HTMLDivElement) => {
+        const { scrollTop, scrollHeight, clientHeight } = target;
+        const threshold = 200;
+
+        if (
+          scrollHeight - scrollTop - clientHeight < threshold &&
+          visibleGroupsCount < dateGroups.length
+        ) {
+          setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
+        }
+      },
+      [visibleGroupsCount, dateGroups.length]
+    );
+
+    useEffect(() => {
+      if (debouncedSearchTerm) {
+        setVisibleGroupsCount(dateGroups.length);
+      } else {
+        setVisibleGroupsCount(15);
+      }
+    }, [debouncedSearchTerm, dateGroups.length]);
+
     const loadSessions = useCallback(async () => {
       setIsLoading(true);
       setShowSkeleton(true);
       setShowContent(false);
       setError(null);
       try {
-        const sessions = await fetchSessions();
+        const resp = await listSessions<true>({ throwOnError: true });
+        const sessions = resp.data.sessions;
         // Use startTransition to make state updates non-blocking
         startTransition(() => {
           setSessions(sessions);
@@ -291,20 +322,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       startTransition(() => {
         const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
         const filtered = sessions.filter((session) => {
-          const description = session.metadata.description || session.id;
-          const path = session.path;
-          const workingDir = session.metadata.working_dir;
+          const description = session.description || session.id;
+          const workingDir = session.working_dir;
+          const sessionId = session.id;
 
           if (caseSensitive) {
             return (
               description.includes(searchTerm) ||
-              path.includes(searchTerm) ||
+              sessionId.includes(searchTerm) ||
               workingDir.includes(searchTerm)
             );
           } else {
             return (
               description.toLowerCase().includes(searchTerm) ||
-              path.toLowerCase().includes(searchTerm) ||
+              sessionId.toLowerCase().includes(searchTerm) ||
               workingDir.toLowerCase().includes(searchTerm)
             );
           }
@@ -355,11 +386,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) =>
-          s.id === sessionId
-            ? { ...s, metadata: { ...s.metadata, description: newDescription } }
-            : s
-        )
+        prevSessions.map((s) => (s.id === sessionId ? { ...s, description: newDescription } : s))
       );
     }, []);
 
@@ -378,18 +405,21 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setShowDeleteConfirmation(false);
       const sessionToDeleteId = sessionToDelete.id;
-      const sessionName = sessionToDelete.metadata.description || sessionToDelete.id;
+      const sessionName = sessionToDelete.description || sessionToDelete.id;
       setSessionToDelete(null);
 
       try {
-        await deleteSession(sessionToDeleteId);
+        await deleteSession({
+          path: { session_id: sessionToDeleteId },
+          throwOnError: true,
+        });
         toast.success('Session deleted successfully');
-        loadSessions();
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         toast.error(`Failed to delete session "${sessionName}": ${errorMessage}`);
       }
+      await loadSessions();
     }, [sessionToDelete, loadSessions]);
 
     const handleCancelDelete = useCallback(() => {
@@ -451,16 +481,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
           <div className="flex-1">
             <h3 className="text-base mb-1 pr-16 break-words">
-              {session.metadata.description || session.id}
+              {session.description || session.id}
             </h3>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span>{formatMessageTimestamp(Date.parse(session.modified) / 1000)}</span>
+              <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
             </div>
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span className="truncate">{session.metadata.working_dir}</span>
+              <span className="truncate">{session.working_dir}</span>
             </div>
           </div>
 
@@ -468,14 +498,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex items-center space-x-3 text-xs text-text-muted">
               <div className="flex items-center">
                 <MessageSquareText className="w-3 h-3 mr-1" />
-                <span className="font-mono">{session.metadata.message_count}</span>
+                <span className="font-mono">{session.message_count}</span>
               </div>
-              {session.metadata.total_tokens !== null && (
+              {session.total_tokens !== null && (
                 <div className="flex items-center">
                   <Target className="w-3 h-3 mr-1" />
-                  <span className="font-mono">
-                    {(session.metadata.total_tokens || 0).toLocaleString()}
-                  </span>
+                  <span className="font-mono">{(session.total_tokens || 0).toLocaleString()}</span>
                 </div>
               )}
             </div>
@@ -556,10 +584,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      // For regular rendering in grid layout
       return (
         <div className="space-y-8">
-          {dateGroups.map((group) => (
+          {visibleDateGroups.map((group) => (
             <div key={group.label} className="space-y-4">
               <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
                 <h2 className="text-text-muted">{group.label}</h2>
@@ -576,6 +603,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
           ))}
+
+          {visibleGroupsCount < dateGroups.length && (
+            <div className="flex justify-center py-8">
+              <div className="flex items-center space-x-2 text-text-muted">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                <span>Loading more sessions...</span>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
@@ -596,7 +632,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
 
             <div className="flex-1 min-h-0 relative px-8">
-              <ScrollArea className="h-full" data-search-scroll-area>
+              <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
                 <div ref={containerRef} className="h-full relative">
                   <SearchView
                     onSearch={handleSearch}
@@ -675,7 +711,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <ConfirmationModal
           isOpen={showDeleteConfirmation}
           title="Delete Session"
-          message={`Are you sure you want to delete the session "${sessionToDelete?.metadata.description || sessionToDelete?.id}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete the session "${sessionToDelete?.description || sessionToDelete?.id}"? This action cannot be undone.`}
           confirmLabel="Delete Session"
           cancelLabel="Cancel"
           confirmVariant="destructive"

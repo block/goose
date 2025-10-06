@@ -1,5 +1,5 @@
 {
-  description = "Goose - An AI agent CLI";
+  description = "goose - An AI agent CLI";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -42,7 +42,7 @@
         defaultPackage = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = workspaceToml.workspace.package.version;
-          src = ./.;
+          src = self;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
@@ -105,7 +105,7 @@
           ]);
           
           shellHook = ''
-            echo "Goose development environment"
+            echo "goose development environment"
             echo "Rust version: $(rustc --version)"
             echo ""
             echo "Commands:"

@@ -1,7 +1,7 @@
 ---
 title: Prevent Goose from Accessing Files
 sidebar_label: Using Gooseignore
-sidebar_position: 14
+sidebar_position: 80
 ---
 
 

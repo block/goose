@@ -23,7 +23,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { startGoosed } from './goosed';
+import { checkServerStatus, startGoosed } from './goosed';
 import { expandTilde, getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -50,12 +50,14 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { decodeRecipe } from './api/sdk.gen';
+import { decodeRecipe } from './api';
+import { Client, createClient, createConfig } from './api/client';
 
-async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
+async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
   try {
     return (
       await decodeRecipe({
+        client,
         throwOnError: true,
         body: { deeplink },
       })
@@ -486,9 +488,8 @@ let appConfig = {
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
 };
 
-// Track windows by ID
-let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
+const goosedClients = new Map<number, Client>();
 
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
@@ -506,31 +507,10 @@ const createChat = async (
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
-  let working_dir = '';
+  let workingDir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  if (viewType === 'recipeEditor') {
-    // For recipeEditor, get the port from existing windows' config
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      // Get the config from localStorage through an existing window
-      try {
-        const config = await existingWindows[0].webContents.executeJavaScript(
-          `window.electron.getConfig()`
-        );
-        if (config) {
-          port = config.GOOSE_PORT;
-          working_dir = config.GOOSE_WORKING_DIR;
-        }
-      } catch (e) {
-        console.error('Failed to get config from localStorage:', e);
-      }
-    }
-    if (port === 0) {
-      console.error('No existing Goose process found for recipeEditor');
-      throw new Error('Cannot create recipeEditor window: No existing Goose process found');
-    }
-  } else {
+  {
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
 
@@ -550,7 +530,7 @@ const createChat = async (
       envVars
     );
     port = newPort;
-    working_dir = newWorkingDir;
+    workingDir = newWorkingDir;
     goosedProcess = newGoosedProcess;
   }
 
@@ -591,7 +571,7 @@ const createChat = async (
         JSON.stringify({
           ...appConfig,
           GOOSE_PORT: port,
-          GOOSE_WORKING_DIR: working_dir,
+          GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
@@ -601,6 +581,23 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  const goosedClient = createClient(
+    createConfig({
+      baseUrl: `http://127.0.0.1:${port}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': SERVER_SECRET,
+      },
+    })
+  );
+  goosedClients.set(mainWindow.id, goosedClient);
+
+  console.log('[Main] Waiting for backend server to be ready...');
+  const serverReady = await checkServerStatus(goosedClient);
+  if (!serverReady) {
+    throw new Error('Backend server failed to start in time');
+  }
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -659,7 +656,7 @@ const createChat = async (
     shell.openExternal(url);
   });
 
-  const windowId = ++windowCounter;
+  const windowId = mainWindow.id;
   const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
     : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
@@ -675,7 +672,6 @@ const createChat = async (
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
     sharedSession: '/shared-session',
-    recipeEditor: '/recipe-editor',
     welcome: '/welcome',
   };
 
@@ -697,7 +693,7 @@ const createChat = async (
   // Goose's react app uses HashRouter, so the path + search params follow a #/
   url.hash = `${appPath}?${searchParams.toString()}`;
   let formattedUrl = formatUrl(url);
-  console.log('Opening URL: ', formattedUrl);
+  log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
   // Set up local keyboard shortcuts that only work when the window is focused
@@ -737,7 +733,7 @@ const createChat = async (
     console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
 
     // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink)
+    decodeRecipeMain(goosedClient, recipeDeeplink)
       .then((decodedRecipe) => {
         if (decodedRecipe) {
           console.log('[Main] Recipe decoded successfully, updating window config');
@@ -1016,18 +1012,18 @@ process.on('unhandledRejection', (error) => {
 });
 
 ipcMain.on('react-ready', () => {
-  console.log('React ready event received');
+  log.info('React ready event received');
 
   if (pendingDeepLink) {
-    console.log('Processing pending deep link:', pendingDeepLink);
+    log.info('Processing pending deep link:', pendingDeepLink);
     handleProtocolUrl(pendingDeepLink);
   } else {
-    console.log('No pending deep link to process');
+    log.info('No pending deep link to process');
   }
 
   // We don't need to handle pending deep links here anymore
   // since we're handling them in the window creation flow
-  console.log('[main] React ready - window is prepared for deep links');
+  log.info('React ready - window is prepared for deep links');
 });
 
 // Handle external URL opening
@@ -1058,6 +1054,18 @@ ipcMain.handle('get-settings', () => {
 
 ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
+});
+
+ipcMain.handle('get-goosed-host-port', async (event) => {
+  const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+  if (!windowId) {
+    return null;
+  }
+  const client = goosedClients.get(windowId);
+  if (!client) {
+    return null;
+  }
+  return client.getConfig().baseUrl || null;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1839,6 +1847,18 @@ async function appMain() {
     fileMenu.submenu.insert(
       0,
       new MenuItem({
+        label: 'New Chat',
+        accelerator: 'CmdOrCtrl+T',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('set-view', '');
+        },
+      })
+    );
+
+    fileMenu.submenu.insert(
+      1,
+      new MenuItem({
         label: 'New Chat Window',
         accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
         click() {
@@ -1849,7 +1869,7 @@ async function appMain() {
 
     // Open goose to specific dir and set that as its working space
     fileMenu.submenu.insert(
-      1,
+      2,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -1861,7 +1881,7 @@ async function appMain() {
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
-        2,
+        3,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -1869,7 +1889,7 @@ async function appMain() {
       );
     }
 
-    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
     // The Close Window item is here.
 

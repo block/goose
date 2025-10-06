@@ -62,7 +62,7 @@ impl TetrateProvider {
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
-            .with_header("X-Title", "Goose")?;
+            .with_header("X-Title", "goose")?;
 
         Ok(Self {
             api_client,
@@ -114,7 +114,12 @@ impl TetrateProvider {
             // Return appropriate error based on the error code
             match error_code {
                 401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
-                429 => return Err(ProviderError::RateLimitExceeded(error_message.to_string())),
+                429 => {
+                    return Err(ProviderError::RateLimitExceeded {
+                        details: error_message.to_string(),
+                        retry_delay: None,
+                    })
+                }
                 500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
                 _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
             }
