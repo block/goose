@@ -6,6 +6,18 @@ sidebar_label: Subagents
 
 Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. They bring process isolation and context preservation by offloading work to separate instances. Think of them as temporary assistants that handle specific jobs without cluttering your chat with tool execution details.
 
+<details>
+  <summary>Subagents Walkthrough</summary>
+  <iframe
+    class="aspect-ratio"
+    src="https://youtube.com/embed/Uk4TtJUykK4"
+    title="Subagents Explained"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</details>
+
 ## How to Use Subagents
 
 To use subagents, ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
