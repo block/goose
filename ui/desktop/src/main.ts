@@ -598,7 +598,6 @@ const createChat = async (
   if (!serverReady) {
     throw new Error('Backend server failed to start in time');
   }
-  console.log('[Main] Backend server is ready');
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
