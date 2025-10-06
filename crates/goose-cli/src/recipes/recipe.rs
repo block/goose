@@ -2,7 +2,7 @@ use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_recipe_explanation,
     print_required_parameters_for_template,
 };
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::search_recipe::load_recipe_file;
 use crate::recipes::secret_discovery::{discover_recipe_secrets, SecretRequirement};
 use anyhow::Result;
 use goose::config::Config;
@@ -15,8 +15,6 @@ use goose::recipe::Recipe;
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
-
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
         let input_value =
@@ -26,7 +24,7 @@ fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
 }
 
 fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> {
-    let recipe_file = retrieve_recipe_file(recipe_name)?;
+    let recipe_file = load_recipe_file(recipe_name)?;
     let recipe_dir_str = recipe_file
         .parent_dir
         .to_str()
@@ -36,7 +34,7 @@ fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> 
 }
 
 pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
-    let recipe_file = retrieve_recipe_file(recipe_name)?;
+    let recipe_file = load_recipe_file(recipe_name)?;
     match build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback())) {
         Ok(recipe) => {
             let secret_requirements = discover_recipe_secrets(&recipe);
