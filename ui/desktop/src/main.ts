@@ -593,6 +593,13 @@ const createChat = async (
   );
   goosedClients.set(mainWindow.id, goosedClient);
 
+  console.log('[Main] Waiting for backend server to be ready...');
+  const serverReady = await checkServerStatus(goosedClient);
+  if (!serverReady) {
+    throw new Error('Backend server failed to start in time');
+  }
+  console.log('[Main] Backend server is ready');
+
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
 
@@ -1059,7 +1066,6 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   if (!client) {
     return null;
   }
-  await checkServerStatus(client);
   return client.getConfig().baseUrl || null;
 });
 
