@@ -7,6 +7,7 @@ import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigC
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 import {
   extendPrompt,
+  Recipe,
   RecipeParameter,
   SubRecipe,
   updateAgentProvider,
@@ -78,9 +79,9 @@ const isValidParameterName = (variable: string): boolean => {
 // Helper function to filter recipe parameters to only show valid ones that are actually used
 export const filterValidUsedParameters = (
   parameters: RecipeParameter[] | undefined,
-  recipeContent: { prompt?: string; instructions?: string }
+  recipeContent: { prompt?: string; instructions?: string; activities?: string[] }
 ): RecipeParameter[] => {
-  if (!parameters || !Array.isArray(parameters)) {
+  if (!parameters) {
     return [];
   }
 
@@ -91,7 +92,13 @@ export const filterValidUsedParameters = (
   const instructionVariables = recipeContent.instructions
     ? extractTemplateVariables(recipeContent.instructions)
     : [];
-  const allUsedVariables = [...new Set([...promptVariables, ...instructionVariables])];
+
+  // Extract variables from activities using flatMap
+  const activityVariables = recipeContent.activities?.flatMap(extractTemplateVariables) ?? [];
+
+  const allUsedVariables = [
+    ...new Set([...promptVariables, ...instructionVariables, ...activityVariables]),
+  ];
 
   // Filter parameters to only include:
   // 1. Parameters with valid names (no spaces, dots, pipes, etc.)
@@ -142,15 +149,15 @@ export const substituteParameters = (text: string, params: Record<string, string
 export const updateSystemPromptWithParameters = async (
   sessionId: string,
   recipeParameters: Record<string, string>,
-  recipeConfig?: {
+  recipe?: {
     instructions?: string | null;
     sub_recipes?: SubRecipe[] | null;
     parameters?: RecipeParameter[] | null;
   }
 ): Promise<void> => {
-  const subRecipes = recipeConfig?.sub_recipes;
+  const subRecipes = recipe?.sub_recipes;
   try {
-    const originalInstructions = recipeConfig?.instructions;
+    const originalInstructions = recipe?.instructions;
 
     if (!originalInstructions) {
       return;
@@ -191,6 +198,8 @@ export const initializeSystem = async (
     getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
     addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
     setIsExtensionsLoading?: (loading: boolean) => void;
+    recipeParameters?: Record<string, string> | null;
+    recipe?: Recipe;
   }
 ) => {
   try {
@@ -215,18 +224,26 @@ export const initializeSystem = async (
       console.log('This will not end well');
     }
 
-    // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipe');
-    const recipe_instructions = (recipeConfig as { instructions?: string })?.instructions;
-    const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
-    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
-    const parameters = (recipeConfig as { parameters?: RecipeParameter[] })?.parameters;
-    const hasParameters = parameters && parameters?.length > 0;
+    // Get recipe - prefer from options (session metadata) over app config
+    const recipe = options?.recipe || window.appConfig?.get?.('recipe');
+    const recipe_instructions = (recipe as { instructions?: string })?.instructions;
+    const responseConfig = (recipe as { response?: { json_schema?: unknown } })?.response;
+    const subRecipes = (recipe as { sub_recipes?: SubRecipe[] })?.sub_recipes;
     const hasSubRecipes = subRecipes && subRecipes?.length > 0;
+    const recipeParameters = options?.recipeParameters;
+
+    // Determine the system prompt
     let prompt = desktopPrompt;
-    if (!hasParameters && recipe_instructions) {
-      prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
+
+    // If we have recipe instructions, add them to the system prompt with parameter substitution
+    if (recipe_instructions) {
+      const substitutedInstructions = recipeParameters
+        ? substituteParameters(recipe_instructions, recipeParameters)
+        : recipe_instructions;
+
+      prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`;
     }
+
     // Extend the system prompt with desktop-specific information
     await extendPrompt({
       body: {
@@ -235,9 +252,27 @@ export const initializeSystem = async (
       },
     });
 
-    if (!hasParameters && hasSubRecipes) {
-      await addSubRecipesToAgent(sessionId, subRecipes);
+    if (hasSubRecipes) {
+      let finalSubRecipes = subRecipes;
+
+      // If we have parameters, substitute them in sub-recipe values
+      if (recipeParameters) {
+        finalSubRecipes = subRecipes.map((subRecipe) => ({
+          ...subRecipe,
+          values: subRecipe.values
+            ? Object.fromEntries(
+                Object.entries(subRecipe.values).map(([key, value]) => [
+                  key,
+                  substituteParameters(value, recipeParameters),
+                ])
+              )
+            : subRecipe.values,
+        }));
+      }
+
+      await addSubRecipesToAgent(sessionId, finalSubRecipes);
     }
+
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
       const sessionConfigResponse = await updateSessionConfig({

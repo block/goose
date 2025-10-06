@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::conversation::{message::Message, Conversation};
 use goose::recipe::recipe_library;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+use goose::session::SessionManager;
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -18,16 +18,10 @@ use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRecipeRequest {
-    messages: Vec<Message>,
-    // Required metadata
-    title: String,
-    description: String,
+    session_id: String,
     // Optional fields
     #[serde(default)]
-    activities: Option<Vec<String>>,
-    #[serde(default)]
     author: Option<AuthorRequest>,
-    session_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -127,25 +121,38 @@ async fn create_recipe(
     Json(request): Json<CreateRecipeRequest>,
 ) -> Result<Json<CreateRecipeResponse>, StatusCode> {
     tracing::info!(
-        "Recipe creation request received with {} messages",
-        request.messages.len()
+        "Recipe creation request received for session_id: {}",
+        request.session_id
     );
+
+    // Load messages from session
+    let session = match SessionManager::get_session(&request.session_id, true).await {
+        Ok(session) => session,
+        Err(e) => {
+            tracing::error!("Failed to get session: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let conversation = match session.conversation {
+        Some(conversation) => conversation,
+        None => {
+            let error_message = "Session has no conversation".to_string();
+            let error_response = CreateRecipeResponse {
+                recipe: None,
+                error: Some(error_message),
+            };
+            return Ok(Json(error_response));
+        }
+    };
 
     let agent = state.get_agent_for_route(request.session_id).await?;
 
     // Create base recipe from agent state and messages
-    let recipe_result = agent
-        .create_recipe(Conversation::new_unvalidated(request.messages))
-        .await;
+    let recipe_result = agent.create_recipe(conversation).await;
 
     match recipe_result {
         Ok(mut recipe) => {
-            recipe.title = request.title;
-            recipe.description = request.description;
-            if request.activities.is_some() {
-                recipe.activities = request.activities
-            };
-
             if let Some(author_req) = request.author {
                 recipe.author = Some(goose::recipe::Author {
                     contact: author_req.contact,
@@ -160,7 +167,11 @@ async fn create_recipe(
         }
         Err(e) => {
             tracing::error!("Error details: {:?}", e);
-            Err(StatusCode::BAD_REQUEST)
+            let error_response = CreateRecipeResponse {
+                recipe: None,
+                error: Some(format!("Failed to create recipe: {}", e)),
+            };
+            Ok(Json(error_response))
         }
     }
 }
@@ -241,7 +252,7 @@ async fn scan_recipe(
 async fn list_recipes(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
-    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap();
+    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap_or_default();
     let mut recipe_file_hash_map = HashMap::new();
     let recipe_manifest_responses = recipe_manifest_with_paths
         .iter()

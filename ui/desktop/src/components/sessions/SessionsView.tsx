@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ViewOptions } from '../../utils/navigationUtils';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
 
-interface SessionsViewProps {
-  setView: (view: View, viewOptions?: ViewOptions) => void;
-}
-
-const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
+const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -91,7 +86,6 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     />
   ) : (
     <SessionListView
-      setView={setView}
       onSelectSession={handleSelectSession}
       selectedSessionId={selectedSession?.id ?? null}
     />

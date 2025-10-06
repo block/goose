@@ -31,7 +31,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -62,6 +62,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, ToolRequest};
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionManager;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
@@ -549,6 +550,28 @@ impl Agent {
         )
     }
 
+    /// Save current extension state to session metadata
+    /// Should be called after any extension add/remove operation
+    pub async fn save_extension_state(&self, session: &SessionConfig) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
+
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
+
+        let mut session_data = SessionManager::get_session(&session.id, false).await?;
+
+        if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
+            warn!("Failed to serialize extension state: {}", e);
+            return Err(anyhow!("Extension state serialization failed: {}", e));
+        }
+
+        SessionManager::update_session(&session.id)
+            .extension_data(session_data.extension_data)
+            .apply()
+            .await?;
+
+        Ok(())
+    }
+
     #[allow(clippy::too_many_lines)]
     pub(super) async fn manage_extensions(
         &self,
@@ -595,9 +618,9 @@ impl Agent {
             return (request_id, result);
         }
 
-        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
-            Ok(Some(config)) => config,
-            Ok(None) => {
+        let config = match get_extension_by_name(&extension_name) {
+            Some(config) => config,
+            None => {
                 return (
                     request_id,
                     Err(ErrorData::new(
@@ -606,16 +629,6 @@ impl Agent {
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
                     ),
-                        None,
-                    )),
-                )
-            }
-            Err(e) => {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to get extension config: {}", e),
                         None,
                     )),
                 )
@@ -658,6 +671,7 @@ impl Agent {
                 }
             }
         }
+
         (request_id, result)
     }
 
@@ -790,6 +804,10 @@ impl Agent {
             .list_extensions()
             .await
             .expect("Failed to list extensions")
+    }
+
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extension_manager.get_extension_configs().await
     }
 
     /// Handle a confirmation response for a tool request
@@ -1199,7 +1217,12 @@ impl Agent {
                                         }
                                     }
 
-                                    if all_install_successful {
+                                    if all_install_successful && !enable_extension_request_ids.is_empty() {
+                                        if let Some(ref session_config) = session {
+                                            if let Err(e) = self.save_extension_state(session_config).await {
+                                                warn!("Failed to save extension state after runtime changes: {}", e);
+                                            }
+                                        }
                                         tools_updated = true;
                                     }
                                 }
@@ -1558,12 +1581,7 @@ impl Agent {
                 (instructions, activities)
             };
 
-        let extensions = ExtensionConfigManager::get_all().unwrap_or_default();
-        let extension_configs: Vec<_> = extensions
-            .iter()
-            .filter(|e| e.enabled)
-            .map(|e| e.config.clone())
-            .collect();
+        let extension_configs = get_enabled_extensions();
 
         let author = Author {
             contact: std::env::var("USER")
@@ -1591,9 +1609,31 @@ impl Agent {
             extension_configs.len()
         );
 
+        let (title, description) =
+            if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                let title = json_content
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Custom recipe from chat")
+                    .to_string();
+
+                let description = json_content
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("a custom recipe instance from this chat session")
+                    .to_string();
+
+                (title, description)
+            } else {
+                (
+                    "Custom recipe from chat".to_string(),
+                    "a custom recipe instance from this chat session".to_string(),
+                )
+            };
+
         let recipe = Recipe::builder()
-            .title("Custom recipe from chat")
-            .description("a custom recipe instance from this chat session")
+            .title(title)
+            .description(description)
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)

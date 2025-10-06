@@ -94,10 +94,10 @@ export const useChatEngine = ({
     body: {
       session_id: chat.sessionId,
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
-      ...(chat.recipeConfig?.title
+      ...(chat.recipe?.title
         ? {
-            recipe_name: chat.recipeConfig.title,
-            recipe_version: chat.recipeConfig?.version ?? 'unknown',
+            recipe_name: chat.recipe.title,
+            recipe_version: chat.recipe?.version ?? 'unknown',
           }
         : {}),
     },
@@ -220,9 +220,9 @@ export const useChatEngine = ({
     }
   }, [chat.sessionId, messages, chatState]);
 
-  // Update token counts when sessionMetadata changes from the message stream
+  // Update token counts when session changes from the message stream
   useEffect(() => {
-    console.log('Session metadata received:', session);
+    console.log('Session received:', session);
     if (session) {
       setSessionTokenCount(session.total_tokens || 0);
       setSessionInputTokens(session.accumulated_input_tokens || 0);

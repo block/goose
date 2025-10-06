@@ -1778,6 +1778,54 @@
         ]
       }
     },
+    "/sessions/{session_id}/user_recipe_values": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_user_recipe_values",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionUserRecipeValuesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session user recipe values updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/status": {
       "get": {
         "tags": [
@@ -2104,19 +2152,9 @@
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
-          "messages",
-          "title",
-          "description",
           "session_id"
         ],
         "properties": {
-          "activities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
           "author": {
             "allOf": [
               {
@@ -2125,19 +2163,7 @@
             ],
             "nullable": true
           },
-          "description": {
-            "type": "string"
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            }
-          },
           "session_id": {
-            "type": "string"
-          },
-          "title": {
             "type": "string"
           }
         }
@@ -3875,6 +3901,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "user_recipe_values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "working_dir": {
             "type": "string"
           }
@@ -4376,6 +4409,21 @@
           "description": {
             "type": "string",
             "description": "Updated description (name) for the session (max 200 characters)"
+          }
+        }
+      },
+      "UpdateSessionUserRecipeValuesRequest": {
+        "type": "object",
+        "required": [
+          "userRecipeValues"
+        ],
+        "properties": {
+          "userRecipeValues": {
+            "type": "object",
+            "description": "Recipe parameter values entered by the user",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },

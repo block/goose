@@ -30,7 +30,7 @@ use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
-use goose::session;
+use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
@@ -38,7 +38,6 @@ use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{Message, MessageContent};
-use goose::session::SessionManager;
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde_json::Value;
@@ -300,8 +299,9 @@ impl CliSession {
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
+            let extension_name = name.trim().to_string();
             let config = ExtensionConfig::Builtin {
-                name: name.trim().to_string(),
+                name: extension_name,
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
@@ -1455,7 +1455,7 @@ impl CliSession {
         );
     }
 
-    pub async fn get_metadata(&self) -> Result<session::Session> {
+    pub async fn get_metadata(&self) -> Result<goose::session::Session> {
         match &self.session_id {
             Some(id) => SessionManager::get_session(id, false).await,
             None => Err(anyhow::anyhow!("No session available")),

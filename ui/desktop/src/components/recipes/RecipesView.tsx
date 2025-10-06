@@ -1,18 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipeStorage';
-import { FileText, Trash2, Bot, Calendar, AlertCircle } from 'lucide-react';
+import { FileText, Edit, Trash2, Play, Calendar, AlertCircle, Link } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Recipe, generateDeepLink } from '../../recipe';
-import { toastSuccess, toastError } from '../../toasts';
+import { toastSuccess } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../../api';
-import CreateRecipeForm, { CreateRecipeButton } from './CreateRecipeForm';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
-import { filterValidUsedParameters } from '../../utils/providerUtils';
+import CreateEditRecipeModal from './CreateEditRecipeModal';
+import { generateDeepLink, Recipe } from '../../recipe';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
@@ -20,9 +19,8 @@ export default function RecipesView() {
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [previewDeeplink, setPreviewDeeplink] = useState<string>('');
 
   // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -32,8 +30,8 @@ export default function RecipesView() {
     loadSavedRecipes();
   }, []);
 
-  // Handle Esc key for preview modal
-  useEscapeKey(showPreview, () => setShowPreview(false));
+  // Handle Esc key for editor modal
+  useEscapeKey(showEditor, () => setShowEditor(false));
 
   // Minimum loading time to prevent skeleton flash
   useEffect(() => {
@@ -121,34 +119,36 @@ export default function RecipesView() {
     }
   };
 
-  const handlePreviewRecipe = async (recipeManifest: RecipeManifestResponse) => {
+  const handleEditRecipe = async (recipeManifest: RecipeManifestResponse) => {
     setSelectedRecipe(recipeManifest);
-    setShowPreview(true);
+    setShowEditor(true);
+  };
 
-    // Generate deeplink for preview
-    try {
-      const deeplink = await generateDeepLink(recipeManifest.recipe);
-      setPreviewDeeplink(deeplink);
-    } catch (error) {
-      console.error('Failed to generate deeplink for preview:', error);
-      setPreviewDeeplink('Error generating deeplink');
+  const handleEditorClose = (wasSaved?: boolean) => {
+    setShowEditor(false);
+    setSelectedRecipe(null);
+    // Only reload recipes if a recipe was actually saved/updated
+    if (wasSaved) {
+      loadSavedRecipes();
     }
   };
 
-  const filteredPreviewParameters = useMemo(() => {
-    if (!selectedRecipe?.recipe.parameters) {
-      return [];
+  const handleCopyDeeplink = async (recipeManifest: RecipeManifestResponse) => {
+    try {
+      const deeplink = await generateDeepLink(recipeManifest.recipe);
+      await navigator.clipboard.writeText(deeplink);
+      toastSuccess({
+        title: 'Deeplink copied',
+        msg: 'Recipe deeplink has been copied to clipboard',
+      });
+    } catch (error) {
+      console.error('Failed to copy deeplink:', error);
+      toastSuccess({
+        title: 'Copy failed',
+        msg: 'Failed to copy deeplink to clipboard',
+      });
     }
-
-    return filterValidUsedParameters(selectedRecipe.recipe.parameters, {
-      instructions: selectedRecipe.recipe.instructions || undefined,
-      prompt: selectedRecipe.recipe.prompt || undefined,
-    });
-  }, [
-    selectedRecipe?.recipe.parameters,
-    selectedRecipe?.recipe.instructions,
-    selectedRecipe?.recipe.prompt,
-  ]);
+  };
 
   // Render a recipe item
   const RecipeItem = ({
@@ -157,7 +157,7 @@ export default function RecipesView() {
   }: {
     recipeManifestResponse: RecipeManifestResponse;
   }) => (
-    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
+    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted transition-all duration-150">
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
@@ -177,22 +177,34 @@ export default function RecipesView() {
               handleLoadRecipe(recipe);
             }}
             size="sm"
-            className="h-8"
+            className="h-8 w-8 p-0"
+            title="Use recipe"
           >
-            <Bot className="w-4 h-4 mr-1" />
-            Use
+            <Play className="w-4 h-4" />
           </Button>
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handlePreviewRecipe(recipeManifestResponse);
+              handleEditRecipe(recipeManifestResponse);
             }}
             variant="outline"
             size="sm"
-            className="h-8"
+            className="h-8 w-8 p-0"
+            title="Edit recipe"
           >
-            <FileText className="w-4 h-4 mr-1" />
-            Preview
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyDeeplink(recipeManifestResponse);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Copy deeplink"
+          >
+            <Link className="w-4 h-4" />
           </Button>
           <Button
             onClick={(e) => {
@@ -201,7 +213,8 @@ export default function RecipesView() {
             }}
             variant="ghost"
             size="sm"
-            className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            title="Delete recipe"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -220,8 +233,9 @@ export default function RecipesView() {
           <Skeleton className="h-4 w-24" />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Skeleton className="h-8 w-16" />
-          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
         </div>
       </div>
@@ -287,7 +301,15 @@ export default function RecipesView() {
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
                 <div className="flex gap-2">
-                  <CreateRecipeButton onClick={() => setShowCreateDialog(true)} />
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Create Recipe
+                  </Button>
                   <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
                 </div>
               </div>
@@ -312,416 +334,31 @@ export default function RecipesView() {
         </div>
       </MainPanelLayout>
 
-      {/* Preview Modal */}
-      {showPreview && selectedRecipe && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[600px] max-w-[90vw] max-h-[80vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-medium text-text-standard">
-                  {selectedRecipe.recipe.title}
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-text-muted hover:text-text-standard text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-sm font-medium text-text-standard mb-2">Deeplink</h4>
-                <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm text-text-muted">
-                      Copy this link to share with friends or paste directly in Chrome to open
-                    </div>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const deeplink =
-                            previewDeeplink || (await generateDeepLink(selectedRecipe.recipe));
-                          navigator.clipboard.writeText(deeplink);
-                          toastSuccess({
-                            title: 'Copied!',
-                            msg: 'Recipe deeplink copied to clipboard',
-                          });
-                        } catch (error) {
-                          toastError({
-                            title: 'Copy Failed',
-                            msg: 'Failed to copy deeplink to clipboard',
-                            traceback: error instanceof Error ? error.message : String(error),
-                          });
-                        }
-                      }}
-                      variant="ghost"
-                      size="sm"
-                      className="ml-4 p-2 hover:bg-background-default rounded-lg transition-colors flex items-center"
-                    >
-                      <span className="text-sm text-text-muted">Copy</span>
-                    </Button>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      try {
-                        const deeplink =
-                          previewDeeplink || (await generateDeepLink(selectedRecipe.recipe));
-                        navigator.clipboard.writeText(deeplink);
-                        toastSuccess({
-                          title: 'Copied!',
-                          msg: 'Recipe deeplink copied to clipboard',
-                        });
-                      } catch (error) {
-                        toastError({
-                          title: 'Copy Failed',
-                          msg: 'Failed to copy deeplink to clipboard',
-                          traceback: error instanceof Error ? error.message : String(error),
-                        });
-                      }
-                    }}
-                    className="text-sm truncate font-mono cursor-pointer text-text-standard"
-                  >
-                    {previewDeeplink || 'Generating deeplink...'}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-text-standard mb-2">Description</h4>
-                <p className="text-text-muted">{selectedRecipe.recipe.description}</p>
-              </div>
-
-              {selectedRecipe.recipe.version && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Version</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <span className="text-sm text-text-muted font-mono">
-                      {selectedRecipe.recipe.version}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.instructions && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Instructions</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <pre className="text-sm text-text-muted whitespace-pre-wrap font-mono">
-                      {selectedRecipe.recipe.instructions}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.prompt && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Initial Prompt</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <pre className="text-sm text-text-muted whitespace-pre-wrap font-mono">
-                      {selectedRecipe.recipe.prompt}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {filteredPreviewParameters && filteredPreviewParameters.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Parameters</h4>
-                  <div className="space-y-3">
-                    {filteredPreviewParameters.map((param, index) => (
-                      <div
-                        key={index}
-                        className="bg-background-muted border border-border-subtle p-3 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <code className="text-sm font-mono bg-background-default px-2 py-1 rounded text-text-standard">
-                            {param.key}
-                          </code>
-                          <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {param.input_type}
-                          </span>
-                          <span
-                            className={`text-xs px-2 py-1 rounded ${
-                              param.requirement === 'required'
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                : param.requirement === 'user_prompt'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                            }`}
-                          >
-                            {param.requirement}
-                          </span>
-                        </div>
-                        <p className="text-sm text-text-muted mb-2">{param.description}</p>
-
-                        {param.default && (
-                          <div className="text-xs text-text-muted">
-                            <span className="font-medium">Default:</span> {param.default}
-                          </div>
-                        )}
-
-                        {param.input_type === 'select' &&
-                          param.options &&
-                          param.options.length > 0 && (
-                            <div className="text-xs text-text-muted mt-2">
-                              <span className="font-medium">Options:</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {param.options.map((option, optIndex) => (
-                                  <span
-                                    key={optIndex}
-                                    className="px-2 py-1 bg-background-default border border-border-subtle rounded text-xs"
-                                  >
-                                    {option}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.activities && selectedRecipe.recipe.activities.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Activities</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRecipe.recipe.activities.map((activity, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 bg-background-muted border border-border-subtle text-text-muted rounded text-sm"
-                      >
-                        {activity}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.extensions && selectedRecipe.recipe.extensions.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Extensions</h4>
-                  <div className="space-y-2">
-                    {selectedRecipe.recipe.extensions.map((extension, index) => {
-                      const extWithDetails = extension as typeof extension & {
-                        version?: string;
-                        type?: string;
-                        bundled?: boolean;
-                        cmd?: string;
-                        args?: string[];
-                        timeout?: number;
-                      };
-
-                      return (
-                        <div
-                          key={index}
-                          className="bg-background-muted border border-border-subtle p-3 rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-text-standard">{extension.name}</span>
-                            {extWithDetails.version && (
-                              <span className="text-xs px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
-                                v{extWithDetails.version}
-                              </span>
-                            )}
-                            {extWithDetails.type && (
-                              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded">
-                                {extWithDetails.type}
-                              </span>
-                            )}
-                            {extWithDetails.bundled && (
-                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
-                                bundled
-                              </span>
-                            )}
-                          </div>
-                          {'description' in extension && extension.description && (
-                            <p className="text-sm text-text-muted mb-2">{extension.description}</p>
-                          )}
-
-                          {/* Extension command details */}
-                          {extWithDetails.cmd && (
-                            <div className="text-xs text-text-muted mt-2">
-                              <div className="mb-1">
-                                <span className="font-medium">Command:</span>{' '}
-                                <code className="bg-background-default px-1 rounded">
-                                  {extWithDetails.cmd}
-                                </code>
-                              </div>
-                              {extWithDetails.args && extWithDetails.args.length > 0 && (
-                                <div className="mb-1">
-                                  <span className="font-medium">Args:</span>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {extWithDetails.args.map((arg: string, argIndex: number) => (
-                                      <code
-                                        key={argIndex}
-                                        className="px-1 bg-background-default border border-border-subtle rounded text-xs"
-                                      >
-                                        {arg}
-                                      </code>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {extWithDetails.timeout && (
-                                <div>
-                                  <span className="font-medium">Timeout:</span>{' '}
-                                  {extWithDetails.timeout}s
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.sub_recipes &&
-                selectedRecipe.recipe.sub_recipes.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-text-standard mb-2">Sub Recipes</h4>
-                    <div className="space-y-3">
-                      {selectedRecipe.recipe.sub_recipes.map((subRecipe, index: number) => (
-                        <div
-                          key={index}
-                          className="bg-background-muted border border-border-subtle p-3 rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-medium text-text-standard">{subRecipe.name}</span>
-                            <span className="text-xs px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 rounded">
-                              sub-recipe
-                            </span>
-                          </div>
-
-                          <div className="text-sm text-text-muted mb-2">
-                            <span className="font-medium">Path:</span>{' '}
-                            <code className="bg-background-default px-1 rounded font-mono text-xs">
-                              {subRecipe.path}
-                            </code>
-                          </div>
-
-                          {subRecipe.values && Object.keys(subRecipe.values).length > 0 && (
-                            <div className="text-xs text-text-muted mt-2">
-                              <span className="font-medium">Parameter Values:</span>
-                              <div className="mt-1 space-y-1">
-                                {Object.entries(subRecipe.values).map(([key, value]) => (
-                                  <div key={key} className="flex items-center gap-2">
-                                    <code className="bg-background-default px-1 rounded text-xs">
-                                      {key}
-                                    </code>
-                                    <span>=</span>
-                                    <code className="bg-background-default px-1 rounded text-xs">
-                                      {String(value)}
-                                    </code>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {subRecipe.description && (
-                            <p className="text-sm text-text-muted mt-2">{subRecipe.description}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {selectedRecipe.recipe.response && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Response Schema</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <pre className="text-sm text-text-muted whitespace-pre-wrap font-mono">
-                      {
-                        (() => {
-                          const response = selectedRecipe.recipe.response;
-                          try {
-                            if (typeof response === 'string') {
-                              return response;
-                            }
-                            return JSON.stringify(response, null, 2);
-                          } catch {
-                            return String(response);
-                          }
-                        })() as string
-                      }
-                    </pre>
-                  </div>
-                </div>
-              )}
-              {selectedRecipe.recipe.context && selectedRecipe.recipe.context.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Context</h4>
-                  <div className="space-y-2">
-                    {selectedRecipe.recipe.context.map((contextItem, index) => (
-                      <div
-                        key={index}
-                        className="bg-background-muted border border-border-subtle p-2 rounded text-sm text-text-muted font-mono"
-                      >
-                        {contextItem}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.author && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Author</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    {selectedRecipe.recipe.author.contact && (
-                      <div className="text-sm text-text-muted mb-1">
-                        <span className="font-medium">Contact:</span>{' '}
-                        {selectedRecipe.recipe.author.contact}
-                      </div>
-                    )}
-                    {selectedRecipe.recipe.author.metadata && (
-                      <div className="text-sm text-text-muted">
-                        <span className="font-medium">Metadata:</span>{' '}
-                        {selectedRecipe.recipe.author.metadata}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border-subtle">
-              <Button onClick={() => setShowPreview(false)} variant="ghost">
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowPreview(false);
-                  handleLoadRecipe(selectedRecipe.recipe);
-                }}
-                variant="default"
-              >
-                Load Recipe
-              </Button>
-            </div>
-          </div>
-        </div>
+      {showEditor && selectedRecipe && (
+        <CreateEditRecipeModal
+          isOpen={showEditor}
+          onClose={handleEditorClose}
+          recipe={selectedRecipe.recipe}
+          recipeName={selectedRecipe.name}
+        />
       )}
 
-      {/* Use the extracted form components */}
       <ImportRecipeForm
         isOpen={showImportDialog}
         onClose={() => setShowImportDialog(false)}
         onSuccess={loadSavedRecipes}
       />
 
-      <CreateRecipeForm
-        isOpen={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
-        onSuccess={loadSavedRecipes}
-      />
+      {showCreateDialog && (
+        <CreateEditRecipeModal
+          isOpen={showCreateDialog}
+          onClose={() => {
+            setShowCreateDialog(false);
+            loadSavedRecipes();
+          }}
+          isCreateMode={true}
+        />
+      )}
     </>
   );
 }

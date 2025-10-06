@@ -2,7 +2,6 @@ use crate::config::paths::Paths;
 use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::Recipe;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use serde_yaml;
 use std::fs;
 use std::path::PathBuf;

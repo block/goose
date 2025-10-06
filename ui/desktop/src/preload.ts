@@ -111,8 +111,8 @@ type ElectronAPI = {
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
   // Recipe warning functions
   closeWindow: () => void;
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
-  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
+  hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
 };
 
@@ -232,10 +232,9 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('get-update-state');
   },
   closeWindow: () => ipcRenderer.send('close-window'),
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
-  recordRecipeHash: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
+  hasAcceptedRecipeBefore: (recipe: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipe),
+  recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
 };

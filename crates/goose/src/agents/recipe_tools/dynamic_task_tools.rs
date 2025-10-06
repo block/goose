@@ -108,24 +108,14 @@ fn process_extensions(
 
         for ext in arr {
             if let Some(name_str) = ext.as_str() {
-                // Look up the full extension config by name
-                match crate::config::ExtensionConfigManager::get_config_by_name(name_str) {
-                    Ok(Some(config)) => {
-                        // Check if the extension is enabled
-                        if crate::config::ExtensionConfigManager::is_enabled(&config.key())
-                            .unwrap_or(false)
-                        {
-                            converted_extensions.push(config);
-                        } else {
-                            tracing::warn!("Extension '{}' is disabled, skipping", name_str);
-                        }
+                if let Some(config) = crate::config::get_extension_by_name(name_str) {
+                    if crate::config::is_extension_enabled(&config.key()) {
+                        converted_extensions.push(config);
+                    } else {
+                        tracing::warn!("Extension '{}' is disabled, skipping", name_str);
                     }
-                    Ok(None) => {
-                        tracing::warn!("Extension '{}' not found in configuration", name_str);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Error looking up extension '{}': {}", name_str, e);
-                    }
+                } else {
+                    tracing::warn!("Extension '{}' not found in configuration", name_str);
                 }
             } else if let Ok(ext_config) = serde_json::from_value::<ExtensionConfig>(ext.clone()) {
                 converted_extensions.push(ext_config);
