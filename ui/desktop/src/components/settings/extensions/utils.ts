@@ -36,6 +36,7 @@ export interface ExtensionFormData {
     value: string;
     isEdited?: boolean;
   }[];
+  installation_notes?: string;
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -110,6 +111,10 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
     headers,
+    installation_notes:
+      'installation_notes' in extension
+        ? (extension as { installation_notes?: string }).installation_notes
+        : undefined,
   };
 }
 
