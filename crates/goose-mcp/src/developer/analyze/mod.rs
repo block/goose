@@ -197,7 +197,11 @@ impl CodeAnalyzer {
 
         // Check if we support this language for parsing
         // A language is supported if it has query definitions
-        if languages::get_element_query(language).is_empty() {
+        let language_supported = languages::get_language_info(language)
+            .map(|info| !info.element_query.is_empty())
+            .unwrap_or(false);
+
+        if !language_supported {
             tracing::trace!("Language {} not supported for parsing", language);
             return Ok(AnalysisResult::empty(line_count));
         }

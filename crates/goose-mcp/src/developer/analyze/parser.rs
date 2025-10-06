@@ -145,9 +145,11 @@ impl ElementExtractor {
             // - Type instantiation (struct literals, object creation)
             // - Field/variable/parameter type references
             // - Method-to-type associations
-            if !languages::get_reference_query(language).is_empty() {
-                let references = Self::extract_references(tree, source, language)?;
-                result.references.extend(references);
+            if let Some(info) = languages::get_language_info(language) {
+                if !info.reference_query.is_empty() {
+                    let references = Self::extract_references(tree, source, language)?;
+                    result.references.extend(references);
+                }
             }
         }
 
@@ -161,10 +163,12 @@ impl ElementExtractor {
     ) -> Result<AnalysisResult, ErrorData> {
         use crate::developer::analyze::languages;
 
-        let query_str = languages::get_element_query(language);
-        if query_str.is_empty() {
-            return Ok(Self::empty_analysis_result());
-        }
+        let info = match languages::get_language_info(language) {
+            Some(info) if !info.element_query.is_empty() => info,
+            _ => return Ok(Self::empty_analysis_result()),
+        };
+
+        let query_str = info.element_query;
 
         let (functions, classes, imports) = Self::process_element_query(tree, source, query_str)?;
 
@@ -256,10 +260,12 @@ impl ElementExtractor {
 
         let mut calls = Vec::new();
 
-        let query_str = languages::get_call_query(language);
-        if query_str.is_empty() {
-            return Ok(calls);
-        }
+        let info = match languages::get_language_info(language) {
+            Some(info) if !info.call_query.is_empty() => info,
+            _ => return Ok(calls),
+        };
+
+        let query_str = info.call_query;
 
         let query = Query::new(&tree.language(), query_str).map_err(|e| {
             tracing::error!("Failed to create call query: {}", e);
@@ -325,10 +331,12 @@ impl ElementExtractor {
 
         let mut references = Vec::new();
 
-        let query_str = languages::get_reference_query(language);
-        if query_str.is_empty() {
-            return Ok(references);
-        }
+        let info = match languages::get_language_info(language) {
+            Some(info) if !info.reference_query.is_empty() => info,
+            _ => return Ok(references),
+        };
+
+        let query_str = info.reference_query;
 
         let query = Query::new(&tree.language(), query_str).map_err(|e| {
             tracing::error!("Failed to create reference query: {}", e);
@@ -407,7 +415,9 @@ impl ElementExtractor {
     ) -> Option<String> {
         use crate::developer::analyze::languages;
 
-        languages::find_method_for_receiver(receiver_node, source, language)
+        languages::get_language_info(language)
+            .and_then(|info| info.find_method_for_receiver_handler)
+            .and_then(|handler| handler(receiver_node, source))
     }
 
     fn find_containing_function(
@@ -417,8 +427,7 @@ impl ElementExtractor {
     ) -> Option<String> {
         use crate::developer::analyze::languages;
 
-        let function_kinds = languages::get_function_node_kinds(language);
-        let name_kinds = languages::get_function_name_kinds(language);
+        let info = languages::get_language_info(language)?;
 
         let mut current = *node;
 
@@ -426,19 +435,21 @@ impl ElementExtractor {
             let kind = parent.kind();
 
             // Check if this is a function-like node
-            if function_kinds.contains(&kind) {
+            if info.function_node_kinds.contains(&kind) {
                 // Two-step extraction process:
                 // 1. Try language-specific extraction for special cases (e.g., Rust impl blocks, Swift init/deinit)
                 // 2. Fall back to generic extraction using standard identifier node kinds
                 // This pattern allows languages to override default behavior when needed
-                if let Some(name) =
-                    languages::extract_function_name_for_kind(&parent, source, language, kind)
-                {
-                    return Some(name);
+                if let Some(handler) = info.extract_function_name_handler {
+                    if let Some(name) = handler(&parent, source, kind) {
+                        return Some(name);
+                    }
                 }
 
                 // Standard extraction: find first child matching expected identifier kinds
-                if let Some(name) = Self::extract_text_from_child(&parent, source, name_kinds) {
+                if let Some(name) =
+                    Self::extract_text_from_child(&parent, source, info.function_name_kinds)
+                {
                     return Some(name);
                 }
             }
