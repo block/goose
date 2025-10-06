@@ -51,7 +51,7 @@ No extensions are defined. You should let the user know that they should add ext
 
 # sub agents
 
-Execute via subagent when step-by-step visibility is not important.
+Execute self contained tasks where step-by-step visibility is not important through subagents.
 
 - Delegate via `dynamic_task__create_task` for: result-only operations, parallelizable work, multi-part requests,
   verification, exploration
