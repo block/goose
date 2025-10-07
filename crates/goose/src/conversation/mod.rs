@@ -144,9 +144,31 @@ impl Default for Conversation {
 /// Fix a conversation that we're about to send to an LLM. So the last and first
 /// messages should always be from the user.
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
-    let messages = conversation.messages().clone();
-    let (messages, issues) = fix_messages(messages);
-    (Conversation::new_unvalidated(messages), issues)
+    let all_messages = conversation.messages().clone();
+
+    // Separate agent-visible and non-visible messages
+    let mut agent_visible_messages = Vec::new();
+    let mut non_visible_messages = Vec::new();
+
+    for msg in all_messages {
+        if msg.metadata.agent_visible {
+            agent_visible_messages.push(msg);
+        } else {
+            non_visible_messages.push(msg);
+        }
+    }
+
+    // Only fix agent-visible messages
+    let (fixed_visible, issues) = fix_messages(agent_visible_messages);
+
+    // Combine back: non-visible messages stay unchanged, visible messages are fixed
+    let mut final_messages = non_visible_messages;
+    final_messages.extend(fixed_visible);
+
+    // Sort by timestamp to maintain order
+    final_messages.sort_by_key(|m| m.created);
+
+    (Conversation::new_unvalidated(final_messages), issues)
 }
 
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -326,7 +348,8 @@ fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     if let Some(last) = messages.last() {
         if last.role == Role::Assistant {
             messages.pop();
-            issues.push("Removed trailing assistant message".to_string());
+            issues
+                .push("Removed trailing assistant message with pending tool requests".to_string());
         }
     }
 
@@ -389,7 +412,7 @@ mod tests {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages.clone()));
 
         // Uncomment the following line to print the debug report
-        // let report = debug_conversation_fix(&messages, &fixed, &issues);
+        // let report = debug_conversation_fix(&messages, &fixed.messages(), &issues);
         // print!("\n{}", report);
 
         let (_fixed, issues_with_fixed) = fix_conversation(fixed.clone());
@@ -549,5 +572,68 @@ mod tests {
 
         let (_fixed, issues) = run_verify(messages);
         assert_eq!(issues.len(), 0);
+    }
+
+    #[test]
+    fn test_last_assistant_message_with_pending_tool_request() {
+        // Test the scenario where the last assistant message has a tool request
+        // This should be removed to prevent orphaned tool responses after compaction
+        let messages = vec![
+            Message::user().with_text("Help me with something"),
+            Message::assistant()
+                .with_text("I'll help you with that")
+                .with_tool_request("tool_1", Ok(ToolCall::new("some_tool", json!({})))),
+        ];
+
+        let (fixed, issues) = run_verify(messages);
+
+        // The entire last assistant message should be removed
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(issues.len(), 2);
+
+        // Should have removed the orphaned tool request and the trailing assistant message
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed orphaned tool request 'tool_1'")));
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed trailing assistant message")));
+
+        // Only the user message should remain
+        assert_eq!(fixed[0].role, Role::User);
+        assert!(fixed[0].as_concat_text().contains("Help me with something"));
+    }
+
+    #[test]
+    fn test_last_assistant_message_with_multiple_pending_tool_requests() {
+        // Test with multiple tool requests in the last assistant message
+        let messages = vec![
+            Message::user().with_text("Do multiple things"),
+            Message::assistant()
+                .with_text("I'll do multiple things")
+                .with_tool_request("tool_1", Ok(ToolCall::new("tool_a", json!({}))))
+                .with_tool_request("tool_2", Ok(ToolCall::new("tool_b", json!({})))),
+        ];
+
+        let (fixed, issues) = run_verify(messages);
+
+        // The entire last assistant message should be removed
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(issues.len(), 3);
+
+        // Should have removed both orphaned tool requests and the trailing assistant message
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed orphaned tool request 'tool_1'")));
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed orphaned tool request 'tool_2'")));
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed trailing assistant message")));
+
+        // Only the user message should remain
+        assert_eq!(fixed[0].role, Role::User);
+        assert!(fixed[0].as_concat_text().contains("Do multiple things"));
     }
 }

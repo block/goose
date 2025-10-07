@@ -6,13 +6,14 @@ import { Button } from '../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../ui/icons';
 import { useState, useEffect } from 'react';
+import kebabCase from 'lodash/kebabCase';
 import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
 import {
   getDefaultFormData,
   ExtensionFormData,
   createExtensionConfig,
 } from '../settings/extensions/utils';
-import { activateExtension } from '../settings/extensions/index';
+import { activateExtension } from '../settings/extensions';
 import { useConfig } from '../ConfigContext';
 
 export type ExtensionsViewOptions = {
@@ -31,12 +32,36 @@ export default function ExtensionsView({
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
 
-  // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
+  // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
-    if (viewOptions.deepLinkConfig) {
+    if (viewOptions.deepLinkConfig && !viewOptions.showEnvVars) {
       setRefreshKey((prevKey) => prevKey + 1);
     }
   }, [viewOptions.deepLinkConfig, viewOptions.showEnvVars]);
+
+  const scrollToExtension = (extensionName: string) => {
+    setTimeout(() => {
+      const element = document.getElementById(`extension-${kebabCase(extensionName)}`);
+      if (element) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+        // Add a subtle highlight effect
+        element.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
+        setTimeout(() => {
+          element.style.boxShadow = '';
+        }, 2000);
+      }
+    }, 200);
+  };
+
+  // Scroll to extension whenever extensionId is provided (after refresh)
+  useEffect(() => {
+    if (viewOptions.deepLinkConfig?.name && refreshKey > 0) {
+      scrollToExtension(viewOptions.deepLinkConfig?.name);
+    }
+  }, [viewOptions.deepLinkConfig?.name, refreshKey]);
 
   const handleModalClose = () => {
     setIsAddModalOpen(false);
@@ -100,6 +125,9 @@ export default function ExtensionsView({
             deepLinkConfig={viewOptions.deepLinkConfig}
             showEnvVars={viewOptions.showEnvVars}
             hideButtons={true}
+            onModalClose={(extensionName: string) => {
+              scrollToExtension(extensionName);
+            }}
           />
         </div>
 

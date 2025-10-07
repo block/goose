@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import kebabCase from 'lodash/kebabCase';
 import { Switch } from '../../../ui/switch';
-import { Gear } from '../../../icons/Gear';
+import { Gear } from '../../../icons';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
@@ -73,6 +74,7 @@ export default function ExtensionItem({
 
   return (
     <Card
+      id={`extension-${kebabCase(extension.name)}`}
       className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
       onClick={() => handleToggle(extension)}
     >

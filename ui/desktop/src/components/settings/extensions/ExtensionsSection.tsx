@@ -23,6 +23,7 @@ interface ExtensionSectionProps {
   disableConfiguration?: boolean;
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
+  onModalClose?: (extensionName: string) => void;
 }
 
 export default function ExtensionsSection({
@@ -32,6 +33,7 @@ export default function ExtensionsSection({
   disableConfiguration,
   customToggle,
   selectedExtensions = [],
+  onModalClose,
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -120,11 +122,15 @@ export default function ExtensionsSection({
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-      // Immediately refresh the extensions list after successful activation
-      await fetchExtensions();
     } catch (error) {
       console.error('Failed to activate extension:', error);
+    } finally {
       await fetchExtensions();
+      if (onModalClose) {
+        setTimeout(() => {
+          onModalClose(formData.name);
+        }, 200);
+      }
     }
   };
 
