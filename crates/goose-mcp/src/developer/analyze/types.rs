@@ -2,13 +2,10 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Parameters for the analyze tool
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
-    /// Absolute path. Step 1: Directory for overview. Step 2: File for details. Step 3: Directory with focus param for call graphs
     pub path: String,
 
-    /// Symbol name for call graph analysis (Step 3). Requires directory path with broad enough scope to capture all relevant symbol references
     pub focus: Option<String>,
 
     /// Call graph depth. 0=where defined, 1=direct callers/callees, 2+=transitive chains
@@ -18,6 +15,10 @@ pub struct AnalyzeParams {
     /// Directory recursion limit. 0=unlimited (warning: fails on binary files)
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
+
+    /// Maximum depth for recursive AST traversal (prevents stack overflow in deeply nested code)
+    #[serde(default)]
+    pub ast_recursion_limit: Option<usize>,
 
     /// Allow large outputs without warning (default: false)
     #[serde(default)]
@@ -64,11 +65,11 @@ pub struct ClassInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallInfo {
-    pub caller_name: Option<String>, // Function containing this call
-    pub callee_name: String,         // Function being called
+    pub caller_name: Option<String>,
+    pub callee_name: String,
     pub line: usize,
     pub column: usize,
-    pub context: String, // Line of code containing the call
+    pub context: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,14 +78,29 @@ pub struct ReferenceInfo {
     pub ref_type: ReferenceType,
     pub line: usize,
     pub context: String,
+    /// For method definitions, this stores the type the method belongs to
+    /// For type usage, this is None
+    pub associated_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ReferenceType {
+    /// Type/class/struct definition
     Definition,
+    /// Method or function definition on a type (use associated_type to link to type)
+    MethodDefinition,
+    /// Function call or method call
     Call,
+    /// Type instantiation (e.g., struct literal, class constructor)
+    TypeInstantiation,
+    /// Type used in field declaration
+    FieldType,
+    /// Type used in variable declaration
+    VariableType,
+    /// Type used in function/method parameter
+    ParameterType,
+    /// Import statement
     Import,
-    Assignment,
 }
 
 // Entry type for directory results - cleaner than overloading AnalysisResult
