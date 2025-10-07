@@ -1,7 +1,7 @@
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use crate::config::paths::Paths;
 use fs2::FileExt;
 use keyring::Entry;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -10,12 +10,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-
-pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
-    top_level_domain: "Block".to_string(),
-    author: "Block".to_string(),
-    app_name: "goose".to_string(),
-});
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
@@ -116,18 +110,9 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
-pub fn get_config_dir() -> PathBuf {
-    choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir()
-}
-
 impl Default for Config {
     fn default() -> Self {
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        let config_dir = get_config_dir();
+        let config_dir = Paths::config_dir();
 
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
