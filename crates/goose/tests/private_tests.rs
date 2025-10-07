@@ -817,7 +817,7 @@ async fn test_schedule_tool_dispatch() {
     };
 
     let (request_id, result) = agent
-        .dispatch_tool_call(tool_call, "test_dispatch".to_string(), None)
+        .dispatch_tool_call(tool_call, "test_dispatch".to_string(), None, None)
         .await;
     assert_eq!(request_id, "test_dispatch");
     assert!(result.is_ok());
