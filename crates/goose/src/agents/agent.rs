@@ -1500,9 +1500,32 @@ impl Agent {
             })
             .collect();
 
-        let plan_prompt = self.extension_manager.get_planning_prompt(tools_info).await;
+        // Add conversation context for better planning
+        let conversation_context = self.get_conversation_context_for_planning().await;
+        let plan_prompt = self.extension_manager.get_planning_prompt(tools_info, conversation_context).await;
 
         Ok(plan_prompt)
+    }
+
+    /// Extract relevant context from conversation for planning
+    async fn get_conversation_context_for_planning(&self) -> HashMap<String, serde_json::Value> {
+        let mut context = HashMap::new();
+
+        // Add current working directory
+        if let Ok(cwd) = std::env::current_dir() {
+            context.insert("current_directory".to_string(), serde_json::Value::String(cwd.to_string_lossy().to_string()));
+        }
+
+        // Add available extensions count
+        let extensions_info = self.extension_manager.get_extensions_info().await;
+        context.insert("available_extensions_count".to_string(), serde_json::Value::Number(serde_json::Number::from(extensions_info.len())));
+
+        // Add tool count
+        if let Ok(tools) = self.extension_manager.get_prefixed_tools(None).await {
+            context.insert("available_tools_count".to_string(), serde_json::Value::Number(serde_json::Number::from(tools.len())));
+        }
+
+        context
     }
 
     pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {

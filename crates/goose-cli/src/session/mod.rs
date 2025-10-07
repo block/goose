@@ -764,9 +764,20 @@ impl CliSession {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
-        let (plan_response, _usage) = reasoner
+        let start_time = std::time::Instant::now();
+        let (plan_response, usage) = reasoner
             .complete(&plan_prompt, plan_messages.messages(), &[])
             .await?;
+        let planning_duration = start_time.elapsed();
+
+        // Log planning metrics
+        tracing::info!(
+            planning_duration_ms = planning_duration.as_millis(),
+            plan_length_chars = plan_response.as_concat_text().len(),
+            tokens_used = usage.usage.total_tokens.unwrap_or(0),
+            "Planning completed"
+        );
+
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =

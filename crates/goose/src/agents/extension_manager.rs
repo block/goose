@@ -662,9 +662,14 @@ impl ExtensionManager {
     }
 
     /// Get the extension prompt including client instructions
-    pub async fn get_planning_prompt(&self, tools_info: Vec<ToolInfo>) -> String {
-        let mut context: HashMap<&str, Value> = HashMap::new();
-        context.insert("tools", serde_json::to_value(tools_info).unwrap());
+    pub async fn get_planning_prompt(&self, tools_info: Vec<ToolInfo>, conversation_context: HashMap<String, Value>) -> String {
+        let mut context: HashMap<String, Value> = HashMap::new();
+        context.insert("tools".to_string(), serde_json::to_value(tools_info).unwrap());
+
+        // Add conversation context for better planning
+        for (key, value) in conversation_context {
+            context.insert(key, value);
+        }
 
         prompt_template::render_global_file("plan.md", &context).expect("Prompt should render")
     }
