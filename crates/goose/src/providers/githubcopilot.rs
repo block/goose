@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -81,9 +81,7 @@ struct DiskCache {
 
 impl DiskCache {
     fn new() -> Self {
-        let cache_path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("githubcopilot/info.json");
+        let cache_path = Paths::in_config_dir("githubcopilot/info.json");
         Self { cache_path }
     }
 
