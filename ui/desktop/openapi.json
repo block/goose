@@ -1615,6 +1615,50 @@
         ]
       }
     },
+    "/sessions/import": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "import_session",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid JSON"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/insights": {
       "get": {
         "tags": [
@@ -1760,6 +1804,51 @@
           },
           "400": {
             "description": "Bad request - Description too long (max 200 characters)"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/export": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "export_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"

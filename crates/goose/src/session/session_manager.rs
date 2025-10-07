@@ -212,6 +212,14 @@ impl SessionManager {
         Self::instance().await?.get_insights().await
     }
 
+    pub async fn export_session(id: &str) -> Result<String> {
+        Self::instance().await?.export_session(id).await
+    }
+
+    pub async fn import_session(json: &str) -> Result<Session> {
+        Self::instance().await?.import_session(json).await
+    }
+
     pub async fn maybe_update_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = Self::get_session(id, true).await?;
         let conversation = session
@@ -899,6 +907,42 @@ impl SessionStorage {
             total_tokens: row.1.unwrap_or(0),
         })
     }
+
+    async fn export_session(&self, id: &str) -> Result<String> {
+        let mut session = self.get_session(id, true).await?;
+        session.id = String::new();
+        serde_json::to_string_pretty(&session).map_err(Into::into)
+    }
+
+    async fn import_session(&self, json: &str) -> Result<Session> {
+        let import: Session = serde_json::from_str(json)?;
+
+        let session = self
+            .create_session(import.working_dir.clone(), import.description.clone())
+            .await?;
+
+        self.apply_update(
+            SessionUpdateBuilder::new(session.id.clone())
+                .extension_data(import.extension_data)
+                .total_tokens(import.total_tokens)
+                .input_tokens(import.input_tokens)
+                .output_tokens(import.output_tokens)
+                .accumulated_total_tokens(import.accumulated_total_tokens)
+                .accumulated_input_tokens(import.accumulated_input_tokens)
+                .accumulated_output_tokens(import.accumulated_output_tokens)
+                .schedule_id(import.schedule_id)
+                .recipe(import.recipe)
+                .user_recipe_values(import.user_recipe_values),
+        )
+        .await?;
+
+        if let Some(conversation) = import.conversation {
+            self.replace_conversation(&session.id, &conversation)
+                .await?;
+        }
+
+        self.get_session(&session.id, true).await
+    }
 }
 
 #[cfg(test)]
@@ -1000,5 +1044,81 @@ mod tests {
         assert_eq!(insights.total_sessions, NUM_CONCURRENT_SESSIONS as usize);
         let expected_tokens = 100 * NUM_CONCURRENT_SESSIONS * (NUM_CONCURRENT_SESSIONS - 1) / 2;
         assert_eq!(insights.total_tokens, expected_tokens as i64);
+    }
+
+    #[tokio::test]
+    async fn test_export_import_roundtrip() {
+        const DESCRIPTION: &str = "Original session";
+        const TOTAL_TOKENS: i32 = 500;
+        const INPUT_TOKENS: i32 = 300;
+        const OUTPUT_TOKENS: i32 = 200;
+        const ACCUMULATED_TOKENS: i32 = 1000;
+        const USER_MESSAGE: &str = "test message";
+        const ASSISTANT_MESSAGE: &str = "test response";
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_export.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let original = storage
+            .create_session(PathBuf::from("/tmp/test"), DESCRIPTION.to_string())
+            .await
+            .unwrap();
+
+        storage
+            .apply_update(
+                SessionUpdateBuilder::new(original.id.clone())
+                    .total_tokens(Some(TOTAL_TOKENS))
+                    .input_tokens(Some(INPUT_TOKENS))
+                    .output_tokens(Some(OUTPUT_TOKENS))
+                    .accumulated_total_tokens(Some(ACCUMULATED_TOKENS)),
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &original.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text(USER_MESSAGE)],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &original.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text(ASSISTANT_MESSAGE)],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let exported = storage.export_session(&original.id).await.unwrap();
+        let imported = storage.import_session(&exported).await.unwrap();
+
+        assert_ne!(imported.id, original.id);
+        assert_eq!(imported.description, DESCRIPTION);
+        assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+        assert_eq!(imported.total_tokens, Some(TOTAL_TOKENS));
+        assert_eq!(imported.input_tokens, Some(INPUT_TOKENS));
+        assert_eq!(imported.output_tokens, Some(OUTPUT_TOKENS));
+        assert_eq!(imported.accumulated_total_tokens, Some(ACCUMULATED_TOKENS));
+        assert_eq!(imported.message_count, 2);
+
+        let conversation = imported.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 2);
+        assert_eq!(conversation.messages()[0].role, Role::User);
+        assert_eq!(conversation.messages()[1].role, Role::Assistant);
     }
 }

@@ -352,6 +352,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::get_session_insights,
         super::routes::session::update_session_description,
         super::routes::session::delete_session,
+        super::routes::session::export_session,
+        super::routes::session::import_session,
         super::routes::session::update_session_user_recipe_values,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
