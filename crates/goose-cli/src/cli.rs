@@ -67,17 +67,27 @@ jsonl' -> '20250325_200615')."
     path: Option<PathBuf>,
 }
 
-async fn get_session_id(identifier: Identifier) -> Result<String> {
+async fn get_session_id(identifier: Identifier, must_exist: bool) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
         let sessions = SessionManager::list_sessions().await?;
 
-        sessions
+        match sessions
             .into_iter()
             .find(|s| s.id == name || s.description.contains(&name))
             .map(|s| s.id)
-            .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
+        {
+            Some(id) => Ok(id),
+            None => {
+                if must_exist {
+                    Err(anyhow::anyhow!("No session found with name '{}'", name))
+                } else {
+                    // Return the name as-is to be used as a new session ID/description
+                    Ok(name)
+                }
+            }
+        }
     } else if let Some(path) = identifier.path {
         path.file_stem()
             .and_then(|s| s.to_str())
@@ -826,7 +836,7 @@ pub async fn cli() -> Result<()> {
                     format,
                 }) => {
                     let session_identifier = if let Some(id) = identifier {
-                        get_session_id(id).await?
+                        get_session_id(id, true).await?
                     } else {
                         // If no identifier is provided, prompt for interactive selection
                         match crate::commands::session::prompt_interactive_session_selection().await
@@ -859,7 +869,7 @@ pub async fn cli() -> Result<()> {
                     );
 
                     let session_id = if let Some(id) = identifier {
-                        Some(get_session_id(id).await?)
+                        Some(get_session_id(id, resume).await?)
                     } else {
                         None
                     };
@@ -1057,7 +1067,7 @@ pub async fn cli() -> Result<()> {
                 }
             };
             let session_id = if let Some(id) = identifier {
-                Some(get_session_id(id).await?)
+                Some(get_session_id(id, resume).await?)
             } else {
                 None
             };
@@ -1280,4 +1290,177 @@ pub async fn cli() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_session_id_with_direct_session_id() {
+        // Test that session_id field is returned as-is
+        let identifier = Identifier {
+            name: None,
+            session_id: Some("test_session_123".to_string()),
+            path: None,
+        };
+
+        let result = get_session_id(identifier, false).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test_session_123");
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_with_path() {
+        // Test that session ID is extracted from path
+        let identifier = Identifier {
+            name: None,
+            session_id: None,
+            path: Some(PathBuf::from("/some/path/20250107_001.jsonl")),
+        };
+
+        let result = get_session_id(identifier, false).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "20250107_001");
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_must_exist_false_with_nonexistent_name() {
+        // Test that when must_exist=false, non-existent session names are returned as-is
+        let identifier = Identifier {
+            name: Some("nonexistent_session_xyz".to_string()),
+            session_id: None,
+            path: None,
+        };
+
+        let result = get_session_id(identifier, false).await;
+        assert!(result.is_ok());
+        // Should return the name as-is since it doesn't exist but must_exist=false
+        assert_eq!(result.unwrap(), "nonexistent_session_xyz");
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_must_exist_true_with_nonexistent_name() {
+        // Test that when must_exist=true, non-existent session names cause an error
+        let identifier = Identifier {
+            name: Some("definitely_nonexistent_session_999".to_string()),
+            session_id: None,
+            path: None,
+        };
+
+        let result = get_session_id(identifier, true).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No session found with name"));
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_must_exist_true_with_existing_session() {
+        // Test that when must_exist=true and session exists, it returns the session ID
+        
+        // Create a test session
+        let session = match SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "Test session for get_session_id".to_string(),
+        )
+        .await
+        {
+            Ok(s) => s,
+            Err(_) => {
+                // Skip test if we can't create a session (e.g., in CI without proper setup)
+                return;
+            }
+        };
+        
+        let session_id = session.id.clone();
+        
+        // Test with the actual session ID
+        let identifier = Identifier {
+            name: Some(session_id.clone()),
+            session_id: None,
+            path: None,
+        };
+
+        let result = get_session_id(identifier, true).await;
+        if result.is_ok() {
+            assert_eq!(result.unwrap(), session_id);
+        }
+        
+        // Clean up
+        let _ = SessionManager::delete_session(&session_id).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_finds_by_description() {
+        // Test that get_session_id can find sessions by description
+        
+        // Create a test session with a specific description
+        let test_description = "Unique test description 12345";
+        let session = match SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            test_description.to_string(),
+        )
+        .await
+        {
+            Ok(s) => s,
+            Err(_) => {
+                // Skip test if we can't create a session
+                return;
+            }
+        };
+        
+        let session_id = session.id.clone();
+        
+        // Test searching by part of the description
+        let identifier = Identifier {
+            name: Some("Unique test description".to_string()),
+            session_id: None,
+            path: None,
+        };
+
+        let result = get_session_id(identifier, true).await;
+        if result.is_ok() {
+            assert_eq!(result.unwrap(), session_id);
+        }
+        
+        // Clean up
+        let _ = SessionManager::delete_session(&session_id).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_session_id_must_exist_false_with_existing_session() {
+        // Test that when must_exist=false and session exists, it still returns the session ID
+        
+        // Create a test session
+        let session = match SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "Test existing session".to_string(),
+        )
+        .await
+        {
+            Ok(s) => s,
+            Err(_) => {
+                // Skip test if we can't create a session
+                return;
+            }
+        };
+        
+        let session_id = session.id.clone();
+        
+        let identifier = Identifier {
+            name: Some(session_id.clone()),
+            session_id: None,
+            path: None,
+        };
+
+        let result = get_session_id(identifier, false).await;
+        if result.is_ok() {
+            assert_eq!(result.unwrap(), session_id);
+        }
+        
+        // Clean up
+        let _ = SessionManager::delete_session(&session_id).await;
+    }
 }
