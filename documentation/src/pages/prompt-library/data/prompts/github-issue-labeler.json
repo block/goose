@@ -12,7 +12,7 @@
       "name": "GitHub",
       "command": "npx -y @modelcontextprotocol/server-github",
       "is_builtin": false,
-      "link": "https://block.github.io/goose/v1/extensions/github",
+      "link": "https://github.com/github/github-mcp-server",
       "environmentVariables": [
         {
           "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
