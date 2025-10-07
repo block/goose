@@ -9,9 +9,9 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a Goose extension, enabling Goose to call thousands of tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
+This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a goose extension, enabling goose to call over 6.000+ Actors from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
 
-:::tip Quick setup
+:::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
   Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
@@ -56,25 +56,23 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
               envVars={[
           { key: "Authorization", value: "Bearer apify_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
         ]}
-        infoNote={
-          <>
-            Obtain your <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer">Apify Token</a> and paste it in
-          </>
-        }
       />
+      :::info
+      Obtain your <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer">Apify Token</a> and paste it in.
+      :::
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-The Apify MCP server lets you connect Goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases. Learn more about Apify Actors in the [official documentation](https://docs.apify.com/platform/actors)
+The Apify MCP server lets you connect goose to [Apify Store](https://apify.com/store), a marketplace of over 6.000+ ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases. Learn more about Apify Actors in the [official documentation](https://docs.apify.com/platform/actors)
 
-In this example, Goose will use the [Google Places Scraper](https://apify.com/compass/crawler-google-places) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
+In this example, goose will use the [Google Places Scraper](https://apify.com/compass/crawler-google-places) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
 
 ### Goose Prompt
 
 ```
-( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes).
+( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — use Apify MCP to scrape reviews, focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes).
 ```
 
 ### Goose Output
