@@ -64,10 +64,6 @@ impl<'a> FileTraverser<'a> {
             max_depth
         );
 
-        if max_depth == 0 {
-            tracing::warn!("Unlimited depth traversal requested for {:?}", path);
-        }
-
         let files = self.collect_files_recursive(path, 0, max_depth)?;
 
         tracing::info!("Collected {} files from {:?}", files.len(), path);
@@ -87,21 +83,16 @@ impl<'a> FileTraverser<'a> {
         if path.is_file() {
             let lang = lang::get_language_identifier(path);
             if !lang.is_empty() {
-                tracing::trace!("Including file {:?} (language: {})", path, lang);
                 files.push(path.to_path_buf());
             }
             return Ok(files);
         }
 
-        // max_depth of 0 means unlimited depth
-        // current_depth starts at 0, max_depth is the number of directory levels to traverse
         if max_depth > 0 && current_depth >= max_depth {
-            tracing::trace!("Reached max depth {} at {:?}", max_depth, path);
             return Ok(files);
         }
 
         let entries = std::fs::read_dir(path).map_err(|e| {
-            tracing::error!("Failed to read directory {:?}: {}", path, e);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!("Failed to read directory: {}", e),
@@ -153,12 +144,8 @@ impl<'a> FileTraverser<'a> {
     where
         F: Fn(&Path) -> Result<AnalysisResult, ErrorData> + Sync,
     {
-        tracing::debug!("Collecting directory results from {:?}", path);
-
-        // First collect all files to analyze
         let files_to_analyze = self.collect_files_recursive(path, 0, max_depth)?;
 
-        // Then analyze them in parallel using Rayon
         let results: Result<Vec<_>, ErrorData> = files_to_analyze
             .par_iter()
             .map(|file_path| {

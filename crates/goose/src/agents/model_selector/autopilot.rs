@@ -4,7 +4,7 @@ use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing;
 
 use crate::config::Config;
 use crate::conversation::message::MessageContent;
@@ -156,18 +156,12 @@ impl AutoPilot {
     /// Load pre-made role rules from embedded YAML
     fn load_premade_rules() -> HashMap<String, Rules> {
         match serde_yaml::from_str::<PremadeRoles>(PREMADE_ROLES_YAML) {
-            Ok(premade) => {
-                debug!("Loaded {} pre-made role rules", premade.roles.len());
-                premade
-                    .roles
-                    .into_iter()
-                    .map(|r| (r.role, r.rules))
-                    .collect()
-            }
-            Err(e) => {
-                warn!("Failed to load pre-made roles: {}", e);
-                HashMap::new()
-            }
+            Ok(premade) => premade
+                .roles
+                .into_iter()
+                .map(|r| (r.role, r.rules))
+                .collect(),
+            Err(_e) => HashMap::new(),
         }
     }
 
@@ -188,8 +182,7 @@ impl AutoPilot {
                 // Use premade rules for this role
                 premade_rules.clone()
             } else {
-                // No premade rules and no user rules - skip this config
-                warn!(
+                tracing::warn!(
                     "No rules found for role '{}' - neither in user config nor premade. Skipping.",
                     user_config.role
                 );
@@ -225,21 +218,6 @@ impl AutoPilot {
         let mut model_states = HashMap::new();
         for model in &models {
             model_states.insert(model.role.clone(), ModelState::default());
-        }
-
-        if !models.is_empty() {
-            debug!(
-                "AutoPilot initialized with {} model configurations",
-                models.len()
-            );
-            for model in &models {
-                debug!(
-                    "Role '{}': {}/{} (priority: {})",
-                    model.role, model.provider, model.model, model.rules.priority
-                );
-            }
-        } else {
-            debug!("AutoPilot: No model configurations found in config");
         }
 
         Self {
@@ -591,7 +569,6 @@ impl AutoPilot {
         let mut triggered = false;
 
         if triggers.first_turn && current_turn == 1 {
-            debug!("AutoPilot: '{}' role triggering on first turn", model.role);
             triggered = true;
         }
 
@@ -694,27 +671,14 @@ impl AutoPilot {
         conversation: &Conversation,
         current_provider: Arc<dyn crate::providers::base::Provider>,
     ) -> Result<Option<(Arc<dyn crate::providers::base::Provider>, String, String)>> {
-        debug!("AutoPilot: Checking conversation for model switch");
-
         let current_turn = self.count_turns(conversation);
 
         // If we already switched, evaluate if we should switch to a different model
         // (including potentially switching back to original eg when turns are done)
         if self.switch_active {
-            debug!(
-                "AutoPilot: Currently switched to '{}', evaluating alternatives",
-                self.current_role.as_deref().unwrap_or("unknown")
-            );
-
             let should_switch = self.should_switch_from_current(conversation, current_turn);
 
             if let Some((new_provider, new_role, new_model)) = should_switch? {
-                debug!(
-                    "AutoPilot: Switching from '{}' to '{}'",
-                    self.current_role.as_deref().unwrap_or("unknown"),
-                    new_role
-                );
-
                 if new_role == "original" {
                     self.switch_active = false;
                     self.current_role = None;
@@ -740,12 +704,7 @@ impl AutoPilot {
 
         candidates.sort_by_key(|(_, priority)| -priority);
 
-        if let Some((best_model, priority)) = candidates.first() {
-            debug!(
-                "AutoPilot: Switching to '{}' role with {} model {} (priority: {})",
-                best_model.role, best_model.provider, best_model.model, priority
-            );
-
+        if let Some((best_model, _priority)) = candidates.first() {
             let state = self.model_states.get_mut(&best_model.role).unwrap();
             state.last_invoked_turn = Some(current_turn);
             state.invocation_count += 1;
@@ -786,23 +745,10 @@ impl AutoPilot {
         {
             let turns_since_invoked = current_turn.saturating_sub(last_invoked_turn);
 
-            debug!("AutoPilot: Current model '{}' invoked at turn {}, current turn {}, turns since: {}, active_turns: {}", 
-                   current_role, last_invoked_turn, current_turn, turns_since_invoked, current_model.rules.active_turns);
-
-            // If we're still within the active period, stay with current model
             if turns_since_invoked < current_model.rules.active_turns {
-                debug!(
-                    "AutoPilot: Still within active period for '{}', staying",
-                    current_role
-                );
                 return Ok(None);
             }
 
-            // Active period has elapsed, switch back to original
-            debug!(
-                "AutoPilot: Active period elapsed for '{}', switching back to original",
-                current_role
-            );
             if let Some(original) = &self.original_provider {
                 let original_model = original.get_active_model_name();
                 return Ok(Some((
@@ -814,7 +760,6 @@ impl AutoPilot {
         }
 
         // Fallback: if we can't determine the state, switch back to original
-        debug!("AutoPilot: Unable to determine current model state, switching back to original");
         if let Some(original) = &self.original_provider {
             let original_model = original.get_active_model_name();
             return Ok(Some((

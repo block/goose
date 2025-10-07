@@ -5,7 +5,7 @@ use crate::{
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
-use tracing::{debug, info};
+use tracing;
 
 /// Result of auto-compaction check
 #[derive(Debug)]
@@ -100,7 +100,7 @@ pub async fn check_compaction_needed(
         usage_ratio > threshold
     };
 
-    debug!(
+    tracing::debug!(
         "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
         current_tokens,
         context_limit,
@@ -133,9 +133,6 @@ pub async fn check_compaction_needed(
 /// # Returns
 /// * `AutoCompactResult` containing the compacted messages and metadata
 pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
-    info!("Performing message compaction");
-
-    // Check if the most recent message is a user message
     let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
     {
         if matches!(last_message.role, rmcp::model::Role::User) {
@@ -190,11 +187,6 @@ pub async fn check_and_compact_messages(
 
     // If no compaction is needed, return early
     if !check_result.needs_compaction {
-        debug!(
-            "No compaction needed (usage: {:.1}% <= {:.1}% threshold)",
-            check_result.usage_ratio * 100.0,
-            check_result.percentage_until_compaction
-        );
         return Ok(AutoCompactResult {
             compacted: false,
             messages: Conversation::new_unvalidated(messages.to_vec()),
@@ -202,12 +194,6 @@ pub async fn check_and_compact_messages(
         });
     }
 
-    info!(
-        "Auto-compacting messages (usage: {:.1}%)",
-        check_result.usage_ratio * 100.0
-    );
-
-    // Check if the most recent message is a user message
     let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
     {
         if matches!(last_message.role, rmcp::model::Role::User) {

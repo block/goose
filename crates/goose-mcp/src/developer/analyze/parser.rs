@@ -17,22 +17,18 @@ pub struct ParserManager {
 
 impl ParserManager {
     pub fn new() -> Self {
-        tracing::debug!("Initializing ParserManager");
         Self {
             parsers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    /// Get or create a parser for the specified language
     pub fn get_or_create_parser(&self, language: &str) -> Result<Arc<Mutex<Parser>>, ErrorData> {
         let mut cache = lock_or_recover(&self.parsers, |c| c.clear());
 
         if let Some(parser) = cache.get(language) {
-            tracing::trace!("Reusing cached parser for {}", language);
             return Ok(Arc::clone(parser));
         }
 
-        tracing::debug!("Creating new parser for {}", language);
         let mut parser = Parser::new();
         let language_config: Language = match language {
             "python" => tree_sitter_python::language(),
@@ -43,7 +39,6 @@ impl ParserManager {
             "kotlin" => tree_sitter_kotlin::language(),
             "swift" => devgen_tree_sitter_swift::language(),
             _ => {
-                tracing::warn!("Unsupported language: {}", language);
                 return Err(ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Unsupported language: {}", language),
@@ -53,7 +48,6 @@ impl ParserManager {
         };
 
         parser.set_language(&language_config).map_err(|e| {
-            tracing::error!("Failed to set language for {}: {}", language, e);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!("Failed to set language: {}", e),
@@ -73,7 +67,6 @@ impl ParserManager {
         let mut parser = lock_or_recover(&parser_arc, |_| {});
 
         parser.parse(content, None).ok_or_else(|| {
-            tracing::error!("Failed to parse content as {}", language);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!("Failed to parse file as {}", language),
@@ -100,12 +93,6 @@ impl ElementExtractor {
         language: &str,
         depth: &str,
     ) -> Result<AnalysisResult, ErrorData> {
-        tracing::trace!(
-            "Extracting elements from {} code with depth {}",
-            language,
-            depth
-        );
-
         // First get the structural analysis
         let mut result = Self::extract_elements(tree, source, language)?;
 

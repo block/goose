@@ -47,7 +47,6 @@ async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, task_config: Ta
                 }
             }
             _ = state.cancellation_token.cancelled() => {
-                tracing::debug!("Worker cancelled");
                 break;
             }
         }

@@ -111,19 +111,14 @@ impl TemporalScheduler {
             port_config,
         });
 
-        // Start the status monitor to keep job statuses in sync
         if let Err(e) = final_scheduler.start_status_monitor().await {
             tracing::warn!("Failed to start status monitor: {}", e);
         }
 
-        info!("TemporalScheduler initialized successfully");
         Ok(final_scheduler)
     }
 
     async fn discover_http_port(http_client: &Client) -> Result<u16, SchedulerError> {
-        info!("Discovering Temporal service port...");
-
-        // Check PORT environment variable first
         if let Ok(port_str) = std::env::var("PORT") {
             if let Ok(port) = port_str.parse::<u16>() {
                 if Self::is_temporal_service_running(http_client, port).await {
@@ -433,7 +428,6 @@ impl TemporalScheduler {
 
                 for path in exe_relative_paths {
                     if path.exists() {
-                        tracing::debug!("Found temporal-service binary at: {}", path.display());
                         return Ok(path.to_string_lossy().to_string());
                     }
                 }
@@ -449,7 +443,6 @@ impl TemporalScheduler {
 
         for path in &possible_paths {
             if std::path::Path::new(path).exists() {
-                tracing::debug!("Found temporal-service binary at: {}", path);
                 return Ok(path.to_string());
             }
         }
@@ -457,10 +450,6 @@ impl TemporalScheduler {
         // Check environment variable override
         if let Ok(binary_path) = std::env::var("GOOSE_TEMPORAL_BIN") {
             if std::path::Path::new(&binary_path).exists() {
-                tracing::info!(
-                    "Using temporal-service binary from GOOSE_TEMPORAL_BIN: {}",
-                    binary_path
-                );
                 return Ok(binary_path);
             } else {
                 tracing::warn!(
@@ -541,12 +530,6 @@ impl TemporalScheduler {
     }
 
     pub async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
-        tracing::info!(
-            "TemporalScheduler: add_scheduled_job() called for job '{}'",
-            job.id
-        );
-
-        // Normalize the cron expression to ensure it's 6-field format
         let normalized_cron = normalize_cron_expression(&job.cron);
         if normalized_cron != job.cron {
             tracing::info!(
@@ -575,7 +558,6 @@ impl TemporalScheduler {
     }
 
     pub async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
-        tracing::info!("TemporalScheduler: list_scheduled_jobs() called");
         let request = JobRequest {
             action: "list".to_string(),
             job_id: None,
@@ -668,7 +650,6 @@ impl TemporalScheduler {
     }
 
     pub async fn run_now(&self, id: &str) -> Result<String, SchedulerError> {
-        tracing::info!("TemporalScheduler: run_now() called for job '{}'", id);
         let request = JobRequest {
             action: "run_now".to_string(),
             job_id: Some(id.to_string()),
@@ -739,13 +720,6 @@ impl TemporalScheduler {
         sched_id: &str,
         new_cron: String,
     ) -> Result<(), SchedulerError> {
-        tracing::info!(
-            "TemporalScheduler: update_schedule() called for job '{}' with cron '{}'",
-            sched_id,
-            new_cron
-        );
-
-        // Normalize the cron expression to ensure it's 6-field format
         let normalized_cron = normalize_cron_expression(&new_cron);
         if normalized_cron != new_cron {
             tracing::info!(
@@ -774,11 +748,6 @@ impl TemporalScheduler {
     }
 
     pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        tracing::info!(
-            "TemporalScheduler: kill_running_job() called for job '{}'",
-            sched_id
-        );
-
         let request = JobRequest {
             action: "kill_job".to_string(),
             job_id: Some(sched_id.to_string()),
@@ -798,8 +767,6 @@ impl TemporalScheduler {
     }
 
     pub async fn update_job_status_from_sessions(&self) -> Result<(), SchedulerError> {
-        tracing::info!("TemporalScheduler: Checking job status based on session activity");
-
         let jobs = self.list_scheduled_jobs().await?;
 
         for job in jobs {
@@ -924,12 +891,6 @@ impl TemporalScheduler {
         &self,
         sched_id: &str,
     ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
-        tracing::info!(
-            "TemporalScheduler: get_running_job_info() called for job '{}'",
-            sched_id
-        );
-
-        // Get the current job status from Temporal service
         let request = JobRequest {
             action: "status".to_string(),
             job_id: Some(sched_id.to_string()),

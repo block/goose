@@ -32,14 +32,13 @@ pub fn setup_logging(
     name: Option<&str>,
     error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
 ) -> Result<()> {
-    setup_logging_internal(name, error_capture, false)
+    setup_logging_internal(name, error_capture)
 }
 
 /// Internal function that allows bypassing the Once check for testing
 fn setup_logging_internal(
     name: Option<&str>,
     error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
-    force: bool,
 ) -> Result<()> {
     let mut result = Ok(());
 
@@ -48,7 +47,7 @@ fn setup_logging_internal(
         ErrorCaptureLayer::register_error_vector(errors);
     }
 
-    let mut setup = || {
+    let setup = || {
         result = (|| {
             // Set up file appender for goose module logs
             let log_dir = get_log_directory()?;
@@ -96,24 +95,19 @@ fn setup_logging_internal(
                 // Console logging disabled for CLI - all logs go to files only
             ];
 
-            // Only add ErrorCaptureLayer if not in test mode
-            if !force {
-                layers.push(ErrorCaptureLayer::new().boxed());
-            }
+            layers.push(ErrorCaptureLayer::new().boxed());
 
-            if !force {
-                if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
-                    layers.push(
-                        otlp_tracing_layer
-                            .with_filter(otlp_layer::create_otlp_tracing_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_metrics_layer
-                            .with_filter(otlp_layer::create_otlp_metrics_filter())
-                            .boxed(),
-                    );
-                }
+            if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
+                layers.push(
+                    otlp_tracing_layer
+                        .with_filter(otlp_layer::create_otlp_tracing_filter())
+                        .boxed(),
+                );
+                layers.push(
+                    otlp_metrics_layer
+                        .with_filter(otlp_layer::create_otlp_metrics_filter())
+                        .boxed(),
+                );
             }
 
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
@@ -123,30 +117,14 @@ fn setup_logging_internal(
             // Build the subscriber
             let subscriber = Registry::default().with(layers);
 
-            if force {
-                // For testing, just create and use the subscriber without setting it globally
-                // Write a test log to ensure the file is created
-                let _guard = subscriber.set_default();
-                tracing::warn!("Test log entry from setup");
-                tracing::info!("Another test log entry from setup");
-                // Flush the output
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                Ok(())
-            } else {
-                // For normal operation, set the subscriber globally
-                subscriber
-                    .try_init()
-                    .context("Failed to set global subscriber")?;
-                Ok(())
-            }
+            subscriber
+                .try_init()
+                .context("Failed to set global subscriber")?;
+            Ok(())
         })();
     };
 
-    if force {
-        setup();
-    } else {
-        INIT.call_once(setup);
-    }
+    INIT.call_once(setup);
 
     result
 }

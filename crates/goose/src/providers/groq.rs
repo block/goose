@@ -98,10 +98,10 @@ impl Provider for GroqProvider {
         let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
+        let usage = response
+            .get("usage")
+            .map(get_usage)
+            .unwrap_or_else(Usage::default);
         let response_model = get_model(&response);
         super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))

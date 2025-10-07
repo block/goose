@@ -78,10 +78,9 @@ fn validate_audio_input(
 fn get_openai_config() -> Result<(String, String), StatusCode> {
     let config = goose::config::Config::global();
 
-    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
-        tracing::error!("Failed to get OpenAI API key: {:?}", e);
-        StatusCode::PRECONDITION_FAILED
-    })?;
+    let api_key: String = config
+        .get_secret("OPENAI_API_KEY")
+        .map_err(|_e| StatusCode::PRECONDITION_FAILED)?;
 
     let openai_host = match config.get("OPENAI_HOST", false) {
         Ok(value) => value
@@ -102,43 +101,22 @@ async fn send_openai_request(
     api_key: &str,
     openai_host: &str,
 ) -> Result<WhisperResponse, StatusCode> {
-    tracing::info!("Using OpenAI host: {}", openai_host);
-    tracing::info!(
-        "Audio file size: {} bytes, extension: {}, mime_type: {}",
-        audio_bytes.len(),
-        file_extension,
-        mime_type
-    );
-
     // Create a multipart form with the audio file
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", file_extension))
         .mime_str(mime_type)
-        .map_err(|e| {
-            tracing::error!("Failed to create multipart part: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let form = reqwest::multipart::Form::new()
         .part("file", part)
         .text("model", "whisper-1")
         .text("response_format", "json");
 
-    tracing::info!("Created multipart form for OpenAI Whisper API");
-
     // Make request to OpenAI Whisper API
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| {
-            tracing::error!("Failed to create HTTP client: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    tracing::info!(
-        "Sending request to OpenAI: {}/v1/audio/transcriptions",
-        openai_host
-    );
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response = client
         .post(format!("{}/v1/audio/transcriptions", openai_host))
@@ -148,43 +126,27 @@ async fn send_openai_request(
         .await
         .map_err(|e| {
             if e.is_timeout() {
-                tracing::error!(
-                    "OpenAI API request timed out after {}s",
-                    OPENAI_TIMEOUT_SECONDS
-                );
                 StatusCode::GATEWAY_TIMEOUT
             } else {
-                tracing::error!("Failed to send request to OpenAI: {}", e);
                 StatusCode::SERVICE_UNAVAILABLE
             }
         })?;
 
-    tracing::info!(
-        "Received response from OpenAI with status: {}",
-        response.status()
-    );
-
     if !response.status().is_success() {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("OpenAI API error (status: {}): {}", status, error_text);
-
-        // Check for specific error codes
         if status == 401 {
-            tracing::error!("OpenAI API key appears to be invalid or unauthorized");
             return Err(StatusCode::UNAUTHORIZED);
         } else if status == 429 {
-            tracing::error!("OpenAI API quota or rate limit exceeded");
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
 
         return Err(StatusCode::BAD_GATEWAY);
     }
 
-    let whisper_response: WhisperResponse = response.json().await.map_err(|e| {
-        tracing::error!("Failed to parse OpenAI response: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let whisper_response: WhisperResponse = response
+        .json()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(whisper_response)
 }
@@ -298,10 +260,7 @@ async fn transcribe_elevenlabs_handler(
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| {
-            tracing::error!("Failed to create HTTP client: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response = client
         .post("https://api.elevenlabs.io/v1/speech-to-text")
@@ -317,17 +276,13 @@ async fn transcribe_elevenlabs_handler(
                 );
                 StatusCode::GATEWAY_TIMEOUT
             } else {
-                tracing::error!("Failed to send request to ElevenLabs: {}", e);
                 StatusCode::SERVICE_UNAVAILABLE
             }
         })?;
 
     if !response.status().is_success() {
-        let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("ElevenLabs API error (status: {}): {}", status, error_text);
 
-        // Check for specific error codes
         if error_text.contains("Unauthorized") || error_text.contains("Invalid API key") {
             return Err(StatusCode::UNAUTHORIZED);
         } else if error_text.contains("quota") || error_text.contains("limit") {
@@ -337,7 +292,6 @@ async fn transcribe_elevenlabs_handler(
         return Err(StatusCode::BAD_GATEWAY);
     }
 
-    // Parse ElevenLabs response
     #[derive(Debug, Deserialize)]
     struct ElevenLabsResponse {
         text: String,
@@ -346,10 +300,10 @@ async fn transcribe_elevenlabs_handler(
         _chunks: Option<Vec<serde_json::Value>>,
     }
 
-    let elevenlabs_response: ElevenLabsResponse = response.json().await.map_err(|e| {
-        tracing::error!("Failed to parse ElevenLabs response: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let elevenlabs_response: ElevenLabsResponse = response
+        .json()
+        .await
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(TranscribeResponse {
         text: elevenlabs_response.text,

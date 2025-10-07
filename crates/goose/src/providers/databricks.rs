@@ -156,20 +156,11 @@ impl DatabricksProvider {
             tokio::runtime::Handle::current().block_on(async {
                 if let Ok(Some(models)) = provider.fetch_supported_models().await {
                     if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                        tracing::debug!(
-                            "Found {} in Databricks workspace, setting as fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
                         model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
                     } else {
-                        tracing::debug!(
-                            "{} not found in Databricks workspace, not setting fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
                         model
                     }
                 } else {
-                    tracing::debug!("Could not fetch Databricks models, not setting fast model");
                     model
                 }
             })
@@ -294,10 +285,10 @@ impl Provider for DatabricksProvider {
             .await?;
 
         let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
+        let usage = response
+            .get("usage")
+            .map(get_usage)
+            .unwrap_or_else(Usage::default);
         let response_model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
@@ -378,8 +369,7 @@ impl Provider for DatabricksProvider {
             .await
         {
             Ok(resp) => resp,
-            Err(e) => {
-                tracing::warn!("Failed to fetch Databricks models: {}", e);
+            Err(_e) => {
                 return Ok(None);
             }
         };
@@ -427,13 +417,8 @@ impl Provider for DatabricksProvider {
             .collect();
 
         if models.is_empty() {
-            tracing::debug!("No serving endpoints found in Databricks workspace");
             Ok(None)
         } else {
-            tracing::debug!(
-                "Found {} serving endpoints in Databricks workspace",
-                models.len()
-            );
             Ok(Some(models))
         }
     }

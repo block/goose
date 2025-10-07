@@ -80,7 +80,6 @@ impl EvalRunner {
 
         // create entire dir subtree for eval and cd into dir for running eval
         work_dir.set_eval(&bench_eval.selector, run_id);
-        tracing::info!("Set evaluation directory for {}", bench_eval.selector);
 
         if let Some(eval) = EvaluationSuite::from(&bench_eval.selector) {
             let now_stamp = SystemTime::now()
@@ -167,7 +166,6 @@ impl EvalRunner {
 
             tracing::info!("Evaluation completed successfully");
         } else {
-            tracing::error!("No evaluation found for selector: {}", bench_eval.selector);
             bail!("No evaluation found for selector: {}", bench_eval.selector);
         }
 

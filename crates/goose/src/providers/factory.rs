@@ -90,7 +90,6 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
     if let Ok(lead_model_name) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
-        tracing::info!("Creating lead/worker provider from environment variables");
         return create_lead_worker_from_env(name, &model, &lead_model_name);
     }
 

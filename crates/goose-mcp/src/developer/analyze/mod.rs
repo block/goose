@@ -53,16 +53,13 @@ impl Default for CodeAnalyzer {
 }
 
 impl CodeAnalyzer {
-    /// Create a new code analyzer
     pub fn new() -> Self {
-        tracing::debug!("Initializing CodeAnalyzer");
         Self {
             parser_manager: ParserManager::new(),
             cache: AnalysisCache::new(100),
         }
     }
 
-    /// Main analyze entry point
     pub fn analyze(
         &self,
         params: AnalyzeParams,
@@ -76,8 +73,6 @@ impl CodeAnalyzer {
         traverser.validate_path(&path)?;
 
         let mode = self.determine_mode(&params, &path);
-
-        tracing::debug!("Using analysis mode: {:?}", mode);
 
         let mut output = match mode {
             AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser)?,
@@ -138,7 +133,6 @@ impl CodeAnalyzer {
             }
         }
 
-        tracing::info!("Analysis complete");
         Ok(CallToolResult::success(Formatter::format_results(output)))
     }
 
@@ -157,7 +151,6 @@ impl CodeAnalyzer {
         }
     }
 
-    /// Analyze a single file
     fn analyze_file(&self, path: &Path, mode: &AnalysisMode) -> Result<AnalysisResult, ErrorData> {
         tracing::debug!("Analyzing file {:?} in {:?} mode", path, mode);
 
@@ -183,30 +176,22 @@ impl CodeAnalyzer {
             )
         })?;
 
-        // Check cache
-        if let Some(cached) = self.cache.get(&path.to_path_buf(), modified) {
-            tracing::trace!("Using cached result for {:?}", path);
+        if let Some(cached) = self.cache.get(path, modified) {
             return Ok(cached);
         }
 
-        // Read file content - handle binary files gracefully
         let content = match std::fs::read_to_string(path) {
             Ok(content) => content,
             Err(e) => {
-                // Binary or non-UTF-8 file, skip parsing
                 tracing::trace!("Skipping binary/non-UTF-8 file {:?}: {}", path, e);
                 return Ok(AnalysisResult::empty(0));
             }
         };
 
-        // Count lines
         let line_count = content.lines().count();
-
-        // Get language
         let language = lang::get_language_identifier(path);
         if language.is_empty() {
             tracing::trace!("Unsupported file type: {:?}", path);
-            // Unsupported language, return empty result
             return Ok(AnalysisResult::empty(line_count));
         }
 
@@ -245,8 +230,6 @@ impl CodeAnalyzer {
         traverser: &FileTraverser<'_>,
         mode: &AnalysisMode,
     ) -> Result<String, ErrorData> {
-        tracing::debug!("Analyzing directory {:?} in {:?} mode", path, mode);
-
         let mode = *mode;
 
         // Collect directory results with parallel processing
@@ -279,19 +262,12 @@ impl CodeAnalyzer {
             )
         })?;
 
-        tracing::info!("Running focused analysis for symbol '{}'", focus_symbol);
-
         // Step 1: Collect all files to analyze
         let files_to_analyze = if path.is_file() {
             vec![path.to_path_buf()]
         } else {
             traverser.collect_files_for_focused(path, params.max_depth)?
         };
-
-        tracing::debug!(
-            "Analyzing {} files for focused analysis",
-            files_to_analyze.len()
-        );
 
         // Step 2: Analyze all files and collect results using parallel processing
         use rayon::prelude::*;

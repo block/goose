@@ -191,10 +191,7 @@ async fn encode_recipe(
 ) -> Result<Json<EncodeRecipeResponse>, StatusCode> {
     match recipe_deeplink::encode(&request.recipe) {
         Ok(encoded) => Ok(Json(EncodeRecipeResponse { deeplink: encoded })),
-        Err(err) => {
-            tracing::error!("Failed to encode recipe: {}", err);
-            Err(StatusCode::BAD_REQUEST)
-        }
+        Err(_) => Err(StatusCode::BAD_REQUEST),
     }
 }
 
@@ -213,10 +210,7 @@ async fn decode_recipe(
 ) -> Result<Json<DecodeRecipeResponse>, StatusCode> {
     match recipe_deeplink::decode(&request.deeplink) {
         Ok(recipe) => Ok(Json(DecodeRecipeResponse { recipe })),
-        Err(err) => {
-            tracing::error!("Failed to decode deeplink: {}", err);
-            Err(StatusCode::BAD_REQUEST)
-        }
+        Err(_) => Err(StatusCode::BAD_REQUEST),
     }
 }
 

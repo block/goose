@@ -200,16 +200,10 @@ impl Provider for AnthropicProvider {
 
         let message = response_to_message(&json_response)?;
         let usage = get_usage(&json_response)?;
-        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let response_model = get_model(&json_response);
         emit_debug_trace(&self.model, &payload, &json_response, &usage);
         let provider_usage = ProviderUsage::new(response_model, usage);
-        tracing::debug!(
-            "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
-            provider_usage
-        );
         Ok((message, provider_usage))
     }
 

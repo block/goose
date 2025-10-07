@@ -30,7 +30,6 @@ impl SecurityManager {
         }
     }
 
-    /// Check if prompt injection security is enabled
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
         use crate::config::Config;
         let config = Config::global();
@@ -40,31 +39,19 @@ impl SecurityManager {
             .unwrap_or(false)
     }
 
-    /// New method for tool inspection framework - works directly with tool requests
     pub async fn analyze_tool_requests(
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
         if !self.is_prompt_injection_detection_enabled() {
-            tracing::debug!("🔓 Security scanning disabled - returning empty results");
             return Ok(vec![]);
         }
 
-        let scanner = self.scanner.get_or_init(|| {
-            tracing::info!("Security scanner initialized and enabled");
-            PromptInjectionScanner::new()
-        });
+        let scanner = self.scanner.get_or_init(PromptInjectionScanner::new);
 
         let mut results = Vec::new();
 
-        tracing::info!(
-            "🔍 Starting security analysis - {} tool requests, {} messages",
-            tool_requests.len(),
-            messages.len()
-        );
-
-        // Analyze each tool request
         for (i, tool_request) in tool_requests.iter().enumerate() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
@@ -79,8 +66,7 @@ impl SecurityManager {
                     .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
 
-                // Get threshold from config - only flag things above threshold
-                let config_threshold = scanner.get_threshold_from_config();
+                let config_threshold = scanner.get_threshold();
 
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
                     // Generate a globally unique finding ID for each security finding
@@ -125,16 +111,9 @@ impl SecurityManager {
             }
         }
 
-        tracing::info!(
-            "🔍 Security analysis complete - found {} security issues in current tool requests",
-            results.len()
-        );
         Ok(results)
     }
 
-    /// Main security check function - called from reply_internal
-    /// Uses the proper two-step security analysis process
-    /// Scans ALL tools (approved + needs_approval) for security threats
     pub async fn filter_malicious_tool_calls(
         &self,
         messages: &[Message],

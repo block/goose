@@ -352,16 +352,12 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             let total_tokens_i32 =
                 (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
-
             Ok(Usage::new(
                 Some(total_input_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
             ))
         } else {
-            tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
         }
     } else {
@@ -518,8 +514,6 @@ where
 
                         if let Some(usage_data) = message_data.get("usage") {
                             let usage = get_usage(usage_data).unwrap_or_default();
-                            tracing::debug!("🔍 Anthropic message_start parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                                    usage.input_tokens, usage.output_tokens, usage.total_tokens);
                             let model = message_data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
@@ -618,12 +612,8 @@ where
                 }
                 "message_delta" => {
                     // Message metadata delta (like stop_reason) and cumulative usage
-                    tracing::debug!("🔍 Anthropic message_delta event data: {}", serde_json::to_string_pretty(&event.data).unwrap_or_else(|_| format!("{:?}", event.data)));
                     if let Some(usage_data) = event.data.get("usage") {
-                        tracing::debug!("🔍 Anthropic message_delta usage data (cumulative): {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
-                        tracing::debug!("🔍 Anthropic message_delta parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                                delta_usage.input_tokens, delta_usage.output_tokens, delta_usage.total_tokens);
 
                         // IMPORTANT: message_delta usage should be MERGED with existing usage, not replace it
                         // message_start has input tokens, message_delta has output tokens
@@ -639,8 +629,6 @@ where
 
                             let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
                             final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
-                            tracing::debug!("🔍 Anthropic MERGED usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                                    merged_input, merged_output, merged_total);
                         } else {
                             // No existing usage, just use delta usage
                             let model = event.data.get("model")
@@ -648,7 +636,6 @@ where
                                 .unwrap_or("unknown")
                                 .to_string();
                             final_usage = Some(crate::providers::base::ProviderUsage::new(model, delta_usage));
-                            tracing::debug!("🔍 Anthropic no existing usage, using delta usage");
                         }
                     } else {
                         tracing::debug!("🔍 Anthropic message_delta event has no usage field");
@@ -656,17 +643,12 @@ where
                     continue;
                 }
                 "message_stop" => {
-                    // Message finished, extract final usage if available
                     if let Some(usage_data) = event.data.get("usage") {
-                        tracing::debug!("🔍 Anthropic streaming usage data: {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
                         let usage = get_usage(usage_data).unwrap_or_default();
-                        tracing::debug!("🔍 Anthropic parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                                usage.input_tokens, usage.output_tokens, usage.total_tokens);
                         let model = event.data.get("model")
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        tracing::debug!("🔍 Anthropic final_usage created with model: {}", model);
                         final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
                     } else {
                         tracing::debug!("🔍 Anthropic message_stop event has no usage data");

@@ -5,7 +5,6 @@ use axum::{extract::State, routing::post, Json, Router};
 use goose::agents::ExtensionConfig;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
-use tracing;
 
 #[derive(Serialize)]
 struct ExtensionResponse {
@@ -24,12 +23,6 @@ async fn add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    // Log the request for debugging
-    tracing::info!(
-        "Received extension request for session: {}",
-        request.session_id
-    );
-
     // If this is a Stdio extension that uses npx, check for Node.js installation
     #[cfg(target_os = "windows")]
     if let ExtensionConfig::Stdio { cmd, .. } = &request.config {

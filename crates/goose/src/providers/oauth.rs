@@ -264,8 +264,6 @@ impl OAuthFlow {
             ("client_id", &self.client_id),
         ];
 
-        tracing::debug!("Refreshing token using refresh_token");
-
         let client = reqwest::Client::new();
         let resp = client
             .post(&self.endpoints.token_endpoint)
@@ -377,8 +375,6 @@ pub(crate) async fn get_oauth_token_async(
             if expires_at > Utc::now() {
                 return Ok(token.access_token);
             }
-            // Token is expired, will try to refresh below
-            tracing::debug!("Token is expired, attempting to refresh");
         } else {
             // No expiration time was provided by the server
             // We'll use the token without checking expiration
@@ -408,7 +404,6 @@ pub(crate) async fn get_oauth_token_async(
                             if let Err(e) = token_cache.save_token(&new_token) {
                                 tracing::warn!("Failed to save refreshed token: {}", e);
                             }
-                            tracing::info!("Successfully refreshed token");
                             return Ok(new_token.access_token);
                         }
                         Err(e) => {

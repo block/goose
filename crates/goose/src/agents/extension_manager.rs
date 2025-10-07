@@ -870,7 +870,6 @@ impl ExtensionManager {
                     }
                 }
 
-                // Log any errors that occurred
                 if !errors.is_empty() {
                     tracing::error!(
                         errors = ?errors
@@ -1006,9 +1005,8 @@ impl ExtensionManager {
             }
         }
 
-        // Log any errors that occurred
         if !errors.is_empty() {
-            tracing::debug!(
+            tracing::error!(
                 errors = ?errors
                     .into_iter()
                     .map(|e| format!("{:?}", e))

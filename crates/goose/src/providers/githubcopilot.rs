@@ -250,14 +250,12 @@ impl GithubCopilotProvider {
             .error_for_status()?
             .text()
             .await?;
-        tracing::trace!("copilot token response: {}", resp);
         let info: CopilotTokenInfo = serde_json::from_str(&resp)?;
         Ok(info)
     }
 
     async fn get_access_token(&self) -> Result<String> {
-        for attempt in 0..3 {
-            tracing::trace!("attempt {} to get access token", attempt + 1);
+        for _attempt in 0..3 {
             match self.login().await {
                 Ok(token) => return Ok(token),
                 Err(err) => tracing::warn!("failed to get access token: {}", err),
@@ -421,10 +419,10 @@ impl Provider for GithubCopilotProvider {
 
         // Parse response
         let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
+        let usage = response
+            .get("usage")
+            .map(get_usage)
+            .unwrap_or_else(Usage::default);
         let response_model = get_model(&response);
         emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
@@ -480,7 +478,6 @@ impl Provider for GithubCopilotProvider {
             match self.refresh_api_info().await {
                 Ok(_) => return Ok(()), // Token is valid
                 Err(_) => {
-                    // Token is invalid, continue with OAuth flow
                     tracing::debug!("Existing token is invalid, starting OAuth flow");
                 }
             }

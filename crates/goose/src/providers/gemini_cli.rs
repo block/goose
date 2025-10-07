@@ -72,7 +72,6 @@ impl GeminiCliProvider {
                     if let Ok(metadata) = std::fs::metadata(&path_buf) {
                         let permissions = metadata.permissions();
                         if permissions.mode() & 0o111 != 0 {
-                            tracing::info!("Found gemini executable at: {}", path);
                             return Some(path);
                         }
                     }
@@ -80,7 +79,6 @@ impl GeminiCliProvider {
                 #[cfg(not(unix))]
                 {
                     // On non-Unix systems, just check if file exists
-                    tracing::info!("Found gemini executable at: {}", path);
                     return Some(path);
                 }
             }
@@ -92,7 +90,6 @@ impl GeminiCliProvider {
                 let full_path = format!("{}/{}", dir, command_name);
                 let path_buf = PathBuf::from(&full_path);
                 if path_buf.exists() && path_buf.is_file() {
-                    tracing::info!("Found gemini executable in PATH at: {}", full_path);
                     return Some(full_path);
                 }
             }
@@ -222,11 +219,6 @@ impl GeminiCliProvider {
                 exit_status.code()
             )));
         }
-
-        tracing::debug!(
-            "Gemini CLI executed successfully, got {} lines",
-            lines.len()
-        );
 
         Ok(lines)
     }

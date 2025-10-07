@@ -8,6 +8,10 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::final_output_tool::FinalOutputTool;
+use super::model_selector::autopilot::AutoPilot;
+use super::platform_tools;
+use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -28,13 +32,15 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
 use crate::context_mgmt::auto_compact;
-use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::{fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -44,6 +50,8 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::SessionManager;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -55,16 +63,8 @@ use rmcp::model::{
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, warn};
-
-use super::final_output_tool::FinalOutputTool;
-use super::model_selector::autopilot::AutoPilot;
-use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, ToolRequest};
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::SessionManager;
+use tracing;
+use tracing::log::warn;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -243,18 +243,7 @@ impl Agent {
         unfixed_conversation: Conversation,
         session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
-        let unfixed_messages = unfixed_conversation.messages().clone();
-        let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
-        if !issues.is_empty() {
-            debug!(
-                "Conversation issue fixed: {}",
-                debug_conversation_fix(
-                    unfixed_messages.as_slice(),
-                    conversation.messages(),
-                    &issues
-                )
-            );
-        }
+        let (conversation, _issues) = fix_conversation(unfixed_conversation.clone());
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
@@ -385,7 +374,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[tracing::instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParam,
@@ -442,7 +431,6 @@ impl Agent {
             };
         }
 
-        debug!("WAITING_TOOL_START: {}", tool_call.name);
         let result: ToolCallResult = if self
             .sub_recipe_manager
             .lock()
@@ -616,8 +604,6 @@ impl Agent {
             })
         };
 
-        debug!("WAITING_TOOL_END: {}", tool_call.name);
-
         (
             request_id,
             Ok(ToolCallResult {
@@ -641,7 +627,6 @@ impl Agent {
         let mut session_data = SessionManager::get_session(&session.id, false).await?;
 
         if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
-            warn!("Failed to serialize extension state: {}", e);
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
@@ -898,7 +883,7 @@ impl Agent {
         confirmation: PermissionConfirmation,
     ) {
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
-            error!("Failed to send confirmation: {}", e);
+            tracing::error!("Failed to send confirmation: {}", e);
         }
     }
 
@@ -956,7 +941,7 @@ impl Agent {
         Ok(None)
     }
 
-    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
+    #[tracing::instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
         unfixed_conversation: Conversation,
@@ -1033,7 +1018,7 @@ impl Agent {
             match conversation.len().cmp(&stored_conversation.len()) {
                 std::cmp::Ordering::Equal => {
                     if conversation != stored_conversation {
-                        warn!("Session messages mismatch - replacing with incoming");
+                        tracing::warn!("Session messages mismatch - replacing with incoming");
                         SessionManager::replace_conversation(&session_config.id, &conversation)
                             .await?;
                     }
@@ -1043,12 +1028,12 @@ impl Agent {
                 {
                     let last_message = conversation.last().unwrap();
                     if let Some(content) = last_message.content.first().and_then(|c| c.as_text()) {
-                        debug!("user_message" = &content);
+                        tracing::debug!("user_message" = &content);
                     }
                     SessionManager::add_message(&session_config.id, last_message).await?;
                 }
                 _ => {
-                    warn!(
+                    tracing::warn!(
                         "Unexpected session state: stored={}, incoming={}. Replacing.",
                         stored_conversation.len(),
                         conversation.len()
@@ -1062,7 +1047,7 @@ impl Agent {
                 if let Err(e) =
                     SessionManager::maybe_update_description(&session_id, provider).await
                 {
-                    warn!("Failed to generate session description: {}", e);
+                    tracing::warn!("Failed to generate session description: {}", e);
                 }
             });
         }
@@ -1103,7 +1088,6 @@ impl Agent {
                 {
                     let mut autopilot = self.autopilot.lock().await;
                     if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
-                        debug!("AutoPilot switching to {} role with model {}", role, model);
                         self.update_provider(new_provider).await?;
 
                         yield AgentEvent::ModelChange {
@@ -1318,7 +1302,7 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(error_msg)) => {
-                            info!("Context length exceeded, attempting compaction");
+                            tracing::info!("Context length exceeded, attempting compaction");
 
                             match auto_compact::perform_compaction(self, conversation.messages()).await {
                                 Ok(compact_result) => {
@@ -1344,7 +1328,6 @@ impl Agent {
                             }
                         }
                         Err(e) => {
-                            error!("Error: {}", e);
                             yield AgentEvent::Message(Message::assistant().with_text(
                                     format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 ));
@@ -1359,7 +1342,7 @@ impl Agent {
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
-                            warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
@@ -1373,13 +1356,13 @@ impl Agent {
                         match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
                             Ok(should_retry) => {
                                 if should_retry {
-                                    info!("Retry logic triggered, restarting agent loop");
+                                    tracing::info!("Retry logic triggered, restarting agent loop");
                                 } else {
                                     exit_chat = true;
                                 }
                             }
                             Err(e) => {
-                                error!("Retry logic failed: {}", e);
+                                tracing::error!("Retry logic failed: {}", e);
                                 yield AgentEvent::Message(Message::assistant().with_text(
                                     format!("Retry logic encountered an error: {}", e)
                                 ));
@@ -1507,24 +1490,15 @@ impl Agent {
 
     pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
-            error!("Failed to send tool result: {}", e);
+            tracing::error!("Failed to send tool result: {}", e);
         }
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
-        tracing::info!("Starting recipe creation with {} messages", messages.len());
-
         let extensions_info = self.extension_manager.get_extensions_info().await;
-        tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-
-        // Get model name from provider
-        let provider = self.provider().await.map_err(|e| {
-            tracing::error!("Failed to get provider for recipe creation: {}", e);
-            e
-        })?;
+        let provider = self.provider().await?;
         let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
-        tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager.build_system_prompt(
@@ -1536,22 +1510,9 @@ impl Agent {
             Some(model_name),
             false,
         );
-        tracing::debug!(
-            "Built system prompt with {} characters",
-            system_prompt.len()
-        );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
-        let tools = self
-            .extension_manager
-            .get_prefixed_tools(None)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to get tools for recipe creation: {}", e);
-                e
-            })?;
-        tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
-
+        let tools = self.extension_manager.get_prefixed_tools(None).await?;
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
@@ -1561,12 +1522,6 @@ impl Agent {
                 .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
         }
 
-        tracing::debug!(
-            "Added recipe prompt to messages, total messages: {}",
-            messages.len()
-        );
-
-        tracing::info!("Calling provider to generate recipe content");
         let (result, _usage) = self
             .provider
             .lock()
@@ -1585,10 +1540,6 @@ impl Agent {
             })?;
 
         let content = result.as_concat_text();
-        tracing::debug!(
-            "Provider returned content with {} characters",
-            content.len()
-        );
 
         // the response may be contained in ```json ```, strip that before parsing json
         let re = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
@@ -1598,17 +1549,9 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
-        tracing::debug!(
-            "Cleaned content for parsing: {}",
-            &clean_content[..std::cmp::min(200, clean_content.len())]
-        );
 
-        // try to parse json response from the LLM
-        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
-                tracing::debug!("Successfully parsed JSON content");
-
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
@@ -1632,14 +1575,11 @@ impl Agent {
                 (instructions, activities)
             } else {
                 tracing::warn!("Failed to parse JSON, falling back to string parsing");
-                // If we can't get valid JSON, try string parsing
-                // Use split_once to get the content after "Instructions:".
                 let after_instructions = content
                     .split_once("instructions:")
                     .map(|(_, rest)| rest)
                     .unwrap_or(&content);
 
-                // Split once more to separate instructions from activities.
                 let (instructions_part, activities_text) = after_instructions
                     .split_once("activities:")
                     .unwrap_or((after_instructions, ""));
@@ -1728,7 +1668,6 @@ impl Agent {
                 anyhow!("Recipe build failed: {}", e)
             })?;
 
-        tracing::info!("Recipe creation completed successfully");
         Ok(recipe)
     }
 }

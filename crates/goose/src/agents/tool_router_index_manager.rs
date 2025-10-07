@@ -36,12 +36,6 @@ impl ToolRouterIndexManager {
                                 e
                             )
                         })?;
-
-                    tracing::info!(
-                        "Indexed {} tools for extension {}",
-                        tools.len(),
-                        extension_name
-                    );
                 }
             }
             "remove" => {
@@ -98,7 +92,6 @@ impl ToolRouterIndexManager {
             .await
             .map_err(|e| anyhow!("Failed to index platform tools: {}", e))?;
 
-        tracing::info!("Indexed platform tools for LLM search");
         Ok(())
     }
 }
