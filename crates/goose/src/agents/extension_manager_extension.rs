@@ -17,8 +17,27 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use tracing::error;
 
 pub static EXTENSION_NAME: &str = "extension manager";
+
+#[derive(Debug, thiserror::Error)]
+pub enum ExtensionManagerToolError {
+    #[error("Unknown tool: {tool_name}")]
+    UnknownTool { tool_name: String },
+    
+    #[error("Extension manager not available")]
+    ManagerUnavailable,
+    
+    #[error("Missing required parameter: {param_name}")]
+    MissingParameter { param_name: String },
+    
+    #[error("Invalid action: {action}. Must be 'enable' or 'disable'")]
+    InvalidAction { action: String },
+    
+    #[error("Extension operation failed: {message}")]
+    OperationFailed { message: String },
+}
 
 // Tool name constants
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
@@ -73,44 +92,49 @@ impl ExtensionManagerClient {
         Ok(Self { info, context })
     }
 
-    async fn handle_search_available_extensions(&self) -> Result<Vec<Content>, String> {
+    async fn handle_search_available_extensions(&self) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 match extension_manager.search_available_extensions().await {
                     Ok(content) => Ok(content),
-                    Err(e) => Err(format!(
-                        "Failed to search available extensions: {}",
-                        e.message
-                    )),
+                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                        message: format!("Failed to search available extensions: {}", e.message)
+                    }),
                 }
             } else {
-                Err("Extension manager is no longer available".to_string())
+                Err(ExtensionManagerToolError::ManagerUnavailable)
             }
         } else {
-            Err("Extension manager not available in context".to_string())
+            Err(ExtensionManagerToolError::ManagerUnavailable)
         }
     }
 
     async fn handle_manage_extensions(
         &self,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
+        let arguments = arguments.ok_or(ExtensionManagerToolError::MissingParameter {
+            param_name: "arguments".to_string(),
+        })?;
+
         let action = arguments
-            .as_ref()
-            .ok_or("Missing arguments")?
             .get("action")
             .and_then(|v| v.as_str())
-            .ok_or("Missing required parameter: action")?;
+            .ok_or(ExtensionManagerToolError::MissingParameter {
+                param_name: "action".to_string(),
+            })?;
 
         let extension_name = arguments
-            .as_ref()
-            .ok_or("Missing arguments")?
             .get("extension_name")
             .and_then(|v| v.as_str())
-            .ok_or("Missing required parameter: extension_name")?;
+            .ok_or(ExtensionManagerToolError::MissingParameter {
+                param_name: "extension_name".to_string(),
+            })?;
 
         if !matches!(action, "enable" | "disable") {
-            return Err("Action must be either 'enable' or 'disable'".to_string());
+            return Err(ExtensionManagerToolError::InvalidAction {
+                action: action.to_string(),
+            });
         }
 
         match self
@@ -118,7 +142,9 @@ impl ExtensionManagerClient {
             .await
         {
             Ok(content) => Ok(content),
-            Err(error_data) => Err(error_data.message.to_string()),
+            Err(error_data) => Err(ExtensionManagerToolError::OperationFailed {
+                message: error_data.message.to_string(),
+            }),
         }
     }
 
@@ -250,7 +276,7 @@ impl ExtensionManagerClient {
     async fn handle_list_resources(
         &self,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 let params = arguments
@@ -262,20 +288,22 @@ impl ExtensionManagerClient {
                     .await
                 {
                     Ok(content) => Ok(content),
-                    Err(e) => Err(format!("Failed to list resources: {}", e.message)),
+                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                        message: format!("Failed to list resources: {}", e.message)
+                    }),
                 }
             } else {
-                Err("Extension manager is no longer available".to_string())
+                Err(ExtensionManagerToolError::ManagerUnavailable)
             }
         } else {
-            Err("Extension manager not available in context".to_string())
+            Err(ExtensionManagerToolError::ManagerUnavailable)
         }
     }
 
     async fn handle_read_resource(
         &self,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 let params = arguments
@@ -287,13 +315,15 @@ impl ExtensionManagerClient {
                     .await
                 {
                     Ok(content) => Ok(content),
-                    Err(e) => Err(format!("Failed to read resource: {}", e.message)),
+                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                        message: format!("Failed to read resource: {}", e.message)
+                    }),
                 }
             } else {
-                Err("Extension manager is no longer available".to_string())
+                Err(ExtensionManagerToolError::ManagerUnavailable)
             }
         } else {
-            Err("Extension manager not available in context".to_string())
+            Err(ExtensionManagerToolError::ManagerUnavailable)
         }
     }
 
@@ -438,22 +468,48 @@ impl McpClientTrait for ExtensionManagerClient {
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let content = match name {
+        let result = match name {
             SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
                 self.handle_search_available_extensions().await
+                    .map_err(|e| ExtensionManagerToolError::OperationFailed { 
+                        message: e.to_string() 
+                    })
             }
-            MANAGE_EXTENSIONS_TOOL_NAME => self.handle_manage_extensions(arguments).await,
-            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await,
-            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await,
-            _ => Err(format!("Unknown tool: {}", name)),
+            MANAGE_EXTENSIONS_TOOL_NAME => {
+                self.handle_manage_extensions(arguments).await
+                    .map_err(|e| ExtensionManagerToolError::OperationFailed { 
+                        message: e.to_string() 
+                    })
+            }
+            LIST_RESOURCES_TOOL_NAME => {
+                self.handle_list_resources(arguments).await.map_err(|e| ExtensionManagerToolError::OperationFailed { 
+                    message: e.to_string() 
+                })
+            }
+            READ_RESOURCE_TOOL_NAME => {
+                self.handle_read_resource(arguments).await.map_err(|e| ExtensionManagerToolError::OperationFailed { 
+                    message: e.to_string() 
+                })
+            }
+            _ => Err(ExtensionManagerToolError::UnknownTool { 
+                tool_name: name.to_string() 
+            }),
         };
 
-        match content {
+        match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: {}",
-                error
-            ))])),
+            Err(error) => {
+                // Log the error for debugging
+                error!("Extension manager tool '{}' failed: {}", name, error);
+                
+                // Return proper error result with is_error flag set
+                Ok(CallToolResult {
+                    content: vec![Content::text(error.to_string())],
+                    is_error: Some(true),  // ✅ Properly mark as error
+                    structured_content: None,
+                    meta: None,
+                })
+            }
         }
     }
 
