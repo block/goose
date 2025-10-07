@@ -2,7 +2,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::normalize;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::config::ExtensionConfigManager;
+use crate::config::get_extension_by_name;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -25,16 +25,16 @@ pub static EXTENSION_NAME: &str = "extension manager";
 pub enum ExtensionManagerToolError {
     #[error("Unknown tool: {tool_name}")]
     UnknownTool { tool_name: String },
-    
+
     #[error("Extension manager not available")]
     ManagerUnavailable,
-    
+
     #[error("Missing required parameter: {param_name}")]
     MissingParameter { param_name: String },
-    
+
     #[error("Invalid action: {action}. Must be 'enable' or 'disable'")]
     InvalidAction { action: String },
-    
+
     #[error("Extension operation failed: {message}")]
     OperationFailed { message: String },
 }
@@ -92,13 +92,15 @@ impl ExtensionManagerClient {
         Ok(Self { info, context })
     }
 
-    async fn handle_search_available_extensions(&self) -> Result<Vec<Content>, ExtensionManagerToolError> {
+    async fn handle_search_available_extensions(
+        &self,
+    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 match extension_manager.search_available_extensions().await {
                     Ok(content) => Ok(content),
                     Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to search available extensions: {}", e.message)
+                        message: format!("Failed to search available extensions: {}", e.message),
                     }),
                 }
             } else {
@@ -117,12 +119,11 @@ impl ExtensionManagerClient {
             param_name: "arguments".to_string(),
         })?;
 
-        let action = arguments
-            .get("action")
-            .and_then(|v| v.as_str())
-            .ok_or(ExtensionManagerToolError::MissingParameter {
+        let action = arguments.get("action").and_then(|v| v.as_str()).ok_or(
+            ExtensionManagerToolError::MissingParameter {
                 param_name: "action".to_string(),
-            })?;
+            },
+        )?;
 
         let extension_name = arguments
             .get("extension_name")
@@ -211,22 +212,15 @@ impl ExtensionManagerClient {
             return result;
         }
 
-        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
-            Ok(Some(config)) => config,
-            Ok(None) => {
+        let config = match get_extension_by_name(&extension_name) {
+            Some(config) => config,
+            None => {
                 return Err(ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
                     format!(
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
                     ),
-                    None,
-                ));
-            }
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to get extension config: {}", e),
                     None,
                 ));
             }
@@ -289,7 +283,7 @@ impl ExtensionManagerClient {
                 {
                     Ok(content) => Ok(content),
                     Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to list resources: {}", e.message)
+                        message: format!("Failed to list resources: {}", e.message),
                     }),
                 }
             } else {
@@ -316,7 +310,7 @@ impl ExtensionManagerClient {
                 {
                     Ok(content) => Ok(content),
                     Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to read resource: {}", e.message)
+                        message: format!("Failed to read resource: {}", e.message),
                     }),
                 }
             } else {
@@ -469,30 +463,31 @@ impl McpClientTrait for ExtensionManagerClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
-            SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
-                self.handle_search_available_extensions().await
-                    .map_err(|e| ExtensionManagerToolError::OperationFailed { 
-                        message: e.to_string() 
-                    })
-            }
+            SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => self
+                .handle_search_available_extensions()
+                .await
+                .map_err(|e| ExtensionManagerToolError::OperationFailed {
+                    message: e.to_string(),
+                }),
             MANAGE_EXTENSIONS_TOOL_NAME => {
-                self.handle_manage_extensions(arguments).await
-                    .map_err(|e| ExtensionManagerToolError::OperationFailed { 
-                        message: e.to_string() 
-                    })
-            }
-            LIST_RESOURCES_TOOL_NAME => {
-                self.handle_list_resources(arguments).await.map_err(|e| ExtensionManagerToolError::OperationFailed { 
-                    message: e.to_string() 
+                self.handle_manage_extensions(arguments).await.map_err(|e| {
+                    ExtensionManagerToolError::OperationFailed {
+                        message: e.to_string(),
+                    }
                 })
             }
-            READ_RESOURCE_TOOL_NAME => {
-                self.handle_read_resource(arguments).await.map_err(|e| ExtensionManagerToolError::OperationFailed { 
-                    message: e.to_string() 
-                })
-            }
-            _ => Err(ExtensionManagerToolError::UnknownTool { 
-                tool_name: name.to_string() 
+            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await.map_err(|e| {
+                ExtensionManagerToolError::OperationFailed {
+                    message: e.to_string(),
+                }
+            }),
+            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await.map_err(|e| {
+                ExtensionManagerToolError::OperationFailed {
+                    message: e.to_string(),
+                }
+            }),
+            _ => Err(ExtensionManagerToolError::UnknownTool {
+                tool_name: name.to_string(),
             }),
         };
 
@@ -501,11 +496,11 @@ impl McpClientTrait for ExtensionManagerClient {
             Err(error) => {
                 // Log the error for debugging
                 error!("Extension manager tool '{}' failed: {}", name, error);
-                
+
                 // Return proper error result with is_error flag set
                 Ok(CallToolResult {
                     content: vec![Content::text(error.to_string())],
-                    is_error: Some(true),  // ✅ Properly mark as error
+                    is_error: Some(true), // ✅ Properly mark as error
                     structured_content: None,
                     meta: None,
                 })
