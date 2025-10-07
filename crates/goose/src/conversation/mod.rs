@@ -338,7 +338,6 @@ fn effective_role(message: &Message) -> String {
 fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     let mut issues = Vec::new();
 
-    // Remove leading assistant message
     if let Some(first) = messages.first() {
         if first.role == Role::Assistant {
             messages.remove(0);
@@ -346,31 +345,10 @@ fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         }
     }
 
-    // Check if the last message is an assistant message - if so, remove it entirely
-    // This handles the case where compaction might leave an assistant message with pending tool requests
     if let Some(last) = messages.last() {
         if last.role == Role::Assistant {
-            // Check if it has tool requests
-            let has_tool_requests = last
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::ToolRequest(_)));
-
-            if has_tool_requests {
-                // Log which tool requests are being removed
-                for content in &last.content {
-                    if let MessageContent::ToolRequest(req) = content {
-                        issues.push(format!(
-                            "Removed pending tool request '{}' from last assistant message",
-                            req.id
-                        ));
-                    }
-                }
-            }
-
-            // Remove the entire last assistant message
             messages.pop();
-            issues.push("Removed trailing assistant message".to_string());
+            issues.push("Removed trailing assistant message with pending tool requests".to_string());
         }
     }
 

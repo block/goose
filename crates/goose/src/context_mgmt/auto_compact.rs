@@ -135,7 +135,7 @@ pub async fn check_compaction_needed(
 pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
     info!("Performing message compaction");
 
-    // First, fix the conversation to handle any issues (like trailing assistant messages with tool requests)
+    // Fix the conversation to handle any issues (like trailing assistant messages with tool requests)
     let conversation = Conversation::new_unvalidated(messages.to_vec());
     let (fixed_conversation, pre_compact_issues) = fix_conversation(conversation);
     if !pre_compact_issues.is_empty() {
@@ -181,7 +181,6 @@ pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<A
 /// This is a convenience wrapper function that combines checking and compaction.
 /// If the most recent message is a user message, it will be preserved by removing it
 /// before compaction and adding it back afterwards.
-/// The conversation fixer will handle any orphaned tool requests or responses.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
@@ -220,7 +219,6 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    // Delegate the actual compaction work to perform_compaction
     perform_compaction(agent, messages).await
 }
 
