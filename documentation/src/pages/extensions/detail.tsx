@@ -135,7 +135,7 @@ const getDocumentationPath = (serverId: string): string => {
                   {server.environmentVariables && (
                     <div className="space-y-4">
                       <h2 className="text-lg font-medium text-textStandard m-0">
-                        {server.type === "streamable-http" ? "Request Headers" : "Environment Variables"}
+                        Environment Variables
                       </h2>
                       {server.environmentVariables.length > 0 ? (
                         <div>
@@ -161,7 +161,7 @@ const getDocumentationPath = (serverId: string): string => {
                       ) : (
                         <div className="text-textSubtle text-sm flex items-center gap-2">
                           <Info className="h-4 w-4" />
-                          {server.type === "streamable-http" ? "No request headers needed" : "No environment variables needed"}
+                          No environment variables needed
                         </div>
                       )}
                     </div>
