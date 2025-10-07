@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -473,14 +472,21 @@ impl Agent {
                     );
                 }
             };
-            let parent_session_id = session
-                .as_ref()
-                .map(|s| s.id.to_string())
-                .unwrap_or_default();
-            let parent_working_dir = session
-                .as_ref()
-                .map(|s| s.working_dir.clone())
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            let session = match session.as_ref() {
+                Some(s) => s,
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Session is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let parent_session_id = session.id.to_string();
+            let parent_working_dir = session.working_dir.clone();
 
             let task_config = TaskConfig::new(
                 provider,
@@ -488,20 +494,50 @@ impl Agent {
                 parent_working_dir,
                 get_enabled_extensions(),
             );
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
 
-            let task_ids: Vec<String> = arguments
-                .get("task_ids")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
+            let arguments = match tool_call.arguments.clone() {
+                Some(args) => Value::Object(args),
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Tool call arguments are required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let task_ids: Vec<String> = match arguments.get("task_ids") {
+                Some(v) => match serde_json::from_value(v.clone()) {
+                    Ok(ids) => ids,
+                    Err(_) => {
+                        return (
+                            request_id,
+                            Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                "Invalid task_ids format".to_string(),
+                                None,
+                            )),
+                        );
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "task_ids parameter is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+
             let execution_mode = arguments
                 .get("execution_mode")
                 .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
-                .unwrap_or_default();
+                .unwrap_or(ExecutionMode::Sequential);
 
             subagent_execute_task_tool::run_tasks(
                 task_ids,
