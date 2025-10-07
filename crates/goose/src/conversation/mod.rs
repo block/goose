@@ -348,7 +348,8 @@ fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     if let Some(last) = messages.last() {
         if last.role == Role::Assistant {
             messages.pop();
-            issues.push("Removed trailing assistant message with pending tool requests".to_string());
+            issues
+                .push("Removed trailing assistant message with pending tool requests".to_string());
         }
     }
 
