@@ -72,51 +72,20 @@ In this example, goose will use the [Google Places Scraper](https://apify.com/co
 ### Goose Prompt
 
 ```
-( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — use Apify MCP to scrape reviews, focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes).
+( O)> Find the top-rated Italian restaurant in Prague with verifiable credibility — use Apify MCP to find Google Maps review scraper Actor, focus on places with at least 200+ reviews, an average rating of 4.7 or higher on Google, TripAdvisor, or OpenTable, and any Michelin or fine-dining recognition. Include the restaurant’s name, rating, total review count, address, cuisine style, and a short summary of what makes it stand out (e.g., service, ambiance, or signature dishes). Return to me only 1 restaurant with the highest rating to review count ratio
 ```
 
 ### Goose Output
 
 ```
-Here are some top-rated Italian restaurants in Prague that meet your criteria for verifiable credibility:
+Based on the gathered information, the top-rated Italian restaurant in Prague with verifiable credibility is:
 
-### 1. [Divinis](https://guide.michelin.com/us/en/prague/prague/restaurant/divinis)
-- **Rating:** 4.7
-- **Review Count:** Approximately 200+ on Google
-- **Address:** Prague, Czechia
+### **Al Tagliere**
+- **Rating:** 4.7/5
+- **Total Reviews:** 457
+- **Address:** [Al Tagliere on TripAdvisor](https://www.tripadvisor.com/Restaurant_Review-g274707-d6835155-Reviews-Al_Tagliere-Prague_Bohemia.html)
 - **Cuisine Style:** Italian
-- **Summary:** Divinis is celebrated for its creative Italian cuisine, featuring a selection of fresh pasta and seafood dishes. The ambiance is elegant yet cozy, making it perfect for date nights. The restaurant holds a Michelin Bib Gourmand designation, indicating good quality at a reasonable price.
+- **Summary:** Al Tagliere is celebrated for its authentic Italian dishes that showcase regional flavors. The restaurant is known for its delightful ambiance, attentive service, and signature dishes such as homemade pasta and traditional desserts. Patrons frequently highlight the freshness of ingredients and the welcoming atmosphere, making it a preferred choice for both locals and tourists.
 
-### 2. [CottoCrudo](https://guide.michelin.com/us/en/prague/prague/restaurant/cottocrudo)
-- **Rating:** 4.7+
-- **Review Count:** Over 200 reviews on various platforms
-- **Address:** Prague, Czechia
-- **Cuisine Style:** Italian
-- **Summary:** Located in the Four Seasons Hotel, CottoCrudo offers a luxurious dining experience with a focus on authentic Italian flavors prepared with locally sourced ingredients. The restaurant features an open kitchen concept, allowing guests to watch chefs at work. It is well-known for its vibrant atmosphere and extensive wine list.
-
-### 3. [La Finestra in Cucina](https://guide.michelin.com/us/en/prague/prague/restaurant/la-finestra)
-- **Rating:** 4.8
-- **Review Count:** Approximately 1,300 reviews on Google
-- **Address:** Prague, Czechia
-- **Cuisine Style:** Italian
-- **Summary:** This restaurant is a favorite among locals and tourists alike for its authentic Italian dishes and warm hospitality. Signature dishes include handmade pastas and perfectly grilled meats. The ambiance is stylish yet comfortable, ideal for both casual dinners and special occasions.
-
-### 4. [Aromi](https://guide.michelin.com/us/en/prague/prague/restaurant/aromi)
-- **Rating:** 4.6
-- **Review Count:** Over 200 reviews across platforms.
-- **Address:** Prague, Czechia
-- **Cuisine Style:** Italian
-- **Summary:** Aromi specializes in Italian seafood and pasta, and its menu features fresh ingredients and classic recipes. The restaurant’s sleek interior and attentive service create a refined dining experience. Aromi is well-regarded for its dedicated attention to detail and a relaxing atmosphere.
-
-### 5. [Casa De Carli](https://guide.michelin.com/us/en/prague/prague/restaurant/casa-de-carli)
-- **Rating:** 4.5
-- **Review Count:** Over 200 reviews.
-- **Address:** Prague, Czechia
-- **Cuisine Style:** Italian
-- **Summary:** Casa De Carli is known for its charming decor and welcoming atmosphere. The menu offers a range of traditional Italian dishes, with an emphasis on homemade pasta. This restaurant often receives praise for its exceptional service and quality of food.
-
----
-
-These restaurants not only have high ratings and substantial review counts but also feature recognitions that affirm their credibility and quality in Italian fine dining.
-
+This restaurant has a strong reputation and meets your criteria for quality and credibility.
 ```
