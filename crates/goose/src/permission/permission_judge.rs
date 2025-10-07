@@ -1,4 +1,4 @@
-use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
+use crate::agents::extension_manager_extension::{MANAGE_EXTENSIONS_TOOL_NAME};
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
@@ -188,7 +188,7 @@ pub async fn check_tool_permissions(
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
-                if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME {
                     extension_request_ids.push(request.id.clone());
                 }
 
@@ -442,7 +442,7 @@ mod tests {
         let enable_extension = ToolRequest {
             id: "tool_3".to_string(),
             tool_call: Ok(CallToolRequestParam {
-                name: PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME.into(),
+                name: MANAGE_EXTENSIONS_TOOL_NAME.into(),
                 arguments: Some(object!({"action": "enable", "extension_name": "data_fetcher"})),
             }),
         };

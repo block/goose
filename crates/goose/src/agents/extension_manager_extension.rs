@@ -59,7 +59,7 @@ impl ExtensionManagerClient {
             instructions: Some(indoc! {r#"
                 Extension Management
 
-                Use these tools to discover, enable, and disable extensions, as well as manage resources.
+                Use these tools to discover, enable, and disable extensions, as well as review resources.
 
                 Available tools:
                 - search_available_extensions: Find extensions available to enable/disable
@@ -112,12 +112,10 @@ impl ExtensionManagerClient {
             .and_then(|v| v.as_str())
             .ok_or("Missing required parameter: extension_name")?;
 
-        // Validate action
         if !matches!(action, "enable" | "disable") {
             return Err("Action must be either 'enable' or 'disable'".to_string());
         }
 
-        // Call the actual manage_extensions implementation
         match self
             .manage_extensions_impl(action.to_string(), extension_name.to_string())
             .await
@@ -127,13 +125,11 @@ impl ExtensionManagerClient {
         }
     }
 
-    /// Implementation of the manage_extensions logic migrated from agent.rs
     async fn manage_extensions_impl(
         &self,
         action: String,
         extension_name: String,
     ) -> Result<Vec<Content>, ErrorData> {
-        // Get references from context
         let extension_manager = self
             .context
             .extension_manager

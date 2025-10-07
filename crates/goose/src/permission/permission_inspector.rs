@@ -1,4 +1,4 @@
-use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
+use crate::agents::extension_manager_extension::{MANAGE_EXTENSIONS_TOOL_NAME};
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, ToolRequest};
@@ -164,7 +164,7 @@ impl ToolInspector for PermissionInspector {
                         InspectionAction::Allow
                     }
                     // 4. Special case for extension management
-                    else if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                    else if tool_name == MANAGE_EXTENSIONS_TOOL_NAME {
                         InspectionAction::RequireApproval(Some(
                             "Extension management requires approval for security".to_string(),
                         ))
@@ -189,7 +189,7 @@ impl ToolInspector for PermissionInspector {
                     }
                     InspectionAction::Deny => "User permission denies this tool".to_string(),
                     InspectionAction::RequireApproval(_) => {
-                        if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                        if tool_name == MANAGE_EXTENSIONS_TOOL_NAME {
                             "Extension management requires user approval".to_string()
                         } else {
                             "Tool requires user approval".to_string()
