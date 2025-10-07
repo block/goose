@@ -1623,9 +1623,9 @@
         "operationId": "import_session",
         "requestBody": {
           "content": {
-            "text/plain": {
+            "application/json": {
               "schema": {
-                "type": "string"
+                "$ref": "#/components/schemas/ImportSessionRequest"
               }
             }
           },
@@ -2904,6 +2904,17 @@
             "type": "string"
           },
           "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportSessionRequest": {
+        "type": "object",
+        "required": [
+          "json"
+        ],
+        "properties": {
+          "json": {
             "type": "string"
           }
         }

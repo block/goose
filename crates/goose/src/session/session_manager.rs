@@ -905,8 +905,7 @@ impl SessionStorage {
     }
 
     async fn export_session(&self, id: &str) -> Result<String> {
-        let mut session = self.get_session(id, true).await?;
-        session.id = String::new();
+        let session = self.get_session(id, true).await?;
         serde_json::to_string_pretty(&session).map_err(Into::into)
     }
 

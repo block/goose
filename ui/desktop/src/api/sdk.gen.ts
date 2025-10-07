@@ -459,11 +459,10 @@ export const listSessions = <ThrowOnError extends boolean = false>(options?: Opt
 
 export const importSession = <ThrowOnError extends boolean = false>(options: Options<ImportSessionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<ImportSessionResponses, ImportSessionErrors, ThrowOnError>({
-        bodySerializer: null,
         url: '/sessions/import',
         ...options,
         headers: {
-            'Content-Type': 'text/plain',
+            'Content-Type': 'application/json',
             ...options.headers
         }
     });

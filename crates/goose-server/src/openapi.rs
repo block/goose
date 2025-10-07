@@ -391,6 +391,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::reply::ChatRequest,
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
+        super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionDescriptionRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,

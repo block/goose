@@ -341,6 +341,10 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type ImportSessionRequest = {
+    json: string;
+};
+
 export type InspectJobResponse = {
     processStartTime?: string | null;
     runningDurationSeconds?: number | null;
@@ -2178,7 +2182,7 @@ export type ListSessionsResponses = {
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
 export type ImportSessionData = {
-    body: string;
+    body: ImportSessionRequest;
     path?: never;
     query?: never;
     url: '/sessions/import';

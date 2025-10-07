@@ -34,6 +34,12 @@ pub struct UpdateSessionUserRecipeValuesRequest {
     user_recipe_values: HashMap<String, String>,
 }
 
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSessionRequest {
+    json: String,
+}
+
 const MAX_DESCRIPTION_LENGTH: usize = 200;
 
 #[utoipa::path(
@@ -228,7 +234,7 @@ async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, 
 #[utoipa::path(
     post,
     path = "/sessions/import",
-    request_body = String,
+    request_body = ImportSessionRequest,
     responses(
         (status = 200, description = "Session imported successfully", body = Session),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
@@ -240,8 +246,10 @@ async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, 
     ),
     tag = "Session Management"
 )]
-async fn import_session(Json(json): Json<String>) -> Result<Json<Session>, StatusCode> {
-    let session = SessionManager::import_session(&json)
+async fn import_session(
+    Json(request): Json<ImportSessionRequest>,
+) -> Result<Json<Session>, StatusCode> {
+    let session = SessionManager::import_session(&request.json)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
