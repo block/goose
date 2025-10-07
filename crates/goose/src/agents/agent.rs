@@ -23,6 +23,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
+use crate::agents::subagent_execution_tool::lib::ExecutionMode;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
@@ -297,6 +298,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -304,7 +306,12 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .dispatch_tool_call(
+                        tool_call,
+                        request.id.clone(),
+                        cancel_token.clone(),
+                        session.clone(),
+                    )
                     .await;
 
                 tool_futures.push((
@@ -384,6 +391,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -451,16 +459,89 @@ impl Agent {
                 .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
-            let provider = self.provider().await.ok();
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
+            let provider = match self.provider().await {
+                Ok(p) => p,
+                Err(_) => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Provider is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let session = match session.as_ref() {
+                Some(s) => s,
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Session is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let parent_session_id = session.id.to_string();
+            let parent_working_dir = session.working_dir.clone();
 
-            let task_config = TaskConfig::new(provider);
+            let task_config = TaskConfig::new(
+                provider,
+                parent_session_id,
+                parent_working_dir,
+                get_enabled_extensions(),
+            );
+
+            let arguments = match tool_call.arguments.clone() {
+                Some(args) => Value::Object(args),
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Tool call arguments are required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let task_ids: Vec<String> = match arguments.get("task_ids") {
+                Some(v) => match serde_json::from_value(v.clone()) {
+                    Ok(ids) => ids,
+                    Err(_) => {
+                        return (
+                            request_id,
+                            Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                "Invalid task_ids format".to_string(),
+                                None,
+                            )),
+                        );
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "task_ids parameter is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+
+            let execution_mode = arguments
+                .get("execution_mode")
+                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
+                .unwrap_or(ExecutionMode::Sequential);
+
             subagent_execute_task_tool::run_tasks(
-                arguments,
+                task_ids,
+                execution_mode,
                 task_config,
                 &self.tasks_manager,
                 cancellation_token,
@@ -1162,6 +1243,7 @@ impl Agent {
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1172,6 +1254,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                         &inspection_results,
                                     );
 
