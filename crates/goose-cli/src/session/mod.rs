@@ -25,7 +25,6 @@ use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
@@ -37,6 +36,7 @@ use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
+use goose::config::paths::Paths;
 use goose::conversation::message::{Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -413,29 +413,20 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        // Create and use a global history file in ~/.config/goose directory
-        // This allows command history to persist across different chat sessions
-        // instead of being tied to each individual session's messages
-        let strategy =
-            choose_app_strategy(crate::APP_STRATEGY.clone()).expect("goose requires a home dir");
-        let config_dir = strategy.config_dir();
-        let history_file = config_dir.join("history.txt");
+        let history_file = Paths::config_dir().join("history.txt");
 
-        // Ensure config directory exists
         if let Some(parent) = history_file.parent() {
             if !parent.exists() {
                 std::fs::create_dir_all(parent)?;
             }
         }
 
-        // Load history from the global file
         if history_file.exists() {
             if let Err(err) = editor.load_history(&history_file) {
                 eprintln!("Warning: Failed to load command history: {}", err);
             }
         }
 
-        // Helper function to save history after commands
         let save_history =
             |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
