@@ -1,4 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
+use crate::agents::extension_manager::normalize;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::config::ExtensionConfigManager;
@@ -17,7 +18,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-pub static EXTENSION_NAME: &str = "extensionmanager";
+pub static EXTENSION_NAME: &str = "extension manager";
 
 // Tool name constants
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
@@ -49,7 +50,7 @@ impl ExtensionManagerClient {
                 logging: None,
             },
             server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
+                name: normalize(EXTENSION_NAME.to_string()),
                 title: Some("Extension Manager".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,

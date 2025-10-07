@@ -129,7 +129,7 @@ const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
 
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
-fn normalize(input: String) -> String {
+pub fn normalize(input: String) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
         result.push(match c {

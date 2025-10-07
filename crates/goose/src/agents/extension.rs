@@ -65,7 +65,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
         );
 
         map.insert(
-            extension_manager_extension::EXTENSION_NAME,
+            "extensionmanager",
             PlatformExtensionDef {
                 name: extension_manager_extension::EXTENSION_NAME,
                 description:
