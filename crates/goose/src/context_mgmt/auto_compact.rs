@@ -135,19 +135,7 @@ pub async fn check_compaction_needed(
 pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
     info!("Performing message compaction");
 
-    let mut messages_to_process = messages.to_vec();
-
-    // Check if the last assistant message contains a tool request
-    // If so, remove it to prevent orphaned tool responses after compaction
-    if let Some(last_assistant_pos) = messages_to_process
-        .iter()
-        .rposition(|m| matches!(m.role, rmcp::model::Role::Assistant))
-    {
-        if messages_to_process[last_assistant_pos].is_tool_call() {
-            info!("Removing last assistant message with pending tool request before compaction");
-            messages_to_process.remove(last_assistant_pos);
-        }
-    }
+    let messages_to_process = messages.to_vec();
 
     // Check if the most recent message is a user message
     let (messages_to_compact, preserved_user_message) =
@@ -192,8 +180,7 @@ pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<A
 /// This is a convenience wrapper function that combines checking and compaction.
 /// If the most recent message is a user message, it will be preserved by removing it
 /// before compaction and adding it back afterwards.
-/// If the last assistant message contains a tool request, it will be removed to
-/// prevent orphaned tool responses.
+/// The conversation fixer will handle any orphaned tool requests or responses.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
