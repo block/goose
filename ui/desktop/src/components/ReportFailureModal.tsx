@@ -4,8 +4,7 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import Modal from './Modal';
-import { getSecretKey } from '../config';
-import { getExtensions, providers } from '../api/sdk.gen';
+import { getExtensions, getSessionHistory } from '../api/sdk.gen';
 
 interface SystemInfo {
   gooseVersion: string;
@@ -24,16 +23,12 @@ interface ReportFailureModalProps {
 export default function ReportFailureModal({ isOpen, onClose }: ReportFailureModalProps) {
   const [description, setDescription] = useState('');
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [recentErrors, setRecentErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const getExtensionCount = async (): Promise<number> => {
     try {
-      const secretKey = getSecretKey();
-      const response = await getExtensions({
-        headers: secretKey ? { 'X-Secret-Key': secretKey } : {},
-      });
+      const response = await getExtensions({});
 
       if (response.data && Array.isArray(response.data)) {
         return response.data.length;
@@ -46,7 +41,6 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
 
   const collectSystemInfo = useCallback(async () => {
     try {
-      const secretKey = getSecretKey();
       const info: SystemInfo = {
         gooseVersion: String(
           window.appConfig?.get('GOOSE_VERSION') ||
@@ -59,18 +53,23 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
         extensionCount: await getExtensionCount(),
       };
 
-      // Try to get current provider type (without sensitive data)
       try {
-        const providerResponse = await providers({
-          headers: secretKey ? { 'X-Secret-Key': secretKey } : {},
-        });
+        const activeSessionId: string | undefined = window.appConfig?.get('CURRENT_SESSION_ID') as
+          | string
+          | undefined;
 
-        if (
-          providerResponse.data &&
-          Array.isArray(providerResponse.data) &&
-          providerResponse.data.length > 0
-        ) {
-          info.providerType = providerResponse.data[0].name || 'Unknown Provider';
+        if (activeSessionId) {
+          const sessionResponse = await getSessionHistory({
+            path: { session_id: activeSessionId },
+          });
+
+          const sessionData = sessionResponse.data as { metadata?: { provider_name?: string } };
+
+          if (sessionData?.metadata?.provider_name) {
+            info.providerType = sessionData.metadata.provider_name;
+          } else {
+            info.providerType = 'Unknown Provider (Session Metadata Incomplete)';
+          }
         }
       } catch (error) {
         console.debug('Provider detection failed:', error);
@@ -82,27 +81,15 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
     }
   }, []);
 
-  const collectRecentErrors = useCallback(async () => {
-    try {
-      // Recent errors are logged to the main process via ErrorBoundary
-      const recentErrors = ['Recent errors are logged to the main process via ErrorBoundary'];
-      setRecentErrors(recentErrors);
-    } catch (error) {
-      console.error('Failed to collect recent errors:', error);
-      setRecentErrors(['Failed to collect error logs - but this error is now captured!']);
-    }
-  }, []);
-
   // Collect system information when modal opens
   useEffect(() => {
     if (isOpen) {
       collectSystemInfo();
-      collectRecentErrors();
       // Reset form state
       setDescription('');
       setSubmitStatus('idle');
     }
-  }, [isOpen, collectSystemInfo, collectRecentErrors]);
+  }, [isOpen, collectSystemInfo]);
 
   const formatGitHubIssueBody = () => {
     if (!systemInfo) return '';
@@ -118,10 +105,6 @@ ${description}
 - **Provider & Model:** ${systemInfo.providerType || 'Unknown'}
 - **Extensions:** ${systemInfo.extensionCount} installed
 
-**Recent Errors/Logs:**
-\`\`\`
-${recentErrors.join('\n')}
-\`\`\`
 
 **Additional context**
 - **Timestamp:** ${new Date().toISOString()}
@@ -224,6 +207,7 @@ ${recentErrors.join('\n')}
                         <span className="text-text-muted">Architecture:</span>
                         <span className="font-mono">{systemInfo.architecture}</span>
                       </div>
+                      {/* Only display the provider field if the value is set */}
                       {systemInfo.providerType && (
                         <div className="flex justify-between">
                           <span className="text-text-muted">Provider:</span>
