@@ -31,17 +31,21 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Extensions`
-    3. Click `Add custom extension`
-    4. On the `Add custom extension` modal, enter the following:
+    1. Obtain a [Apify Token](https://console.apify.com/settings/integrations)
+    2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    3. Click `Extensions`
+    4. Click `Add custom extension`
+    5. On the `Add custom extension` modal, enter the following:
        - **Extension Name**: Apify
        - **Type**: Streamable HTTP
-       - **Endpoint**: `https://mcp.apify.com` 
-    5. Click `+ Add` to save the header
-    6. Click `Add Extension` to save the extension
-    7. You will be taken to the OAuth screen
-    8. Navigate to the chat
+       - **Endpoint**: `https://mcp.apify.com`
+       - **Request Headers**: 
+          - **Header name**: `Authorization`
+          - **Value**: `Bearer <YOUR_APIFY_TOKEN>` 
+    6. Click `+ Add` to save the header
+    7. Click `Add Extension` to save the extension
+    8. You will be taken to the OAuth screen
+    9. Navigate to the chat
   </TabItem>
   <TabItem value="cli" label="Goose CLI" default>
       <CLIExtensionInstructions
@@ -49,6 +53,14 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
         type="http"
         url="https://mcp.apify.com"
         timeout={300}
+              envVars={[
+          { key: "Authorization", value: "Bearer apify_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+        ]}
+        infoNote={
+          <>
+            Obtain your <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer">Apify Token</a> and paste it in
+          </>
+        }
       />
   </TabItem>
 </Tabs>
