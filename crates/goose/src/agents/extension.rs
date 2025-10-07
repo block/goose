@@ -85,7 +85,7 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub tool_route_manager:
-        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>
+        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
 }
 
 #[derive(Debug, Clone)]

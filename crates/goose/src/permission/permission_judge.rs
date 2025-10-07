@@ -1,4 +1,4 @@
-use crate::agents::extension_manager_extension::{MANAGE_EXTENSIONS_TOOL_NAME};
+use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};

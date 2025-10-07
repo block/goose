@@ -102,7 +102,7 @@ impl ToolRouteManager {
 
         // Wrap selector in Arc for the index manager methods
         let selector_arc = Arc::new(selector);
-        
+
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;
             for extension_name in enabled_extensions {

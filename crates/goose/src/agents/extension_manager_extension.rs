@@ -40,10 +40,7 @@ impl ExtensionManagerClient {
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
-                resources: Some(rmcp::model::ResourcesCapability {
-                    subscribe: Some(false),
-                    list_changed: Some(false),
-                }),
+                resources: None,
                 prompts: None,
                 completions: None,
                 experimental: None,
@@ -300,8 +297,8 @@ impl ExtensionManagerClient {
         }
     }
 
-    fn get_tools() -> Vec<Tool> {
-        vec![
+    async fn get_tools(&self) -> Vec<Tool> {
+        let mut tools = vec![
             Tool::new(
                 SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME.to_string(),
                 "Searches for additional extensions available to help complete tasks.
@@ -341,9 +338,16 @@ impl ExtensionManagerClient {
                 idempotent_hint: Some(false),
                 open_world_hint: Some(false),
             }),
-            Tool::new(
-                LIST_RESOURCES_TOOL_NAME.to_string(),
-                indoc! {r#"
+        ];
+
+        // Only add resource tools if extension manager supports resources
+        if let Some(weak_ref) = &self.context.extension_manager {
+            if let Some(extension_manager) = weak_ref.upgrade() {
+                if extension_manager.supports_resources().await {
+                    tools.extend([
+                        Tool::new(
+                            LIST_RESOURCES_TOOL_NAME.to_string(),
+                            indoc! {r#"
             List resources from an extension(s).
 
             Resources allow extensions to share data that provide context to LLMs, such as
@@ -351,22 +355,22 @@ impl ExtensionManagerClient {
             in the provided extension, and returns a list for the user to browse. If no extension
             is provided, the tool will search all extensions for the resource.
         "#}.to_string(),
-                object!({
-                    "type": "object",
-                    "properties": {
-                        "extension_name": {"type": "string", "description": "Optional extension name"}
-                    }
-                }),
-            ).annotate(ToolAnnotations {
-                title: Some("List resources".to_string()),
-                read_only_hint: Some(true),
-                destructive_hint: Some(false),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(false),
-            }),
-            Tool::new(
-                READ_RESOURCE_TOOL_NAME.to_string(),
-                indoc! {r#"
+                            object!({
+                                "type": "object",
+                                "properties": {
+                                    "extension_name": {"type": "string", "description": "Optional extension name"}
+                                }
+                            }),
+                        ).annotate(ToolAnnotations {
+                            title: Some("List resources".to_string()),
+                            read_only_hint: Some(true),
+                            destructive_hint: Some(false),
+                            idempotent_hint: Some(false),
+                            open_world_hint: Some(false),
+                        }),
+                        Tool::new(
+                            READ_RESOURCE_TOOL_NAME.to_string(),
+                            indoc! {r#"
             Read a resource from an extension.
 
             Resources allow extensions to share data that provide context to LLMs, such as
@@ -374,22 +378,27 @@ impl ExtensionManagerClient {
             resource URI in the provided extension, and reads in the resource content. If no extension
             is provided, the tool will search all extensions for the resource.
         "#}.to_string(),
-                object!({
-                    "type": "object",
-                    "required": ["uri"],
-                    "properties": {
-                        "uri": {"type": "string", "description": "Resource URI"},
-                        "extension_name": {"type": "string", "description": "Optional extension name"}
-                    }
-                }),
-            ).annotate(ToolAnnotations {
-                title: Some("Read a resource".to_string()),
-                read_only_hint: Some(true),
-                destructive_hint: Some(false),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(false),
-            }),
-        ]
+                            object!({
+                                "type": "object",
+                                "required": ["uri"],
+                                "properties": {
+                                    "uri": {"type": "string", "description": "Resource URI"},
+                                    "extension_name": {"type": "string", "description": "Optional extension name"}
+                                }
+                            }),
+                        ).annotate(ToolAnnotations {
+                            title: Some("Read a resource".to_string()),
+                            read_only_hint: Some(true),
+                            destructive_hint: Some(false),
+                            idempotent_hint: Some(false),
+                            open_world_hint: Some(false),
+                        }),
+                    ]);
+                }
+            }
+        }
+
+        tools
     }
 }
 
@@ -418,7 +427,7 @@ impl McpClientTrait for ExtensionManagerClient {
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
-            tools: Self::get_tools(),
+            tools: self.get_tools().await,
             next_cursor: None,
         })
     }

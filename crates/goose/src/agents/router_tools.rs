@@ -1,6 +1,7 @@
 use crate::agents::extension_manager_extension::{
-    LIST_RESOURCES_TOOL_NAME, MANAGE_EXTENSIONS_TOOL_NAME,
-    READ_RESOURCE_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,};
+    LIST_RESOURCES_TOOL_NAME, MANAGE_EXTENSIONS_TOOL_NAME, READ_RESOURCE_TOOL_NAME,
+    SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+};
 use indoc::indoc;
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;

@@ -10,9 +10,9 @@ use uuid::Uuid;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::extension_manager_extension::{MANAGE_EXTENSIONS_TOOL_NAME};
+use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::platform_tools::{PLATFORM_MANAGE_SCHEDULE_TOOL_NAME};
+use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
@@ -774,20 +774,10 @@ impl Agent {
 
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
-            prefixed_tools.extend([
-                platform_tools::manage_schedule_tool(),
-            ]);
+            // TODO: migrate the manage schedule tool as well
+            prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
-
-            // Add resource tools if supported
-            //aning TODO: fix this
-            // if self.extension_manager.supports_resources().await {
-            //     prefixed_tools.extend([
-            //         platform_tools::read_resource_tool(),
-            //         platform_tools::list_resources_tool(),
-            //     ]);
-            // }
         }
 
         if extension_name.is_none() {

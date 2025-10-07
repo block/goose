@@ -3,8 +3,8 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
-use goose::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+use goose::agents::extension_manager_extension::{
+    LIST_RESOURCES_TOOL_NAME, READ_RESOURCE_TOOL_NAME,
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -1450,8 +1450,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .await
         .into_iter()
         .filter(|tool| {
-            tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
-                && tool.name != PLATFORM_READ_RESOURCE_TOOL_NAME
+            tool.name != LIST_RESOURCES_TOOL_NAME && tool.name != READ_RESOURCE_TOOL_NAME
         })
         .map(|tool| {
             ToolInfo::new(
