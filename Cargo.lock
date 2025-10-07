@@ -2786,6 +2786,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-kotlin",
  "tree-sitter-python",
+ "tree-sitter-ruby",
  "tree-sitter-rust",
  "umya-spreadsheet",
  "url",
@@ -7249,6 +7250,16 @@ name = "tree-sitter-python"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4066c6cf678f962f8c2c4561f205945c84834cce73d981e71392624fdc390a9"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-ruby"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0031f687c0772f2dad7b77104c43428611099a1804c81244ada21560f41f0b1"
 dependencies = [
  "cc",
  "tree-sitter",
