@@ -1,13 +1,9 @@
 use serde_json::Value;
-use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus, TaskType};
-use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
 use crate::agents::subagent_task_config::TaskConfig;
 
 pub async fn process_task(
@@ -39,34 +35,45 @@ pub async fn process_task(
     }
 }
 
+/// Load a SubRecipe from file and convert to Recipe object
+async fn load_sub_recipe(task: &Task) -> Result<crate::recipe::Recipe, String> {
+    use crate::recipe::build_recipe::build_recipe_from_template;
+    use crate::recipe::local_recipes::load_local_recipe_file;
+    
+    let path = task.get_sub_recipe_path()
+        .ok_or("Missing path in sub_recipe payload")?;
+    let params = task.get_command_parameters()
+        .map(|m| m.iter().map(|(k,v)| (k.to_string(), v.as_str().unwrap_or("").to_string())).collect())
+        .unwrap_or_default();
+    
+    let recipe_file = load_local_recipe_file(path).map_err(|e| e.to_string())?;
+    build_recipe_from_template(recipe_file, params, None::<fn(&str, &str) -> Result<String, anyhow::Error>>).map_err(|e| e.to_string())
+}
+
 async fn get_task_result(
     task: Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
+    _task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    match task.task_type {
-        TaskType::InlineRecipe => {
-            handle_inline_recipe_task(task, task_config, cancellation_token).await
-        }
+    // Convert SubRecipe to InlineRecipe if needed
+    let task = match task.task_type {
         TaskType::SubRecipe => {
-            let (command, output_identifier) = build_command(&task)?;
-            let (stdout_output, stderr_output, success) = run_command(
-                command,
-                &output_identifier,
-                &task.id,
-                task_execution_tracker,
-                cancellation_token,
-            )
-            .await?;
-
-            if success {
-                process_output(stdout_output)
-            } else {
-                Err(format!("Command failed:\n{}", &stderr_output))
+            let recipe = load_sub_recipe(&task).await?;
+            Task {
+                id: task.id,
+                task_type: TaskType::InlineRecipe,
+                payload: serde_json::json!({
+                    "recipe": recipe,
+                    "return_last_only": false
+                }),
             }
         }
-    }
+        TaskType::InlineRecipe => task,
+    };
+    
+    // Single execution path for all recipes
+    handle_inline_recipe_task(task, task_config, cancellation_token).await
 }
 
 async fn handle_inline_recipe_task(
@@ -121,152 +128,5 @@ async fn handle_inline_recipe_task(
             let error_msg = format!("Inline recipe execution failed: {}", e);
             Err(error_msg)
         }
-    }
-}
-
-fn build_command(task: &Task) -> Result<(Command, String), String> {
-    let task_error = |field: &str| format!("Task {}: Missing {}", task.id, field);
-
-    if !matches!(task.task_type, TaskType::SubRecipe) {
-        return Err("Only sub-recipe tasks can be executed as commands".to_string());
-    }
-
-    let sub_recipe_name = task
-        .get_sub_recipe_name()
-        .ok_or_else(|| task_error("sub_recipe name"))?;
-    let path = task
-        .get_sub_recipe_path()
-        .ok_or_else(|| task_error("sub_recipe path"))?;
-    let command_parameters = task
-        .get_command_parameters()
-        .ok_or_else(|| task_error("command_parameters"))?;
-
-    let mut command = Command::new("goose");
-    command
-        .arg("run")
-        .arg("--recipe")
-        .arg(path)
-        .arg("--no-session");
-
-    for (key, value) in command_parameters {
-        let key_str = key.to_string();
-        let value_str = value.as_str().unwrap_or(&value.to_string()).to_string();
-        command
-            .arg("--params")
-            .arg(format!("{}={}", key_str, value_str));
-    }
-
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-
-    Ok((command, format!("sub-recipe {}", sub_recipe_name)))
-}
-
-async fn run_command(
-    mut command: Command,
-    output_identifier: &str,
-    task_id: &str,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
-    cancellation_token: CancellationToken,
-) -> Result<(String, String, bool), String> {
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("Failed to spawn goose: {}", e))?;
-
-    let stdout = child.stdout.take().expect("Failed to capture stdout");
-    let stderr = child.stderr.take().expect("Failed to capture stderr");
-
-    let stdout_task = spawn_output_reader(
-        stdout,
-        output_identifier,
-        false,
-        task_id,
-        task_execution_tracker.clone(),
-    );
-    let stderr_task = spawn_output_reader(
-        stderr,
-        output_identifier,
-        true,
-        task_id,
-        task_execution_tracker.clone(),
-    );
-
-    let result = tokio::select! {
-        _ = cancellation_token.cancelled() => {
-            if let Err(e) = child.kill().await {
-                tracing::warn!("Failed to kill child process: {}", e);
-            }
-
-            stdout_task.abort();
-            stderr_task.abort();
-            return Err("Command cancelled".to_string());
-        }
-        status_result = child.wait() => {
-            status_result.map_err(|e| format!("Failed to wait for process: {}", e))?
-        }
-    };
-
-    let stdout_output = stdout_task.await.unwrap();
-    let stderr_output = stderr_task.await.unwrap();
-
-    Ok((stdout_output, stderr_output, result.success()))
-}
-
-fn spawn_output_reader(
-    reader: impl tokio::io::AsyncRead + Unpin + Send + 'static,
-    output_identifier: &str,
-    is_stderr: bool,
-    task_id: &str,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
-) -> tokio::task::JoinHandle<String> {
-    let output_identifier = output_identifier.to_string();
-    let task_id = task_id.to_string();
-    tokio::spawn(async move {
-        let mut buffer = String::new();
-        let mut lines = BufReader::new(reader).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            let line = strip_ansi_codes(&line);
-            buffer.push_str(&line);
-            buffer.push('\n');
-
-            if !is_stderr {
-                task_execution_tracker
-                    .send_live_output(&task_id, &line)
-                    .await;
-            } else {
-                tracing::warn!("Task stderr [{}]: {}", output_identifier, line);
-            }
-        }
-        buffer
-    })
-}
-
-fn extract_json_from_line(line: &str) -> Option<String> {
-    let start = line.find('{')?;
-    let end = line.rfind('}')?;
-
-    if start >= end {
-        return None;
-    }
-
-    let potential_json = &line[start..=end];
-    if serde_json::from_str::<Value>(potential_json).is_ok() {
-        Some(potential_json.to_string())
-    } else {
-        None
-    }
-}
-
-fn process_output(stdout_output: String) -> Result<Value, String> {
-    let last_line = stdout_output
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .next_back()
-        .unwrap_or("");
-
-    if let Some(json_string) = extract_json_from_line(last_line) {
-        Ok(Value::String(json_string))
-    } else {
-        Ok(Value::String(stdout_output))
     }
 }
