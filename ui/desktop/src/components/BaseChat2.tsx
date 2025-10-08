@@ -126,13 +126,6 @@ function BaseChatContent({
     }
   }, [messages.length]);
 
-  // Handle submit
-  // const handleSubmit = (e: React.FormEvent) => {
-  //   const customEvent = e as unknown as CustomEvent;
-  //   const combinedTextFromInput = customEvent.detail?.value || '';
-  //   engineHandleSubmit(combinedTextFromInput);
-  // };
-
   //const toolCount = useToolCount(chat.sessionId);
 
   // Wrapper for append that tracks recipe usage
