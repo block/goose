@@ -1,0 +1,179 @@
+version: "1.0.0"
+title: Build Testing Booster
+description: |
+  Automatically detects your project's language/platform and runs appropriate test suites 
+  using industry-standard testing tools. Generates missing tests, improves coverage, and 
+  provides actionable insights across multiple ecosystems.
+
+instructions: |
+  This recipe will:
+  1. Detect the project's language/platform by examining project structure and files
+  2. Identify the appropriate testing framework (or use user-specified override)
+  3. Run the test suite and capture results
+  4. Analyze test coverage if available
+  5. Generate missing test scaffolding for untested code
+  6. Provide recommendations for improving test quality and coverage
+  
+  Platform Detection Strategy:
+  - Node.js: Look for package.json, check for jest/mocha/ava configurations
+  - Python: Look for setup.py, pyproject.toml, requirements.txt, check for pytest/unittest
+  - Rust: Look for Cargo.toml
+  - Go: Look for go.mod
+  - Java: Look for pom.xml (Maven) or build.gradle/settings.gradle (Gradle)
+  - Ruby: Look for Gemfile
+  - .NET: Look for *.csproj or *.sln files
+  - PHP: Look for composer.json
+
+activities:
+  - Scan project directory structure to identify language and build system
+  - Check for existing test directories and test file patterns
+  - Identify installed or configured testing frameworks
+  - Execute appropriate test command based on platform
+  - Parse test results and coverage reports
+  - Identify untested files, functions, or modules
+  - Generate comprehensive test cases for uncovered code
+  - Suggest mocking strategies for external dependencies
+  - Recommend best practices for the detected testing framework
+  - Create or update test configuration files if missing
+
+prompt: |
+  You are an expert at writing comprehensive test suites across multiple programming languages and platforms.
+  
+  ## Step 1: Project Detection
+  Examine the project in {{project_dir}} and determine:
+  - Primary programming language
+  - Build system (if applicable)
+  - Existing test framework (if any)
+  - Current test coverage (if measurable)
+  
+  ## Step 2: Testing Tool Selection
+  Based on the detected platform, use the appropriate testing tool:
+  
+  ### Node.js Projects
+  - Default: Jest (if package.json has jest config or jest is installed)
+  - Alternatives: Mocha, Ava, Tap, Vitest
+  - Commands: 
+    - Run tests: `npm test` or `jest`
+    - With coverage: `npm test -- --coverage` or `jest --coverage`
+  
+  ### Python Projects
+  - Default: pytest (most widely used)
+  - Alternatives: unittest (built-in), nose2, tox
+  - Commands:
+    - Run tests: `pytest`
+    - With coverage: `pytest --cov={{module_name}} --cov-report=html --cov-report=term`
+  
+  ### Rust Projects
+  - Default: `cargo test` (built-in)
+  - Commands:
+    - Run tests: `cargo test`
+    - With coverage: `cargo tarpaulin` (requires cargo-tarpaulin)
+  
+  ### Go Projects
+  - Default: `go test` (built-in)
+  - Commands:
+    - Run tests: `go test ./...`
+    - With coverage: `go test -cover ./...` or `go test -coverprofile=coverage.out ./...`
+  
+  ### Java Projects (Maven)
+  - Default: JUnit (check pom.xml)
+  - Commands:
+    - Run tests: `mvn test`
+    - With coverage: `mvn test jacoco:report` (requires JaCoCo plugin)
+  
+  ### Java Projects (Gradle)
+  - Default: JUnit (check build.gradle)
+  - Commands:
+    - Run tests: `gradle test`
+    - With coverage: `gradle test jacocoTestReport` (requires JaCoCo plugin)
+  
+  ### Ruby Projects
+  - Default: RSpec or Minitest
+  - Commands:
+    - Run tests: `rspec` or `rake test`
+    - With coverage: Use SimpleCov gem
+  
+  ### .NET Projects
+  - Default: xUnit, NUnit, or MSTest
+  - Commands:
+    - Run tests: `dotnet test`
+    - With coverage: `dotnet test /p:CollectCoverage=true`
+  
+  ### PHP Projects
+  - Default: PHPUnit
+  - Commands:
+    - Run tests: `./vendor/bin/phpunit`
+    - With coverage: `./vendor/bin/phpunit --coverage-html coverage`
+  
+  ## Step 3: Execute Tests
+  Run the appropriate test command and capture:
+  - Total tests run
+  - Passed/failed/skipped counts
+  - Execution time
+  - Coverage percentage (if available)
+  - Specific failures with stack traces
+  
+  ## Step 4: Analyze Coverage Gaps
+  If {{generate_missing_tests}} is true:
+  - Identify files/modules with low or no test coverage
+  - For each untested function/method/class:
+    - Generate comprehensive test cases covering:
+      - Happy path scenarios
+      - Edge cases and boundary conditions
+      - Error handling and exceptions
+      - Input validation
+      - Integration points (with appropriate mocking)
+  
+  ## Step 5: Generate Test Files
+  Create test files following platform conventions:
+  - Node.js: `*.test.js` or `*.spec.js` in `__tests__` or `test` directory
+  - Python: `test_*.py` or `*_test.py` in `tests` directory
+  - Rust: `#[cfg(test)] mod tests` in same file or `tests/` directory
+  - Go: `*_test.go` in same package
+  - Java: `*Test.java` in `src/test/java` matching package structure
+  
+  ## Step 6: Provide Recommendations
+  Suggest:
+  - Missing test configuration files
+  - CI/CD integration for automated testing
+  - Coverage thresholds to enforce
+  - Performance test considerations
+  - Integration/E2E testing strategies
+  
+  If {{test_tool}} is specified, use that tool instead of the detected default.
+
+parameters:
+  - key: project_dir
+    input_type: string
+    requirement: required
+    description: Root directory of the project to analyze and test
+    
+  - key: test_tool
+    input_type: string
+    requirement: optional
+    default: ""
+    description: |
+      Override the default testing tool for your platform.
+      Examples: jest, pytest, cargo test, go test, mvn test, gradle test, rspec
+      
+  - key: generate_missing_tests
+    input_type: boolean
+    requirement: optional
+    default: true
+    description: |
+      If true, automatically generate test files for untested code.
+      Default: true
+      
+  - key: module_name
+    input_type: string
+    requirement: optional
+    default: ""
+    description: |
+      For Python projects, specify the module name for coverage reporting.
+      Will attempt to auto-detect if not provided.
+
+extensions: []
+
+author:
+  name: Abhay Gupta
+  contact: contact2abhaygupta6187@gmail.com
