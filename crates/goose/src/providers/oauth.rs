@@ -327,7 +327,6 @@ impl OAuthFlow {
         );
 
         // Start the server to accept the oauth code
-        // Parse the redirect URL to check if a specific port is requested
         let redirect_url_parsed = Url::parse(&self.redirect_url)?;
         let requested_port = redirect_url_parsed.port();
 
@@ -337,7 +336,6 @@ impl OAuthFlow {
         let addr = SocketAddr::from(([127, 0, 0, 1], bind_port));
         let listener = tokio::net::TcpListener::bind(addr).await?;
 
-        // Get the actual port (either the one we requested or OS-assigned)
         let actual_port = listener.local_addr()?.port();
 
         let server_handle = tokio::spawn(async move {
@@ -345,7 +343,6 @@ impl OAuthFlow {
             server.await.unwrap();
         });
 
-        // Construct the actual redirect URL with the dynamically assigned port
         let actual_redirect_url = format!("http://localhost:{}", actual_port);
 
         // Open the browser which will redirect with the code to the server
