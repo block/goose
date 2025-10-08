@@ -44,6 +44,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             todo_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: todo_extension::EXTENSION_NAME,
+                display_name: todo_extension::EXTENSION_NAME,
                 description:
                     "Enable a todo list for Goose so it can keep track of what it is doing",
                 default_enabled: true,
@@ -68,6 +69,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             "extensionmanager",
             PlatformExtensionDef {
                 name: extension_manager_extension::EXTENSION_NAME,
+                display_name: extension_manager_extension::DISPLAY_NAME,
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
@@ -91,6 +93,7 @@ pub struct PlatformExtensionContext {
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionDef {
     pub name: &'static str,
+    pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
@@ -266,6 +269,7 @@ pub enum ExtensionConfig {
         /// The name used to identify this extension
         name: String,
         description: String,
+        display_name: Option<String>, // needed for the UI
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]

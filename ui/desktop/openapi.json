@@ -2733,6 +2733,10 @@
               "description": {
                 "type": "string"
               },
+              "display_name": {
+                "type": "string",
+                "nullable": true
+              },
               "name": {
                 "type": "string",
                 "description": "The name used to identify this extension"
