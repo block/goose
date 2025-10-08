@@ -20,15 +20,15 @@
     "id": "alby-mcp",
     "name": "Alby",
     "description": "Bitcoin Lightning Network integration",
-    "command": "npx -y @getalby/alby-mcp-server",
+    "command": "npx -y @getalby/mcp",
     "link": "https://github.com/getalby/mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": [
       {
-        "name": "ALBY_API_TOKEN",
-        "description": "Required environment variable",
+        "name": "NWC_CONNECTION_STRING",
+        "description": "NWC connection secret from your lightning wallet",
         "required": true
       }
     ]
@@ -77,7 +77,7 @@
     "name": "Brave Search",
     "description": "Web search capabilities powered by Brave",
     "command": "npx -y @brave/brave-search-mcp",
-    "link": "https://github.com/brave/brave-search-mcp",
+    "link": "https://github.com/brave/brave-search-mcp-server",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,
@@ -217,7 +217,7 @@
     "environmentVariables": []
   },
   {
-    "id": "dev-to",
+    "id": "dev.to",
     "name": "Dev.to",
     "description": "Access Dev.to articles and content (requires local server setup)",
     "url": "http://localhost:3000/mcp",
@@ -232,9 +232,9 @@
     "id": "elevenlabs-mcp",
     "name": "ElevenLabs",
     "description": "Text-to-speech and voice synthesis",
-    "command": "npx -y elevenlabs-mcp",
+    "command": "uvx elevenlabs-mcp",
     "link": "https://github.com/elevenlabs/elevenlabs-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
@@ -269,12 +269,12 @@
     "environmentVariables": []
   },
   {
-    "id": "filesystem-mcp",
+    "id": "filesystem",
     "name": "Filesystem",
     "description": "File system operations and management",
-    "command": "uvx mcp-server-filesystem",
+    "command": "npx -y @modelcontextprotocol/server-filesystem /path/to/dir1 /path/to/dir2",
     "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -446,7 +446,7 @@
     "id": "netlify-mcp",
     "name": "Netlify",
     "description": "Web deployment and hosting automation",
-    "command": "npx -y netlify-mcp",
+    "command": "npx -y @netlify/mcp",
     "link": "https://github.com/netlify/netlify-mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
@@ -463,8 +463,8 @@
     "id": "nostrbook-mcp",
     "name": "NostrBook",
     "description": "Nostr protocol integration for decentralized social",
-    "command": "npx -y nostrbook-mcp",
-    "link": "https://github.com/nostrbook/nostrbook-mcp",
+    "command": "npx -y @nostrbook/mcp@latest",
+    "link": "https://gitlab.com/soapbox-pub/nostrbook",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
@@ -644,7 +644,7 @@
     "description": "Web search capabilities powered by Tavily",
     "command": "npx -y tavily-mcp",
     "link": "https://github.com/tavily-ai/tavily-mcp",
-    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
+    "installation_notes": "Install using npx package manager. Requires Tavily API key.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
@@ -683,7 +683,7 @@
     "description": "YouTube video transcript extraction",
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
-    "installation_notes": "Install using uv package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
