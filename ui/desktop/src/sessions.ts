@@ -1,5 +1,4 @@
 import { Session } from './api';
-import { USE_NEW_CHAT } from './updates';
 
 export function resumeSession(
   session: Session,
@@ -10,9 +9,9 @@ export function resumeSession(
     throw new Error('Cannot resume session: working directory is missing in session');
   }
 
-  // When USE_NEW_CHAT is true and we have a navigation callback, resume in the same window
+  // When ALPHA is true and we have a navigation callback, resume in the same window
   // Otherwise, open in a new window (old behavior)
-  if (USE_NEW_CHAT && navigateInSameWindow) {
+  if (process.env.ALPHA && navigateInSameWindow) {
     navigateInSameWindow(session.id);
   } else {
     window.electron.createChatWindow(

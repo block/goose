@@ -44,7 +44,6 @@ import {
   useAgent,
 } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
-import { USE_NEW_CHAT } from './updates';
 import Pair2 from './components/Pair2';
 
 // Route Components
@@ -95,7 +94,7 @@ const PairRouteWrapper = ({
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  return USE_NEW_CHAT ? (
+  return process.env.ALPHA ? (
     <Pair2
       chat={chat}
       setChat={setChat}
