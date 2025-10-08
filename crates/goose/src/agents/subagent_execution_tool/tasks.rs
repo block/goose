@@ -41,7 +41,7 @@ pub async fn process_task(
 
 async fn get_task_result(
     task: Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
+    _task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
@@ -49,23 +49,7 @@ async fn get_task_result(
         TaskType::InlineRecipe => {
             handle_inline_recipe_task(task, task_config, cancellation_token).await
         }
-        TaskType::SubRecipe => {
-            let (command, output_identifier) = build_command(&task)?;
-            let (stdout_output, stderr_output, success) = run_command(
-                command,
-                &output_identifier,
-                &task.id,
-                task_execution_tracker,
-                cancellation_token,
-            )
-            .await?;
-
-            if success {
-                process_output(stdout_output)
-            } else {
-                Err(format!("Command failed:\n{}", &stderr_output))
-            }
-        }
+        TaskType::SubRecipe => handle_sub_recipe_task(task, task_config, cancellation_token).await,
     }
 }
 
@@ -124,6 +108,92 @@ async fn handle_inline_recipe_task(
     }
 }
 
+/// Execute a SubRecipe task in-process (no CLI spawn)
+///
+/// This loads the recipe file, builds it with parameters, and executes it
+/// using the same in-process execution path as InlineRecipes.
+async fn handle_sub_recipe_task(
+    task: Task,
+    mut task_config: TaskConfig,
+    cancellation_token: CancellationToken,
+) -> Result<Value, String> {
+    use crate::agents::subagent_handler::run_complete_subagent_task;
+    use crate::recipe::build_recipe::build_recipe_from_template;
+    use crate::recipe::local_recipes::load_local_recipe_file;
+
+    // Extract path and parameters from task payload
+    let path_str = task
+        .get_sub_recipe_path()
+        .ok_or_else(|| "Missing path in sub_recipe task payload".to_string())?;
+
+    let command_parameters = task
+        .get_command_parameters()
+        .ok_or_else(|| "Missing command_parameters in sub_recipe task payload".to_string())?;
+
+    // Convert command_parameters to Vec<(String, String)>
+    let params: Vec<(String, String)> = command_parameters
+        .iter()
+        .map(|(k, v)| {
+            let key = k.to_string();
+            let value = v.as_str().unwrap_or(&v.to_string()).to_string();
+            (key, value)
+        })
+        .collect();
+
+    // Load recipe file
+    let recipe_file = load_local_recipe_file(path_str)
+        .map_err(|e| format!("Failed to load recipe file '{}': {}", path_str, e))?;
+
+    // Build recipe with parameters (no interactive prompts for subagents)
+    let recipe = build_recipe_from_template(
+        recipe_file,
+        params,
+        None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
+    )
+    .map_err(|e| format!("Failed to build recipe from '{}': {}", path_str, e))?;
+
+    // Configure extensions from recipe
+    if let Some(exts) = recipe.extensions {
+        if !exts.is_empty() {
+            task_config.extensions = exts.clone();
+        }
+    }
+
+    // Get instruction from recipe
+    let instruction = recipe
+        .instructions
+        .or(recipe.prompt)
+        .ok_or_else(|| format!("Recipe '{}' has no instructions or prompt", path_str))?;
+
+    // Execute in-process (same path as inline recipes!)
+    let result = tokio::select! {
+        result = run_complete_subagent_task(
+            instruction,
+            task_config,
+            false, // SubRecipes return full output by default
+        ) => result,
+        _ = cancellation_token.cancelled() => {
+            return Err("Task cancelled".to_string());
+        }
+    };
+
+    match result {
+        Ok(result_text) => Ok(serde_json::json!({
+            "result": result_text
+        })),
+        Err(e) => {
+            let error_msg = format!("Sub-recipe '{}' execution failed: {}", path_str, e);
+            Err(error_msg)
+        }
+    }
+}
+
+// ============================================================================
+// Legacy CLI spawn code - no longer used, kept for reference
+// SubRecipes now execute in-process using handle_sub_recipe_task()
+// ============================================================================
+
+#[allow(dead_code)]
 fn build_command(task: &Task) -> Result<(Command, String), String> {
     let task_error = |field: &str| format!("Task {}: Missing {}", task.id, field);
 
@@ -162,6 +232,7 @@ fn build_command(task: &Task) -> Result<(Command, String), String> {
     Ok((command, format!("sub-recipe {}", sub_recipe_name)))
 }
 
+#[allow(dead_code)]
 async fn run_command(
     mut command: Command,
     output_identifier: &str,
@@ -212,6 +283,7 @@ async fn run_command(
     Ok((stdout_output, stderr_output, result.success()))
 }
 
+#[allow(dead_code)]
 fn spawn_output_reader(
     reader: impl tokio::io::AsyncRead + Unpin + Send + 'static,
     output_identifier: &str,
@@ -241,6 +313,7 @@ fn spawn_output_reader(
     })
 }
 
+#[allow(dead_code)]
 fn extract_json_from_line(line: &str) -> Option<String> {
     let start = line.find('{')?;
     let end = line.rfind('}')?;
@@ -257,6 +330,7 @@ fn extract_json_from_line(line: &str) -> Option<String> {
     }
 }
 
+#[allow(dead_code)]
 fn process_output(stdout_output: String) -> Result<Value, String> {
     let last_line = stdout_output
         .lines()
