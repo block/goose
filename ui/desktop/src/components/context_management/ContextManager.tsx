@@ -53,14 +53,21 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           sessionId: sessionId,
         });
 
-        setMessages(summaryResponse.messages);
+        // Convert server messages to include id and created fields if missing
+        const convertedMessages = summaryResponse.messages.map((msg) => ({
+          ...msg,
+          id: msg.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+          created: msg.created || Math.floor(Date.now() / 1000),
+        }));
+
+        setMessages(convertedMessages);
 
         // Only automatically submit the continuation message for auto-compaction (context limit reached)
         // Manual compaction should just compact without continuing the conversation
         if (!isManual) {
           // Automatically submit the continuation message to continue the conversation
           // This should be the third message (index 2) which contains the "I ran into a context length exceeded error..." text
-          const continuationMessage = summaryResponse.messages[2];
+          const continuationMessage = convertedMessages[2];
           if (continuationMessage) {
             setTimeout(() => {
               append(continuationMessage);

@@ -28,13 +28,6 @@ describe('ContextManager', () => {
     },
   ];
 
-  const mockSummaryMessage: Message = {
-    id: 'summary-1',
-    role: 'assistant',
-    created: 3000,
-    content: [{ type: 'text', text: 'This is a summary of the conversation.' }],
-  };
-
   const mockSetMessages = vi.fn();
   const mockAppend = vi.fn();
 
@@ -134,25 +127,6 @@ describe('ContextManager', () => {
         tokenCounts: [8, 100, 50],
       });
 
-      const mockCompactionMarker: Message = {
-        id: 'marker-1',
-        role: 'assistant',
-        created: 3000,
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-      };
-
-      const mockContinuationMessage: Message = {
-        id: 'continuation-1',
-        role: 'assistant',
-        created: 3000,
-        content: [
-          {
-            type: 'text',
-            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-          },
-        ],
-      };
-
       const { result } = renderContextManager();
 
       await act(async () => {
@@ -171,11 +145,33 @@ describe('ContextManager', () => {
       });
 
       // Expect setMessages to be called with all 3 converted messages
-      expect(mockSetMessages).toHaveBeenCalledWith([
-        mockCompactionMarker,
-        mockSummaryMessage,
-        mockContinuationMessage,
-      ]);
+      // Note: id and created are generated dynamically, so we check structure instead
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const setMessagesCall = mockSetMessages.mock.calls[0][0];
+      expect(setMessagesCall).toHaveLength(3);
+      expect(setMessagesCall[0]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+      });
+      expect(setMessagesCall[0]).toHaveProperty('id');
+      expect(setMessagesCall[0]).toHaveProperty('created');
+      expect(setMessagesCall[1]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Summary content' }],
+      });
+      expect(setMessagesCall[1]).toHaveProperty('id');
+      expect(setMessagesCall[1]).toHaveProperty('created');
+      expect(setMessagesCall[2]).toMatchObject({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+          },
+        ],
+      });
+      expect(setMessagesCall[2]).toHaveProperty('id');
+      expect(setMessagesCall[2]).toHaveProperty('created');
 
       // Fast-forward timers to trigger the append call
       act(() => {
@@ -184,7 +180,18 @@ describe('ContextManager', () => {
 
       // Should append the continuation message (index 2) for auto-compaction
       expect(mockAppend).toHaveBeenCalledTimes(1);
-      expect(mockAppend).toHaveBeenCalledWith(mockContinuationMessage);
+      const appendedMessage = mockAppend.mock.calls[0][0];
+      expect(appendedMessage).toMatchObject({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+          },
+        ],
+      });
+      expect(appendedMessage).toHaveProperty('id');
+      expect(appendedMessage).toHaveProperty('created');
     });
 
     it('should handle compaction errors gracefully', async () => {
@@ -324,25 +331,6 @@ describe('ContextManager', () => {
         tokenCounts: [8, 100, 50],
       });
 
-      const mockCompactionMarker: Message = {
-        id: 'marker-1',
-        role: 'assistant',
-        created: 3000,
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-      };
-
-      const mockContinuationMessage: Message = {
-        id: 'continuation-1',
-        role: 'assistant',
-        created: 3000,
-        content: [
-          {
-            type: 'text',
-            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-          },
-        ],
-      };
-
       const { result } = renderContextManager();
 
       await act(async () => {
@@ -361,11 +349,26 @@ describe('ContextManager', () => {
       });
 
       // Verify all three messages are set
-      expect(mockSetMessages).toHaveBeenCalledWith([
-        mockCompactionMarker,
-        mockSummaryMessage,
-        mockContinuationMessage,
-      ]);
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const setMessagesCall = mockSetMessages.mock.calls[0][0];
+      expect(setMessagesCall).toHaveLength(3);
+      expect(setMessagesCall[0]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+      });
+      expect(setMessagesCall[1]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Manual summary content' }],
+      });
+      expect(setMessagesCall[2]).toMatchObject({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+          },
+        ],
+      });
 
       // Fast-forward timers to check if append would be called
       act(() => {
@@ -435,25 +438,6 @@ describe('ContextManager', () => {
         tokenCounts: [8, 100, 50],
       });
 
-      const mockCompactionMarker: Message = {
-        id: 'marker-1',
-        role: 'assistant',
-        created: 3000,
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-      };
-
-      const mockContinuationMessage: Message = {
-        id: 'continuation-1',
-        role: 'assistant',
-        created: 3000,
-        content: [
-          {
-            type: 'text',
-            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-          },
-        ],
-      };
-
       const { result } = renderContextManager();
 
       await act(async () => {
@@ -466,11 +450,26 @@ describe('ContextManager', () => {
       });
 
       // Verify all three messages are set
-      expect(mockSetMessages).toHaveBeenCalledWith([
-        mockCompactionMarker,
-        mockSummaryMessage,
-        mockContinuationMessage,
-      ]);
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const setMessagesCall = mockSetMessages.mock.calls[0][0];
+      expect(setMessagesCall).toHaveLength(3);
+      expect(setMessagesCall[0]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+      });
+      expect(setMessagesCall[1]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Manual summary content' }],
+      });
+      expect(setMessagesCall[2]).toMatchObject({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+          },
+        ],
+      });
 
       // Fast-forward timers to check if append would be called
       act(() => {
@@ -513,13 +512,6 @@ describe('ContextManager', () => {
         tokenCounts: [100, 50],
       });
 
-      const mockMessageWithoutText: Message = {
-        id: 'summary-1',
-        role: 'assistant',
-        created: 3000,
-        content: [{ type: 'toolResponse', id: 'test', toolResult: { status: 'success' } }],
-      };
-
       const { result } = renderContextManager();
 
       await act(async () => {
@@ -535,8 +527,18 @@ describe('ContextManager', () => {
       expect(result.current.isCompacting).toBe(false);
       expect(result.current.compactionError).toBe(null);
 
-      // Should still set messages with the converted message
-      expect(mockSetMessages).toHaveBeenCalledWith([mockMessageWithoutText]);
+      // Should still set messages with the converted message (with generated id/created)
+      expect(mockSetMessages).toHaveBeenCalledTimes(1);
+      const setMessagesCall = mockSetMessages.mock.calls[0][0];
+      expect(setMessagesCall).toHaveLength(1);
+      expect(setMessagesCall[0]).toMatchObject({
+        role: 'assistant',
+        content: [
+          { type: 'toolResponse', id: 'test', toolResult: { content: 'Not text content' } },
+        ],
+      });
+      expect(setMessagesCall[0]).toHaveProperty('id');
+      expect(setMessagesCall[0]).toHaveProperty('created');
     });
   });
 
