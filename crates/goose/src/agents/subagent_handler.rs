@@ -102,7 +102,7 @@ fn get_agent_messages(
         let working_dir = task_config.parent_working_dir;
         let session = SessionManager::create_session(
             working_dir.clone(),
-            format!("Subagent task for: {}", parent_session_id),
+            Some(format!("Subagent task for: {}", parent_session_id)),
         )
         .await
         .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;

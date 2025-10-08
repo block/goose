@@ -311,12 +311,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else if let Some(session_id) = session_config.session_id {
         Some(session_id)
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap(),
-            "CLI Session".to_string(),
-        )
-        .await
-        .unwrap();
+        let session = SessionManager::create_session(std::env::current_dir().unwrap(), None)
+            .await
+            .unwrap();
         Some(session.id)
     };
 

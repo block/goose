@@ -1059,9 +1059,7 @@ impl Agent {
             let provider = self.provider().await?;
             let session_id = session_config.id.clone();
             tokio::spawn(async move {
-                if let Err(e) =
-                    SessionManager::maybe_update_description(&session_id, provider).await
-                {
+                if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
                     warn!("Failed to generate session description: {}", e);
                 }
             });

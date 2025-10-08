@@ -75,7 +75,7 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
 
         sessions
             .into_iter()
-            .find(|s| s.id == name || s.description.contains(&name))
+            .find(|s| s.name == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else if let Some(path) = identifier.path {

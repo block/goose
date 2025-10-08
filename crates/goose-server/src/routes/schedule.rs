@@ -69,7 +69,7 @@ fn default_limit() -> u32 {
 #[serde(rename_all = "camelCase")]
 pub struct SessionDisplayInfo {
     id: String,          // Derived from session_name (filename)
-    name: String,        // From metadata.description
+    name: String,        // From metadata.name
     created_at: String,  // Derived from session_name, in ISO 8601 format
     working_dir: String, // from metadata.working_dir (as String)
     schedule_id: Option<String>,
@@ -323,7 +323,7 @@ async fn sessions_handler(
             for (session_name, session) in session_tuples {
                 display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
-                    name: session.description,
+                    name: session.name,
                     created_at: parse_session_name_to_iso(&session_name),
                     working_dir: session.working_dir.to_string_lossy().into_owned(),
                     schedule_id: session.schedule_id,
