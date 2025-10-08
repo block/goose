@@ -114,7 +114,7 @@ prompt: |
   - Specific failures with stack traces
   
   ## Step 4: Analyze Coverage Gaps
-  If {{generate_missing_tests}} is true:
+  If {{generate_missing_tests}} is "true":
   - Identify files/modules with low or no test coverage
   - For each untested function/method/class:
     - Generate comprehensive test cases covering:
@@ -157,12 +157,12 @@ parameters:
       Examples: jest, pytest, cargo test, go test, mvn test, gradle test, rspec
       
   - key: generate_missing_tests
-    input_type: boolean
+    input_type: string
     requirement: optional
-    default: true
+    default: "true"
     description: |
-      If true, automatically generate test files for untested code.
-      Default: true
+      If "true", automatically generate test files for untested code.
+      Default: "true"
       
   - key: module_name
     input_type: string
