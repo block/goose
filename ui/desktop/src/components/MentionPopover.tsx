@@ -105,10 +105,14 @@ const MentionPopover = forwardRef<
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+
+  const compareByType = (a: FileItemWithMatch, b: FileItemWithMatch) =>
+    a.isDirectory !== b.isDirectory ? (a.isDirectory ? 1 : -1) : 0;
+
   // Filter and sort files based on query
   const displayFiles = useMemo((): FileItemWithMatch[] => {
     if (!query.trim()) {
-      const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
       return files
         .map((file) => ({
           ...file,
@@ -117,40 +121,26 @@ const MentionPopover = forwardRef<
           matchedText: file.name,
           depth: currentWorkingDir
             ? file.path.replace(currentWorkingDir, '').split('/').length - 1
-            : 999,
+            : 0,
         }))
-        .sort((a, b) =>
-          a.depth !== b.depth
-            ? a.depth - b.depth
-            : a.isDirectory !== b.isDirectory
-              ? a.isDirectory
-                ? 1
-                : -1
-              : a.name.localeCompare(b.name)
-        );
+        .sort((a, b) => {
+          if (a.depth !== b.depth) return a.depth - b.depth;
+          const typeComparison = compareByType(a, b);
+          return typeComparison || a.name.localeCompare(b.name);
+        });
     }
-
-    const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
 
     const results = files
       .map((file) => {
-        const nameMatch = fuzzyMatch(query, file.name);
-        const pathMatch = fuzzyMatch(query, file.relativePath);
-        const fullPathMatch = fuzzyMatch(query, file.path);
+        const matches = [
+          { match: fuzzyMatch(query, file.name), text: file.name },
+          { match: fuzzyMatch(query, file.relativePath), text: file.relativePath },
+          { match: fuzzyMatch(query, file.path), text: file.path },
+        ];
 
-        // Use the best match among name, relative path, and full path
-        let bestMatch = nameMatch;
-        let matchedText = file.name;
-
-        if (pathMatch.score > bestMatch.score) {
-          bestMatch = pathMatch;
-          matchedText = file.relativePath;
-        }
-
-        if (fullPathMatch.score > bestMatch.score) {
-          bestMatch = fullPathMatch;
-          matchedText = file.path;
-        }
+        const { match: bestMatch, text: matchedText } = matches.reduce((best, current) =>
+          current.match.score > best.match.score ? current : best
+        );
 
         let finalScore = bestMatch.score;
         if (finalScore > 0 && currentWorkingDir) {
@@ -169,17 +159,13 @@ const MentionPopover = forwardRef<
       .sort((a, b) => {
         // Sort by score first, then prefer files over directories, then alphabetically
         const scoreDiff = b.matchScore - a.matchScore;
-        return Math.abs(scoreDiff) >= 1
-          ? scoreDiff
-          : a.isDirectory !== b.isDirectory
-            ? a.isDirectory
-              ? 1
-              : -1
-            : a.name.localeCompare(b.name);
+        if (Math.abs(scoreDiff) >= 1) return scoreDiff;
+        const typeComparison = compareByType(a, b);
+        return typeComparison || a.name.localeCompare(b.name);
       });
 
     return results;
-  }, [files, query]);
+  }, [files, query, currentWorkingDir]);
 
   // Expose methods to parent component
   useImperativeHandle(
@@ -434,14 +420,15 @@ const MentionPopover = forwardRef<
   const scanFilesFromRoot = useCallback(async () => {
     setIsLoading(true);
     try {
-      let startPath = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+      let startPath = currentWorkingDir;
 
       if (!startPath) {
-        startPath = '/Users'; // Default to macOS
         if (window.electron.platform === 'win32') {
           startPath = 'C:\\Users';
         } else if (window.electron.platform === 'linux') {
           startPath = '/home';
+        } else {
+          startPath = '/Users'; // Default to macOS
         }
       }
 
@@ -453,7 +440,7 @@ const MentionPopover = forwardRef<
     } finally {
       setIsLoading(false);
     }
-  }, [scanDirectoryFromRoot]);
+  }, [scanDirectoryFromRoot, currentWorkingDir]);
 
   // Scroll selected item into view
   useEffect(() => {
