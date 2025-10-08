@@ -42,9 +42,19 @@ impl SubRecipeManager {
                 SUB_RECIPE_TASK_TOOL_NAME_PREFIX,
                 sub_recipe.name.clone()
             );
-            let tool = create_sub_recipe_task_tool(&sub_recipe);
-            self.sub_recipe_tools.insert(sub_recipe_key.clone(), tool);
-            self.sub_recipes.insert(sub_recipe_key.clone(), sub_recipe);
+            match create_sub_recipe_task_tool(&sub_recipe) {
+                Ok(tool) => {
+                    self.sub_recipe_tools.insert(sub_recipe_key.clone(), tool);
+                    self.sub_recipes.insert(sub_recipe_key.clone(), sub_recipe);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to create tool for sub-recipe '{}': {}",
+                        sub_recipe.name, e
+                    );
+                    eprintln!("This sub-recipe will not be available. Please check the recipe file at: {}", sub_recipe.path);
+                }
+            }
         }
     }
 

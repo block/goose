@@ -472,21 +472,17 @@ impl Agent {
                     );
                 }
             };
-            let session = match session.as_ref() {
-                Some(s) => s,
+            // When no session exists (e.g., --no-session mode), use ephemeral defaults
+            let (parent_session_id, parent_working_dir) = match session.as_ref() {
+                Some(s) => (s.id.to_string(), s.working_dir.clone()),
                 None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Session is required".to_string(),
-                            None,
-                        )),
-                    );
+                    // Use a temporary session ID and current working directory
+                    let ephemeral_id = format!("ephemeral-{}", Uuid::new_v4());
+                    let current_dir =
+                        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    (ephemeral_id, current_dir)
                 }
             };
-            let parent_session_id = session.id.to_string();
-            let parent_working_dir = session.working_dir.clone();
 
             let task_config = TaskConfig::new(
                 provider,

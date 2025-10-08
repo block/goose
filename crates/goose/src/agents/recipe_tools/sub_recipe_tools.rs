@@ -15,10 +15,15 @@ use super::param_utils::prepare_command_params;
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
 
-pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
-    let input_schema = get_input_schema(sub_recipe).unwrap();
+pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Result<Tool> {
+    let input_schema = get_input_schema(sub_recipe)?;
 
-    Tool::new(
+    let schema_object = input_schema
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("Input schema is not a valid object"))?
+        .clone();
+
+    Ok(Tool::new(
         format!("{}_{}", SUB_RECIPE_TASK_TOOL_NAME_PREFIX, sub_recipe.name),
         format!(
             "Create one or more tasks to run the '{}' sub recipe. \
@@ -30,7 +35,7 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
             After creating the tasks and execution_mode is provided, pass them to the task executor to run these tasks",
             sub_recipe.name
         ),
-        Arc::new(input_schema.as_object().unwrap().clone())
+        Arc::new(schema_object)
     ).annotate(ToolAnnotations {
         title: Some(format!(
             "create multiple sub recipe tasks for {}",
@@ -40,7 +45,7 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
         destructive_hint: Some(true),
         idempotent_hint: Some(false),
         open_world_hint: Some(true),
-    })
+    }))
 }
 
 fn extract_task_parameters(params: &Value) -> Vec<Value> {
