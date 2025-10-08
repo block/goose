@@ -103,7 +103,7 @@ const getDocumentationPath = (serverId: string): string => {
                            Can be enabled on the Extensions page in Goose
                         </span>
                       </div>
-                    ) : (
+                    ) : server.show_install_command !== false ? (
                       <>
                         <div className="flex items-center gap-2 text-textStandard">
                           <Terminal className="h-4 w-4" />
@@ -129,7 +129,7 @@ const getDocumentationPath = (serverId: string): string => {
                           )}
                         </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
 
                   {server.environmentVariables && (
@@ -215,7 +215,7 @@ const getDocumentationPath = (serverId: string): string => {
                       >
                         Built-in
                       </div>
-                    ) : (
+                    ) : server.show_install_link !== false ? (
                       <a
                         href={getGooseInstallLink(server)}
                         target="_blank"
@@ -225,7 +225,7 @@ const getDocumentationPath = (serverId: string): string => {
                         <span>Install</span>
                         <Download className="h-4 w-4" />
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>

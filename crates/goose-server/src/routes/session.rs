@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use axum::routing::post;
 use axum::{
     extract::Path,
     http::StatusCode,
@@ -31,6 +32,12 @@ pub struct UpdateSessionDescriptionRequest {
 pub struct UpdateSessionUserRecipeValuesRequest {
     /// Recipe parameter values entered by the user
     user_recipe_values: HashMap<String, String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSessionRequest {
+    json: String,
 }
 
 const MAX_DESCRIPTION_LENGTH: usize = 200;
@@ -199,11 +206,63 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    get,
+    path = "/sessions/{session_id}/export",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session exported successfully", body = String),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, StatusCode> {
+    let exported = SessionManager::export_session(&session_id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(exported))
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/import",
+    request_body = ImportSessionRequest,
+    responses(
+        (status = 200, description = "Session imported successfully", body = Session),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 400, description = "Bad request - Invalid JSON"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn import_session(
+    Json(request): Json<ImportSessionRequest>,
+) -> Result<Json<Session>, StatusCode> {
+    let session = SessionManager::import_session(&request.json)
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    Ok(Json(session))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
+        .route("/sessions/{session_id}/export", get(export_session))
+        .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
         .route(
             "/sessions/{session_id}/description",
