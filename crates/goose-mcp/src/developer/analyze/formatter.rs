@@ -205,9 +205,7 @@ impl Formatter {
                 ReferenceType::FieldType => field_types.push(ref_info),
                 ReferenceType::VariableType => var_types.push(ref_info),
                 ReferenceType::ParameterType => param_types.push(ref_info),
-                ReferenceType::Call | ReferenceType::Definition | ReferenceType::Import => {
-                    // Skip - these are already shown elsewhere or not relevant here
-                }
+                ReferenceType::Call | ReferenceType::Definition | ReferenceType::Import => {}
             }
         }
 
