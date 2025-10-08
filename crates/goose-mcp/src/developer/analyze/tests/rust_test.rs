@@ -26,6 +26,61 @@ fn build_test_graph(files: Vec<(&str, &str)>) -> CallGraph {
 }
 
 #[test]
+fn test_rust_self_parameter_type_resolution() {
+    // Test that self parameters correctly resolve to their impl type
+    let code = r#"
+struct MyStruct {
+    value: i32,
+}
+
+impl MyStruct {
+    fn method_with_self(&self) -> i32 {
+        self.value
+    }
+
+    fn method_with_mut_self(&mut self) {
+        self.value += 1;
+    }
+
+    fn associated_function() -> Self {
+        MyStruct { value: 0 }
+    }
+}
+"#;
+
+    let result = parse_and_extract(code);
+
+    // Find method references with self parameters
+    let self_methods: Vec<_> = result
+        .references
+        .iter()
+        .filter(|r| r.ref_type == ReferenceType::MethodDefinition)
+        .collect();
+
+    // Should find both methods with self parameters
+    assert_eq!(
+        self_methods.len(),
+        2,
+        "Expected 2 methods with self parameters"
+    );
+
+    // Both should be associated with MyStruct
+    for method_ref in &self_methods {
+        assert_eq!(
+            method_ref.associated_type.as_deref(),
+            Some("MyStruct"),
+            "Method {} should be associated with MyStruct",
+            method_ref.symbol
+        );
+    }
+
+    // Verify the specific methods
+    let method_names: HashSet<_> = self_methods.iter().map(|r| r.symbol.as_str()).collect();
+    assert!(method_names.contains("method_with_self"));
+    assert!(method_names.contains("method_with_mut_self"));
+}
+
+#[test]
 fn test_rust_struct_and_impl_tracking() {
     let code = r#"
 struct Config {

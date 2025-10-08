@@ -118,3 +118,27 @@ pub fn find_method_for_receiver(
     }
     None
 }
+
+/// Find the receiver type for a self parameter in Rust
+///
+/// In Rust, self parameters are special - they don't explicitly state their type.
+/// This function walks up from a self_parameter node to find the impl block
+/// and extracts the type being implemented.
+pub fn find_receiver_type(node: &tree_sitter::Node, source: &str) -> Option<String> {
+    // Walk up from self_parameter to find the impl_item
+    let mut current = *node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "impl_item" {
+            // Find the type_identifier in the impl block
+            for i in 0..parent.child_count() {
+                if let Some(child) = parent.child(i) {
+                    if child.kind() == "type_identifier" {
+                        return Some(source[child.byte_range()].to_string());
+                    }
+                }
+            }
+        }
+        current = parent;
+    }
+    None
+}

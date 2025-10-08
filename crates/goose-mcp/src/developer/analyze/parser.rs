@@ -380,12 +380,9 @@ impl ElementExtractor {
                             ast_recursion_limit,
                         );
                         if let Some(method_name) = method_name {
-                            // For Rust, we need to find the impl type since self_parameter text is just "self"
-                            let type_name = if language == "rust" {
-                                Self::find_impl_type_for_self(&node, source)
-                            } else {
-                                Some(text.to_string())
-                            };
+                            // Use language-specific handler to find receiver type, or fall back to text
+                            let type_name = Self::find_receiver_type(&node, source, language)
+                                .or_else(|| Some(text.to_string()));
 
                             if let Some(type_name) = type_name {
                                 (
@@ -439,23 +436,16 @@ impl ElementExtractor {
             .and_then(|handler| handler(receiver_node, source, ast_recursion_limit))
     }
 
-    fn find_impl_type_for_self(node: &tree_sitter::Node, source: &str) -> Option<String> {
-        // Walk up from self_parameter to find the impl_item
-        let mut current = *node;
-        while let Some(parent) = current.parent() {
-            if parent.kind() == "impl_item" {
-                // Find the type_identifier in the impl block
-                for i in 0..parent.child_count() {
-                    if let Some(child) = parent.child(i) {
-                        if child.kind() == "type_identifier" {
-                            return Some(source[child.byte_range()].to_string());
-                        }
-                    }
-                }
-            }
-            current = parent;
-        }
-        None
+    fn find_receiver_type(
+        receiver_node: &tree_sitter::Node,
+        source: &str,
+        language: &str,
+    ) -> Option<String> {
+        use crate::developer::analyze::languages;
+
+        languages::get_language_info(language)
+            .and_then(|info| info.find_receiver_type_handler)
+            .and_then(|handler| handler(receiver_node, source))
     }
 
     fn find_containing_function(
