@@ -3922,7 +3922,7 @@
         "required": [
           "id",
           "working_dir",
-          "description",
+          "name",
           "created_at",
           "updated_at",
           "extension_data",
@@ -3956,9 +3956,6 @@
             "type": "string",
             "format": "date-time"
           },
-          "description": {
-            "type": "string"
-          },
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
           },
@@ -3973,6 +3970,9 @@
           "message_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "name": {
+            "type": "string"
           },
           "output_tokens": {
             "type": "integer",
@@ -4006,6 +4006,9 @@
               "type": "string"
             },
             "nullable": true
+          },
+          "user_set_name": {
+            "type": "boolean"
           },
           "working_dir": {
             "type": "string"

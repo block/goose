@@ -319,7 +319,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
-        let name = row
+        let name: String = row
             .try_get("name")
             .or_else(|_| row.try_get("description"))?;
 

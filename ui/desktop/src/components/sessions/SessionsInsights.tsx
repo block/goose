@@ -13,6 +13,7 @@ import {
   SessionInsights as ApiSessionInsights,
 } from '../../api';
 import { resumeSession } from '../../sessions';
+import { getSessionName } from '../../utils/sessionCompat';
 
 export function SessionInsights() {
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
@@ -332,9 +333,7 @@ export function SessionInsights() {
                     >
                       <div className="flex items-center space-x-2">
                         <ChatSmart className="h-4 w-4 text-text-muted" />
-                        <span className="truncate max-w-[300px]">
-                          {session.description || session.id}
-                        </span>
+                        <span className="truncate max-w-[300px]">{getSessionName(session)}</span>
                       </div>
                       <span className="text-text-muted font-mono font-light">
                         {formatDateOnly(session.updated_at)}

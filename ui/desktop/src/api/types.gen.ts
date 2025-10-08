@@ -680,11 +680,11 @@ export type Session = {
     accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
-    description: string;
     extension_data: ExtensionData;
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    name: string;
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
@@ -693,6 +693,7 @@ export type Session = {
     user_recipe_values?: {
         [key: string]: string;
     } | null;
+    user_set_name?: boolean;
     working_dir: string;
 };
 
