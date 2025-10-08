@@ -86,7 +86,6 @@ export function SessionInsights() {
 
   const handleSessionClick = async (session: Session) => {
     try {
-      // Pass a navigation callback to resume in the same window when USE_NEW_CHAT is true
       resumeSession(session, (sessionId: string) => {
         navigate(`/pair?resumeSessionId=${sessionId}`);
       });
