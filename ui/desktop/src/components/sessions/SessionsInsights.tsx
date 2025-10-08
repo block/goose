@@ -86,7 +86,10 @@ export function SessionInsights() {
 
   const handleSessionClick = async (session: Session) => {
     try {
-      resumeSession(session);
+      // Pass a navigation callback to resume in the same window when USE_NEW_CHAT is true
+      resumeSession(session, (sessionId: string) => {
+        navigate(`/pair?resumeSessionId=${sessionId}`);
+      });
     } catch (error) {
       console.error('Failed to start session:', error);
       navigate('/sessions', {
