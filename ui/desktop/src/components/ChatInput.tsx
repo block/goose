@@ -1183,13 +1183,7 @@ export default function ChatInput({
     isExtensionsLoading;
 
   const isUserInputDisabled =
-    isAnyImageLoading ||
-    isAnyDroppedFileLoading ||
-    isRecording ||
-    isTranscribing ||
-    isCompacting ||
-    !agentIsReady ||
-    isExtensionsLoading;
+    isAnyImageLoading || isAnyDroppedFileLoading || isRecording || isTranscribing || isCompacting;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {

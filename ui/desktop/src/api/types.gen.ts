@@ -341,6 +341,10 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type ImportSessionRequest = {
+    json: string;
+};
+
 export type InspectJobResponse = {
     processStartTime?: string | null;
     runningDurationSeconds?: number | null;
@@ -2180,6 +2184,37 @@ export type ListSessionsResponses = {
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
+export type ImportSessionData = {
+    body: ImportSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/sessions/import';
+};
+
+export type ImportSessionErrors = {
+    /**
+     * Bad request - Invalid JSON
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ImportSessionResponses = {
+    /**
+     * Session imported successfully
+     */
+    200: Session;
+};
+
+export type ImportSessionResponse = ImportSessionResponses[keyof ImportSessionResponses];
+
 export type GetSessionInsightsData = {
     body?: never;
     path?: never;
@@ -2314,6 +2349,42 @@ export type UpdateSessionDescriptionResponses = {
      */
     200: unknown;
 };
+
+export type ExportSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/export';
+};
+
+export type ExportSessionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ExportSessionResponses = {
+    /**
+     * Session exported successfully
+     */
+    200: string;
+};
+
+export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;

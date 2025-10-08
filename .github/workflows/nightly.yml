@@ -93,7 +93,8 @@ jobs:
     secrets:
       WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
       WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
-
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+  
   release:
     name: Release
     runs-on: ubuntu-latest
