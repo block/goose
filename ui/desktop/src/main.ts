@@ -1770,6 +1770,19 @@ async function appMain() {
     }
   }, 2000); // 2 second delay after window is shown
 
+  // Setup macOS dock menu
+  if (process.platform === 'darwin') {
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: 'New Window',
+        click: () => {
+          createNewWindow(app);
+        },
+      },
+    ]);
+    app.dock?.setMenu(dockMenu);
+  }
+
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
