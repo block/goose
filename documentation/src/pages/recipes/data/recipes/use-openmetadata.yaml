@@ -12,7 +12,6 @@ extensions:
   - http://localhost:8585/mcp
   - --auth-server-url=http://localhost:8585/mcp
   - --client-id=openmetadata
-  - --verbose
   - --clean
   - --header
   - Authorization:${AUTH_HEADER}
@@ -21,10 +20,8 @@ extensions:
   - AUTH_HEADER
   timeout: 300
   description: ''
-  bundled: null
+  bundled: false
 settings:
-  goose_provider: openai
-  goose_model: gpt-4o
   temperature: 0.0
 activities:
 - Generate SQL Given FQN
