@@ -209,6 +209,135 @@ pub struct RecipeBuilder {
 }
 
 impl Recipe {
+    /// Apply this recipe's configuration to an agent
+    ///
+    /// Configures the agent with:
+    /// - Provider/model settings
+    /// - Extensions
+    /// - System prompts
+    /// - Sub-recipes
+    /// - Response schema
+    ///
+    /// # Example
+    /// ```ignore
+    /// let agent = agent_manager.get_or_create_agent(session_id).await?;
+    /// recipe.apply_to_agent(&agent, provider).await?;
+    /// ```
+    pub async fn apply_to_agent(
+        &self,
+        agent: &std::sync::Arc<crate::agents::Agent>,
+        provider: std::sync::Arc<dyn crate::providers::base::Provider>,
+    ) -> Result<()> {
+        // 1. Update provider (recipe settings take precedence)
+        if let Some(settings) = &self.settings {
+            if settings.goose_provider.is_some() || settings.goose_model.is_some() {
+                let custom_provider = self.create_provider()?;
+                agent.update_provider(custom_provider).await?;
+            } else {
+                agent.update_provider(provider).await?;
+            }
+        } else {
+            agent.update_provider(provider).await?;
+        }
+
+        // 2. Add extensions
+        if let Some(extensions) = &self.extensions {
+            for ext in extensions {
+                agent.add_extension(ext.clone()).await?;
+            }
+        }
+
+        // 3. Extend system prompt
+        if let Some(instructions) = &self.instructions {
+            agent.extend_system_prompt(instructions.clone()).await;
+        }
+
+        // 4. Add sub-recipes
+        if let Some(sub_recipes) = &self.sub_recipes {
+            agent.add_sub_recipes(sub_recipes.clone()).await;
+        }
+
+        // 5. Add final output tool
+        if let Some(response) = &self.response {
+            if response.json_schema.is_some() {
+                agent.add_final_output_tool(response.clone()).await;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Convert this recipe to an initial conversation
+    ///
+    /// Creates a conversation with the recipe's prompt or instructions
+    /// as the first user message.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let conversation = recipe.to_conversation()?;
+    /// let stream = agent.reply(conversation, Some(session_config), None).await?;
+    /// ```
+    pub fn to_conversation(&self) -> Result<crate::conversation::Conversation> {
+        let text = self
+            .prompt
+            .clone()
+            .or_else(|| self.instructions.clone())
+            .ok_or_else(|| anyhow::anyhow!("Recipe must have prompt or instructions"))?;
+
+        Ok(crate::conversation::Conversation::new_unvalidated(vec![
+            crate::conversation::message::Message::user().with_text(text),
+        ]))
+    }
+
+    /// Create a session config from this recipe
+    ///
+    /// Includes the recipe's retry configuration if present.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let session_config = recipe.to_session_config(session_id, working_dir, max_turns);
+    /// ```
+    pub fn to_session_config(
+        &self,
+        session_id: String,
+        working_dir: std::path::PathBuf,
+        max_turns: Option<u32>,
+    ) -> crate::agents::types::SessionConfig {
+        crate::agents::types::SessionConfig {
+            id: session_id,
+            working_dir,
+            schedule_id: None,
+            execution_mode: None,
+            max_turns,
+            retry_config: self.retry.clone(),
+        }
+    }
+
+    /// Create provider from recipe settings (internal helper)
+    fn create_provider(&self) -> Result<std::sync::Arc<dyn crate::providers::base::Provider>> {
+        use crate::model::ModelConfig;
+        use crate::providers;
+
+        let settings = self
+            .settings
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No settings in recipe"))?;
+
+        let provider_name = settings.goose_provider.as_deref().unwrap_or("openai");
+        let model_name = settings
+            .goose_model
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Model name is required in recipe settings"))?;
+
+        let mut model_config = ModelConfig::new(model_name)?;
+
+        if let Some(temp) = settings.temperature {
+            model_config = model_config.with_temperature(Some(temp));
+        }
+
+        providers::create(provider_name, model_config)
+    }
+
     /// Returns true if harmful content is detected in instructions, prompt, or activities fields
     pub fn check_for_security_warnings(&self) -> bool {
         if [self.instructions.as_deref(), self.prompt.as_deref()]
@@ -782,5 +911,107 @@ isGlobal: true"#;
         } else {
             panic!("Expected Stdio extension");
         }
+    }
+
+    #[test]
+    fn test_recipe_to_conversation_with_prompt() {
+        let recipe = Recipe::builder()
+            .version("1.0.0")
+            .title("Test")
+            .description("Test")
+            .prompt("Hello world")
+            .build()
+            .unwrap();
+
+        let conversation = recipe.to_conversation().unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert_eq!(conversation.messages()[0].as_concat_text(), "Hello world");
+    }
+
+    #[test]
+    fn test_recipe_to_conversation_with_instructions() {
+        let recipe = Recipe::builder()
+            .version("1.0.0")
+            .title("Test")
+            .description("Test")
+            .instructions("Do something")
+            .build()
+            .unwrap();
+
+        let conversation = recipe.to_conversation().unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert_eq!(conversation.messages()[0].as_concat_text(), "Do something");
+    }
+
+    #[test]
+    fn test_recipe_to_conversation_prefers_prompt() {
+        let recipe = Recipe::builder()
+            .version("1.0.0")
+            .title("Test")
+            .description("Test")
+            .prompt("Prompt text")
+            .instructions("Instructions text")
+            .build()
+            .unwrap();
+
+        let conversation = recipe.to_conversation().unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert_eq!(conversation.messages()[0].as_concat_text(), "Prompt text");
+    }
+
+    #[test]
+    fn test_recipe_to_conversation_missing_both() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: None,
+            prompt: None,
+            extensions: None,
+            context: None,
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+
+        let result = recipe.to_conversation();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_recipe_to_session_config() {
+        use std::path::PathBuf;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            checks: vec![],
+            on_failure: None,
+            timeout_seconds: None,
+            on_failure_timeout_seconds: None,
+        };
+
+        let recipe = Recipe::builder()
+            .version("1.0.0")
+            .title("Test")
+            .description("Test")
+            .instructions("Do something")
+            .retry(retry_config.clone())
+            .build()
+            .unwrap();
+
+        let session_config =
+            recipe.to_session_config("test_session".to_string(), PathBuf::from("/tmp"), Some(10));
+
+        assert_eq!(session_config.id, "test_session");
+        assert_eq!(session_config.working_dir, PathBuf::from("/tmp"));
+        assert_eq!(session_config.max_turns, Some(10));
+        assert!(session_config.retry_config.is_some());
+        assert_eq!(session_config.retry_config.as_ref().unwrap().max_retries, 3);
+        assert_eq!(session_config.schedule_id, None);
+        assert_eq!(session_config.execution_mode, None);
     }
 }
