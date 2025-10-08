@@ -80,11 +80,11 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
         "rust" => Some(LanguageInfo {
             element_query: rust::ELEMENT_QUERY,
             call_query: rust::CALL_QUERY,
-            reference_query: "",
+            reference_query: rust::REFERENCE_QUERY,
             function_node_kinds: &["function_item", "impl_item"],
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: Some(rust::extract_function_name_for_kind),
-            find_method_for_receiver_handler: None,
+            find_method_for_receiver_handler: Some(rust::find_method_for_receiver),
         }),
         "javascript" | "typescript" => Some(LanguageInfo {
             element_query: javascript::ELEMENT_QUERY,

@@ -380,11 +380,22 @@ impl ElementExtractor {
                             ast_recursion_limit,
                         );
                         if let Some(method_name) = method_name {
-                            (
-                                ReferenceType::MethodDefinition,
-                                method_name,
-                                Some(text.to_string()),
-                            )
+                            // For Rust, we need to find the impl type since self_parameter text is just "self"
+                            let type_name = if language == "rust" {
+                                Self::find_impl_type_for_self(&node, source)
+                            } else {
+                                Some(text.to_string())
+                            };
+
+                            if let Some(type_name) = type_name {
+                                (
+                                    ReferenceType::MethodDefinition,
+                                    method_name,
+                                    Some(type_name),
+                                )
+                            } else {
+                                continue;
+                            }
                         } else {
                             continue;
                         }
@@ -426,6 +437,25 @@ impl ElementExtractor {
         languages::get_language_info(language)
             .and_then(|info| info.find_method_for_receiver_handler)
             .and_then(|handler| handler(receiver_node, source, ast_recursion_limit))
+    }
+
+    fn find_impl_type_for_self(node: &tree_sitter::Node, source: &str) -> Option<String> {
+        // Walk up from self_parameter to find the impl_item
+        let mut current = *node;
+        while let Some(parent) = current.parent() {
+            if parent.kind() == "impl_item" {
+                // Find the type_identifier in the impl block
+                for i in 0..parent.child_count() {
+                    if let Some(child) = parent.child(i) {
+                        if child.kind() == "type_identifier" {
+                            return Some(source[child.byte_range()].to_string());
+                        }
+                    }
+                }
+            }
+            current = parent;
+        }
+        None
     }
 
     fn find_containing_function(

@@ -27,6 +27,48 @@ pub const CALL_QUERY: &str = r#"
       macro: (identifier) @macro.call)
 "#;
 
+/// Tree-sitter query for extracting Rust type references and usage patterns
+pub const REFERENCE_QUERY: &str = r#"
+    ; Method receivers - capture self parameters to associate methods with impl types
+    (self_parameter) @method.receiver
+
+    ; Struct instantiation - struct literals
+    (struct_expression
+      name: (type_identifier) @struct.literal)
+
+    ; Field type declarations in structs
+    (field_declaration
+      type: (type_identifier) @field.type)
+
+    ; Field with reference type
+    (field_declaration
+      type: (reference_type
+        (type_identifier) @field.type))
+
+    ; Field with generic type
+    (field_declaration
+      type: (generic_type
+        type: (type_identifier) @field.type))
+
+    ; Variable type annotations
+    (let_declaration
+      type: (type_identifier) @var.type)
+
+    ; Variable with reference type
+    (let_declaration
+      type: (reference_type
+        (type_identifier) @var.type))
+
+    ; Function parameter types
+    (parameter
+      type: (type_identifier) @param.type)
+
+    ; Parameter with reference type
+    (parameter
+      type: (reference_type
+        (type_identifier) @param.type))
+"#;
+
 /// Extract function name for Rust-specific node kinds
 ///
 /// Rust has special cases like impl_item blocks that should be
@@ -45,6 +87,34 @@ pub fn extract_function_name_for_kind(
                 }
             }
         }
+    }
+    None
+}
+
+/// Find the method name for a method receiver node in Rust
+///
+/// The receiver_node is a self_parameter. This walks up to find the
+/// containing function_item and returns the method name.
+pub fn find_method_for_receiver(
+    receiver_node: &tree_sitter::Node,
+    source: &str,
+    _ast_recursion_limit: Option<usize>,
+) -> Option<String> {
+    // Walk up to find the function_item that contains this self_parameter
+    let mut current = *receiver_node;
+
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "function_item" {
+            // Found the function, get its name
+            for i in 0..parent.child_count() {
+                if let Some(child) = parent.child(i) {
+                    if child.kind() == "identifier" {
+                        return Some(source[child.byte_range()].to_string());
+                    }
+                }
+            }
+        }
+        current = parent;
     }
     None
 }
