@@ -1,47 +1,4 @@
-/**
- * BaseChat Component
- *
- * BaseChat is the foundational chat component that provides the core conversational interface
- * for the Goose Desktop application. It serves as the shared base for both Hub and Pair components,
- * offering a flexible and extensible chat experience.
- *
- * Key Responsibilities:
- * - Manages the complete chat lifecycle (messages, input, submission, responses)
- * - Handles file drag-and-drop functionality with preview generation
- * - Integrates with multiple specialized hooks for chat engine, recipes, sessions, etc.
- * - Provides context management and session summarization capabilities
- * - Supports both user and assistant message rendering with tool call integration
- * - Manages loading states, error handling, and retry functionality
- * - Offers customization points through render props and configuration options
- *
- * Architecture:
- * - Uses a provider pattern (ChatContextManagerProvider) for state management
- * - Leverages composition through render props for flexible UI customization
- * - Integrates with multiple custom hooks for separation of concerns:
- *   - useChatEngine: Core chat functionality and API integration
- *   - useRecipeManager: Recipe/agent configuration management
- *   - useFileDrop: Drag-and-drop file handling with previews
- *   - useCostTracking: Token usage and cost calculation
- *
- * Customization Points:
- * - renderHeader(): Custom header content (used by Hub for insights/recipe controls)
- * - renderBeforeMessages(): Content before message list (used by Hub for SessionInsights)
- * - renderAfterMessages(): Content after message list
- * - customChatInputProps: Props passed to ChatInput for specialized behavior
- * - customMainLayoutProps: Props passed to MainPanelLayout
- * - contentClassName: Custom CSS classes for the content area
- *
- * File Handling:
- * - Supports drag-and-drop of files with visual feedback
- * - Generates image previews for supported file types
- * - Integrates dropped files with chat input for seamless attachment
- * - Uses data-drop-zone="true" to designate safe drop areas
- *
- * The component is designed to be the single source of truth for chat functionality
- * while remaining flexible enough to support different UI contexts (Hub vs Pair).
- */
-
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
@@ -115,16 +72,29 @@ function BaseChatContent({
   //   session: sessionMetadata,
   // });
 
+  const [messages, setMessages] = useState(chat?.messages || []);
+
   const { chatState, handleSubmit, stopStreaming } = useChatStream({
     sessionId: chat?.sessionId || '',
     messages,
-    setMessages: (newMessages) => {
-      if (chat) {
-        setChat({ ...chat, messages: newMessages });
-      }
-    },
-    onStreamFinish: onMessageStreamFinish,
+    setMessages,
+    onStreamFinish: () => {},
   });
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    const customEvent = e as unknown as CustomEvent;
+    const textValue = customEvent.detail?.value || '';
+
+    // if (recipe && textValue.trim()) {
+    //   setHasStartedUsingRecipe(true);
+    // }
+    //
+    // if (onMessageSubmit && textValue.trim()) {
+    //   onMessageSubmit(textValue);
+    // }
+
+    handleSubmit(textValue);
+  };
 
   // TODO(Douwe): send this to the chatbox instead, possibly autosubmit? or backend
   const append = (_txt: string) => {};
@@ -139,7 +109,6 @@ function BaseChatContent({
   // Track if this is the initial render for session resuming
   const initialRenderRef = useRef(true);
 
-  const messages = chat?.messages || [];
   const recipe = chat?.recipe;
 
   // Auto-scroll when messages are loaded (for session resuming)
@@ -201,7 +170,7 @@ function BaseChatContent({
         //   setMessages(updatedMessages);
         // }}
         isUserMessage={(m: Message) => m.role === 'user'}
-        // isStreamingMessage={chatState !== ChatState.Idle}
+        isStreamingMessage={chatState !== ChatState.Idle}
         // onMessageUpdate={onMessageUpdate}
         onRenderingComplete={handleRenderingComplete}
       />
@@ -344,7 +313,7 @@ function BaseChatContent({
                       ? 'goose is compacting the conversation...'
                       : undefined
                 }
-                chatState={ChatState.Idle}
+                chatState={chatState}
               />
             </div>
           )}
@@ -355,9 +324,9 @@ function BaseChatContent({
         >
           <ChatInput
             sessionId={chat?.sessionId || ''}
-            handleSubmit={(_e) => {}}
-            chatState={ChatState.Idle}
-            //onStop={onStopGoose}
+            handleSubmit={handleFormSubmit}
+            chatState={chatState}
+            onStop={stopStreaming}
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}

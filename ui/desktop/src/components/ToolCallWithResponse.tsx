@@ -12,7 +12,7 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, RawResource } from '../api';
+import { Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -30,8 +30,8 @@ function getToolResultValue(toolResult: Record<string, unknown>): Content[] | nu
   return null;
 }
 
-function isRawResource(content: Content): content is RawResource {
-  return 'uri' in content && 'name' in content;
+function isEmbeddedResource(content: Content): content is EmbeddedResource {
+  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
 export default function ToolCallWithResponse({
@@ -66,11 +66,14 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content: Content, index: number) => {
-          if (isRawResource(content) && isUIResource(content)) {
+        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+          const resourceContent = isEmbeddedResource(content)
+            ? { ...content, type: 'resource' as const }
+            : null;
+          if (resourceContent && isUIResource(resourceContent)) {
             return (
               <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
+                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
@@ -82,7 +85,7 @@ export default function ToolCallWithResponse({
           } else {
             return null;
           }
-        })}{' '}
+        })}
     </>
   );
 }
@@ -223,7 +226,9 @@ function ToolCallView({
     ? shouldShowAsComplete
       ? 'success'
       : 'loading'
-    : (toolResponse.toolResult as any).status || 'success';
+    : (toolResponse.toolResult as Record<string, unknown>).status === 'error'
+      ? 'error'
+      : 'success';
 
   // Tool call timing tracking
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -559,7 +564,16 @@ interface ToolResultViewProps {
 }
 
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
-  const resultAny = result as any;
+  const hasText = (c: Content): c is Content & { text: string } =>
+    'text' in c && typeof (c as Record<string, unknown>).text === 'string';
+
+  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
+    if (!('data' in c && 'mimeType' in c)) return false;
+    const mimeType = (c as Record<string, unknown>).mimeType;
+    return typeof mimeType === 'string' && mimeType.startsWith('image');
+  };
+
+  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
 
   return (
     <ToolCallExpandable
@@ -567,26 +581,24 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
-        {'text' in resultAny && resultAny.text && (
+        {hasText(result) && (
           <MarkdownContent
-            content={resultAny.text}
+            content={result.text}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}
-        {'mimeType' in resultAny &&
-          'data' in resultAny &&
-          resultAny.mimeType?.startsWith('image') && (
-            <img
-              src={`data:${resultAny.mimeType};base64,${resultAny.data}`}
-              alt="Tool result"
-              className="max-w-full h-auto rounded-md my-2"
-              onError={(e) => {
-                console.error('Failed to load image');
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          )}
-        {'resource' in resultAny && (
+        {hasImage(result) && (
+          <img
+            src={`data:${result.mimeType};base64,${result.data}`}
+            alt="Tool result"
+            className="max-w-full h-auto rounded-md my-2"
+            onError={(e) => {
+              console.error('Failed to load image');
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
+        {hasResource(result) && (
           <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
         )}
       </div>
