@@ -41,7 +41,7 @@ impl Handler {
     fn new(cfg: Config) -> Self {
         Handler { cfg }
     }
-    
+
     fn start(&self) -> Result<(), String> {
         Ok(())
     }
