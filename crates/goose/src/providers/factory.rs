@@ -58,16 +58,13 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<VeniceProvider, _>(VeniceProvider::from_env, false);
         registry.register::<XaiProvider, _>(XaiProvider::from_env, false);
 
-        if let Err(e) = load_custom_providers_into_registry(registry) {
+        if let Err(e) = register_declarative_providers(registry) {
             tracing::warn!("Failed to load custom providers: {}", e);
         }
     });
     RwLock::new(registry)
 });
 
-fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Result<()> {
-    register_declarative_providers(registry)
-}
 pub fn providers() -> Vec<(ProviderMetadata, ProviderType)> {
     REGISTRY.read().unwrap().all_metadata_with_types()
 }
@@ -76,7 +73,7 @@ pub fn refresh_custom_providers() -> Result<()> {
     let mut registry = REGISTRY.write().unwrap();
     registry.remove_custom_providers();
 
-    if let Err(e) = load_custom_providers_into_registry(&mut registry) {
+    if let Err(e) = register_declarative_providers(&mut registry) {
         tracing::warn!("Failed to refresh custom providers: {}", e);
         return Err(e);
     }
