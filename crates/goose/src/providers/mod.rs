@@ -8,6 +8,7 @@ pub mod claude_code;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
+pub mod error_proxy;
 pub mod errors;
 mod factory;
 pub mod formats;

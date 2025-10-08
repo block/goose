@@ -8,6 +8,7 @@ use super::{
     claude_code::ClaudeCodeProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
+    error_proxy::ErrorProxyProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
@@ -42,6 +43,7 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<ClaudeCodeProvider, _>(ClaudeCodeProvider::from_env);
         registry.register::<CursorAgentProvider, _>(CursorAgentProvider::from_env);
         registry.register::<DatabricksProvider, _>(DatabricksProvider::from_env);
+        registry.register::<ErrorProxyProvider, _>(ErrorProxyProvider::from_env);
         registry.register::<GcpVertexAIProvider, _>(GcpVertexAIProvider::from_env);
         registry.register::<GeminiCliProvider, _>(GeminiCliProvider::from_env);
         registry.register::<GithubCopilotProvider, _>(GithubCopilotProvider::from_env);
