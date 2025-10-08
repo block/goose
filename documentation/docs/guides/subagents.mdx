@@ -4,7 +4,7 @@ sidebar_position: 50
 sidebar_label: Subagents
 ---
 
-Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. They bring process isolation and context preservation by offloading work to separate instances. Think of them as temporary assistants that handle specific jobs without cluttering your chat with tool execution details.
+Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. They bring process isolation and context preservation by offloading work to separate instances. Think of them as temporary ts that handle specific jobs without cluttering your chat with tool execution details.
 
 <details>
   <summary>Subagents Walkthrough</summary>
@@ -278,3 +278,50 @@ The following operations are blocked to ensure subagents remain focused on their
 :::info
 Subagents can browse extensions for suggestions but cannot enable them to avoid modifying the parent session.
 :::
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import subagentsVsSubrecipes from '@site/blog/2025-09-26-subagents-vs-subrecipes/subrecipes-vs-subagents.png';
+import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns/agent-coordination.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'video',
+      title: 'How I Built an App with 6 Subagents',
+      description: 'Deep dive into goose subagents. Walk through building an app using 6 specialized AI agents for advanced workflow automation and development.',
+      thumbnailUrl: 'https://img.youtube.com/vi/yIBrD5AxtTc/maxresdefault.jpg',
+      linkUrl: 'https://www.youtube.com/watch?v=yIBrD5AxtTc',
+      date: '2025-10-01',
+      duration: '6:53'
+    },
+    {
+      type: 'video',
+      title: 'Flight School - Choosing the Right Tools for AI Work',
+      description: 'Discover the differences between subagents and subrecipes for efficient task execution in goose. Learn which approach is best for your workflow.',
+      thumbnailUrl: 'https://img.youtube.com/vi/joePzlkARjs/maxresdefault.jpg',
+      linkUrl: 'https://www.youtube.com/watch?v=joePzlkARjs',
+      date: '2025-09-29',
+      duration: '6:13'
+    },
+   {
+      type: 'blog',
+      title: 'How to Choose Between Subagents and Subrecipes in goose',
+      description: 'Detailed guide to subagents and subrecipes in goose. Compare reusability, setup complexity, and get practical advice for choosing the right approach.',
+      thumbnailUrl: subagentsVsSubrecipes,
+      linkUrl: '/goose/blog/2025/09/26/subagents-vs-subrecipes',
+      date: '2025-09-26',
+      duration: '6 min read'
+    },
+    {
+      type: 'blog',
+      title: 'Agents, Subagents, and Multi Agents: What They Are and When to Use Them',
+      description: 'Compare agents, subagents, and multi agents in AI workflows. Learn how they work together and practical scenarios for each approach.',
+      thumbnailUrl: agentCoordination,
+      linkUrl: '/goose/blog/2025/08/14/agent-coordination-patterns',
+      date: '2025-08-14',
+      duration: '4 min read'
+    }
+  ]}
+/>
