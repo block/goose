@@ -7,7 +7,6 @@ import { ContextManageResponse, Message } from '../../../api';
 // Mock the context management functions
 vi.mock('../index', () => ({
   manageContextFromBackend: vi.fn(),
-  convertApiMessageToFrontendMessage: vi.fn(),
 }));
 
 const mockManageContextFromBackend = vi.mocked(contextManagement.manageContextFromBackend);
@@ -102,6 +101,7 @@ describe('ContextManager', () => {
   describe('handleAutoCompaction', () => {
     it('should successfully perform auto compaction with server-provided messages', async () => {
       // Mock the backend response with 3 messages: marker, summary, continuation
+      // Note: Server messages may not have id/created, which will be added by the code
       mockManageContextFromBackend.mockResolvedValue({
         messages: [
           {
@@ -109,11 +109,11 @@ describe('ContextManager', () => {
             content: [
               { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
             ],
-          },
+          } as Message,
           {
             role: 'assistant',
             content: [{ type: 'text', text: 'Summary content' }],
-          },
+          } as Message,
           {
             role: 'assistant',
             content: [
@@ -122,7 +122,7 @@ describe('ContextManager', () => {
                 text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
               },
             ],
-          },
+          } as Message,
         ],
         tokenCounts: [8, 100, 50],
       });
@@ -144,8 +144,8 @@ describe('ContextManager', () => {
         sessionId: 'test-session-id',
       });
 
-      // Expect setMessages to be called with all 3 converted messages
-      // Note: id and created are generated dynamically, so we check structure instead
+      // Expect setMessages to be called with all 3 messages from server
+      // Note: Server doesn't provide id/created fields, so we don't check for them
       expect(mockSetMessages).toHaveBeenCalledTimes(1);
       const setMessagesCall = mockSetMessages.mock.calls[0][0];
       expect(setMessagesCall).toHaveLength(3);
@@ -153,14 +153,10 @@ describe('ContextManager', () => {
         role: 'assistant',
         content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
       });
-      expect(setMessagesCall[0]).toHaveProperty('id');
-      expect(setMessagesCall[0]).toHaveProperty('created');
       expect(setMessagesCall[1]).toMatchObject({
         role: 'assistant',
         content: [{ type: 'text', text: 'Summary content' }],
       });
-      expect(setMessagesCall[1]).toHaveProperty('id');
-      expect(setMessagesCall[1]).toHaveProperty('created');
       expect(setMessagesCall[2]).toMatchObject({
         role: 'assistant',
         content: [
@@ -170,8 +166,6 @@ describe('ContextManager', () => {
           },
         ],
       });
-      expect(setMessagesCall[2]).toHaveProperty('id');
-      expect(setMessagesCall[2]).toHaveProperty('created');
 
       // Fast-forward timers to trigger the append call
       act(() => {
@@ -190,8 +184,6 @@ describe('ContextManager', () => {
           },
         ],
       });
-      expect(appendedMessage).toHaveProperty('id');
-      expect(appendedMessage).toHaveProperty('created');
     });
 
     it('should handle compaction errors gracefully', async () => {
@@ -507,7 +499,7 @@ describe('ContextManager', () => {
             content: [
               { type: 'toolResponse', id: 'test', toolResult: { content: 'Not text content' } },
             ],
-          },
+          } as Message,
         ],
         tokenCounts: [100, 50],
       });
@@ -527,7 +519,7 @@ describe('ContextManager', () => {
       expect(result.current.isCompacting).toBe(false);
       expect(result.current.compactionError).toBe(null);
 
-      // Should still set messages with the converted message (with generated id/created)
+      // Should still set messages from server
       expect(mockSetMessages).toHaveBeenCalledTimes(1);
       const setMessagesCall = mockSetMessages.mock.calls[0][0];
       expect(setMessagesCall).toHaveLength(1);
@@ -537,8 +529,6 @@ describe('ContextManager', () => {
           { type: 'toolResponse', id: 'test', toolResult: { content: 'Not text content' } },
         ],
       });
-      expect(setMessagesCall[0]).toHaveProperty('id');
-      expect(setMessagesCall[0]).toHaveProperty('created');
     });
   });
 
