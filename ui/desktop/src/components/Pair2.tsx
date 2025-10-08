@@ -48,7 +48,6 @@ export default function Pair({
           return prev;
         });
       } catch (error) {
-        console.log(error);
         setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
       }
     };

@@ -42,8 +42,15 @@ export default function ToolCallWithResponse({
   isStreamingMessage,
   append,
 }: ToolCallWithResponseProps) {
-  const toolCall = toolRequest.toolCall as { name: string; arguments: Record<string, unknown> };
-  if (!toolCall) {
+  // Handle both the wrapped ToolResult format and the unwrapped format
+  // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
+  const toolCallData = toolRequest.toolCall as Record<string, unknown>;
+  const toolCall =
+    toolCallData?.status === 'success'
+      ? (toolCallData.value as { name: string; arguments: Record<string, unknown> })
+      : (toolCallData as { name: string; arguments: Record<string, unknown> });
+
+  if (!toolCall || !toolCall.name) {
     return null;
   }
 
@@ -215,7 +222,7 @@ function ToolCallView({
     }
   })();
 
-  const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
+  const isToolDetails = toolCall?.arguments && Object.entries(toolCall.arguments).length > 0;
 
   // Check if streaming has finished but no tool response was received
   // This is a workaround for cases where the backend doesn't send tool responses

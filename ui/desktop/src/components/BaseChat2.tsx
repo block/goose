@@ -74,6 +74,13 @@ function BaseChatContent({
 
   const [messages, setMessages] = useState(chat?.messages || []);
 
+  // Update messages when chat changes (e.g., when resuming a session)
+  useEffect(() => {
+    if (chat?.messages) {
+      setMessages(chat.messages);
+    }
+  }, [chat?.messages, chat?.sessionId]);
+
   const { chatState, handleSubmit, stopStreaming } = useChatStream({
     sessionId: chat?.sessionId || '',
     messages,
