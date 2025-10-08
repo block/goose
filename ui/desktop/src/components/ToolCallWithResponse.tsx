@@ -12,7 +12,7 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content } from '../api';
+import { Content, RawResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -21,6 +21,17 @@ interface ToolCallWithResponseProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   append?: (value: string) => void; // Function to append messages to the chat
+}
+
+function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
+  if ('value' in toolResult && Array.isArray(toolResult.value)) {
+    return toolResult.value as Content[];
+  }
+  return null;
+}
+
+function isRawResource(content: Content): content is RawResource {
+  return 'uri' in content && 'name' in content;
 }
 
 export default function ToolCallWithResponse({
@@ -55,11 +66,10 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        Array.isArray((toolResponse.toolResult as any).value) &&
-        (toolResponse.toolResult as any).value.map((content: Content, index: number) => {
-          if (isUIResource(content)) {
+        getToolResultValue(toolResponse.toolResult)?.map((content: Content, index: number) => {
+          if (isRawResource(content) && isUIResource(content)) {
             return (
-              <div key={`${index}`} className="mt-3">
+              <div key={index} className="mt-3">
                 <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
@@ -72,7 +82,7 @@ export default function ToolCallWithResponse({
           } else {
             return null;
           }
-        })}
+        })}{' '}
     </>
   );
 }

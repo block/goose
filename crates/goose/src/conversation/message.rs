@@ -13,6 +13,12 @@ use utoipa::ToSchema;
 use crate::conversation::tool_result_serde;
 use crate::utils::sanitize_unicode_tags;
 
+#[derive(ToSchema)]
+pub enum ToolCallResult<T> {
+    Success { value: T },
+    Error { error: String },
+}
+
 /// Custom deserializer for MessageContent that sanitizes Unicode Tags in text content
 fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageContent>, D::Error>
 where
@@ -39,44 +45,28 @@ where
     Ok(content)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[serde(tag = "status", rename_all = "lowercase")]
-pub enum ToolCallResult<T> {
-    Success { value: T },
-    Error { error: String },
-}
-
-impl<T> From<ToolResult<T>> for ToolCallResult<T> {
-    fn from(result: ToolResult<T>) -> Self {
-        match result {
-            Ok(value) => ToolCallResult::Success { value },
-            Err(error) => ToolCallResult::Error {
-                error: error.to_string(),
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[derive(ToSchema)]
 pub struct ToolRequest {
     pub id: String,
-    pub tool_call: ToolCallResult<CallToolRequestParam>,
+    #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
+    pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
 impl ToolRequest {
     pub fn to_readable_string(&self) -> String {
         match &self.tool_call {
-            ToolCallResult::Success { value } => {
+            Ok(tool_call) => {
                 format!(
                     "Tool: {}, Args: {}",
-                    value.name,
-                    serde_json::to_string_pretty(&value.arguments)
+                    tool_call.name,
+                    serde_json::to_string_pretty(&tool_call.arguments)
                         .unwrap_or_else(|_| "<<invalid json>>".to_string())
                 )
             }
-            ToolCallResult::Error { error } => format!("Invalid tool call: {}", error),
+            Err(e) => format!("Invalid tool call: {}", e),
         }
     }
 }
@@ -87,6 +77,7 @@ impl ToolRequest {
 pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_result: ToolResult<Vec<Content>>,
 }
 
@@ -115,6 +106,8 @@ pub struct RedactedThinkingContent {
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
+    #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
 }
 
