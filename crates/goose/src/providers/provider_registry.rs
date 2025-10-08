@@ -1,20 +1,11 @@
-use super::base::{ModelInfo, Provider, ProviderMetadata};
+use super::base::{ModelInfo, Provider, ProviderMetadata, ProviderType};
 use crate::config::DeclarativeProviderConfig;
 use crate::model::ModelConfig;
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 type ProviderConstructor = Box<dyn Fn(ModelConfig) -> Result<Arc<dyn Provider>> + Send + Sync>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProviderType {
-    Preferred,
-    Builtin,
-    Declarative,
-    Custom,
-}
 
 struct ProviderEntry {
     metadata: ProviderMetadata,

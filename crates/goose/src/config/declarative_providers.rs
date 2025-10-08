@@ -1,10 +1,9 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::providers::anthropic::AnthropicProvider;
-use crate::providers::base::ModelInfo;
+use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
-use crate::providers::provider_registry::ProviderType;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};

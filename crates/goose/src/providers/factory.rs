@@ -27,7 +27,7 @@ use super::{
 };
 use crate::config::declarative_providers::register_declarative_providers;
 use crate::model::ModelConfig;
-use crate::providers::provider_registry::ProviderType;
+use crate::providers::base::ProviderType;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 
@@ -47,7 +47,7 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<GeminiCliProvider, _>(GeminiCliProvider::from_env, false);
         registry.register::<GithubCopilotProvider, _>(GithubCopilotProvider::from_env, false);
         registry.register::<GoogleProvider, _>(GoogleProvider::from_env, true);
-        registry.register::<GroqProvider, _>(GroqProvider::from_env, false);
+        //        registry.register::<GroqProvider, _>(GroqProvider::from_env, false);
         registry.register::<LiteLLMProvider, _>(LiteLLMProvider::from_env, false);
         registry.register::<OllamaProvider, _>(OllamaProvider::from_env, true);
         registry.register::<OpenAiProvider, _>(OpenAiProvider::from_env, true);

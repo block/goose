@@ -5,7 +5,7 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
@@ -417,6 +417,7 @@ derive_utoipa!(Icon as IconSchema);
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
+        ProviderType,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,

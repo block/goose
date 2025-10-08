@@ -1,7 +1,7 @@
 {
   "name": "groqd",
   "engine": "openai",
-  "display_name": "Groq",
+  "display_name": "Groq (d)",
   "description": "Fast inference with Groq hardware",
   "api_key_env": "GROQ_API_KEY",
   "base_url": "https://api.groq.com/openai/v1",

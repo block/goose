@@ -3248,7 +3248,8 @@
         "required": [
           "name",
           "metadata",
-          "is_configured"
+          "is_configured",
+          "provider_type"
         ],
         "properties": {
           "is_configured": {
@@ -3259,6 +3260,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
           }
         }
       },
@@ -3310,6 +3314,15 @@
             "description": "The unique identifier for this provider"
           }
         }
+      },
+      "ProviderType": {
+        "type": "string",
+        "enum": [
+          "Preferred",
+          "Builtin",
+          "Declarative",
+          "Custom"
+        ]
       },
       "ProvidersResponse": {
         "type": "object",

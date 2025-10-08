@@ -425,7 +425,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
         .iter()
-        .map(|p| (&p.name, p.display_name.as_str(), p.description.as_str()))
+        .map(|(p, _)| (&p.name, p.display_name.as_str(), p.description.as_str()))
         .collect();
 
     // Get current default provider if it exists
@@ -439,9 +439,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .interact()?;
 
     // Get the selected provider's metadata
-    let provider_meta = available_providers
+    let (provider_meta, _) = available_providers
         .iter()
-        .find(|p| &p.name == provider_name)
+        .find(|(p, _)| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
     // Configure required provider keys

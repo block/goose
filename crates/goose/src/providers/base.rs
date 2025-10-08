@@ -81,6 +81,14 @@ impl ModelInfo {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum ProviderType {
+    Preferred,
+    Builtin,
+    Declarative,
+    Custom,
+}
+
 /// Metadata about a provider's configuration requirements and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {

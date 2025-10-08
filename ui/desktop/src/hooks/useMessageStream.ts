@@ -246,7 +246,6 @@ export function useMessageStream({
       let buffer = '';
 
       try {
-        ca;
         let running = true;
         while (running) {
           const { done, value } = await reader.read();

@@ -469,6 +469,7 @@ export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
     name: string;
+    provider_type: ProviderType;
 };
 
 /**
@@ -505,6 +506,8 @@ export type ProviderMetadata = {
      */
     name: string;
 };
+
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ProvidersResponse = {
     providers: Array<ProviderDetails>;

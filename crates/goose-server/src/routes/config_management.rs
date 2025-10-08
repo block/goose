@@ -9,11 +9,10 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::base::ProviderMetadata;
+use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
-use goose::providers::provider_registry::ProviderType;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::StatusCode;
@@ -250,58 +249,6 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     Ok(Json(ConfigResponse { config: values }))
 }
 
-fn load_declarative_providers(
-    dir: &std::path::Path,
-    is_custom: bool,
-) -> Vec<(ProviderMetadata, bool)> {
-    if !dir.exists() {
-        return Vec::new();
-    }
-
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-
-    entries
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            if path.extension()? != "json" {
-                return None;
-            }
-
-            let content = std::fs::read_to_string(&path).ok()?;
-            let config = serde_json::from_str::<
-                goose::config::declarative_providers::DeclarativeProviderConfig,
-            >(&content)
-            .ok()?;
-
-            let metadata = ProviderMetadata {
-                name: config.name.clone(),
-                display_name: config.display_name.clone(),
-                description: config
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("{} (custom)", config.display_name)),
-                default_model: config.models.first()?.name.clone(),
-                known_models: config.models.clone(),
-                model_doc_link: "Custom provider".to_string(),
-                config_keys: vec![
-                    goose::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    goose::providers::base::ConfigKey::new(
-                        "CUSTOM_PROVIDER_BASE_URL",
-                        true,
-                        false,
-                        Some(&config.base_url),
-                    ),
-                ],
-            };
-
-            Some((metadata, is_custom))
-        })
-        .collect()
-}
-
 #[utoipa::path(
     get,
     path = "/config/providers",
@@ -344,7 +291,10 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let all = get_providers().map(|(m, _)| m).collect::<Vec<_>>();
+    let all = get_providers()
+        .into_iter()
+        .map(|(m, _)| m)
+        .collect::<Vec<_>>();
     let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
         return Err(StatusCode::BAD_REQUEST);
     };
