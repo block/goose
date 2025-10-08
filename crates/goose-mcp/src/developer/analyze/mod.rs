@@ -318,6 +318,14 @@ impl CodeAnalyzer {
             outgoing_chains: &outgoing_chains,
         };
 
-        Ok(Formatter::format_focused_output(&focus_data))
+        let mut output = Formatter::format_focused_output(&focus_data);
+
+        if path.is_file() {
+            let hint = "NOTE: Focus mode works best with directory paths. \
+                        Use a parent directory in the path for cross-file analysis.\n\n";
+            output = format!("{}{}", hint, output);
+        }
+
+        Ok(output)
     }
 }
