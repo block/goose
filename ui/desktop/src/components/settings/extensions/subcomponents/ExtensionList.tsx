@@ -81,10 +81,12 @@ export default function ExtensionList({
 
 // Helper functions
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+  const name =
+    ((extension.type === 'builtin' || extension.type === 'platform') && extension.display_name) ||
+    extension.name;
   return name
     .split(/[-_]/) // Split on hyphens and underscores
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 

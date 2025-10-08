@@ -1,5 +1,4 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::normalize;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::config::get_extension_by_name;
@@ -19,7 +18,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-pub static EXTENSION_NAME: &str = "extension manager";
+pub static EXTENSION_NAME: &str = "extensionmanager";
+pub static DISPLAY_NAME: &str = "Extension Manager";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExtensionManagerToolError {
@@ -66,8 +66,8 @@ impl ExtensionManagerClient {
                 logging: None,
             },
             server_info: Implementation {
-                name: normalize(EXTENSION_NAME.to_string()),
-                title: Some("Extension Manager".to_string()),
+                name: EXTENSION_NAME.to_string(),
+                title: Some(DISPLAY_NAME.to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
                 website_url: None,
