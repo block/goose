@@ -57,50 +57,125 @@ jobs:
 
           const fetchRecentPRs = async (repo) => {
             try {
-              console.log(`Fetching recent PRs for ${repo}`);
+              console.log(`🔍 Fetching PRs for ${repo}`);
               const [repoOwner, repoName] = repo.split('/');
               
-              const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+              // Define October 2025 date range
+              const octoberStart = new Date('2025-10-01T00:00:00Z');
+              const octoberEnd = new Date('2025-10-31T23:59:59Z');
               
-              const { data: prs } = await github.rest.pulls.list({
-                owner: repoOwner,
-                repo: repoName,
-                state: 'closed',
-                sort: 'updated',
-                direction: 'desc',
-                per_page: 100
-              });
+              console.log(`📅 Date range: ${octoberStart.toISOString()} to ${octoberEnd.toISOString()}`);
+              
+              let allPRs = [];
+              let page = 1;
+              const perPage = 100;
+              let hasMorePages = true;
+              
+              // Fetch all PRs with pagination
+              while (hasMorePages) {
+                console.log(`📄 Fetching page ${page} for ${repo}...`);
+                
+                const { data: prs } = await github.rest.pulls.list({
+                  owner: repoOwner,
+                  repo: repoName,
+                  state: 'closed',
+                  sort: 'updated',
+                  direction: 'desc',
+                  per_page: perPage,
+                  page: page
+                });
 
-              console.log(`Fetched ${prs.length} PRs for ${repo}`);
+                console.log(`📊 Page ${page}: Found ${prs.length} PRs`);
+                
+                if (prs.length === 0) {
+                  hasMorePages = false;
+                  break;
+                }
+                
+                // Check if we've gone beyond October 2025
+                const oldestPRDate = new Date(prs[prs.length - 1].updated_at);
+                if (oldestPRDate < octoberStart) {
+                  console.log(`⏰ Reached PRs older than October 2025, stopping pagination`);
+                  // Filter only PRs that are within October 2025
+                  const octoberPRs = prs.filter(pr => {
+                    const updatedDate = new Date(pr.updated_at);
+                    return updatedDate >= octoberStart;
+                  });
+                  allPRs = allPRs.concat(octoberPRs);
+                  hasMorePages = false;
+                } else {
+                  allPRs = allPRs.concat(prs);
+                  page++;
+                  
+                  // Safety check to prevent infinite loops
+                  if (page > 50) {
+                    console.log(`⚠️  Reached maximum page limit (50) for ${repo}`);
+                    hasMorePages = false;
+                  }
+                }
+              }
 
-              const hacktoberfestPRs = prs.filter(pr => {
+              console.log(`📈 Total PRs fetched for ${repo}: ${allPRs.length}`);
+
+              const hacktoberfestPRs = allPRs.filter(pr => {
                 const isMerged = !!pr.merged_at;
-                const isRecent = new Date(pr.merged_at) > new Date(thirtyDaysAgo);
-                const isHacktoberfest = pr.labels.some(label => 
-                  label.name.toLowerCase() === 'hacktoberfest' || 
-                  label.name.toLowerCase() === 'hacktoberfest-completed'
-                );
-                return isMerged && isRecent && isHacktoberfest;
+                
+                // Check if merged within October 2025
+                const mergedDate = pr.merged_at ? new Date(pr.merged_at) : null;
+                const isInOctober2025 = mergedDate && mergedDate >= octoberStart && mergedDate <= octoberEnd;
+                
+                // Check for specific Hacktoberfest labels
+                const isHacktoberfest = pr.labels.some(label => {
+                  const labelName = label.name.toLowerCase();
+                  return labelName === 'hacktoberfest' || 
+                         labelName === 'hacktoberfest-accepted';
+                });
+                
+                const qualifies = isMerged && isInOctober2025 && isHacktoberfest;
+                
+                if (qualifies) {
+                  console.log(`✅ Qualifying PR: #${pr.number} by @${pr.user.login} (merged: ${mergedDate.toISOString()})`);
+                  console.log(`   Labels: ${pr.labels.map(l => l.name).join(', ')}`);
+                }
+                
+                return qualifies;
               }).map(pr => ({
                 user: pr.user.login,
                 points: calculatePoints(pr.labels),
                 repo: repo,
                 prNumber: pr.number,
                 prTitle: pr.title,
-                labels: pr.labels
+                labels: pr.labels,
+                mergedAt: pr.merged_at
               }));
+
+              console.log(`🎯 Qualifying Hacktoberfest PRs for ${repo}: ${hacktoberfestPRs.length}`);
+              
+              // Log each qualifying contributor
+              const contributors = [...new Set(hacktoberfestPRs.map(pr => pr.user))];
+              console.log(`👥 Contributors found: ${contributors.join(', ')}`);
 
               return hacktoberfestPRs;
             } catch (error) {
-              console.error(`Error fetching PRs for ${repo}: ${error.message}`);
+              console.error(`❌ Error fetching PRs for ${repo}: ${error.message}`);
+              console.error(`Stack trace: ${error.stack}`);
               return [];
             }
           };
 
           const generateLeaderboard = async () => {
             try {
+              console.log(`🏁 Starting leaderboard generation for ${REPOS.length} repositories...`);
+              
               const allPRs = await Promise.all(REPOS.map(fetchRecentPRs));
               const flatPRs = allPRs.flat();
+
+              console.log(`📊 Total qualifying PRs across all repos: ${flatPRs.length}`);
+              
+              if (flatPRs.length === 0) {
+                console.log(`⚠️  No qualifying PRs found. Check date ranges and label criteria.`);
+                return [];
+              }
 
               const leaderboard = flatPRs.reduce((acc, pr) => {
                 if (!acc[pr.user]) {
@@ -115,6 +190,13 @@ jobs:
                 acc[pr.user].userPRs.push(pr);
                 return acc;
               }, {});
+
+              console.log(`👥 Total contributors found: ${Object.keys(leaderboard).length}`);
+              
+              // Log each contributor's stats
+              Object.entries(leaderboard).forEach(([username, data]) => {
+                console.log(`   @${username}: ${data.points} points from ${data.prs} PRs`);
+              });
 
               const sortedLeaderboard = Object.entries(leaderboard)
                 .sort(([, a], [, b]) => {
@@ -135,9 +217,18 @@ jobs:
                   biggestPR: getBiggestPRSize(data.userPRs)
                 }));
 
+              console.log(`🏆 Leaderboard generated with ${sortedLeaderboard.length} ranked contributors`);
+              
+              // Log top 10 for debugging
+              console.log(`🥇 Top 10 Contributors:`);
+              sortedLeaderboard.slice(0, 10).forEach(entry => {
+                console.log(`   ${entry.rank}. @${entry.username} - ${entry.points} points (${entry.prs} PRs, biggest: ${entry.biggestPR})`);
+              });
+
               return sortedLeaderboard;
             } catch (error) {
-              console.error(`Error generating leaderboard: ${error.message}`);
+              console.error(`❌ Error generating leaderboard: ${error.message}`);
+              console.error(`Stack trace: ${error.stack}`);
               return [];
             }
           };
@@ -197,25 +288,68 @@ jobs:
           };
 
           // Main execution
-          const leaderboardData = await generateLeaderboard();
-          if (leaderboardData.length > 0) {
-            await updateIssue(leaderboardData);
-          } else {
-            console.log("No leaderboard data to update.");
-            const emptyIssueBody = `# 🏆 Hacktoberfest 2025 Goose Leaderboard 🏆\n` +
-              `Hello, lovely contributors! As Hacktoberfest 2025 and the crisp Fall breeze refreshes us, we wanted to make the contribution process extra fun. Check our live leaderboard below to see who our top contributors are this year in real-time. Not only does this recognize everyone's efforts, it also brings an amplified competitive vibe with each contribution.\n\n` +
-              `### 🌟 **Current Rankings:**\n\n` +
-              `| Rank | Contributor | Points | PRs | Biggest PR to Date |\n` +
-              `|------|-------------|--------|-----|--------------------|\n` +
-              `| | | | | |\n\n` +
-              `No qualifying PRs found at this time. Check back soon!\n\n` +
-              `Last updated: ${new Date().toUTCString()}`;
+          console.log(`🚀 Starting Hacktoberfest 2025 leaderboard update...`);
+          console.log(`📋 Configuration:`);
+          console.log(`   - Repositories: ${REPOS.join(', ')}`);
+          console.log(`   - Issue number: ${issueNumber}`);
+          console.log(`   - Date range: October 1-31, 2025`);
+          console.log(`   - Point values: Small=${POINT_VALUES.small}, Medium=${POINT_VALUES.medium}, Large=${POINT_VALUES.large}`);
+          
+          try {
+            const leaderboardData = await generateLeaderboard();
             
-            await github.rest.issues.update({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              body: emptyIssueBody
-            });
-            console.log("Updated issue with empty leaderboard message.");
+            if (leaderboardData.length > 0) {
+              console.log(`✅ Updating issue with ${leaderboardData.length} contributors...`);
+              await updateIssue(leaderboardData);
+              console.log(`🎉 Leaderboard update completed successfully!`);
+            } else {
+              console.log(`⚠️  No leaderboard data to update. Creating empty leaderboard message...`);
+              const emptyIssueBody = `# 🏆 Hacktoberfest 2025 Goose Leaderboard 🏆\n` +
+                `Hello, lovely contributors! As Hacktoberfest 2025 and the crisp Fall breeze refreshes us, we wanted to make the contribution process extra fun. Check our live leaderboard below to see who our top contributors are this year in real-time. Not only does this recognize everyone's efforts, it also brings an amplified competitive vibe with each contribution.\n\n` +
+                `### 🌟 **Current Rankings:**\n\n` +
+                `| Rank | Contributor | Points | PRs | Biggest PR to Date |\n` +
+                `|------|-------------|--------|-----|--------------------|\n` +
+                `| | | | | |\n\n` +
+                `**No qualifying PRs found for October 2025 at this time.**\n\n` +
+                `**Debug Info:**\n` +
+                `- Date range: October 1-31, 2025\n` +
+                `- Repositories checked: ${REPOS.join(', ')}\n` +
+                `- Qualifying labels: hacktoberfest, hacktoberfest-accepted\n` +
+                `- Only merged PRs are counted\n\n` +
+                `Check back soon as more contributions are made!\n\n` +
+                `Last updated: ${new Date().toUTCString()}`;
+              
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: emptyIssueBody
+              });
+              console.log(`📝 Updated issue with empty leaderboard message and debug info.`);
+            }
+          } catch (error) {
+            console.error(`💥 Fatal error during leaderboard update: ${error.message}`);
+            console.error(`Stack trace: ${error.stack}`);
+            
+            // Try to update the issue with error information
+            try {
+              const errorIssueBody = `# 🏆 Hacktoberfest 2025 Goose Leaderboard 🏆\n\n` +
+                `⚠️ **Error updating leaderboard**\n\n` +
+                `There was an error updating the leaderboard. Please check the workflow logs for details.\n\n` +
+                `**Error:** ${error.message}\n\n` +
+                `**Time:** ${new Date().toUTCString()}\n\n` +
+                `The development team has been notified and will fix this issue soon.`;
+              
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: errorIssueBody
+              });
+              console.log(`📝 Updated issue with error message.`);
+            } catch (updateError) {
+              console.error(`💥 Failed to update issue with error message: ${updateError.message}`);
+            }
+            
+            throw error; // Re-throw to fail the workflow
           }
