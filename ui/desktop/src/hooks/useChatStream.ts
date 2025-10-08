@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { ChatState } from '../types/chatState';
 import { Message } from '../api';
+import { getApiUrl } from '../config';
 
 const TextDecoder = globalThis.TextDecoder;
 
@@ -9,6 +10,28 @@ interface UseChatStreamProps {
   messages: Message[];
   setMessages: (messages: Message[]) => void;
   onStreamFinish?: () => void;
+}
+
+function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
+  const lastMsg = currentMessages[currentMessages.length - 1];
+
+  if (lastMsg?.id && lastMsg.id === incomingMsg.id) {
+    const lastContent = lastMsg.content[lastMsg.content.length - 1];
+    const newContent = incomingMsg.content[incomingMsg.content.length - 1];
+
+    if (
+      lastContent?.type === 'text' &&
+      newContent?.type === 'text' &&
+      incomingMsg.content.length === 1
+    ) {
+      lastContent.text += newContent.text;
+    } else {
+      lastMsg.content.push(...incomingMsg.content);
+    }
+    return [...currentMessages];
+  } else {
+    return [...currentMessages, incomingMsg];
+  }
 }
 
 export function useChatStream({
@@ -28,22 +51,24 @@ export function useChatStream({
         created: Date.now(),
       };
 
-      const updatedMessages = [...messages, newMessage];
-      setMessages(updatedMessages);
+      let currentMessages = [...messages, newMessage];
+      setMessages(currentMessages);
       setChatState(ChatState.Streaming);
 
       abortControllerRef.current = new AbortController();
 
       try {
-        const response = await fetch('/reply', {
+        // TODO(Douwe): this side steps our API. heyapi does support streaming though which should make
+        // this all nice & typed
+        const response = await fetch(getApiUrl('/reply'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': await window.electron.getSecretKey(),
+          },
           body: JSON.stringify({
             session_id: sessionId,
-            messages: updatedMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
+            messages: currentMessages,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -72,7 +97,8 @@ export function useChatStream({
 
               if (event.message) {
                 const msg = event.message as Message;
-                setMessages([...updatedMessages, msg]);
+                currentMessages = pushMessage(currentMessages, msg);
+                setMessages(currentMessages);
               }
 
               if (event.error) {
@@ -91,8 +117,8 @@ export function useChatStream({
             }
           }
         }
-      } catch (error: any) {
-        if (error.name !== 'AbortError') {
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
           console.error('Stream error:', error);
         }
         setChatState(ChatState.Idle);

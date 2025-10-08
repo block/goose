@@ -44,6 +44,8 @@ import {
   useAgent,
 } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
+import { USE_NEW_CHAT } from './updates';
+import Pair2 from './components/Pair2';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -93,7 +95,20 @@ const PairRouteWrapper = ({
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  return (
+  return USE_NEW_CHAT ? (
+    <Pair2
+      chat={chat}
+      setChat={setChat}
+      setView={setView}
+      agentState={agentState}
+      loadCurrentChat={loadCurrentChat}
+      setFatalError={setFatalError}
+      setAgentWaitingMessage={setAgentWaitingMessage}
+      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      resumeSessionId={resumeSessionId}
+      initialMessage={initialMessage}
+    />
+  ) : (
     <Pair
       chat={chat}
       setChat={setChat}
