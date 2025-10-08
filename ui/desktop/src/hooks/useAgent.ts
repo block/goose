@@ -62,24 +62,35 @@ export function useAgent(): UseAgentReturn {
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
-      if (agentIsInitialized && sessionId) {
-        const agentResponse = await resumeAgent({
-          body: {
-            session_id: sessionId,
-          },
-          throwOnError: true,
-        });
+      // If agent is already initialized, we can resume without full reinitialization
+      if (agentIsInitialized) {
+        const sessionToLoad = initContext.resumeSessionId || sessionId;
 
-        const agentSession = agentResponse.data;
-        const messages = agentSession.conversation || [];
-        return {
-          sessionId: agentSession.id,
-          title: agentSession.recipe?.title || agentSession.description,
-          messageHistoryIndex: 0,
-          messages,
-          recipe: agentSession.recipe,
-          recipeParameters: agentSession.user_recipe_values || null,
-        };
+        if (sessionToLoad) {
+          const agentResponse = await resumeAgent({
+            body: {
+              session_id: sessionToLoad,
+            },
+            throwOnError: true,
+          });
+
+          const agentSession = agentResponse.data;
+          const messages = agentSession.conversation || [];
+
+          // Update the cached session ID if we loaded a different one
+          if (sessionToLoad !== sessionId) {
+            setSessionId(sessionToLoad);
+          }
+
+          return {
+            sessionId: agentSession.id,
+            title: agentSession.recipe?.title || agentSession.description,
+            messageHistoryIndex: 0,
+            messages,
+            recipe: agentSession.recipe,
+            recipeParameters: agentSession.user_recipe_values || null,
+          };
+        }
       }
 
       if (initPromiseRef.current) {

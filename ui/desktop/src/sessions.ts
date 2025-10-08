@@ -13,10 +13,8 @@ export function resumeSession(
   // When USE_NEW_CHAT is true and we have a navigation callback, resume in the same window
   // Otherwise, open in a new window (old behavior)
   if (USE_NEW_CHAT && navigateInSameWindow) {
-    console.log('Resuming session in same window:', session.description || session.id);
     navigateInSameWindow(session.id);
   } else {
-    console.log('Launching session in new window:', session.description || session.id);
     window.electron.createChatWindow(
       undefined, // query
       workingDir,
