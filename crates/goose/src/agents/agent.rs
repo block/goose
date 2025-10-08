@@ -463,12 +463,12 @@ impl Agent {
             let parent_session_id = session.id.to_string();
             let parent_working_dir = session.working_dir.clone();
 
-            let task_config = TaskConfig::new(
-                provider,
-                parent_session_id,
-                parent_working_dir,
-                get_enabled_extensions(),
-            );
+            // Get extensions from the agent's runtime state rather than global config
+            // This ensures subagents inherit extensions that were dynamically enabled by the parent
+            let extensions = self.get_extension_configs().await;
+
+            let task_config =
+                TaskConfig::new(provider, parent_session_id, parent_working_dir, extensions);
 
             let arguments = match tool_call.arguments.clone() {
                 Some(args) => Value::Object(args),
