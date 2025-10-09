@@ -67,48 +67,33 @@ async fn handle_recipe_task(
 
     // Apply recipe provider settings if specified
     if let Some(ref settings) = recipe.settings {
-        match (
-            settings.goose_provider.as_ref(),
-            settings.goose_model.as_ref(),
-        ) {
-            // Both provider and model specified - create new provider
-            (Some(provider), Some(model)) => {
-                let model_config =
-                    ModelConfig::new_or_fail(model).with_temperature(settings.temperature);
-                task_config.provider = providers::create(provider, model_config)
-                    .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
-            }
-            // Only model specified - wrap parent provider with override
-            (None, Some(model)) => {
-                let mut model_config = task_config.provider.get_model_config();
-                model_config.model_name = model.clone();
-                if let Some(temp) = settings.temperature {
-                    model_config = model_config.with_temperature(Some(temp));
-                }
-
-                // Wrap the parent provider with our override
-                task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
-                    task_config.provider.clone(),
-                    model_config,
-                ));
-            }
-            // Only provider specified - error
-            (Some(_), None) => {
-                return Err("Recipe specifies provider but no model".to_string());
-            }
-            // Neither specified - just apply temperature if present
-            (None, None) => {
-                if let Some(temp) = settings.temperature {
-                    let mut model_config = task_config.provider.get_model_config();
-                    model_config = model_config.with_temperature(Some(temp));
-
-                    task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
-                        task_config.provider.clone(),
-                        model_config,
-                    ));
-                }
-            }
+        // Validate: provider requires model
+        if settings.goose_provider.is_some() && settings.goose_model.is_none() {
+            return Err("Recipe specifies provider but no model".to_string());
         }
+
+        // Apply settings based on what's specified
+        if let (Some(provider), Some(model)) = (&settings.goose_provider, &settings.goose_model) {
+            // Full replacement: new provider and model
+            let model_config =
+                ModelConfig::new_or_fail(model).with_temperature(settings.temperature);
+            task_config.provider = providers::create(provider, model_config)
+                .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
+        } else if settings.goose_model.is_some() || settings.temperature.is_some() {
+            // Partial override: wrap existing provider
+            let mut model_config = task_config.provider.get_model_config();
+            if let Some(model) = &settings.goose_model {
+                model_config.model_name = model.clone();
+            }
+            if let Some(temp) = settings.temperature {
+                model_config = model_config.with_temperature(Some(temp));
+            }
+            task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
+                task_config.provider.clone(),
+                model_config,
+            ));
+        }
+        // else: no changes needed, keep current provider
     }
 
     let result = tokio::select! {
