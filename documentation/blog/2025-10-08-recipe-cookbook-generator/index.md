@@ -1,6 +1,6 @@
 ---
 title: "Build Your Own Recipe Cookbook Generator for goose"
-description: Stop manually creating recipes from successful goose sessions. Learn how to build a meta-recipe that analyzes your AI agent interactions and automatically generates reusable workflows.
+description: Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes.
 authors: 
     - ian
 ---
@@ -9,7 +9,7 @@ authors:
 
 You've been using goose for weeks, maybe months. You have dozens of successful [sessions](/docs/guides/sessions/) where you asked for help with blog posts, code reviews, documentation, or data analysis. Each time you think "Didn't I already do this?" but never get around to checking. Sound familiar?
 
-Myself, I had over a hundred goose sessions and as many megabytes of conversation data. I was sitting on a goldmine of potential automation. A coworker suggested something brilliant: "What if goose could analyze your sessions and build recipes automatically?" Wait, wait, wait!! Create a personalized cookbook based on my own session history?? Yes, please! Let's build a 'cookbook generator' recipe!
+I myself had over a hundred goose sessions and as many megabytes of conversation data. I was sitting on a goldmine of potential automation. A coworker suggested something brilliant: "What if goose could analyze your sessions and build recipes automatically?" Wait, wait, wait!! Create a personalized cookbook based on my own session history? Yes, please! Let's build a "cookbook generator" recipe!
 
 <!--truncate-->
 
@@ -46,7 +46,7 @@ The end result is a personalized cookbook of recipes tailored to your own specif
 
 ## The Vibe Prompting Process
 
-[I demonstrated on a livestream](https://www.youtube.com/watch?v=-_1GALH2ER0) my whole process of creating this generator using "[vibe prompting](https://www.youtube.com/watch?v=IjXmT0W4f2Q)" -- having an extended conversation with goose to refine the idea and answer potential questions upfront. This approach uses fewer tokens than iterative coding and results in higher success rates.
+[I demonstrated on a livestream](https://www.youtube.com/watch?v=-_1GALH2ER0) my whole process of creating this generator using "[vibe prompting](https://www.youtube.com/watch?v=IjXmT0W4f2Q)" -- having an extended conversation with goose to refine the idea and answer potential questions upfront. This approach uses fewer tokens than iterative coding, resulting in higher success rates.
 
 During my own conversation with goose, goose asked smart questions like:
 
@@ -72,11 +72,11 @@ This last one was really important for me. I ask goose all the time to help me b
 
 ### 2. Intelligent Filtering
 
-Not every session should become a recipe. The generator should skip sessions that seem incomplere or abandoned, or compared with other sessions to determine if this was a one-off task. Still, what might appear to be a one-off task might actually be the start of something I want to repeat.
+Not every session should become a recipe. The generator should skip sessions that seem incomplete or abandoned, or compared with other sessions to determine if this was a one-off task. Still, what might appear to be a one-off task might actually be the start of something I want to repeat.
 
 Having goose prompt me for whether I know ahead of time if there are any sessions I want to exclude was helpful -- I have several REALLY large, long sessions about the [community cookbook security scanner](/blog/2025/08/25/goose-became-its-own-watchdog/) I built, but I didn't want to build a recipe out of all of that.
 
-Instead, I wanted gosoe to focus on workflows that appear multiple times, and ask me to confirm any cases that it was unsure about.
+Instead, I wanted goose to focus on workflows that appear multiple times, and ask me to confirm any cases that it was unsure about.
 
 ### 3. Parameterization Logic
 
@@ -357,11 +357,11 @@ activities:
   <meta property="og:title" content="Build Your Own Recipe Cookbook Generator for goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/10/08/recipe-cookbook-generator" />
-  <meta property="og:description" content="Stop manually creating recipes from successful goose sessions. Learn how to build a meta-recipe that analyzes your AI agent interactions and automatically generates reusable workflows." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/subrecipes-vs-subagents-ba6ce396585e1fc591e339720ee80a30.png" />
+  <meta property="og:description" content="Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes." />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/recipe-cookbook-generator-ba6ce396585e1fc591e339720ee80a30.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Build Your Own Recipe Cookbook Generator for goose" />
-  <meta name="twitter:description" content="Stop manually creating recipes from successful goose sessions. Learn how to build a meta-recipe that analyzes your AI agent interactions and automatically generates reusable workflows." />
+  <meta name="twitter:description" content="Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes." />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/subrecipes-vs-subagents-ba6ce396585e1fc591e339720ee80a30.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/recipe-cookbook-generator-ba6ce396585e1fc591e339720ee80a30.png" />
 </head>
