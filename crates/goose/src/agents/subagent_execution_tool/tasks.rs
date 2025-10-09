@@ -70,10 +70,11 @@ async fn handle_recipe_task(
         .unwrap_or(false);
 
     // Apply recipe extensions if specified
+    // - None: inherit parent extensions (default)
+    // - Some([]): explicitly no extensions
+    // - Some([...]): use only specified extensions
     if let Some(exts) = recipe.extensions {
-        if !exts.is_empty() {
-            task_config.extensions = exts.clone();
-        }
+        task_config.extensions = exts.clone();
     }
 
     // Apply recipe provider settings if specified
