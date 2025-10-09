@@ -1915,7 +1915,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         .initial_value(true)
         .interact()?;
 
-    DeclarativeProviderConfig::create_and_save(
+    DeclarativeProviderConfig::create(
         provider_type,
         display_name.clone(),
         api_url,

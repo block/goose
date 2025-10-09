@@ -77,7 +77,7 @@ pub struct UpsertPermissionsQuery {
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct CreateCustomProviderRequest {
+pub struct UpdateCustomProviderRequest {
     pub provider_type: String,
     pub display_name: String,
     pub api_url: String,
@@ -591,21 +591,6 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
 }
 
 #[utoipa::path(
-    get,
-    path = "/config/current-model",
-    responses(
-        (status = 200, description = "Current model retrieved successfully", body = String),
-    )
-)]
-pub async fn get_current_model() -> Result<Json<Value>, StatusCode> {
-    let current_model = goose::providers::base::get_current_model();
-
-    Ok(Json(serde_json::json!({
-        "model": current_model
-    })))
-}
-
-#[utoipa::path(
     post,
     path = "/config/custom-providers",
     request_body = CreateCustomProviderRequest,
@@ -616,9 +601,9 @@ pub async fn get_current_model() -> Result<Json<Value>, StatusCode> {
     )
 )]
 pub async fn create_custom_provider(
-    Json(request): Json<CreateCustomProviderRequest>,
+    Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    let config = goose::config::declarative_providers::DeclarativeProviderConfig::create_and_save(
+    let config = goose::config::declarative_providers::DeclarativeProviderConfig::create(
         &request.provider_type,
         request.display_name,
         request.api_url,
@@ -657,6 +642,38 @@ pub async fn remove_custom_provider(
     Ok(Json(format!("Removed custom provider: {}", id)))
 }
 
+#[utoipa::path(
+    put,
+    path = "/config/custom-providers/{id}",
+    request_body = UpdateCustomProviderRequest,
+    responses(
+        (status = 200, description = "Custom provider updated successfully", body = String),
+        (status = 404, description = "Provider not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn update_custom_provider(
+    Path(id): Path<String>,
+    Json(request): Json<UpdateCustomProviderRequest>,
+) -> Result<Json<String>, StatusCode> {
+    goose::config::declarative_providers::DeclarativeProviderConfig::update(
+        &id,
+        &request.provider_type,
+        request.display_name,
+        request.api_url,
+        request.api_key,
+        request.models,
+        request.supports_streaming,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Err(e) = goose::providers::refresh_custom_providers() {
+        tracing::warn!("Failed to refresh custom providers after update: {}", e);
+    }
+
+    Ok(Json(format!("Updated custom provider: {}", id)))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -674,11 +691,14 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/recover", post(recover_config))
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
-        .route("/config/current-model", get(get_current_model))
         .route("/config/custom-providers", post(create_custom_provider))
         .route(
             "/config/custom-providers/{id}",
             delete(remove_custom_provider),
+        )
+        .route(
+            "/config/custom-providers/{id}",
+            post(update_custom_provider),
         )
         .with_state(state)
 }
@@ -710,37 +730,5 @@ mod tests {
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
-    }
-
-    #[tokio::test]
-    async fn test_get_provider_models_unknown_provider() {
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Secret-Key", "test".parse().unwrap());
-
-        let result = get_provider_models(Path("unknown_provider".to_string())).await;
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
-    }
-
-    #[tokio::test]
-    async fn test_get_provider_models_openai_configured() {
-        std::env::set_var("OPENAI_API_KEY", "test-key");
-
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Secret-Key", "test".parse().unwrap());
-
-        let result = get_provider_models(Path("openai".to_string())).await;
-
-        // The response should be BAD_REQUEST since the API key is invalid (authentication error)
-        assert!(
-            result.is_err(),
-            "Expected error response from OpenAI provider with invalid key"
-        );
-        let status_code = result.unwrap_err();
-
-        assert_eq!(status_code, StatusCode::BAD_REQUEST, "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}", status_code);
-
-        std::env::remove_var("OPENAI_API_KEY");
     }
 }

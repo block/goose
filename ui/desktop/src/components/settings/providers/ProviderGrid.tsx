@@ -96,15 +96,11 @@ const ProviderCards = memo(function ProviderCards({
 
   const handleCreateCustomProvider = useCallback(
     async (data: CreateCustomProviderRequest) => {
-      try {
-        const { createCustomProvider } = await import('../../../api');
-        await createCustomProvider({ body: data });
-        setShowCustomProviderModal(false);
-        if (refreshProviders) {
-          refreshProviders();
-        }
-      } catch (error) {
-        console.error('Failed to create custom provider:', error);
+      const { createCustomProvider } = await import('../../../api');
+      await createCustomProvider({ body: data, throwOnError: true });
+      setShowCustomProviderModal(false);
+      if (refreshProviders) {
+        refreshProviders();
       }
     },
     [refreshProviders]

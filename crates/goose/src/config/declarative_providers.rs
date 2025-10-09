@@ -50,77 +50,130 @@ impl DeclarativeProviderConfig {
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
     }
+}
 
-    pub fn generate_id(display_name: &str) -> String {
-        format!("custom_{}", display_name.to_lowercase().replace(' ', "_"))
+pub fn generate_id(display_name: &str) -> String {
+    format!("custom_{}", display_name.to_lowercase().replace(' ', "_"))
+}
+
+pub fn generate_api_key_name(id: &str) -> String {
+    format!("{}_API_KEY", id.to_uppercase())
+}
+
+pub fn create(
+    provider_type: &str,
+    display_name: String,
+    api_url: String,
+    api_key: String,
+    models: Vec<String>,
+    supports_streaming: Option<bool>,
+) -> Result<Self> {
+    let id = Self::generate_id(&display_name);
+    let api_key_name = Self::generate_api_key_name(&id);
+
+    let config = Config::global();
+    config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
+
+    let model_infos: Vec<ModelInfo> = models
+        .into_iter()
+        .map(|name| ModelInfo::new(name, 128000))
+        .collect();
+
+    let provider_config = DeclarativeProviderConfig {
+        name: id.clone(),
+        engine: match provider_type {
+            "openai_compatible" => ProviderEngine::OpenAI,
+            "anthropic_compatible" => ProviderEngine::Anthropic,
+            "ollama_compatible" => ProviderEngine::Ollama,
+            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+        },
+        display_name: display_name.clone(),
+        description: Some(format!("Custom {} provider", display_name)),
+        api_key_env: api_key_name,
+        base_url: api_url,
+        models: model_infos,
+        headers: None,
+        timeout_seconds: None,
+        supports_streaming,
+    };
+
+    // save to JSON file
+    let custom_providers_dir = custom_providers_dir();
+    std::fs::create_dir_all(&custom_providers_dir)?;
+
+    let json_content = serde_json::to_string_pretty(&provider_config)?;
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+    std::fs::write(file_path, json_content)?;
+
+    Ok(provider_config)
+}
+
+pub fn remove(id: &str) -> Result<()> {
+    let config = Config::global();
+    let api_key_name = Self::generate_api_key_name(id);
+    let _ = config.delete_secret(&api_key_name);
+
+    let custom_providers_dir = custom_providers_dir();
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+
+    if file_path.exists() {
+        std::fs::remove_file(file_path)?;
     }
 
-    pub fn generate_api_key_name(id: &str) -> String {
-        format!("{}_API_KEY", id.to_uppercase())
+    Ok(())
+}
+
+pub fn update(
+    id: &str,
+    provider_type: &str,
+    display_name: String,
+    api_url: String,
+    api_key: String,
+    models: Vec<String>,
+    supports_streaming: Option<bool>,
+) -> Result<Self> {
+    let file_path = custom_providers_dir().join(format!("{}.json", id));
+
+    if !file_path.exists() {
+        return Err(anyhow::anyhow!("Provider not found: {}", id));
     }
 
-    pub fn create_and_save(
-        provider_type: &str,
-        display_name: String,
-        api_url: String,
-        api_key: String,
-        models: Vec<String>,
-        supports_streaming: Option<bool>,
-    ) -> Result<Self> {
-        let id = Self::generate_id(&display_name);
-        let api_key_name = Self::generate_api_key_name(&id);
+    let existing_content = std::fs::read_to_string(&file_path)?;
+    let existing_config: DeclarativeProviderConfig = serde_json::from_str(&existing_content)?;
 
-        let config = Config::global();
-        config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
+    let config = Config::global();
+    config.set_secret(
+        &existing_config.api_key_env,
+        serde_json::Value::String(api_key),
+    )?;
 
-        let model_infos: Vec<ModelInfo> = models
-            .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
-            .collect();
+    let model_infos: Vec<ModelInfo> = models
+        .into_iter()
+        .map(|name| ModelInfo::new(name, 128000))
+        .collect();
 
-        let provider_config = DeclarativeProviderConfig {
-            name: id.clone(),
-            engine: match provider_type {
-                "openai_compatible" => ProviderEngine::OpenAI,
-                "anthropic_compatible" => ProviderEngine::Anthropic,
-                "ollama_compatible" => ProviderEngine::Ollama,
-                _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
-            },
-            display_name: display_name.clone(),
-            description: Some(format!("Custom {} provider", display_name)),
-            api_key_env: api_key_name,
-            base_url: api_url,
-            models: model_infos,
-            headers: None,
-            timeout_seconds: None,
-            supports_streaming,
-        };
+    let updated_config = DeclarativeProviderConfig {
+        name: id.to_string(),
+        engine: match provider_type {
+            "openai_compatible" => ProviderEngine::OpenAI,
+            "anthropic_compatible" => ProviderEngine::Anthropic,
+            "ollama_compatible" => ProviderEngine::Ollama,
+            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+        },
+        display_name,
+        description: existing_config.description,
+        api_key_env: existing_config.api_key_env,
+        base_url: api_url,
+        models: model_infos,
+        headers: existing_config.headers,
+        timeout_seconds: existing_config.timeout_seconds,
+        supports_streaming,
+    };
 
-        // save to JSON file
-        let custom_providers_dir = custom_providers_dir();
-        std::fs::create_dir_all(&custom_providers_dir)?;
+    let json_content = serde_json::to_string_pretty(&updated_config)?;
+    std::fs::write(file_path, json_content)?;
 
-        let json_content = serde_json::to_string_pretty(&provider_config)?;
-        let file_path = custom_providers_dir.join(format!("{}.json", id));
-        std::fs::write(file_path, json_content)?;
-
-        Ok(provider_config)
-    }
-
-    pub fn remove(id: &str) -> Result<()> {
-        let config = Config::global();
-        let api_key_name = Self::generate_api_key_name(id);
-        let _ = config.delete_secret(&api_key_name);
-
-        let custom_providers_dir = custom_providers_dir();
-        let file_path = custom_providers_dir.join(format!("{}.json", id));
-
-        if file_path.exists() {
-            std::fs::remove_file(file_path)?;
-        }
-
-        Ok(())
-    }
+    Ok(updated_config)
 }
 
 pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {

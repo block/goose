@@ -101,7 +101,6 @@ pub struct ProviderMetadata {
     /// The default/recommended model for this provider
     pub default_model: String,
     /// A list of currently known models with their capabilities
-    /// TODO: eventually query the apis directly
     pub known_models: Vec<ModelInfo>,
     /// Link to the docs where models can be found
     pub model_doc_link: String,
@@ -140,7 +139,6 @@ impl ProviderMetadata {
         }
     }
 
-    /// Create a new ProviderMetadata with ModelInfo objects that include cost data
     pub fn with_models(
         name: &str,
         display_name: &str,

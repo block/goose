@@ -1,5 +1,5 @@
 {
-  "name": "groqd",
+  "name": "groq",
   "engine": "openai",
   "display_name": "Groq (d)",
   "description": "Fast inference with Groq hardware",
