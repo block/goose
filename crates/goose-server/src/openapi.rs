@@ -14,6 +14,9 @@ use rmcp::model::{
 };
 use utoipa::{OpenApi, ToSchema};
 
+use goose::config::declarative_providers::{
+    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
+};
 use goose::conversation::message::{
     ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
     RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
@@ -386,7 +389,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
-        super::routes::config_management::CreateCustomProviderRequest,
+        super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::reply::ChatRequest,
         super::routes::context::ContextManageRequest,
@@ -421,6 +424,9 @@ derive_utoipa!(Icon as IconSchema);
         RoleSchema,
         ProviderMetadata,
         ProviderType,
+        LoadedProvider,
+        ProviderEngine,
+        DeclarativeProviderConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,

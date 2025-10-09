@@ -3,7 +3,7 @@ import { ProviderCard } from './subcomponents/ProviderCard';
 import CardContainer from './subcomponents/CardContainer';
 import { ProviderModalProvider, useProviderModal } from './modal/ProviderModalProvider';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
-import { ProviderDetails, CreateCustomProviderRequest } from '../../../api';
+import { ProviderDetails, UpdateCustomProviderRequest } from '../../../api';
 import { Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
@@ -95,7 +95,7 @@ const ProviderCards = memo(function ProviderCards({
   );
 
   const handleCreateCustomProvider = useCallback(
-    async (data: CreateCustomProviderRequest) => {
+    async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
       await createCustomProvider({ body: data, throwOnError: true });
       setShowCustomProviderModal(false);

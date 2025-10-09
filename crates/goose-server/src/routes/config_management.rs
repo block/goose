@@ -5,9 +5,10 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
-use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
+use goose::config::{DeclarativeProviderConfig, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
@@ -593,7 +594,7 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
-    request_body = CreateCustomProviderRequest,
+    request_body = UpdateCustomProviderRequest,
     responses(
         (status = 200, description = "Custom provider created successfully", body = String),
         (status = 400, description = "Invalid request"),
@@ -603,7 +604,7 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
 pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    let config = goose::config::declarative_providers::DeclarativeProviderConfig::create(
+    let config = goose::config::declarative_providers::create_custom_provider(
         &request.provider_type,
         request.display_name,
         request.api_url,
@@ -621,6 +622,24 @@ pub async fn create_custom_provider(
 }
 
 #[utoipa::path(
+    get,
+    path = "/config/custom-providers/{id}",
+    responses(
+        (status = 200, description = "Custom provider retrieved successfully", body = DeclarativeProviderConfig),
+        (status = 404, description = "Provider not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_custom_provider(
+    Path(id): Path<String>,
+) -> Result<Json<LoadedProvider>, StatusCode> {
+    let loaded_provider = goose::config::declarative_providers::load_provider(id.as_str())
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(loaded_provider))
+}
+
+#[utoipa::path(
     delete,
     path = "/config/custom-providers/{id}",
     responses(
@@ -632,7 +651,7 @@ pub async fn create_custom_provider(
 pub async fn remove_custom_provider(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<String>, StatusCode> {
-    goose::config::declarative_providers::DeclarativeProviderConfig::remove(&id)
+    goose::config::declarative_providers::remove_custom_provider(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Err(e) = goose::providers::refresh_custom_providers() {
@@ -656,7 +675,7 @@ pub async fn update_custom_provider(
     Path(id): Path<String>,
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    goose::config::declarative_providers::DeclarativeProviderConfig::update(
+    goose::config::declarative_providers::update_custom_provider(
         &id,
         &request.provider_type,
         request.display_name,

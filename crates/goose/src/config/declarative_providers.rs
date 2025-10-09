@@ -6,9 +6,12 @@ use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Mutex;
+use utoipa::ToSchema;
 
 static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/providers/declarative");
 
@@ -16,7 +19,7 @@ pub fn custom_providers_dir() -> std::path::PathBuf {
     Paths::config_dir().join("custom_providers")
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderEngine {
     OpenAI,
@@ -24,7 +27,7 @@ pub enum ProviderEngine {
     Anthropic,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DeclarativeProviderConfig {
     pub name: String,
     pub engine: ProviderEngine,
@@ -52,24 +55,46 @@ impl DeclarativeProviderConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LoadedProvider {
+    pub config: DeclarativeProviderConfig,
+    pub is_editable: bool,
+}
+
+static ID_GENERATION_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
 pub fn generate_id(display_name: &str) -> String {
-    format!("custom_{}", display_name.to_lowercase().replace(' ', "_"))
+    let _guard = ID_GENERATION_LOCK.lock().unwrap();
+
+    let normalized = display_name.to_lowercase().replace(' ', "_");
+    let base_id = format!("custom_{}", normalized);
+
+    let custom_dir = custom_providers_dir();
+    let mut candidate_id = base_id.clone();
+    let mut counter = 1;
+
+    while custom_dir.join(format!("{}.json", candidate_id)).exists() {
+        candidate_id = format!("{}_{}", base_id, counter);
+        counter += 1;
+    }
+
+    candidate_id
 }
 
 pub fn generate_api_key_name(id: &str) -> String {
     format!("{}_API_KEY", id.to_uppercase())
 }
 
-pub fn create(
+pub fn create_custom_provider(
     provider_type: &str,
     display_name: String,
     api_url: String,
     api_key: String,
     models: Vec<String>,
     supports_streaming: Option<bool>,
-) -> Result<Self> {
-    let id = Self::generate_id(&display_name);
-    let api_key_name = Self::generate_api_key_name(&id);
+) -> Result<DeclarativeProviderConfig> {
+    let id = generate_id(&display_name);
+    let api_key_name = generate_api_key_name(&id);
 
     let config = Config::global();
     config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
@@ -97,7 +122,6 @@ pub fn create(
         supports_streaming,
     };
 
-    // save to JSON file
     let custom_providers_dir = custom_providers_dir();
     std::fs::create_dir_all(&custom_providers_dir)?;
 
@@ -108,22 +132,7 @@ pub fn create(
     Ok(provider_config)
 }
 
-pub fn remove(id: &str) -> Result<()> {
-    let config = Config::global();
-    let api_key_name = Self::generate_api_key_name(id);
-    let _ = config.delete_secret(&api_key_name);
-
-    let custom_providers_dir = custom_providers_dir();
-    let file_path = custom_providers_dir.join(format!("{}.json", id));
-
-    if file_path.exists() {
-        std::fs::remove_file(file_path)?;
-    }
-
-    Ok(())
-}
-
-pub fn update(
+pub fn update_custom_provider(
     id: &str,
     provider_type: &str,
     display_name: String,
@@ -131,7 +140,7 @@ pub fn update(
     api_key: String,
     models: Vec<String>,
     supports_streaming: Option<bool>,
-) -> Result<Self> {
+) -> Result<DeclarativeProviderConfig> {
     let file_path = custom_providers_dir().join(format!("{}.json", id));
 
     if !file_path.exists() {
@@ -176,6 +185,53 @@ pub fn update(
     Ok(updated_config)
 }
 
+pub fn remove_custom_provider(id: &str) -> Result<()> {
+    let config = Config::global();
+    let api_key_name = generate_api_key_name(id);
+    let _ = config.delete_secret(&api_key_name);
+
+    let custom_providers_dir = custom_providers_dir();
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+
+    if file_path.exists() {
+        std::fs::remove_file(file_path)?;
+    }
+
+    Ok(())
+}
+
+pub fn load_provider(id: &str) -> Result<LoadedProvider> {
+    let custom_file_path = custom_providers_dir().join(format!("{}.json", id));
+
+    if custom_file_path.exists() {
+        let content = std::fs::read_to_string(&custom_file_path)?;
+        let config: DeclarativeProviderConfig = serde_json::from_str(&content)?;
+        return Ok(LoadedProvider {
+            config,
+            is_editable: true,
+        });
+    }
+
+    for file in FIXED_PROVIDERS.files() {
+        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = file
+            .contents_utf8()
+            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
+
+        let config: DeclarativeProviderConfig = serde_json::from_str(content)?;
+        if config.name == id {
+            return Ok(LoadedProvider {
+                config,
+                is_editable: false,
+            });
+        }
+    }
+
+    Err(anyhow::anyhow!("Provider not found: {}", id))
+}
 pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
     if !dir.exists() {
         return Ok(Vec::new());

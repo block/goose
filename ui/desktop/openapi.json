@@ -382,7 +382,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateCustomProviderRequest"
+                "$ref": "#/components/schemas/UpdateCustomProviderRequest"
               }
             }
           },
@@ -2204,40 +2204,6 @@
           "$ref": "#/components/schemas/Message"
         }
       },
-      "CreateCustomProviderRequest": {
-        "type": "object",
-        "required": [
-          "provider_type",
-          "display_name",
-          "api_url",
-          "api_key",
-          "models"
-        ],
-        "properties": {
-          "api_key": {
-            "type": "string"
-          },
-          "api_url": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider_type": {
-            "type": "string"
-          },
-          "supports_streaming": {
-            "type": "boolean",
-            "nullable": true
-          }
-        }
-      },
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
@@ -2294,6 +2260,61 @@
           },
           "recipe_source": {
             "type": "string"
+          }
+        }
+      },
+      "DeclarativeProviderConfig": {
+        "type": "object",
+        "required": [
+          "name",
+          "engine",
+          "display_name",
+          "api_key_env",
+          "base_url",
+          "models"
+        ],
+        "properties": {
+          "api_key_env": {
+            "type": "string"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
           }
         }
       },
@@ -2980,6 +3001,21 @@
           }
         }
       },
+      "LoadedProvider": {
+        "type": "object",
+        "required": [
+          "config",
+          "is_editable"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/DeclarativeProviderConfig"
+          },
+          "is_editable": {
+            "type": "boolean"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "A message to or from an LLM",
@@ -3366,6 +3402,14 @@
           }
         }
       },
+      "ProviderEngine": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "ollama",
+          "anthropic"
+        ]
+      },
       "ProviderMetadata": {
         "type": "object",
         "description": "Metadata about a provider's configuration requirements and capabilities",
@@ -3403,7 +3447,7 @@
             "items": {
               "$ref": "#/components/schemas/ModelInfo"
             },
-            "description": "A list of currently known models with their capabilities\nTODO: eventually query the apis directly"
+            "description": "A list of currently known models with their capabilities"
           },
           "model_doc_link": {
             "type": "string",
@@ -4468,6 +4512,40 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateCustomProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider_type",
+          "display_name",
+          "api_url",
+          "api_key",
+          "models"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_type": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
