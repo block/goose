@@ -98,7 +98,7 @@ pub fn render_recipe_content_with_params(
 
     let env = add_template_in_env(
         &content_with_safe_variables,
-        params.get(BUILT_IN_RECIPE_DIR_PARAM).unwrap().clone(),
+        params.get(BUILT_IN_RECIPE_DIR_PARAM).cloned(),
         UndefinedBehavior::Strict,
     )?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
@@ -110,23 +110,26 @@ pub fn render_recipe_content_with_params(
 
 fn add_template_in_env(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
     undefined_behavior: UndefinedBehavior,
-) -> Result<Environment> {
+) -> Result<Environment<'_>> {
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(undefined_behavior);
-    env.set_loader(move |name| {
-        let path = Path::new(recipe_dir.as_str()).join(name);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => Ok(Some(content)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                "could not read template",
-            )
-            .with_source(e)),
-        }
-    });
+
+    if let Some(recipe_dir) = recipe_dir {
+        env.set_loader(move |name| {
+            let path = Path::new(recipe_dir.as_str()).join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => Ok(Some(content)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "could not read template",
+                )
+                .with_source(e)),
+            }
+        });
+    }
 
     env.add_template(CURRENT_TEMPLATE_NAME, content)?;
     Ok(env)
@@ -134,9 +137,9 @@ fn add_template_in_env(
 
 fn get_env_with_template_variables(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
     undefined_behavior: UndefinedBehavior,
-) -> Result<(Environment, HashSet<String>)> {
+) -> Result<(Environment<'_>, HashSet<String>)> {
     let env = add_template_in_env(content, recipe_dir, undefined_behavior)?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
     let state = template.eval_to_state(())?;
@@ -149,7 +152,7 @@ fn get_env_with_template_variables(
 
 pub fn parse_recipe_content(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
 ) -> Result<(Recipe, HashSet<String>)> {
     // Pre-process template variables to handle invalid variable names
     let preprocessed_content = preprocess_template_variables(content)?;
@@ -171,7 +174,7 @@ pub fn parse_recipe_content(
 // render the recipe for validation, deeplink and explain, etc.
 pub fn render_recipe_for_preview(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
     params: &HashMap<String, String>,
 ) -> Result<Recipe> {
     // Pre-process template variables to handle invalid variable names

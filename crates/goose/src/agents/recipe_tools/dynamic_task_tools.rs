@@ -27,18 +27,18 @@ pub fn create_dynamic_task_tool() -> Tool {
             "properties": {
                 "task_parameters": {
                     "type": "array",
-                    "description": "Array of tasks. Each needs 'instructions' OR 'prompt'.",
+                    "description": "Array of tasks. Each task must have either 'instructions' OR 'prompt' field (at least one is required).",
                     "items": {
                         "type": "object",
                         "properties": {
-                            // Required (one of these)
+                            // Either instructions or prompt is required (validated at runtime)
                             "instructions": {
                                 "type": "string",
-                                "description": "Task instructions"
+                                "description": "Task instructions (required if prompt is not provided)"
                             },
                             "prompt": {
                                 "type": "string",
-                                "description": "Initial prompt"
+                                "description": "Initial prompt (required if instructions is not provided)"
                             },
                             // Optional - auto-generated if not provided
                             "title": {"type": "string"},
@@ -66,11 +66,7 @@ pub fn create_dynamic_task_tool() -> Tool {
                                 "type": "boolean",
                                 "description": "If true, return only the last message from the subagent (default: false, returns full conversation)"
                             }
-                        },
-                        "anyOf": [
-                            {"required": ["instructions"]},
-                            {"required": ["prompt"]}
-                        ]
+                        }
                     },
                     "minItems": 1
                 },
@@ -112,24 +108,14 @@ fn process_extensions(
 
         for ext in arr {
             if let Some(name_str) = ext.as_str() {
-                // Look up the full extension config by name
-                match crate::config::ExtensionConfigManager::get_config_by_name(name_str) {
-                    Ok(Some(config)) => {
-                        // Check if the extension is enabled
-                        if crate::config::ExtensionConfigManager::is_enabled(&config.key())
-                            .unwrap_or(false)
-                        {
-                            converted_extensions.push(config);
-                        } else {
-                            tracing::warn!("Extension '{}' is disabled, skipping", name_str);
-                        }
+                if let Some(config) = crate::config::get_extension_by_name(name_str) {
+                    if crate::config::is_extension_enabled(&config.key()) {
+                        converted_extensions.push(config);
+                    } else {
+                        tracing::warn!("Extension '{}' is disabled, skipping", name_str);
                     }
-                    Ok(None) => {
-                        tracing::warn!("Extension '{}' not found in configuration", name_str);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Error looking up extension '{}': {}", name_str, e);
-                    }
+                } else {
+                    tracing::warn!("Extension '{}' not found in configuration", name_str);
                 }
             } else if let Ok(ext_config) = serde_json::from_value::<ExtensionConfig>(ext.clone()) {
                 converted_extensions.push(ext_config);

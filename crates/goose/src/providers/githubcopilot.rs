@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,11 +30,11 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "o1",
     "o3-mini",
     "claude-3.7-sonnet",
-    "claude-sonnet-4-20250514",
+    "claude-sonnet-4",
 ];
 
 pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4-20250514"];
+    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -81,9 +81,7 @@ struct DiskCache {
 
 impl DiskCache {
     fn new() -> Self {
-        let cache_path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("githubcopilot/info.json");
+        let cache_path = Paths::in_config_dir("githubcopilot/info.json");
         Self { cache_path }
     }
 
@@ -382,8 +380,8 @@ impl Provider for GithubCopilotProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "github_copilot",
-            "Github Copilot",
-            "Github Copilot and associated models",
+            "GitHub Copilot",
+            "GitHub Copilot and associated models",
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,

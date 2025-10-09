@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 use super::lock_or_recover;
-use crate::developer::analyze::types::AnalysisResult;
+use crate::developer::analyze::types::{AnalysisMode, AnalysisResult};
 
 #[derive(Clone)]
 pub struct AnalysisCache {
@@ -18,6 +18,7 @@ pub struct AnalysisCache {
 struct CacheKey {
     path: PathBuf,
     modified: SystemTime,
+    mode: AnalysisMode,
 }
 
 impl AnalysisCache {
@@ -35,30 +36,43 @@ impl AnalysisCache {
         }
     }
 
-    pub fn get(&self, path: &PathBuf, modified: SystemTime) -> Option<AnalysisResult> {
+    pub fn get(
+        &self,
+        path: &PathBuf,
+        modified: SystemTime,
+        mode: &AnalysisMode,
+    ) -> Option<AnalysisResult> {
         let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         let key = CacheKey {
             path: path.clone(),
             modified,
+            mode: *mode,
         };
 
         if let Some(result) = cache.get(&key) {
-            tracing::trace!("Cache hit for {:?}", path);
+            tracing::trace!("Cache hit for {:?} in {:?} mode", path, mode);
             Some((**result).clone())
         } else {
-            tracing::trace!("Cache miss for {:?}", path);
+            tracing::trace!("Cache miss for {:?} in {:?} mode", path, mode);
             None
         }
     }
 
-    pub fn put(&self, path: PathBuf, modified: SystemTime, result: AnalysisResult) {
+    pub fn put(
+        &self,
+        path: PathBuf,
+        modified: SystemTime,
+        mode: &AnalysisMode,
+        result: AnalysisResult,
+    ) {
         let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         let key = CacheKey {
             path: path.clone(),
             modified,
+            mode: *mode,
         };
 
-        tracing::trace!("Caching result for {:?}", path);
+        tracing::trace!("Caching result for {:?} in {:?} mode", path, mode);
         cache.put(key, Arc::new(result));
     }
 

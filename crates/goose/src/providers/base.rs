@@ -31,6 +31,8 @@ pub fn get_current_model() -> Option<String> {
     CURRENT_MODEL.lock().ok().and_then(|model| model.clone())
 }
 
+pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -328,7 +330,6 @@ pub trait Provider: Send + Sync {
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
     // Default implementation: use the provider's configured model
-    // This method filters messages to only include agent_visible ones
     async fn complete(
         &self,
         system: &str,
@@ -336,20 +337,11 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-
-        // Filter messages to only include agent_visible ones
-        let agent_visible_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .cloned()
-            .collect();
-
-        self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
+        self.complete_with_model(&model_config, system, messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
-    // This method filters messages to only include agent_visible ones
     async fn complete_fast(
         &self,
         system: &str,
@@ -359,15 +351,8 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
-        // Filter messages to only include agent_visible ones
-        let agent_visible_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .cloned()
-            .collect();
-
         match self
-            .complete_with_model(&fast_config, system, &agent_visible_messages, tools)
+            .complete_with_model(&fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -379,7 +364,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
+                    self.complete_with_model(&model_config, system, messages, tools)
                         .await
                 } else {
                     Err(e)
@@ -454,7 +439,7 @@ pub trait Provider: Send + Sync {
         messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
-            .take(3)
+            .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
             .map(|m| m.as_concat_text())
             .collect()
     }
@@ -476,7 +461,12 @@ pub trait Provider: Send + Sync {
             )
             .await?;
 
-        let description = result.0.as_concat_text();
+        let description = result
+            .0
+            .as_concat_text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
 
         Ok(safe_truncate(&description, 100))
     }

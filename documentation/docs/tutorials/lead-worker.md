@@ -9,9 +9,25 @@ import TabItem from '@theme/TabItem';
 
 Goose supports a lead/worker model configuration that lets you pair two different AI models - one that's great at thinking and another that's fast at doing. This setup tackles a major pain point: premium models are powerful but expensive, while cheaper models are faster but can struggle with complex tasks. With lead/worker mode, you get the best of both worlds.
 
+<details>
+  <summary>Lead/Worker Mode Walkthrough</summary>
+  <iframe
+    class="aspect-ratio"
+    src="https://youtube.com/embed/ZyhUTsChFUw"
+    title="Lead/Worker Mode Setup and Settings Explained"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</details>
+
 The lead/worker model is a smart hand-off system. The "lead" model (think: GPT-4 or Claude Opus) kicks things off, handling the early planning and big picture reasoning. Once the direction is set, Goose hands the task over to the "worker" model (like GPT-4o-mini or Claude Sonnet) to carry out the steps.
 
 If things go sideways (e.g. the worker model gets confused or keeps making mistakes), Goose notices and automatically pulls the lead model back in to recover. Once things are back on track, the worker takes over again.
+
+:::tip Consider AutoPilot for Advanced Model Switching
+[AutoPilot](/docs/guides/multi-model/autopilot) supports turn-based switching and also offers intelligent context-aware switching between multiple models.
+:::
 
 ## Turn-Based System
 
@@ -101,7 +117,7 @@ export RUST_LOG=goose::providers::lead_worker=info
 ```
 
 ## Planning Mode Compatibility
-The lead/worker model is an automatic alternative to the [Goose CLI's `/plan` command](/docs/guides/creating-plans.md). You can assign separate models to use as the lead/worker and planning models. For example:
+The lead/worker model is an automatic alternative to the [Goose CLI's `/plan` command](/docs/guides/multi-model/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
 
 ```bash
 export GOOSE_PROVIDER="openai"

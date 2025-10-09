@@ -1,5 +1,5 @@
 ##############################################################################
-# Goose CLI Install Script for Windows PowerShell
+# goose CLI Install Script for Windows PowerShell
 #
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
@@ -12,7 +12,7 @@
 #   Or simply: .\download_cli.ps1
 #
 # Environment variables:
-#   $env:GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $env:USERPROFILE\.local\bin)
+#   $env:GOOSE_BIN_DIR  - Directory to which goose will be installed (default: $env:USERPROFILE\.local\bin)
 #   $env:GOOSE_VERSION  - Optional: specific version to install (e.g., "v1.0.25"). Can be in the format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z
 #   $env:GOOSE_PROVIDER - Optional: provider for goose
 #   $env:GOOSE_MODEL    - Optional: model for goose
@@ -199,10 +199,10 @@ try {
     Write-Warning "Could not clean up temporary directory: $TMP_DIR"
 }
 
-# --- 14) Configure Goose (Optional) ---
+# --- 14) Configure goose (Optional) ---
 if ($CONFIGURE -eq "true") {
     Write-Host ""
-    Write-Host "Configuring Goose" -ForegroundColor Green
+    Write-Host "Configuring goose" -ForegroundColor Green
     Write-Host ""
     try {
         & $DEST_GOOSE configure
@@ -217,7 +217,7 @@ if ($CONFIGURE -eq "true") {
 $CURRENT_PATH = $env:PATH
 if ($CURRENT_PATH -notlike "*$env:GOOSE_BIN_DIR*") {
     Write-Host ""
-    Write-Host "Warning: Goose installed, but $env:GOOSE_BIN_DIR is not in your PATH." -ForegroundColor Yellow
+    Write-Host "Warning: goose installed, but $env:GOOSE_BIN_DIR is not in your PATH." -ForegroundColor Yellow
     Write-Host "To add it to your PATH permanently, run the following command as Administrator:" -ForegroundColor Yellow
     Write-Host "    [Environment]::SetEnvironmentVariable('PATH', `$env:PATH + ';$env:GOOSE_BIN_DIR', 'Machine')" -ForegroundColor Cyan
     Write-Host ""
@@ -229,5 +229,5 @@ if ($CURRENT_PATH -notlike "*$env:GOOSE_BIN_DIR*") {
     Write-Host ""
 }
 
-Write-Host "Goose CLI installation completed successfully!" -ForegroundColor Green
-Write-Host "Goose is installed at: $DEST_GOOSE" -ForegroundColor Green
+Write-Host "goose CLI installation completed successfully!" -ForegroundColor Green
+Write-Host "goose is installed at: $DEST_GOOSE" -ForegroundColor Green

@@ -264,7 +264,7 @@ This blog post included just a few of the ways I use Goose. If you're curious ab
 
 What are 5 useful things you can help me with today?
 
-Let Goose surprise you. ✨
+Let goose surprise you. ✨
 
 
 <head>

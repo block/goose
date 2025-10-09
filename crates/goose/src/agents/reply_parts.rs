@@ -15,7 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::session;
+use crate::session::SessionManager;
 use rmcp::model::Tool;
 
 async fn toolshim_postprocess(
@@ -82,48 +82,6 @@ impl Agent {
         }
 
         Ok((tools, toolshim_tools, system_prompt))
-    }
-
-    /// Generate a response from the LLM provider
-    /// Handles toolshim transformations if needed
-    pub(crate) async fn generate_response_from_provider(
-        provider: Arc<dyn Provider>,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-        toolshim_tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = provider.get_model_config();
-
-        // Convert tool messages to text if toolshim is enabled
-        let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
-        } else {
-            Conversation::new_unvalidated(messages.to_vec())
-        };
-
-        // Call the provider to get a response
-        let (mut response, mut usage) = provider
-            .complete(system_prompt, messages_for_provider.messages(), tools)
-            .await?;
-
-        // Ensure we have token counts, estimating if necessary
-        usage
-            .ensure_tokens(
-                system_prompt,
-                messages_for_provider.messages(),
-                &response,
-                tools,
-            )
-            .await?;
-
-        crate::providers::base::set_current_model(&usage.model);
-
-        if config.toolshim {
-            response = toolshim_postprocess(response, toolshim_tools).await?;
-        }
-
-        Ok((response, usage))
     }
 
     /// Stream a response from the LLM provider.
@@ -276,23 +234,9 @@ impl Agent {
     pub(crate) async fn update_session_metrics(
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
-        messages_length: usize,
     ) -> Result<()> {
-        let session_file_path = match session::storage::get_path(session_config.id.clone()) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get session file path: {}", e));
-            }
-        };
-        let mut metadata = session::storage::read_metadata(&session_file_path)?;
-
-        metadata.schedule_id = session_config.schedule_id.clone();
-
-        metadata.total_tokens = usage.usage.total_tokens;
-        metadata.input_tokens = usage.usage.input_tokens;
-        metadata.output_tokens = usage.usage.output_tokens;
-
-        metadata.message_count = messages_length + 1;
+        let session_id = session_config.id.as_str();
+        let session = SessionManager::get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
@@ -300,16 +244,24 @@ impl Agent {
                 _ => a.or(b),
             }
         };
-        metadata.accumulated_total_tokens =
-            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens =
-            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(
-            metadata.accumulated_output_tokens,
-            usage.usage.output_tokens,
-        );
 
-        session::storage::update_metadata(&session_file_path, &metadata).await?;
+        let accumulated_total =
+            accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
+        let accumulated_input =
+            accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
+        let accumulated_output =
+            accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+
+        SessionManager::update_session(session_id)
+            .schedule_id(session_config.schedule_id.clone())
+            .total_tokens(usage.usage.total_tokens)
+            .input_tokens(usage.usage.input_tokens)
+            .output_tokens(usage.usage.output_tokens)
+            .accumulated_total_tokens(accumulated_total)
+            .accumulated_input_tokens(accumulated_input)
+            .accumulated_output_tokens(accumulated_output)
+            .apply()
+            .await?;
 
         Ok(())
     }

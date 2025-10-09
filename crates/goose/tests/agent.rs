@@ -20,6 +20,7 @@ use goose::providers::{
 enum ProviderType {
     Azure,
     OpenAi,
+    #[allow(dead_code)]
     Anthropic,
     Bedrock,
     Databricks,
@@ -235,6 +236,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_agent_with_anthropic() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Anthropic,
+            model: "claude-sonnet-4",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_agent_with_azure() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Azure,
@@ -353,10 +364,9 @@ mod schedule_tool_tests {
     use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
-    use goose::session::storage::SessionMetadata;
+    use goose::session::Session;
     use std::sync::Arc;
 
-    // Mock scheduler for testing
     struct MockScheduler {
         jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
     }
@@ -408,7 +418,7 @@ mod schedule_tool_tests {
             &self,
             _sched_id: &str,
             _limit: usize,
-        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+        ) -> Result<Vec<(String, Session)>, SchedulerError> {
             Ok(vec![])
         }
 
@@ -540,12 +550,12 @@ mod schedule_tool_tests {
 mod final_output_tool_tests {
     use super::*;
     use futures::stream;
-    use goose::agents::final_output_tool::{
-        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    };
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
     use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
 
     #[tokio::test]
     async fn test_final_output_assistant_message_in_reply() -> Result<()> {
@@ -612,14 +622,15 @@ mod final_output_tool_tests {
         agent.add_final_output_tool(response).await;
 
         // Simulate a final output tool call occurring.
-        let tool_call = mcp_core::tool::ToolCall::new(
-            FINAL_OUTPUT_TOOL_NAME,
-            serde_json::json!({
+        let tool_call = CallToolRequestParam {
+            name: FINAL_OUTPUT_TOOL_NAME.into(),
+            arguments: Some(object!({
                 "result": "Test output"
-            }),
-        );
+            })),
+        };
+
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string(), None, &None)
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");
@@ -844,7 +855,7 @@ mod final_output_tool_tests {
 mod retry_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::agents::types::{RetryConfig, SuccessCheck};
     use goose::conversation::message::Message;
     use goose::conversation::Conversation;
     use goose::model::ModelConfig;
@@ -930,21 +941,10 @@ mod retry_tests {
             "Valid config should pass validation"
         );
 
-        let session_config = SessionConfig {
-            id: goose::session::Identifier::Name("test-retry".to_string()),
-            working_dir: std::env::current_dir()?,
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: Some(retry_config),
-        };
-
         let conversation =
             Conversation::new(vec![Message::user().with_text("Complete this task")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1042,10 +1042,8 @@ mod max_turns_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use goose::session::storage::Identifier;
-    use mcp_core::tool::ToolCall;
-    use rmcp::model::Tool;
-    use std::path::PathBuf;
+    use rmcp::model::{CallToolRequestParam, Tool};
+    use rmcp::object;
 
     struct MockToolProvider {}
 
@@ -1063,7 +1061,10 @@ mod max_turns_tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
-            let tool_call = ToolCall::new("test_tool", serde_json::json!({"param": "value"}));
+            let tool_call = CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value"})),
+            };
             let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
 
             let usage = ProviderUsage::new(
@@ -1107,21 +1108,9 @@ mod max_turns_tests {
         let provider = Arc::new(MockToolProvider::new());
         agent.update_provider(provider).await?;
         // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
-
-        // Create session config with max_turns = 1
-        let session_config = goose::agents::SessionConfig {
-            id: Identifier::Name("test_session".to_string()),
-            working_dir: PathBuf::from("/tmp"),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: Some(1),
-            retry_config: None,
-        };
         let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
-        let reply_stream = agent
-            .reply(conversation, Some(session_config), None)
-            .await?;
+        let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1151,7 +1140,7 @@ mod max_turns_tests {
         }
 
         assert!(
-            responses.len() >= 1,
+            !responses.is_empty(),
             "Expected at least 1 response, got {}",
             responses.len()
         );

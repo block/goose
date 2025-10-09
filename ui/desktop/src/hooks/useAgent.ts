@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
 import { initializeSystem } from '../utils/providerUtils';
@@ -8,11 +8,11 @@ import {
   initConfig,
   Message as ApiMessage,
   readAllConfig,
+  Recipe,
   recoverConfig,
   resumeAgent,
   startAgent,
   validateConfig,
-  Recipe,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { convertApiMessageToFrontendMessage } from '../components/context_management';
@@ -26,7 +26,7 @@ export enum AgentState {
 }
 
 export interface InitializationContext {
-  recipeConfig?: Recipe;
+  recipe?: Recipe;
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
   setIsExtensionsLoading?: (isLoading: boolean) => void;
@@ -52,7 +52,6 @@ export function useAgent(): UseAgentReturn {
   const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
     (window.appConfig.get('recipe') as Recipe) || null
   );
-
   const { getExtensions, addExtension, read } = useConfig();
 
   const resetChat = useCallback(() => {
@@ -72,19 +71,18 @@ export function useAgent(): UseAgentReturn {
           throwOnError: true,
         });
 
-        const agentSessionInfo = agentResponse.data;
-        const sessionMetadata = agentSessionInfo.metadata;
-        let chat: ChatType = {
-          sessionId: agentSessionInfo.session_id,
-          title: sessionMetadata.recipe?.title || sessionMetadata.description,
+        const agentSession = agentResponse.data;
+        const messages = agentSession.conversation || [];
+        return {
+          sessionId: agentSession.id,
+          title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
-          messages: agentSessionInfo.messages.map((message: ApiMessage) =>
+          messages: messages?.map((message: ApiMessage) =>
             convertApiMessageToFrontendMessage(message)
           ),
-          recipeConfig: sessionMetadata.recipe,
+          recipe: agentSession.recipe,
+          recipeParameters: agentSession.user_recipe_values || null,
         };
-
-        return chat;
       }
 
       if (initPromiseRef.current) {
@@ -116,16 +114,16 @@ export function useAgent(): UseAgentReturn {
             : await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-                  recipe: recipeFromAppConfig ?? initContext.recipeConfig,
+                  recipe: recipeFromAppConfig ?? initContext.recipe,
                 },
                 throwOnError: true,
               });
 
-          const agentSessionInfo = agentResponse.data;
-          if (!agentSessionInfo) {
+          const agentSession = agentResponse.data;
+          if (!agentSession) {
             throw Error('Failed to get session info');
           }
-          setSessionId(agentSessionInfo.session_id);
+          setSessionId(agentSession.id);
 
           agentWaitingMessage('Agent is loading config');
 
@@ -139,10 +137,14 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
-          await initializeSystem(agentSessionInfo.session_id, provider as string, model as string, {
+
+          const recipeForInit = initContext.recipe || agentSession.recipe || undefined;
+          await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
+            recipeParameters: agentSession.user_recipe_values,
+            recipe: recipeForInit,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -153,15 +155,24 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const sessionMetadata = agentSessionInfo.metadata;
+          const recipe = initContext.recipe || agentSession.recipe;
+          const conversation = agentSession.conversation || [];
+          // If we're loading a recipe from initContext (new recipe load), start with empty messages
+          // Otherwise, use the messages from the session
+          const messages =
+            initContext.recipe && !initContext.resumeSessionId
+              ? []
+              : conversation.map((message: ApiMessage) =>
+                  convertApiMessageToFrontendMessage(message)
+                );
+
           let initChat: ChatType = {
-            sessionId: agentSessionInfo.session_id,
-            title: sessionMetadata.recipe?.title || sessionMetadata.description,
+            sessionId: agentSession.id,
+            title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
-            messages: agentSessionInfo.messages.map((message: ApiMessage) =>
-              convertApiMessageToFrontendMessage(message)
-            ),
-            recipeConfig: sessionMetadata.recipe,
+            messages: messages,
+            recipe: recipe,
+            recipeParameters: agentSession.user_recipe_values || null,
           };
 
           setAgentState(AgentState.INITIALIZED);

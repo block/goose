@@ -1,6 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ChatType } from '../types/chat';
-import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
@@ -12,8 +11,8 @@ interface ChatContextType {
   setChat: (chat: ChatType) => void;
   resetChat: () => void;
   hasActiveSession: boolean;
-  setRecipeConfig: (recipe: Recipe | null) => void;
-  clearRecipeConfig: () => void;
+  setRecipe: (recipe: Recipe | null) => void;
+  clearRecipe: () => void;
   // Draft functionality
   draft: string;
   setDraft: (draft: string) => void;
@@ -54,30 +53,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   };
 
   const resetChat = () => {
-    const newSessionId = generateSessionId();
     setChat({
-      sessionId: newSessionId,
+      sessionId: '',
       title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
-      recipeConfig: null, // Clear recipe when resetting chat
-      recipeParameters: null, // Clear  when resetting chat
+      recipe: null,
+      recipeParameters: null,
     });
-    // Clear draft when resetting chat
     clearDraft();
   };
 
-  const setRecipeConfig = (recipe: Recipe | null) => {
+  const setRecipe = (recipe: Recipe | null) => {
     setChat({
       ...chat,
-      recipeConfig: recipe,
+      recipe: recipe,
+      recipeParameters: null,
     });
   };
 
-  const clearRecipeConfig = () => {
+  const clearRecipe = () => {
     setChat({
       ...chat,
-      recipeConfig: null,
+      recipe: null,
     });
   };
 
@@ -88,8 +86,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setChat,
     resetChat,
     hasActiveSession,
-    setRecipeConfig,
-    clearRecipeConfig,
+    setRecipe,
+    clearRecipe,
     draft,
     setDraft,
     clearDraft,

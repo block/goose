@@ -1,13 +1,13 @@
 IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference in case it is used on the server side for launch time enforcement.
 
-# Goose Extension Allowlist
+# goose Extension Allowlist
 
 The allowlist feature provides a security mechanism for controlling which MCP commands can be used by goose. 
 By default, goose will let you run any MCP via any command, which isn't always desired.
 
 ## How It Works
 
-1. When enabled, Goose will only allow execution of commands that match entries in the allowlist
+1. When enabled, goose will only allow execution of commands that match entries in the allowlist
 2. Commands not in the allowlist will be rejected with an error message
 3. The allowlist is fetched from a URL specified by the `GOOSE_ALLOWLIST` environment variable and cached while running.
 

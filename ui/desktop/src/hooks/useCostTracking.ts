@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelAndProvider } from '../components/ModelAndProviderContext';
 import { getCostForModel } from '../utils/costDatabase';
-import { SessionMetadata } from '../api';
+import { Session } from '../api';
 
 interface UseCostTrackingProps {
   sessionInputTokens: number;
   sessionOutputTokens: number;
   localInputTokens: number;
   localOutputTokens: number;
-  sessionMetadata?: SessionMetadata | null;
+  session?: Session | null;
 }
 
 export const useCostTracking = ({
@@ -16,7 +16,7 @@ export const useCostTracking = ({
   sessionOutputTokens,
   localInputTokens,
   localOutputTokens,
-  sessionMetadata,
+  session,
 }: UseCostTrackingProps) => {
   const [sessionCosts, setSessionCosts] = useState<{
     [key: string]: {
@@ -79,7 +79,7 @@ export const useCostTracking = ({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
-    sessionMetadata,
+    session,
   ]);
 
   return {

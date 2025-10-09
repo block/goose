@@ -1,19 +1,23 @@
+use super::output;
+use super::CliSession;
 use console::style;
-use goose::agents::types::RetryConfig;
+use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
+use goose::config::{
+    extensions::{get_extension_by_name, set_extension, ExtensionEntry},
+    get_all_extensions, get_enabled_extensions, Config, ExtensionConfig,
+};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
-use goose::session;
-use goose::session::Identifier;
+
+use goose::agents::extension::PlatformExtensionContext;
+use goose::session::SessionManager;
+use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-
-use super::output;
-use super::Session;
 
 /// Configuration for building a new Goose session
 ///
@@ -21,8 +25,8 @@ use super::Session;
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional identifier for the session (name or path)
-    pub identifier: Option<Identifier>,
+    /// Optional identifier for the session
+    pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
     /// Whether to run without a session file
@@ -114,35 +118,22 @@ async fn offer_extension_debugging_help(
     debug_agent.update_provider(provider).await?;
 
     // Add the developer extension if available to help with debugging
-    if let Ok(extensions) = ExtensionConfigManager::get_all() {
-        for ext_wrapper in extensions {
-            if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-                if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
-                    // If we can't add developer extension, continue without it
-                    eprintln!(
-                        "Note: Could not load developer extension for debugging: {}",
-                        e
-                    );
-                }
-                break;
+    let extensions = get_all_extensions();
+    for ext_wrapper in extensions {
+        if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+                // If we can't add developer extension, continue without it
+                eprintln!(
+                    "Note: Could not load developer extension for debugging: {}",
+                    e
+                );
             }
+            break;
         }
     }
 
-    // Create a temporary session file for this debugging session
-    let temp_session_file =
-        std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
-
     // Create the debugging session
-    let mut debug_session = Session::new(
-        debug_agent,
-        Some(temp_session_file.clone()),
-        false,
-        None,
-        None,
-        None,
-        None,
-    );
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -160,11 +151,42 @@ async fn offer_extension_debugging_help(
             );
         }
     }
-
-    // Clean up the temporary session file
-    let _ = std::fs::remove_file(temp_session_file);
-
     Ok(())
+}
+
+fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
+    let missing: Vec<_> = saved_extensions
+        .iter()
+        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
+        .cloned()
+        .collect();
+
+    if !missing.is_empty() {
+        let names = missing
+            .iter()
+            .map(|e| e.name())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if !cliclack::confirm(format!(
+            "Extension(s) {} from previous session are no longer in config. Re-add them to config?",
+            names
+        ))
+        .initial_value(true)
+        .interact()
+        .unwrap_or(false)
+        {
+            println!("{}", style("Resume cancelled.").yellow());
+            process::exit(0);
+        }
+
+        missing.into_iter().for_each(|config| {
+            set_extension(ExtensionEntry {
+                enabled: true,
+                config,
+            });
+        });
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -174,7 +196,7 @@ pub struct SessionSettings {
     pub temperature: Option<f32>,
 }
 
-pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
+pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Load config and get provider/model
     let config = Config::global();
 
@@ -256,69 +278,72 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             process::exit(1);
         });
 
-    // Handle session file resolution and resuming
-    let session_file: Option<std::path::PathBuf> = if session_config.no_session {
+    // Handle session resolution and resuming
+    let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        if let Some(identifier) = session_config.identifier {
-            let session_file = match session::get_path(identifier) {
-                Err(e) => {
-                    output::render_error(&format!("Invalid session identifier: {}", e));
+        if let Some(session_id) = session_config.session_id {
+            match SessionManager::get_session(&session_id, false).await {
+                Ok(_) => Some(session_id),
+                Err(_) => {
+                    output::render_error(&format!(
+                        "Cannot resume session {} - no such session exists",
+                        style(&session_id).cyan()
+                    ));
                     process::exit(1);
                 }
-                Ok(path) => path,
-            };
-            if !session_file.exists() {
-                output::render_error(&format!(
-                    "Cannot resume session {} - no such session exists",
-                    style(session_file.display()).cyan()
-                ));
-                process::exit(1);
             }
-
-            Some(session_file)
         } else {
-            // Try to resume most recent session
-            match session::get_most_recent_session() {
-                Ok(file) => Some(file),
+            match SessionManager::list_sessions().await {
+                Ok(sessions) => {
+                    if sessions.is_empty() {
+                        output::render_error("Cannot resume - no previous sessions found");
+                        process::exit(1);
+                    }
+                    Some(sessions[0].id.clone())
+                }
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
                 }
             }
         }
+    } else if let Some(session_id) = session_config.session_id {
+        Some(session_id)
     } else {
-        // Create new session with provided name/path or generated name
-        let id = match session_config.identifier {
-            Some(identifier) => identifier,
-            None => Identifier::Name(session::generate_session_id()),
-        };
-
-        // Just get the path - file will be created when needed
-        match session::get_path(id) {
-            Ok(path) => Some(path),
-            Err(e) => {
-                output::render_error(&format!("Failed to create session path: {}", e));
-                process::exit(1);
-            }
-        }
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "CLI Session".to_string(),
+        )
+        .await
+        .unwrap();
+        Some(session.id)
     };
 
+    agent
+        .extension_manager
+        .set_context(PlatformExtensionContext {
+            session_id: session_id.clone(),
+        })
+        .await;
+
     if session_config.resume {
-        if let Some(session_file) = session_file.as_ref() {
-            // Read the session metadata
-            let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read session metadata: {}", e));
-                process::exit(1);
-            });
+        if let Some(session_id) = session_id.as_ref() {
+            // Read the session metadata from database
+            let metadata = SessionManager::get_session(session_id, false)
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to read session metadata: {}", e));
+                    process::exit(1);
+                });
 
             let current_workdir =
                 std::env::current_dir().expect("Failed to get current working directory");
             if current_workdir != metadata.working_dir {
                 // Ask user if they want to change the working directory
                 let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-            .initial_value(true)
-            .interact().expect("Failed to get user input");
+                    .initial_value(true)
+                    .interact().expect("Failed to get user input");
 
                 if change_workdir {
                     if !metadata.working_dir.exists() {
@@ -343,13 +368,26 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
+    } else if session_config.resume {
+        if let Some(session_id) = session_id.as_ref() {
+            match SessionManager::get_session(session_id, false).await {
+                Ok(session_data) => {
+                    if let Some(saved_state) =
+                        EnabledExtensionsState::from_extension_data(&session_data.extension_data)
+                    {
+                        check_missing_extensions_or_exit(&saved_state.extensions);
+                        saved_state.extensions
+                    } else {
+                        get_enabled_extensions()
+                    }
+                }
+                _ => get_enabled_extensions(),
+            }
+        } else {
+            get_enabled_extensions()
+        }
     } else {
-        ExtensionConfigManager::get_all()
-            .expect("should load extensions")
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect()
+        get_enabled_extensions()
     };
 
     let mut set = JoinSet::new();
@@ -416,31 +454,29 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             }
         });
 
+    let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
+
     // Create new session
-    let mut session = Session::new(
+    let mut session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
-        session_file.clone(),
-        session_config.debug,
+        session_id.clone(),
+        debug_mode,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
     );
 
-    // Add extensions if provided
+    // Add stdio extensions if provided
     for extension_str in session_config.extensions {
         if let Err(e) = session.add_extension(extension_str.clone()).await {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start extension '{}': {}",
+                    "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
                     extension_str, e
                 ))
                 .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!("Continuing without extension '{}'", extension_str)).yellow()
             );
 
             // Offer debugging help
@@ -463,16 +499,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start remote extension '{}': {}",
+                    "Warning: Failed to start remote extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without remote extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -500,16 +528,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start streamable HTTP extension '{}': {}",
+                    "Warning: Failed to start streamable HTTP extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without streamable HTTP extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -534,16 +554,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start builtin extension '{}': {}",
+                    "Warning: Failed to start builtin extension '{}' ({}), continuing without it",
                     builtin, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without builtin extension '{}'",
-                    builtin
                 ))
                 .yellow()
             );
@@ -559,6 +571,25 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             {
                 eprintln!("Note: Could not start debugging session: {}", debug_err);
             }
+        }
+    }
+
+    if let Some(session_id) = session_id.as_ref() {
+        let session_config_for_save = SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        if let Err(e) = session
+            .agent
+            .save_extension_state(&session_config_for_save)
+            .await
+        {
+            tracing::warn!("Failed to save initial extension state: {}", e);
         }
     }
 
@@ -586,7 +617,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             session_config.resume,
             &provider_name,
             &model_name,
-            &session_file,
+            &session_id,
             Some(&provider_for_display),
         );
     }
@@ -600,7 +631,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_creation() {
         let config = SessionBuilderConfig {
-            identifier: Some(Identifier::Name("test".to_string())),
+            session_id: Some("test".to_string()),
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
@@ -639,7 +670,7 @@ mod tests {
     fn test_session_builder_config_default() {
         let config = SessionBuilderConfig::default();
 
-        assert!(config.identifier.is_none());
+        assert!(config.session_id.is_none());
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());

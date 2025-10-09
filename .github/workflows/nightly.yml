@@ -1,10 +1,18 @@
-# This workflow is for nightly releases, automatically triggered at midnight US Eastern
+# A release from main. Automatically triggered at midnight US Eastern.
+
 name: Nightly Build
 
 on:
   schedule:
     # Run at midnight US Eastern (0500 UTC)
     - cron: '0 5 * * *'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: false
+        default: 'main'
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,16 +24,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-version.outputs.version }}
+      commit_sha: ${{ steps.get-commit.outputs.commit_sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: main  # Ensure we're building from latest main
+          fetch-depth: 0
+
+      - name: Get commit info
+        id: get-commit
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Building from commit: $(git rev-parse HEAD)"
+          echo "Latest commit: $(git log -1 --oneline)"
+
       - name: Generate a nightly version
         id: set-version
         run: |
-          # Extract the version from Cargo.toml and add nightly tag with date
+          # Extract the version from Cargo.toml and add nightly tag with date and short commit
           VERSION=$(grep '^version\s*=' Cargo.toml | head -n 1 | cut -d\" -f2)
           DATE=$(date -u +%Y%m%d)
-          VERSION="${VERSION}-nightly.${DATE}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="${VERSION}-nightly.${DATE}.${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
 
   build-cli:
     needs: [prepare-version]
@@ -52,7 +74,9 @@ jobs:
       contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
-      signing: false
+      signing: true
+    secrets:
+      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
 
   bundle-desktop-linux:
     needs: [prepare-version]
@@ -65,8 +89,12 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
       version: ${{ needs.prepare-version.outputs.version }}
-      signing: false
-
+      signing: true
+    secrets:
+      WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
+      WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+  
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -91,7 +119,6 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
-            Goose*.zip
             *.deb
             *.rpm
             download_cli.sh

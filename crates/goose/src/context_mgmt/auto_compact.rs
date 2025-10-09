@@ -55,7 +55,7 @@ pub async fn check_compaction_needed(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::storage::SessionMetadata>,
+    session_metadata: Option<&crate::session::Session>,
 ) -> Result<CompactionCheckResult> {
     // Get threshold from config or use override
     let config = Config::global();
@@ -182,7 +182,7 @@ pub async fn check_and_compact_messages(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::storage::SessionMetadata>,
+    session_metadata: Option<&crate::session::Session>,
 ) -> Result<AutoCompactResult> {
     // First check if compaction is needed
     let check_result =
@@ -242,6 +242,7 @@ pub async fn check_and_compact_messages(
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
+    use crate::session::extension_data;
     use crate::{
         agents::Agent,
         model::ModelConfig,
@@ -303,21 +304,33 @@ mod tests {
     fn create_test_session_metadata(
         message_count: usize,
         working_dir: &str,
-    ) -> crate::session::storage::SessionMetadata {
+    ) -> crate::session::Session {
+        use crate::conversation::Conversation;
         use std::path::PathBuf;
-        crate::session::storage::SessionMetadata {
-            message_count,
+
+        let mut conversation = Conversation::default();
+        for i in 0..message_count {
+            conversation.push(create_test_message(format!("message {}", i).as_str()));
+        }
+
+        crate::session::Session {
+            id: "test_session".to_string(),
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
             schedule_id: Some("test_job".to_string()),
+            recipe: None,
             total_tokens: Some(100),
             input_tokens: Some(50),
             output_tokens: Some(50),
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
-            extension_data: crate::session::ExtensionData::new(),
-            recipe: None,
+            extension_data: extension_data::ExtensionData::new(),
+            conversation: Some(conversation),
+            message_count,
+            user_recipe_values: None,
         }
     }
 
@@ -540,7 +553,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_uses_session_metadata() {
-        use crate::session::storage::SessionMetadata;
+        use crate::session::Session;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
@@ -557,19 +570,22 @@ mod tests {
             create_test_message("Second message"),
         ];
 
-        // Create session metadata with specific token counts
-        let mut session_metadata = SessionMetadata::default();
-        session_metadata.total_tokens = Some(8000); // High token count to trigger compaction
-        session_metadata.accumulated_total_tokens = Some(15000); // Even higher accumulated count
-        session_metadata.input_tokens = Some(5000);
-        session_metadata.output_tokens = Some(3000);
+        // Create session with specific token counts
+        #[allow(clippy::field_reassign_with_default)]
+        let mut session = Session::default();
+        {
+            session.total_tokens = Some(8000); // High token count to trigger compaction
+            session.accumulated_total_tokens = Some(15000); // Even higher accumulated count
+            session.input_tokens = Some(5000);
+            session.output_tokens = Some(3000);
+        }
 
-        // Test with session metadata - should use total_tokens for compaction (not accumulated)
+        // Test with session - should use total_tokens for compaction (not accumulated)
         let result_with_metadata = check_compaction_needed(
             &agent,
             &messages,
             Some(0.3), // 30% threshold
-            Some(&session_metadata),
+            Some(&session),
         )
         .await
         .unwrap();
@@ -592,9 +608,12 @@ mod tests {
         assert!(!result_without_metadata.needs_compaction);
         assert!(result_without_metadata.current_tokens < 8000);
 
-        // Test with metadata that has only accumulated tokens (no total_tokens)
-        let mut session_metadata_no_total = SessionMetadata::default();
-        session_metadata_no_total.accumulated_total_tokens = Some(7500);
+        // Test with session that has only accumulated tokens (no total_tokens)
+        let mut session_metadata_no_total = Session::default();
+        #[allow(clippy::field_reassign_with_default)]
+        {
+            session_metadata_no_total.accumulated_total_tokens = Some(7500);
+        }
 
         let result_with_no_total = check_compaction_needed(
             &agent,
@@ -610,7 +629,7 @@ mod tests {
         assert!(result_with_no_total.current_tokens < 7500);
 
         // Test with metadata that has no token counts - should fall back to estimation
-        let empty_metadata = SessionMetadata::default();
+        let empty_metadata = Session::default();
 
         let result_with_empty_metadata = check_compaction_needed(
             &agent,
@@ -628,7 +647,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_compact_end_to_end_with_metadata() {
-        use crate::session::storage::SessionMetadata;
+        use crate::session::Session;
 
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
@@ -649,15 +668,18 @@ mod tests {
         ];
 
         // Create session metadata with high token count to trigger compaction
-        let mut session_metadata = SessionMetadata::default();
-        session_metadata.total_tokens = Some(9000); // High enough to trigger compaction
+        let mut session = Session::default();
+        #[allow(clippy::field_reassign_with_default)]
+        {
+            session.total_tokens = Some(9000); // High enough to trigger compaction
+        }
 
         // Test full compaction flow with session metadata
         let result = check_and_compact_messages(
             &agent,
             &messages,
             Some(0.3), // 30% threshold
-            Some(&session_metadata),
+            Some(&session),
         )
         .await
         .unwrap();
@@ -695,7 +717,14 @@ mod tests {
         let comprehensive_metadata = create_test_session_metadata(3, "/test/working/dir");
 
         // Verify the helper created non-null metadata
-        assert_eq!(comprehensive_metadata.message_count, 3);
+        assert_eq!(
+            comprehensive_metadata
+                .clone()
+                .conversation
+                .unwrap_or_default()
+                .len(),
+            3
+        );
         assert_eq!(
             comprehensive_metadata.working_dir.to_str().unwrap(),
             "/test/working/dir"

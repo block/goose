@@ -25,6 +25,7 @@ describe('Extension Manager', () => {
   const mockExtensionConfig = {
     type: 'stdio' as const,
     name: 'test-extension',
+    description: 'test-extension',
     cmd: 'python',
     args: ['script.py'],
     timeout: 300,
@@ -43,10 +44,15 @@ describe('Extension Manager', () => {
 
       await activateExtension({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        'test-session'
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
 
@@ -57,11 +63,16 @@ describe('Extension Manager', () => {
       await expect(
         activateExtension({
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
           extensionConfig: mockExtensionConfig,
         })
       ).rejects.toThrow('Agent failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        'test-session'
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
 
@@ -73,13 +84,18 @@ describe('Extension Manager', () => {
       await expect(
         activateExtension({
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
           extensionConfig: mockExtensionConfig,
         })
       ).rejects.toThrow('Config failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        'test-session'
+      );
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension');
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
     });
   });
 
@@ -89,10 +105,15 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: true });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: true },
+        'test-session'
+      );
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
@@ -101,11 +122,16 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
         toastOptions: { silent: false },
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, { silent: false });
+      expect(mockAddToAgent).toHaveBeenCalledWith(
+        mockExtensionConfig,
+        { silent: false },
+        'test-session'
+      );
       expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
@@ -118,6 +144,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -132,6 +159,7 @@ describe('Extension Manager', () => {
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
@@ -153,6 +181,7 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: true,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: mockExtensionConfig,
         originalName: 'test-extension',
@@ -160,7 +189,8 @@ describe('Extension Manager', () => {
 
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'test-extension' },
-        { silent: true }
+        { silent: true },
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'test-extension',
@@ -183,16 +213,22 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: true,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: { ...mockExtensionConfig, name: 'new-extension' },
         originalName: 'old-extension',
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('old-extension', { silent: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'old-extension',
+        { silent: true },
+        'test-session'
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('old-extension');
       expect(mockAddToAgent).toHaveBeenCalledWith(
         { ...mockExtensionConfig, name: 'new-extension' },
-        { silent: true }
+        { silent: true },
+        'test-session'
       );
       expect(mockAddToConfig).toHaveBeenCalledWith(
         'new-extension',
@@ -208,6 +244,7 @@ describe('Extension Manager', () => {
       await updateExtension({
         enabled: false,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
         removeFromConfig: mockRemoveFromConfig,
         extensionConfig: mockExtensionConfig,
         originalName: 'test-extension',
@@ -235,9 +272,10 @@ describe('Extension Manager', () => {
         toggle: 'toggleOn',
         extensionConfig: mockExtensionConfig,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
       });
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
     });
 
@@ -249,9 +287,10 @@ describe('Extension Manager', () => {
         toggle: 'toggleOff',
         extensionConfig: mockExtensionConfig,
         addToConfig: mockAddToConfig,
+        sessionId: 'test-session',
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
 
@@ -265,10 +304,11 @@ describe('Extension Manager', () => {
           toggle: 'toggleOn',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       // addToConfig is called during the rollback (toggleOff)
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
@@ -283,12 +323,13 @@ describe('Extension Manager', () => {
           toggle: 'toggleOn',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Config failed');
 
-      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {});
+      expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, true);
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
     });
 
     it('should update config even if agent removal fails when toggling off', async () => {
@@ -301,10 +342,11 @@ describe('Extension Manager', () => {
           toggle: 'toggleOff',
           extensionConfig: mockExtensionConfig,
           addToConfig: mockAddToConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {});
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', {}, 'test-session');
       expect(mockAddToConfig).toHaveBeenCalledWith('test-extension', mockExtensionConfig, false);
     });
   });
@@ -317,9 +359,14 @@ describe('Extension Manager', () => {
       await deleteExtension({
         name: 'test-extension',
         removeFromConfig: mockRemoveFromConfig,
+        sessionId: 'test-session',
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        'test-session'
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -332,10 +379,15 @@ describe('Extension Manager', () => {
         deleteExtension({
           name: 'test-extension',
           removeFromConfig: mockRemoveFromConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        'test-session'
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -349,10 +401,15 @@ describe('Extension Manager', () => {
         deleteExtension({
           name: 'test-extension',
           removeFromConfig: mockRemoveFromConfig,
+          sessionId: 'test-session',
         })
       ).rejects.toThrow('Config removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith(
+        'test-extension',
+        { isDelete: true },
+        'test-session'
+      );
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
   });

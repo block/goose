@@ -15,9 +15,9 @@ tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
-mcp-client = { path = "../mcp-client" }
-mcp-core = { path = "../mcp-core" }
+lru = "0.12"
 rmcp = { workspace = true, features = [
+    "client",
     "reqwest",
     "transport-child-process",
     "transport-sse-client",
@@ -30,18 +30,18 @@ thiserror = "1.0"
 futures = "0.3"
 dirs = "5.0"
 reqwest = { version = "0.12.9", features = [
-        "rustls-tls-native-roots",
-        "json",
-        "cookies",
-        "gzip",
-        "brotli",
-        "deflate",
-        "zstd",
-        "charset",
-        "http2",
-        "stream",
-        "blocking"
-    ], default-features = false }
+    "rustls-tls-native-roots",
+    "json",
+    "cookies",
+    "gzip",
+    "brotli",
+    "deflate",
+    "zstd",
+    "charset",
+    "http2",
+    "stream",
+    "blocking"
+], default-features = false }
 tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -78,11 +78,12 @@ rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
-aws-sdk-bedrockruntime = "1.74.0"
+aws-sdk-bedrockruntime = "1.106.0"
 
 # For SageMaker TGI provider
 aws-sdk-sagemakerruntime = "1.62.0"
@@ -99,7 +100,6 @@ ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
-arrow = "52.2"
 oauth2 = "5.0.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]

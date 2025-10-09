@@ -74,7 +74,7 @@ async fn handle_inline_recipe_task(
     mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
+    use crate::agents::subagent_handler::run_complete_subagent_task;
     use crate::recipe::Recipe;
 
     let recipe_value = task
@@ -91,14 +91,23 @@ async fn handle_inline_recipe_task(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    task_config.extensions = recipe.extensions.clone();
+    if let Some(exts) = recipe.extensions {
+        if !exts.is_empty() {
+            task_config.extensions = exts.clone();
+        }
+    }
 
     let instruction = recipe
         .instructions
         .or(recipe.prompt)
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
+
     let result = tokio::select! {
-        result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
+        result = run_complete_subagent_task(
+            instruction,
+            task_config,
+            return_last_only,
+        ) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }

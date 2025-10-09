@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use super::CompletionCache;
 
-/// Completer for Goose CLI commands
+/// Completer for goose CLI commands
 pub struct GooseCompleter {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     filename_completer: FilenameCompleter,
@@ -443,18 +443,14 @@ mod tests {
         let mut cache = CompletionCache::new();
 
         // Add some test prompts
-        let mut extension1_prompts = Vec::new();
-        extension1_prompts.push("test_prompt1".to_string());
-        extension1_prompts.push("test_prompt2".to_string());
-        cache
-            .prompts
-            .insert("extension1".to_string(), extension1_prompts);
+        cache.prompts.insert(
+            "extension1".to_string(),
+            vec!["test_prompt1".to_string(), "test_prompt2".to_string()],
+        );
 
-        let mut extension2_prompts = Vec::new();
-        extension2_prompts.push("other_prompt".to_string());
         cache
             .prompts
-            .insert("extension2".to_string(), extension2_prompts);
+            .insert("extension2".to_string(), vec!["other_prompt".to_string()]);
 
         // Add prompt info with arguments
         let test_prompt1_args = vec![
@@ -462,11 +458,13 @@ mod tests {
                 name: "required_arg".to_string(),
                 description: Some("A required argument".to_string()),
                 required: Some(true),
+                title: None,
             },
             PromptArgument {
                 name: "optional_arg".to_string(),
                 description: Some("An optional argument".to_string()),
                 required: Some(false),
+                title: None,
             },
         ];
 
@@ -519,7 +517,7 @@ mod tests {
         let (pos, candidates) = completer.complete_slash_commands("/e").unwrap();
         assert_eq!(pos, 0);
         // There might be multiple commands starting with "e" like "/exit" and "/extension"
-        assert!(candidates.len() >= 1);
+        assert!(!candidates.is_empty());
 
         // Test multiple matches
         let (pos, candidates) = completer.complete_slash_commands("/").unwrap();

@@ -27,7 +27,7 @@ pub fn handle_project_default() -> Result<()> {
         let status = command.status()?;
 
         if !status.success() {
-            println!("Failed to run Goose. Exit code: {:?}", status.code());
+            println!("Failed to run goose. Exit code: {:?}", status.code());
         }
         return Ok(());
     }
@@ -65,7 +65,7 @@ pub fn handle_project_default() -> Result<()> {
     };
 
     // Ask the user what they want to do
-    let _ = intro("Goose Project Manager");
+    let _ = intro("goose Project Manager");
 
     let current_dir = std::env::current_dir()?;
     let current_dir_display = current_dir.display();
@@ -101,7 +101,7 @@ pub fn handle_project_default() -> Result<()> {
             // Change to the project directory
             std::env::set_current_dir(project_dir)?;
 
-            // Build the command to run Goose
+            // Build the command to run goose
             let mut command = std::process::Command::new("goose");
             command.arg("session");
 
@@ -114,7 +114,7 @@ pub fn handle_project_default() -> Result<()> {
             let status = command.status()?;
 
             if !status.success() {
-                println!("Failed to run Goose. Exit code: {:?}", status.code());
+                println!("Failed to run goose. Exit code: {:?}", status.code());
             }
         }
         "fresh" => {
@@ -126,7 +126,7 @@ pub fn handle_project_default() -> Result<()> {
             // Change to the project directory
             std::env::set_current_dir(project_dir)?;
 
-            // Build the command to run Goose with a fresh session
+            // Build the command to run goose with a fresh session
             let mut command = std::process::Command::new("goose");
             command.arg("session");
 
@@ -134,13 +134,13 @@ pub fn handle_project_default() -> Result<()> {
             let status = command.status()?;
 
             if !status.success() {
-                println!("Failed to run Goose. Exit code: {:?}", status.code());
+                println!("Failed to run goose. Exit code: {:?}", status.code());
             }
         }
         "new" => {
             let _ = outro("Starting a new session in the current directory");
 
-            // Build the command to run Goose
+            // Build the command to run goose
             let mut command = std::process::Command::new("goose");
             command.arg("session");
 
@@ -148,7 +148,7 @@ pub fn handle_project_default() -> Result<()> {
             let status = command.status()?;
 
             if !status.success() {
-                println!("Failed to run Goose. Exit code: {:?}", status.code());
+                println!("Failed to run goose. Exit code: {:?}", status.code());
             }
         }
         _ => {
@@ -213,7 +213,7 @@ pub fn handle_projects_interactive() -> Result<()> {
         .collect();
 
     // Let the user select a project
-    let _ = intro("Goose Project Manager");
+    let _ = intro("goose Project Manager");
     let mut select = cliclack::select("Select a project:");
 
     // Add each project as an option
@@ -280,7 +280,7 @@ pub fn handle_projects_interactive() -> Result<()> {
         false
     };
 
-    // Build the command to run Goose
+    // Build the command to run goose
     let mut command = std::process::Command::new("goose");
     command.arg("session");
 
@@ -297,7 +297,7 @@ pub fn handle_projects_interactive() -> Result<()> {
     let status = command.status()?;
 
     if !status.success() {
-        println!("Failed to run Goose. Exit code: {:?}", status.code());
+        println!("Failed to run goose. Exit code: {:?}", status.code());
     }
 
     Ok(())

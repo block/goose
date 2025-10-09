@@ -43,9 +43,9 @@ jobs:
             echo "📝 Synchronize event - checking files changed since previous commit"
             CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
-            # For opened/reopened, check all files in the PR
+            # For opened/reopened, check all files in the PR (compare PR head against base)
             echo "📝 PR opened/reopened - checking all files in PR"
-            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           fi
           
           echo "Changed files in this push:"
@@ -78,9 +78,9 @@ jobs:
             echo "📝 Synchronize event - checking files changed/added since previous commit"
             CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
-            # For opened/reopened, check all files in the PR (new and modified)
+            # For opened/reopened, check all files in the PR (compare PR head against base)
             echo "📝 PR opened/reopened - checking all new/modified files in PR"
-            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           fi
           
           # Filter for recipe files only that were changed or added

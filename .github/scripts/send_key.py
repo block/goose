@@ -148,7 +148,7 @@ def provision_api_key(provisioning_api_key):
                 "Content-Type": "application/json"
             },
             json={
-                "name": "Goose Contributor",
+                "name": "goose contributor",
                 "label": "goose-cookbook",
                 "limit": 10.0
             }
@@ -167,13 +167,13 @@ def send_email(email, api_key, sendgrid_api_key):
     print("📤 Sending email via SendGrid...")
     try:
         sg = SendGridAPIClient(sendgrid_api_key)
-        from_email = "Goose Team <goose@opensource.block.xyz>"
-        subject = "🎉 Your Goose Contributor API Key"
+        from_email = "goose team <goose@opensource.block.xyz>"
+        subject = "🎉 Your goose contributor API key"
         html_content = f"""
-            <p>Thank you for contributing to the <strong>Goose Recipe Cookbook</strong>!</p>
+            <p>Thank you for contributing to the <strong>goose recipe cookbook</strong>!</p>
             <p>🎉 Here's your <strong>$10 OpenRouter API key</strong>:</p>
             <pre style="background-color:#f4f4f4;padding:10px;border-radius:6px;"><code>{api_key}</code></pre>
-            <p>To use this in Goose (CLI or Desktop):</p>
+            <p>To use this in goose (CLI or Desktop):</p>
             <ul>
               <li>Go to your <strong>Provider Settings</strong></li>
               <li>Select <strong>OpenRouter</strong> from the provider list</li>
@@ -182,7 +182,7 @@ def send_email(email, api_key, sendgrid_api_key):
             <p>📚 Full setup instructions:<br>
             <a href="https://block.github.io/goose/docs/getting-started/providers/#configure-provider">
             https://block.github.io/goose/docs/getting-started/providers/#configure-provider</a></p>
-            <p>Happy coding!<br>– The Goose Team</p>
+            <p>Happy coding!<br>– the goose team</p>
         """
         message = Mail(
             from_email=from_email,
@@ -216,7 +216,7 @@ def comment_on_pr(github_token, repo_full_name, pr_number, email):
                 "Accept": "application/vnd.github+json"
             },
             json={
-                "body": f"✅ $10 OpenRouter API key sent to `{email}`. Thanks for your contribution to the Goose Cookbook!"
+                "body": f"✅ $10 OpenRouter API key sent to `{email}`. Thanks for your contribution to the goose cookbook!"
             }
         )
         comment_resp.raise_for_status()

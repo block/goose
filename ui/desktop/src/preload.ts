@@ -53,7 +53,8 @@ type ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     recipe?: Recipe,
-    viewType?: string
+    viewType?: string,
+    recipeId?: string
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
@@ -78,6 +79,7 @@ type ElectronAPI = {
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
   getSecretKey: () => Promise<string>;
+  getGoosedHostPort: () => Promise<string | null>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
@@ -110,8 +112,8 @@ type ElectronAPI = {
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
   // Recipe warning functions
   closeWindow: () => void;
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
-  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
+  hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
 };
 
@@ -139,9 +141,19 @@ const electronAPI: ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     recipe?: Recipe,
-    viewType?: string
+    viewType?: string,
+    recipeId?: string
   ) =>
-    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
+    ipcRenderer.send(
+      'create-chat-window',
+      query,
+      dir,
+      version,
+      resumeSessionId,
+      recipe,
+      viewType,
+      recipeId
+    ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
@@ -168,6 +180,7 @@ const electronAPI: ElectronAPI = {
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
+  getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
@@ -230,10 +243,9 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('get-update-state');
   },
   closeWindow: () => ipcRenderer.send('close-window'),
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
-  recordRecipeHash: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
+  hasAcceptedRecipeBefore: (recipe: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipe),
+  recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
 };

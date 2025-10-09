@@ -63,7 +63,7 @@ copy-binary BUILD_MODE="release":
         echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
         cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
     else \
-        echo "Goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
     @if [ -f ./temporal-service/temporal-service ]; then \
@@ -143,12 +143,21 @@ run-ui:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
+run-ui-playwright:
+    #!/usr/bin/env sh
+    just release-binary
+    echo "Running UI with Playwright debugging..."
+    RUN_DIR="$HOME/goose-runs/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$RUN_DIR"
+    echo "Using isolated directory: $RUN_DIR"
+    cd ui/desktop && ENABLE_PLAYWRIGHT=true GOOSE_PATH_ROOT="$RUN_DIR" npm run start-gui
+
 run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
 debug-ui:
-	@echo "🚀 Starting Goose frontend in external backend mode"
+	@echo "🚀 Starting goose frontend in external backend mode"
 	cd ui/desktop && \
 	export GOOSE_EXTERNAL_BACKEND=true && \
 	export GOOSE_EXTERNAL_PORT=3000 && \
@@ -163,7 +172,7 @@ debug-ui:
 # 4. If not auto-detected, click "Configure" and add: localhost:9229
 
 debug-ui-main-process:
-	@echo "🔍 Starting Goose UI with main process debugging enabled"
+	@echo "🔍 Starting goose UI with main process debugging enabled"
 	@just release-binary
 	cd ui/desktop && \
 	npm install && \

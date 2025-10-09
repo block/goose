@@ -1,6 +1,6 @@
 ---
 title: File Access and Management
-sidebar_position: 10
+sidebar_position: 70
 sidebar_label: File Management
 description: Efficiently find and reference files in Goose Desktop and follow best practices for safe file operations
 ---

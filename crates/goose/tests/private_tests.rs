@@ -1,6 +1,7 @@
 #![cfg(test)]
 
-use rmcp::model::ErrorCode;
+use rmcp::model::{CallToolRequestParam, ErrorCode};
+use rmcp::object;
 use serde_json::json;
 
 use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -758,85 +759,6 @@ async fn test_schedule_tool_sessions_action_empty() {
 }
 
 #[tokio::test]
-async fn test_schedule_tool_session_content_action() {
-    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
-
-    // Test with a non-existent session
-    let arguments = json!({
-        "action": "session_content",
-        "session_id": "non_existent_session"
-    });
-
-    let result = agent
-        .handle_schedule_management(arguments, "test_req".to_string())
-        .await;
-    assert!(result.is_err());
-
-    if let Err(err) = result {
-        assert!(err
-            .message
-            .contains("Session 'non_existent_session' not found"));
-    } else {
-        panic!("Expected ExecutionError");
-    }
-}
-
-#[tokio::test]
-async fn test_schedule_tool_session_content_action_with_real_session() {
-    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
-
-    // Create a temporary session file in the proper session directory
-    let session_dir = goose::session::storage::ensure_session_dir().unwrap();
-    let session_id = "test_session_real";
-    let session_path = session_dir.join(format!("{}.jsonl", session_id));
-
-    // Create test metadata and messages
-    let metadata = create_test_session_metadata(2, "/tmp");
-    let messages = goose::conversation::Conversation::new_unvalidated(vec![
-        goose::conversation::message::Message::user().with_text("Hello"),
-        goose::conversation::message::Message::assistant().with_text("Hi there!"),
-    ]);
-
-    // Save the session file
-    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
-        .unwrap();
-
-    // Test the session_content action
-    let arguments = json!({
-        "action": "session_content",
-        "session_id": session_id
-    });
-
-    let result = agent
-        .handle_schedule_management(arguments, "test_req".to_string())
-        .await;
-
-    // Clean up the test session file
-    let _ = std::fs::remove_file(&session_path);
-
-    // Verify the result
-    assert!(result.is_ok());
-
-    if let Ok(content) = result {
-        assert_eq!(content.len(), 1);
-        if let Some(text_content) = content[0].as_text() {
-            assert!(text_content
-                .text
-                .contains("Session 'test_session_real' Content:"));
-            assert!(text_content.text.contains("Metadata:"));
-            assert!(text_content.text.contains("Messages:"));
-            assert!(text_content.text.contains("Hello"));
-            assert!(text_content.text.contains("Hi there!"));
-            assert!(text_content.text.contains("Test session"));
-        } else {
-            panic!("Expected text content");
-        }
-    } else {
-        panic!("Expected successful result");
-    }
-}
-
-#[tokio::test]
 async fn test_schedule_tool_session_content_action_missing_session_id() {
     let (agent, _) = ScheduleToolTestBuilder::new().build().await;
 
@@ -887,15 +809,15 @@ async fn test_schedule_tool_dispatch() {
         .await;
 
     // Test that the tool is properly dispatched through dispatch_tool_call
-    let tool_call = mcp_core::tool::ToolCall {
-        name: PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
-        arguments: json!({
+    let tool_call = CallToolRequestParam {
+        name: PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.into(),
+        arguments: Some(object!({
             "action": "list"
-        }),
+        })),
     };
 
     let (request_id, result) = agent
-        .dispatch_tool_call(tool_call, "test_dispatch".to_string(), None, &None)
+        .dispatch_tool_call(tool_call, "test_dispatch".to_string(), None, None)
         .await;
     assert_eq!(request_id, "test_dispatch");
     assert!(result.is_ok());

@@ -8,9 +8,9 @@ use crate::providers::utils::{
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use futures::Stream;
-use mcp_core::ToolCall;
 use rmcp::model::{
-    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -59,7 +59,7 @@ struct StreamingChunk {
 ///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
-    for message in messages {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let mut converted = json!({
             "role": message.role
         });
@@ -104,6 +104,13 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
+                        let arguments_str = match &tool_call.arguments {
+                            Some(args) => {
+                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                            }
+                            None => "{}".to_string(),
+                        };
+
                         let tool_calls = converted
                             .as_object_mut()
                             .unwrap()
@@ -115,7 +122,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": arguments_str,
                             }
                         }));
                     }
@@ -209,6 +216,13 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
+                        let arguments_str = match &tool_call.arguments {
+                            Some(args) => {
+                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                            }
+                            None => "{}".to_string(),
+                        };
+
                         let tool_calls = converted
                             .as_object_mut()
                             .unwrap()
@@ -220,7 +234,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": arguments_str,
                             }
                         }));
                     }
@@ -316,7 +330,10 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(ToolCall::new(&function_name, params)),
+                                Ok(CallToolRequestParam {
+                                    name: function_name.into(),
+                                    arguments: Some(object(params)),
+                                }),
                             ));
                         }
                         Err(e) => {
@@ -515,7 +532,7 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request(
                                     id.clone(),
-                                    Ok(ToolCall::new(function_name.clone(), params)),
+                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
                                 )
                             },
                             Err(e) => {
@@ -585,7 +602,7 @@ pub fn create_request(
 ) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
-            "o1-mini model is not currently supported since Goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
+            "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
@@ -821,7 +838,10 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+                Ok(CallToolRequestParam {
+                    name: "example".into(),
+                    arguments: Some(object!({"param1": "value1"})),
+                }),
             ),
         ];
 
@@ -855,7 +875,10 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+            Ok(CallToolRequestParam {
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -1000,7 +1023,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({"param": "value"}));
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1071,10 +1094,124 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({}));
+            assert_eq!(tool_call.arguments, Some(object!({})));
         } else {
             panic!("Expected ToolRequest content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with None arguments are formatted as "{}" string
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: None, // This is the key case the fix addresses
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+
+        let tool_call = &spec[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be the string "{}", not null
+        assert_eq!(tool_call["function"]["arguments"], "{}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_some_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with Some arguments are properly JSON-serialized
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value", "number": 42})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+
+        let tool_call = &spec[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be a JSON string representation
+        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
+        let parsed_args: Value = serde_json::from_str(args_str)?;
+        assert_eq!(parsed_args["param"], "value");
+        assert_eq!(parsed_args["number"], 42);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_frontend_tool_request_with_none_arguments() -> anyhow::Result<()> {
+        // Test that FrontendToolRequest with None arguments are formatted as "{}" string
+        let message = Message::assistant().with_frontend_tool_request(
+            "frontend_tool1",
+            Ok(CallToolRequestParam {
+                name: "frontend_test_tool".into(),
+                arguments: None, // This is the key case the fix addresses
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+
+        let tool_call = &spec[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "frontend_tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "frontend_test_tool");
+        // This should be the string "{}", not null
+        assert_eq!(tool_call["function"]["arguments"], "{}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_frontend_tool_request_with_some_arguments() -> anyhow::Result<()> {
+        // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
+        let message = Message::assistant().with_frontend_tool_request(
+            "frontend_tool1",
+            Ok(CallToolRequestParam {
+                name: "frontend_test_tool".into(),
+                arguments: Some(object!({"action": "click", "element": "button"})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+
+        let tool_call = &spec[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "frontend_tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "frontend_test_tool");
+        // This should be a JSON string representation
+        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
+        let parsed_args: Value = serde_json::from_str(args_str)?;
+        assert_eq!(parsed_args["action"], "click");
+        assert_eq!(parsed_args["element"], "button");
 
         Ok(())
     }

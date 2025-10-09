@@ -15,8 +15,8 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "gpt-5";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["gpt-5", "opus-4.1", "sonnet-4"];
+pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
+pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 
@@ -133,7 +133,7 @@ impl CursorAgentProvider {
         full_prompt.push_str("\n\n");
 
         // Add conversation history
-        for message in messages {
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
             let role_prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -149,7 +149,7 @@ impl CursorAgentProvider {
                     MessageContent::ToolRequest(tool_request) => {
                         if let Ok(tool_call) = &tool_request.tool_call {
                             full_prompt.push_str(&format!(
-                                "Tool Use: {} with args: {}\n",
+                                "Tool Use: {} with args: {:?}\n",
                                 tool_call.name, tool_call.arguments
                             ));
                         }
@@ -267,7 +267,7 @@ impl CursorAgentProvider {
 
         // Only pass model parameter if it's in the known models list
         if CURSOR_AGENT_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("-m").arg(&self.model.model_name);
+            cmd.arg("--model").arg(&self.model.model_name);
         }
 
         cmd.arg("-p")
@@ -455,7 +455,7 @@ mod tests {
         let provider = CursorAgentProvider::default();
         let config = provider.get_model_config();
 
-        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(config.model_name, "auto");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
     }

@@ -1,20 +1,17 @@
-use crate::config::{Config, APP_STRATEGY};
+use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::model::ModelConfig;
 use crate::providers::anthropic::AnthropicProvider;
 use crate::providers::base::ModelInfo;
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
 pub fn custom_providers_dir() -> std::path::PathBuf {
-    choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir()
-        .join("custom_providers")
+    Paths::config_dir().join("custom_providers")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

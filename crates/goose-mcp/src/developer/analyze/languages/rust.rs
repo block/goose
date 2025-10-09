@@ -26,3 +26,25 @@ pub const CALL_QUERY: &str = r#"
     (macro_invocation
       macro: (identifier) @macro.call)
 "#;
+
+/// Extract function name for Rust-specific node kinds
+///
+/// Rust has special cases like impl_item blocks that should be
+/// formatted as "impl TypeName" instead of extracting a simple name.
+pub fn extract_function_name_for_kind(
+    node: &tree_sitter::Node,
+    source: &str,
+    kind: &str,
+) -> Option<String> {
+    if kind == "impl_item" {
+        // For impl blocks, find the type being implemented
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                if child.kind() == "type_identifier" {
+                    return Some(format!("impl {}", &source[child.byte_range()]));
+                }
+            }
+        }
+    }
+    None
+}

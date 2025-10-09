@@ -34,13 +34,14 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
-const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
+const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-1-5-flash";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-2-5-flash";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
+    "databricks-claude-sonnet-4-5",
     "databricks-claude-3-7-sonnet",
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
