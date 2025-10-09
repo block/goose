@@ -188,6 +188,14 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 }
 
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
+    let mut input_schema = tool.input_schema.as_ref().clone();
+
+    // If the schema doesn't have a "type" field, add it
+    // This is required by Bedrock
+    if !input_schema.contains_key("type") {
+        input_schema.insert("type".to_string(), Value::String("object".to_string()));
+    }
+
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
             .name(tool.name.to_string())
@@ -198,7 +206,7 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
                     .unwrap_or_default(),
             )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &Value::Object(tool.input_schema.as_ref().clone()),
+                &Value::Object(input_schema),
             )))
             .build()?,
     ))
