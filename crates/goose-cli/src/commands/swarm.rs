@@ -780,17 +780,17 @@ async fn run_recipe(recipe_content: &str, params: Vec<(String, String)>) -> Resu
             .map(|(_, v)| v.as_str())
             .unwrap_or("0");
 
-        Some(goose::session::Identifier::Name(format!(
+        Some(format!(
             "swarm-drone-{}-task-{}",
             worker_id, task_number
-        )))
+        ))
     } else {
         None
     };
 
     // Build and run the session
     let mut session = build_session(SessionBuilderConfig {
-        identifier: session_identifier.clone(),
+        session_id: session_identifier.clone(),
         resume: false,
         no_session: !needs_session, // Use session for drone tasks
         extensions: Vec::new(),
