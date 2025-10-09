@@ -3,9 +3,13 @@ use std::collections::HashMap;
 use crate::agents::subagent_execution_tool::task_types::{TaskInfo, TaskStatus};
 
 pub fn get_task_name(task_info: &TaskInfo) -> &str {
+    // Try to get recipe title from payload, otherwise use task ID
     task_info
         .task
-        .get_sub_recipe_name()
+        .payload
+        .get("recipe")
+        .and_then(|r| r.get("title"))
+        .and_then(|t| t.as_str())
         .unwrap_or(&task_info.task.id)
 }
 

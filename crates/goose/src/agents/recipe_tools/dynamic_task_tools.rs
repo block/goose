@@ -4,10 +4,7 @@
 // =======================================
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::subagent_execution_tool::{
-    lib::ExecutionMode,
-    task_types::{Task, TaskType},
-};
+use crate::agents::subagent_execution_tool::{lib::ExecutionMode, task_types::Task};
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::{Recipe, RecipeBuilder};
 use anyhow::{anyhow, Result};
@@ -276,7 +273,6 @@ pub async fn create_dynamic_task(
 
                 let task = Task {
                     id: uuid::Uuid::new_v4().to_string(),
-                    task_type: TaskType::InlineRecipe,
                     payload: json!({
                         "recipe": recipe_json,
                         "return_last_only": return_last_only

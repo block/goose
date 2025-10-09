@@ -7,8 +7,10 @@ use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
 use crate::agents::subagent_execution_tool::lib::ExecutionMode;
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskType};
+use crate::agents::subagent_execution_tool::task_types::Task;
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::recipe::build_recipe::build_recipe_from_template;
+use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 use super::param_utils::prepare_command_params;
@@ -54,27 +56,41 @@ fn extract_task_parameters(params: &Value) -> Vec<Value> {
 fn create_tasks_from_params(
     sub_recipe: &SubRecipe,
     command_params: &[std::collections::HashMap<String, String>],
-) -> Vec<Task> {
-    let tasks: Vec<Task> = command_params
-        .iter()
-        .map(|task_command_param| {
-            let payload = json!({
-                "sub_recipe": {
-                    "name": sub_recipe.name.clone(),
-                    "command_parameters": task_command_param,
-                    "recipe_path": sub_recipe.path.clone(),
-                    "sequential_when_repeated": sub_recipe.sequential_when_repeated
-                }
-            });
-            Task {
-                id: uuid::Uuid::new_v4().to_string(),
-                task_type: TaskType::SubRecipe,
-                payload,
-            }
-        })
-        .collect();
+) -> Result<Vec<Task>> {
+    let mut tasks = Vec::new();
 
-    tasks
+    for task_command_param in command_params {
+        // Load the recipe file for each task (can't clone RecipeFile)
+        let recipe_file = load_local_recipe_file(&sub_recipe.path)
+            .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
+
+        // Build the recipe with parameters applied
+        let recipe = build_recipe_from_template(
+            recipe_file,
+            task_command_param
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to build recipe: {}", e))?;
+
+        // Create task with the fully-formed recipe
+        let payload = json!({
+            "recipe": recipe,
+            "return_last_only": false,
+            "sequential_when_repeated": sub_recipe.sequential_when_repeated
+        });
+
+        let task = Task {
+            id: uuid::Uuid::new_v4().to_string(),
+            payload,
+        };
+
+        tasks.push(task);
+    }
+
+    Ok(tasks)
 }
 
 fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
@@ -97,7 +113,7 @@ pub async fn create_sub_recipe_task(
 ) -> Result<String> {
     let task_params_array = extract_task_parameters(&params);
     let command_params = prepare_command_params(sub_recipe, task_params_array.clone())?;
-    let tasks = create_tasks_from_params(sub_recipe, &command_params);
+    let tasks = create_tasks_from_params(sub_recipe, &command_params)?;
     let task_execution_payload = create_task_execution_payload(&tasks, sub_recipe);
 
     let tasks_json = serde_json::to_string(&task_execution_payload)

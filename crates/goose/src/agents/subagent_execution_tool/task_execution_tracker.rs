@@ -28,25 +28,27 @@ const THROTTLE_INTERVAL_MS: u64 = 250;
 const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
-    if let Some(params) = task_info.task.get_command_parameters() {
-        if params.is_empty() {
-            return String::new();
-        }
-
-        params
-            .iter()
-            .map(|(key, value)| {
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                format!("{}={}", key, value_str)
-            })
-            .collect::<Vec<_>>()
-            .join(",")
-    } else {
-        String::new()
-    }
+    // Try to extract metadata from the recipe in payload
+    task_info
+        .task
+        .payload
+        .get("recipe")
+        .and_then(|r| r.get("metadata"))
+        .and_then(|m| m.as_object())
+        .map(|metadata| {
+            metadata
+                .iter()
+                .map(|(key, value)| {
+                    let value_str = match value {
+                        Value::String(s) => s.clone(),
+                        _ => value.to_string(),
+                    };
+                    format!("{}={}", key, value_str)
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        })
+        .unwrap_or_default()
 }
 
 pub struct TaskExecutionTracker {
@@ -151,7 +153,7 @@ impl TaskExecutionTracker {
     async fn format_line(&self, task_info: Option<&TaskInfo>, line: &str) -> String {
         if let Some(task_info) = task_info {
             let task_name = get_task_name(task_info);
-            let task_type = task_info.task.task_type.clone();
+            let task_type = "recipe"; // All tasks are now recipes
             let metadata = format_task_metadata(task_info);
 
             if metadata.is_empty() {
@@ -232,7 +234,7 @@ impl TaskExecutionTracker {
                         }
                     }),
                     current_output: task_info.current_output.clone(),
-                    task_type: task_info.task.task_type.to_string(),
+                    task_type: "recipe".to_string(),
                     task_name: get_task_name(task_info).to_string(),
                     task_metadata: format_task_metadata(task_info),
                     error: task_info.error().cloned(),
