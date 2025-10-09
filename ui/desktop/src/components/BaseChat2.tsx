@@ -10,16 +10,17 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message } from '../api';
+import { Message, Session } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
+import { loadSession } from '../utils/sessionCache';
 
 interface BaseChatProps {
-  chat: ChatType | null;
+  chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -35,10 +36,12 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState?: boolean;
   autoSubmit?: boolean;
+  resumeSessionId?: string; // Optional session ID to resume on mount
 }
 
 function BaseChatContent({
   chat,
+  setChat,
   setView,
   setIsGoosehintsModalOpen,
   renderHeader,
@@ -47,6 +50,7 @@ function BaseChatContent({
   customChatInputProps = {},
   customMainLayoutProps = {},
   disableSearch = false,
+  resumeSessionId,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -72,17 +76,62 @@ function BaseChatContent({
   //   session: sessionMetadata,
   // });
 
-  const [messages, setMessages] = useState(chat?.messages || []);
+  // Session loading state
+  const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
+  const hasLoadedSessionRef = useRef(false);
+
+  const [messages, setMessages] = useState(chat.messages || []);
+
+  // Load session on mount if resumeSessionId is provided
+  useEffect(() => {
+    const needsLoad = resumeSessionId && !hasLoadedSessionRef.current;
+
+    if (needsLoad) {
+      hasLoadedSessionRef.current = true;
+      setSessionLoadError(null);
+
+      // Set chat to empty session to indicate loading state
+      // todo: set to null instead and handle that in other places
+      const emptyChat: ChatType = {
+        sessionId: resumeSessionId,
+        title: 'Loading...',
+        messageHistoryIndex: 0,
+        messages: [],
+        recipe: null,
+        recipeParameters: null,
+      };
+      setChat(emptyChat);
+
+      loadSession(resumeSessionId)
+        .then((session: Session) => {
+          const conversation = session.conversation || [];
+          const loadedChat: ChatType = {
+            sessionId: session.id,
+            title: session.description || 'Untitled Chat',
+            messageHistoryIndex: 0,
+            messages: conversation,
+            recipe: null,
+            recipeParameters: null,
+          };
+
+          setChat(loadedChat);
+        })
+        .catch((error: Error) => {
+          const errorMessage = error.message || 'Failed to load session';
+          setSessionLoadError(errorMessage);
+        });
+    }
+  }, [resumeSessionId, setChat]);
 
   // Update messages when chat changes (e.g., when resuming a session)
   useEffect(() => {
-    if (chat?.messages) {
+    if (chat.messages) {
       setMessages(chat.messages);
     }
-  }, [chat?.messages, chat?.sessionId]);
+  }, [chat.messages, chat.sessionId]);
 
   const { chatState, handleSubmit, stopStreaming } = useChatStream({
-    sessionId: chat?.sessionId || '',
+    sessionId: chat.sessionId || '',
     messages,
     setMessages,
     onStreamFinish: () => {},
@@ -236,9 +285,27 @@ function BaseChatContent({
             {/*  </div>*/}
             {/*)}*/}
 
+            {sessionLoadError && (
+              <div className="flex flex-col items-center justify-center p-8">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
+                  <h3 className="font-semibold mb-2">Failed to Load Session</h3>
+                  <p className="text-sm">{sessionLoadError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSessionLoadError(null);
+                    hasLoadedSessionRef.current = false;
+                  }}
+                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* Messages or Popular Topics */}
             {
-              !chat ? null : messages.length > 0 || recipe ? (
+              messages.length > 0 || recipe ? (
                 <>
                   {disableSearch ? (
                     renderProgressiveMessageList(chat)
@@ -304,11 +371,11 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(!chat || isCompacting) && (
+          {(messages.length === 0 || isCompacting) && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 message={
-                  !chat
+                  messages.length === 0
                     ? 'loading conversation...'
                     : isCompacting
                       ? 'goose is compacting the conversation...'

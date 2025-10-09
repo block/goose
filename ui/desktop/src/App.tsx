@@ -99,10 +99,6 @@ const PairRouteWrapper = ({
       chat={chat}
       setChat={setChat}
       setView={setView}
-      agentState={agentState}
-      loadCurrentChat={loadCurrentChat}
-      setFatalError={setFatalError}
-      setAgentWaitingMessage={setAgentWaitingMessage}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}
@@ -346,7 +342,6 @@ export function AppInner() {
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
-          // Update the chat state with the loaded session to ensure sessionId is available globally
           setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
