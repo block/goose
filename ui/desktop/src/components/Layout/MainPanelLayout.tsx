@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useSidecar, Sidecar } from '../SidecarLayout';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, X, Globe, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
+import SidecarTabs from '../SidecarTabs';
+import { FileViewer } from '../FileViewer';
 
 interface SidecarContainer {
   id: string;
@@ -98,7 +99,7 @@ const ContainerPopover: React.FC<ContainerPopoverProps> = ({ onSelect, onClose, 
   );
 };
 
-// ResizeHandle component for horizontal resizing between containers
+// ResizeHandle component for horizontal resizing between panels
 const ResizeHandle: React.FC<{
   onResize: (delta: number) => void;
   isResizing: boolean;
@@ -138,17 +139,28 @@ const ResizeHandle: React.FC<{
   );
 };
 
-// Individual container component
-const ContainerComponent: React.FC<{
-  container: SidecarContainer;
-  onRemove: () => void;
-  width: number;
-  isLast: boolean;
-  onAddAfter: () => void;
-}> = ({ container, onRemove, width, isLast, onAddAfter }) => {
+// BentoBox component - contains all sidecars in a single flexible container
+const BentoBox: React.FC<{
+  containers: SidecarContainer[];
+  onRemoveContainer: (containerId: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file', filePath?: string) => void;
+}> = ({ containers, onRemoveContainer, onAddContainer }) => {
+  const [containerWidths, setContainerWidths] = useState<{ [containerId: string]: number }>({});
   const [isHovering, setIsHovering] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+
+  // Calculate equal widths for all containers
+  useEffect(() => {
+    if (containers.length > 0) {
+      const equalWidth = Math.floor(100 / containers.length); // Use percentages
+      const widths = {};
+      containers.forEach(container => {
+        widths[container.id] = equalWidth;
+      });
+      setContainerWidths(widths);
+    }
+  }, [containers.length]);
 
   const handleAddClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -160,59 +172,78 @@ const ContainerComponent: React.FC<{
   };
 
   const handlePopoverSelect = (type: 'sidecar' | 'localhost' | 'file') => {
-    onAddAfter();
-    // The parent will handle creating the container with the selected type
+    onAddContainer(type);
+    setShowPopover(false);
   };
 
   return (
-    <div 
-      className="h-full relative group flex-shrink-0 overflow-hidden"
-      style={{ width: `${width}px` }}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      {/* Container header with remove button - only show on hover */}
-      <div className="absolute top-2 right-2 z-30">
-        <Button
-          onClick={onRemove}
-          variant="ghost"
-          size="sm"
-          className="w-6 h-6 rounded-full bg-background-default/90 hover:bg-background-default opacity-0 group-hover:opacity-100 transition-opacity shadow-lg border border-border-subtle"
-        >
-          <X className="w-3 h-3" />
-        </Button>
-      </div>
+    <div className="flex-1 h-full bg-background-default rounded-xl overflow-hidden relative">
+      {/* Container grid */}
+      <div className="flex h-full w-full">
+        {containers.map((container, index) => (
+          <React.Fragment key={container.id}>
+            <div 
+              className="h-full relative"
+              style={{ width: `${containerWidths[container.id] || 100 / containers.length}%` }}
+            >
+              {/* Container content */}
+              <div className="h-full w-full">
+                {container.content || (
+                  <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted border border-border-subtle rounded-lg">
+                    <p className="text-text-muted text-sm text-center">Empty container</p>
+                  </div>
+                )}
+              </div>
 
-      {/* Container content - fills entire container */}
-      <div className="h-full w-full relative">
-        {container.content || (
-          <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted border border-border-subtle rounded-lg">
-            <p className="text-text-muted text-sm text-center">Empty container</p>
-          </div>
-        )}
+              {/* X button for removing individual containers */}
+              <button
+                onClick={() => {
+                  console.log('🔍 X BUTTON CLICKED for container:', container.id);
+                  alert(`Removing container: ${container.id}`);
+                  onRemoveContainer(container.id);
+                }}
+                onMouseEnter={() => console.log('🔍 X button mouse enter:', container.id)}
+                onMouseLeave={() => console.log('🔍 X button mouse leave:', container.id)}
+                className="absolute top-2 right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white font-bold text-lg rounded-full flex items-center justify-center cursor-pointer shadow-xl border-2 border-white transition-all hover:scale-110"
+                style={{ 
+                  zIndex: 999999,
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px'
+                }}
+                title="Remove container"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Vertical divider between containers */}
+            {index < containers.length - 1 && (
+              <div className="w-px bg-border-subtle flex-shrink-0" />
+            )}
+          </React.Fragment>
+        ))}
       </div>
 
       {/* Right edge hover zone for adding new container */}
-      {isLast && (
-        <div
-          className="absolute top-0 right-0 w-4 h-full z-10 pointer-events-auto"
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
-        >
-          {isHovering && (
-            <div className="absolute right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2">
-              <Button
-                onClick={handleAddClick}
-                className="w-8 h-8 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 pointer-events-auto"
-                variant="ghost"
-                size="sm"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+      <div
+        className="absolute top-0 right-0 w-4 h-full z-10 pointer-events-auto"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        {isHovering && (
+          <div className="absolute right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2">
+            <Button
+              onClick={handleAddClick}
+              className="w-8 h-8 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 pointer-events-auto"
+              variant="ghost"
+              size="sm"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Popover for content selection */}
       {showPopover && (
@@ -222,6 +253,17 @@ const ContainerComponent: React.FC<{
           position={popoverPosition}
         />
       )}
+
+      {/* X button to close entire bento box */}
+      <button
+        onClick={() => {
+          // Remove all containers to close the bento box
+          containers.forEach(container => onRemoveContainer(container.id));
+        }}
+        className="absolute top-2 left-2 z-[9999] w-6 h-6 rounded-full bg-background-default/80 hover:bg-background-default text-text-default shadow-lg border border-border-subtle flex items-center justify-center cursor-pointer pointer-events-auto transition-all"
+      >
+        <X className="w-3 h-3" />
+      </button>
     </div>
   );
 };
@@ -231,85 +273,83 @@ export const MainPanelLayout: React.FC<{
   removeTopPadding?: boolean;
   backgroundColor?: string;
 }> = ({ children, removeTopPadding = false, backgroundColor = 'bg-background-default' }) => {
-  const sidecar = useSidecar();
   
-  // State for sidecar containers
-  const [containers, setContainers] = useState<SidecarContainer[]>([]);
-  const [chatWidth, setChatWidth] = useState(600); // Fixed width for chat panel
-  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Simplified state - just track if we have a bento box and what's in it
+  const [hasBentoBox, setHasBentoBox] = useState(false);
+  const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
+  const [chatWidth, setChatWidth] = useState(600);
 
-  // Check if main sidecar is visible
-  const mainSidecarVisible = sidecar?.activeViews && sidecar?.activeViews.length > 0;
+  // Create or show the bento box
+  const createBentoBox = useCallback(() => {
+    if (!hasBentoBox) {
+      setHasBentoBox(true);
+      // Start with one container
+      const initialContainer: SidecarContainer = {
+        id: `bento-${Date.now()}`,
+        content: (
+          <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+            <p>Sidecar content will go here</p>
+          </div>
+        ),
+        contentType: 'sidecar',
+        title: 'Sidecar'
+      };
+      setBentoBoxContainers([initialContainer]);
+    }
+  }, [hasBentoBox]);
 
-  // Calculate container widths (equal distribution)
-  const containerWidth = useMemo(() => {
-    if (containers.length === 0) return 0;
-    
-    const availableWidth = (containerRef.current?.clientWidth || window.innerWidth) - chatWidth - (containers.length * 4); // 4px per resize handle
-    return Math.max(300, availableWidth / containers.length);
-  }, [containers.length, chatWidth]);
-
-  // Add a new container
-  const addContainer = useCallback((contentType: 'sidecar' | 'localhost' | 'file' = 'sidecar', afterIndex?: number, filePath?: string) => {
+  // Add content to bento box
+  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file', filePath?: string) => {
     const newContainer: SidecarContainer = {
-      id: `container-${Date.now()}`,
+      id: `bento-${Date.now()}`,
       content: null,
       contentType: null
     };
 
     // Create content based on type
     if (contentType === 'sidecar') {
-      newContainer.content = <Sidecar className="h-full" />;
+      newContainer.content = (
+        <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+          <p>Sidecar content will go here</p>
+        </div>
+      );
       newContainer.contentType = 'sidecar';
       newContainer.title = 'Sidecar';
     } else if (contentType === 'localhost') {
-      const instanceId = `container-${newContainer.id}`;
-      if (sidecar) {
-        sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer', instanceId);
-        // Give the sidecar context time to create the view, then render it
-        setTimeout(() => {
-          setContainers(prev => prev.map(c => 
-            c.id === newContainer.id 
-              ? { ...c, content: <Sidecar className="h-full" viewId={`localhost-${instanceId}`} /> }
-              : c
-          ));
-        }, 100);
-      }
-      newContainer.content = <div className="h-full flex items-center justify-center text-text-muted">Loading localhost viewer...</div>;
+      newContainer.content = <SidecarTabs initialUrl="http://localhost:3000" />;
       newContainer.contentType = 'localhost';
       newContainer.title = 'Localhost Viewer';
     } else if (contentType === 'file' && filePath) {
-      const instanceId = `container-${newContainer.id}`;
-      if (sidecar) {
-        sidecar.showFileViewer(filePath, instanceId);
-        // Give the sidecar context time to create the view, then render it
-        setTimeout(() => {
-          setContainers(prev => prev.map(c => 
-            c.id === newContainer.id 
-              ? { ...c, content: <Sidecar className="h-full" viewId={`file-${instanceId}`} /> }
-              : c
-          ));
-        }, 100);
-      }
-      newContainer.content = <div className="h-full flex items-center justify-center text-text-muted">Loading file viewer...</div>;
+      newContainer.content = <FileViewer filePath={filePath} />;
       newContainer.contentType = 'file';
       newContainer.title = filePath?.split('/').pop() || 'File Viewer';
     }
 
-    setContainers(prev => {
-      if (afterIndex !== undefined) {
-        const newContainers = [...prev];
-        newContainers.splice(afterIndex + 1, 0, newContainer);
-        return newContainers;
-      }
-      return [...prev, newContainer];
-    });
-  }, [sidecar]);
+    // If no bento box exists, create it first
+    if (!hasBentoBox) {
+      setHasBentoBox(true);
+      setBentoBoxContainers([newContainer]);
+    } else {
+      // Add to existing bento box
+      setBentoBoxContainers(prev => [...prev, newContainer]);
+    }
+  }, [hasBentoBox]);
 
-  // Remove a container
-  const removeContainer = useCallback((containerId: string) => {
-    setContainers(prev => prev.filter(c => c.id !== containerId));
+  // Remove from bento box
+  const removeFromBentoBox = useCallback((containerId: string) => {
+    console.log('🔍 MainPanelLayout: removeFromBentoBox called with ID:', containerId);
+    setBentoBoxContainers(prev => {
+      console.log('🔍 MainPanelLayout: Current containers before removal:', prev.length);
+      const updated = prev.filter(c => c.id !== containerId);
+      console.log('🔍 MainPanelLayout: Containers after removal:', updated.length);
+      
+      // If no containers left, hide the bento box
+      if (updated.length === 0) {
+        console.log('🔍 MainPanelLayout: No containers left, hiding bento box');
+        setHasBentoBox(false);
+      }
+      return updated;
+    });
   }, []);
 
   // Handle chat panel resize
@@ -317,73 +357,46 @@ export const MainPanelLayout: React.FC<{
     setChatWidth(prev => Math.max(300, Math.min(1000, prev + delta)));
   }, []);
 
-  // Handle container resize
-  const updateContainerWidth = useCallback((index: number, delta: number) => {
-    // For now, we'll keep equal widths and just trigger a re-render
-    // In a more advanced implementation, you could have individual container widths
-    console.log(`Resize container ${index} by ${delta}px`);
-  }, []);
-
   // Listen for add-container events from SidecarInvoker
   useEffect(() => {
     const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file'; filePath?: string }>) => {
       console.log('🔍 MainPanelLayout: Received add-container event:', e.detail.type, e.detail.filePath);
-      addContainer(e.detail.type, undefined, e.detail.filePath);
+      addToBentoBox(e.detail.type, e.detail.filePath);
     };
 
     window.addEventListener('add-container', handleAddContainer as EventListener);
     return () => window.removeEventListener('add-container', handleAddContainer as EventListener);
-  }, [addContainer]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('🔍 MainPanelLayout: containers:', containers.length);
-    console.log('🔍 MainPanelLayout: mainSidecarVisible:', mainSidecarVisible);
-  }, [containers.length, mainSidecarVisible]);
-
-  const hasContainers = containers.length > 0;
+  }, [addToBentoBox]);
 
   return (
-    <div className={`h-dvh`} ref={containerRef}>
+    <div className="h-dvh">
       <div
         className={`flex ${backgroundColor} flex-1 min-w-0 h-full min-h-0 ${removeTopPadding ? '' : 'pt-[32px]'}`}
       >
-        {/* Chat Panel - Full width when no containers, fixed width when containers exist */}
+        {/* Chat Panel - Full width when no bento box, fixed width when bento box exists */}
         <div 
-          className={hasContainers ? "flex flex-col flex-shrink-0" : "flex flex-col flex-1"}
-          style={hasContainers ? { width: `${chatWidth}px` } : {}}
+          className={hasBentoBox ? "flex flex-col flex-shrink-0" : "flex flex-col flex-1"}
+          style={hasBentoBox ? { width: `${chatWidth}px` } : {}}
         >
           {children}
         </div>
 
-        {/* Chat Resize Handle - only show when containers exist */}
-        {hasContainers && (
+        {/* Chat Resize Handle - only show when bento box exists */}
+        {hasBentoBox && (
           <ResizeHandle
             onResize={updateChatWidth}
-            isResizing={resizingIndex === -1}
+            isResizing={false}
           />
         )}
 
-        {/* Container Layout - only show when containers exist */}
-        {hasContainers && containers.map((container, index) => (
-          <React.Fragment key={container.id}>
-            <ContainerComponent
-              container={container}
-              onRemove={() => removeContainer(container.id)}
-              width={containerWidth}
-              isLast={index === containers.length - 1}
-              onAddAfter={() => addContainer('sidecar', index)}
-            />
-
-            {/* Resize Handle between containers */}
-            {index < containers.length - 1 && (
-              <ResizeHandle
-                onResize={(delta) => updateContainerWidth(index, delta)}
-                isResizing={resizingIndex === index}
-              />
-            )}
-          </React.Fragment>
-        ))}
+        {/* Bento Box - Single container that holds all sidecars */}
+        {hasBentoBox && (
+          <BentoBox
+            containers={bentoBoxContainers}
+            onRemoveContainer={removeFromBentoBox}
+            onAddContainer={addToBentoBox}
+          />
+        )}
       </div>
     </div>
   );
