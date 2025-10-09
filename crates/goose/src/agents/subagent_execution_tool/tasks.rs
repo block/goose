@@ -51,6 +51,8 @@ async fn handle_recipe_task(
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
     use crate::agents::subagent_handler::run_complete_subagent_task;
+    use crate::model::ModelConfig;
+    use crate::providers;
     use crate::recipe::Recipe;
 
     let recipe_value = task
@@ -67,9 +69,25 @@ async fn handle_recipe_task(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    // Apply recipe extensions if specified
     if let Some(exts) = recipe.extensions {
         if !exts.is_empty() {
             task_config.extensions = exts.clone();
+        }
+    }
+
+    // Apply recipe provider settings if specified
+    if let Some(settings) = recipe.settings {
+        match (settings.goose_provider, settings.goose_model) {
+            (Some(provider), Some(model)) => {
+                let model_config =
+                    ModelConfig::new_or_fail(&model).with_temperature(settings.temperature);
+                task_config.provider = providers::create(&provider, model_config)
+                    .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
+            }
+            (Some(_), None) => return Err("Recipe specifies provider but no model".to_string()),
+            (None, Some(_)) => return Err("Recipe specifies model but no provider".to_string()),
+            _ => {} // No provider/model override
         }
     }
 
