@@ -1,6 +1,6 @@
 use crate::recipe::read_recipe_file_content::{read_parameter_file_content, RecipeFile};
 use crate::recipe::template_recipe::render_recipe_content_with_params;
-use crate::recipe::validate_recipe::validate_recipe_parameters;
+use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
@@ -35,8 +35,11 @@ where
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
-    let recipe_parameters =
-        validate_recipe_parameters(&recipe_file_content, Some(recipe_dir_str.to_string()))?;
+    let recipe_parameters = validate_recipe_template_from_content(
+        &recipe_file_content,
+        Some(recipe_dir_str.to_string()),
+    )?
+    .parameters;
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, recipe_dir_str, user_prompt_fn)?;

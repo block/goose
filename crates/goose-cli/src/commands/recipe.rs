@@ -6,32 +6,25 @@ use crate::recipes::github_recipe::RecipeSource;
 use crate::recipes::search_recipe::{list_available_recipes, load_recipe_file};
 use goose::recipe_deeplink;
 
-/// Validates a recipe file
-///
-/// # Arguments
-///
-/// * `file_path` - Path to the recipe file to validate
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
     let recipe_file = load_recipe_file(recipe_name)?;
-    validate_recipe_template_from_file(&recipe_file)?;
-    println!("{} recipe file is valid", style("✓").green().bold());
-    Ok(())
+    match validate_recipe_template_from_file(&recipe_file) {
+        Ok(_) => {
+            println!("{} recipe file is valid", style("✓").green().bold());
+            Ok(())
+        }
+        Err(err) => {
+            println!(
+                "{} recipe file is invalid: {}",
+                style("✗").red().bold(),
+                err
+            );
+            Ok(())
+        }
+    }
 }
 
-/// Generates a deeplink for a recipe file
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     match generate_deeplink(recipe_name) {
         Ok((deeplink_url, recipe)) => {
@@ -54,15 +47,6 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     }
 }
 
-/// Opens a recipe in Goose Desktop
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_open(recipe_name: &str) -> Result<()> {
     // Generate the deeplink using the helper function (no printing)
     // This reuses all the validation and encoding logic
@@ -101,16 +85,6 @@ pub fn handle_open(recipe_name: &str) -> Result<()> {
     }
 }
 
-/// Lists all available recipes from local paths and GitHub repositories
-///
-/// # Arguments
-///
-/// * `format` - Output format ("text" or "json")
-/// * `verbose` - Whether to show detailed information
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     let recipes = match list_available_recipes() {
         Ok(recipes) => recipes,
@@ -162,15 +136,6 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Helper function to generate a deeplink
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result containing the deeplink URL and recipe
 fn generate_deeplink(recipe_name: &str) -> Result<(String, goose::recipe::Recipe)> {
     let recipe_file = load_recipe_file(recipe_name)?;
     // Load the recipe file first to validate it

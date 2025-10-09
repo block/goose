@@ -367,7 +367,7 @@ fn validate_recipe(recipe: &Recipe) -> Result<(), ErrorResponse> {
         status: StatusCode::BAD_REQUEST,
     })?;
 
-    validate_recipe_template_from_content(&recipe_json).map_err(|err| ErrorResponse {
+    validate_recipe_template_from_content(&recipe_json, None).map_err(|err| ErrorResponse {
         message: err.to_string(),
         status: StatusCode::BAD_REQUEST,
     })?;
@@ -447,11 +447,12 @@ async fn get_recipe_file_path_by_id(
 async fn parse_recipe(
     Json(request): Json<ParseRecipeRequest>,
 ) -> Result<Json<ParseRecipeResponse>, ErrorResponse> {
-    let recipe =
-        validate_recipe_template_from_content(&request.content).map_err(|e| ErrorResponse {
+    let recipe = validate_recipe_template_from_content(&request.content, None).map_err(|e| {
+        ErrorResponse {
             message: format!("Invalid recipe format: {}", e),
             status: StatusCode::BAD_REQUEST,
-        })?;
+        }
+    })?;
 
     Ok(Json(ParseRecipeResponse { recipe }))
 }

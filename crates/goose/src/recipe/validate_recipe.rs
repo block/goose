@@ -33,17 +33,17 @@ pub fn validate_recipe_template_from_file(recipe_file: &RecipeFile) -> Result<Re
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?
         .to_string();
 
-    validate_recipe_template(&recipe_file.content, Some(recipe_dir))
+    validate_recipe_template_from_content(&recipe_file.content, Some(recipe_dir))
 }
 
-pub fn validate_recipe_template_from_content(recipe_content: &str) -> Result<Recipe> {
-    validate_recipe_template(recipe_content, None)
-}
-
-fn validate_recipe_template(recipe_content: &str, recipe_dir: Option<String>) -> Result<Recipe> {
+pub fn validate_recipe_template_from_content(
+    recipe_content: &str,
+    recipe_dir: Option<String>,
+) -> Result<Recipe> {
     validate_recipe_parameters(recipe_content, recipe_dir.clone())?;
     let recipe = render_recipe_for_preview(recipe_content, recipe_dir, &HashMap::new())?;
 
+    validate_prompt_or_instructions(&recipe)?;
     if let Some(response) = &recipe.response {
         if let Some(json_schema) = &response.json_schema {
             validate_json_schema(json_schema)?;
@@ -51,6 +51,27 @@ fn validate_recipe_template(recipe_content: &str, recipe_dir: Option<String>) ->
     }
 
     Ok(recipe)
+}
+
+fn validate_prompt_or_instructions(recipe: &Recipe) -> Result<()> {
+    let has_instructions = recipe
+        .instructions
+        .as_ref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    let has_prompt = recipe
+        .prompt
+        .as_ref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+
+    if has_instructions || has_prompt {
+        return Ok(());
+    }
+
+    Err(anyhow::anyhow!(
+        "Recipe must specify at least one of `instructions` or `prompt`."
+    ))
 }
 
 fn validate_parameters_in_template(
