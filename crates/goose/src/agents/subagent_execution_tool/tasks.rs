@@ -79,15 +79,43 @@ async fn handle_recipe_task(
     // Apply recipe provider settings if specified
     if let Some(settings) = recipe.settings {
         match (settings.goose_provider, settings.goose_model) {
+            // Both provider and model specified - create new provider
             (Some(provider), Some(model)) => {
                 let model_config =
                     ModelConfig::new_or_fail(&model).with_temperature(settings.temperature);
                 task_config.provider = providers::create(&provider, model_config)
                     .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
             }
-            (Some(_), None) => return Err("Recipe specifies provider but no model".to_string()),
-            (None, Some(_)) => return Err("Recipe specifies model but no provider".to_string()),
-            _ => {} // No provider/model override
+            // Only model specified - wrap parent provider with override
+            (None, Some(model)) => {
+                let mut model_config = task_config.provider.get_model_config();
+                model_config.model_name = model.clone();
+                if let Some(temp) = settings.temperature {
+                    model_config = model_config.with_temperature(Some(temp));
+                }
+
+                // Wrap the parent provider with our override
+                task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
+                    task_config.provider.clone(),
+                    model_config,
+                ));
+            }
+            // Only provider specified - error
+            (Some(_), None) => {
+                return Err("Recipe specifies provider but no model".to_string());
+            }
+            // Neither specified - just apply temperature if present
+            (None, None) => {
+                if let Some(temp) = settings.temperature {
+                    let mut model_config = task_config.provider.get_model_config();
+                    model_config = model_config.with_temperature(Some(temp));
+
+                    task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
+                        task_config.provider.clone(),
+                        model_config,
+                    ));
+                }
+            }
         }
     }
 
