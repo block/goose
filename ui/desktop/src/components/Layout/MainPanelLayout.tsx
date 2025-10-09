@@ -149,6 +149,8 @@ const BentoBox: React.FC<{
   const [isHovering, setIsHovering] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
 
   // Calculate equal widths for all containers
   useEffect(() => {
@@ -161,6 +163,83 @@ const BentoBox: React.FC<{
       setContainerWidths(widths);
     }
   }, [containers.length]);
+
+  // Handle resizing between containers
+  const handleResize = useCallback((containerIndex: number, delta: number) => {
+    if (containerIndex >= containers.length - 1) return; // Can't resize last container
+    
+    const leftContainer = containers[containerIndex];
+    const rightContainer = containers[containerIndex + 1];
+    
+    setContainerWidths(prev => {
+      const leftCurrentWidth = prev[leftContainer.id] || 100 / containers.length;
+      const rightCurrentWidth = prev[rightContainer.id] || 100 / containers.length;
+      
+      // Calculate new widths (delta is in pixels, convert to percentage)
+      const containerElement = document.querySelector(`[data-container-id="${leftContainer.id}"]`);
+      const parentWidth = containerElement?.parentElement?.offsetWidth || 800;
+      const deltaPercent = (delta / parentWidth) * 100;
+      
+      // Apply constraints (minimum 10% width for each container)
+      const minWidth = 10;
+      const newLeftWidth = Math.max(minWidth, Math.min(90, leftCurrentWidth + deltaPercent));
+      const newRightWidth = Math.max(minWidth, Math.min(90, rightCurrentWidth - deltaPercent));
+      
+      // Only update if both widths are valid
+      if (newLeftWidth >= minWidth && newRightWidth >= minWidth) {
+        return {
+          ...prev,
+          [leftContainer.id]: newLeftWidth,
+          [rightContainer.id]: newRightWidth
+        };
+      }
+      
+      return prev;
+    });
+  }, [containers]);
+
+  // Resize handle component for between containers
+  const ResizeHandleBento: React.FC<{ containerIndex: number }> = ({ containerIndex }) => {
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+      setResizingIndex(containerIndex);
+      
+      let startX = e.clientX;
+      
+      const handleMouseMove = (e: MouseEvent) => {
+        const delta = e.clientX - startX;
+        handleResize(containerIndex, delta);
+        startX = e.clientX;
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        setResizingIndex(null);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }, [containerIndex]);
+
+    return (
+      <div 
+        className={`w-1 cursor-col-resize hover:bg-blue-400 transition-colors group ${
+          resizingIndex === containerIndex ? 'bg-blue-500' : 'bg-border-subtle'
+        }`}
+        onMouseDown={handleMouseDown}
+        title="Drag to resize containers"
+      >
+        <div 
+          className={`h-8 w-0.5 bg-border-subtle group-hover:bg-blue-400 rounded-full transition-colors my-auto ml-0.25 ${
+            resizingIndex === containerIndex ? 'bg-blue-500' : ''
+          }`} 
+        />
+      </div>
+    );
+  };
 
   const handleAddClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -185,6 +264,7 @@ const BentoBox: React.FC<{
             <div 
               className="h-full relative"
               style={{ width: `${containerWidths[container.id] || 100 / containers.length}%` }}
+              data-container-id={container.id}
             >
               {/* Container content */}
               <div className="h-full w-full">
@@ -217,9 +297,9 @@ const BentoBox: React.FC<{
               </button>
             </div>
 
-            {/* Vertical divider between containers */}
+            {/* Resize Handle between containers */}
             {index < containers.length - 1 && (
-              <div className="w-px bg-border-subtle flex-shrink-0" />
+              <ResizeHandleBento containerIndex={index} />
             )}
           </React.Fragment>
         ))}
