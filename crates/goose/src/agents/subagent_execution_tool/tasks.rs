@@ -73,18 +73,21 @@ async fn handle_recipe_task(
     // - None: inherit parent extensions (default)
     // - Some([]): explicitly no extensions
     // - Some([...]): use only specified extensions
-    if let Some(exts) = recipe.extensions {
+    if let Some(ref exts) = recipe.extensions {
         task_config.extensions = exts.clone();
     }
 
     // Apply recipe provider settings if specified
-    if let Some(settings) = recipe.settings {
-        match (settings.goose_provider, settings.goose_model) {
+    if let Some(ref settings) = recipe.settings {
+        match (
+            settings.goose_provider.as_ref(),
+            settings.goose_model.as_ref(),
+        ) {
             // Both provider and model specified - create new provider
             (Some(provider), Some(model)) => {
                 let model_config =
-                    ModelConfig::new_or_fail(&model).with_temperature(settings.temperature);
-                task_config.provider = providers::create(&provider, model_config)
+                    ModelConfig::new_or_fail(model).with_temperature(settings.temperature);
+                task_config.provider = providers::create(provider, model_config)
                     .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
             }
             // Only model specified - wrap parent provider with override
@@ -120,14 +123,9 @@ async fn handle_recipe_task(
         }
     }
 
-    let instruction = recipe
-        .instructions
-        .or(recipe.prompt)
-        .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
-
     let result = tokio::select! {
         result = run_complete_subagent_task(
-            instruction,
+            recipe,
             task_config,
             return_last_only,
         ) => result,
