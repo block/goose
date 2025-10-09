@@ -10,14 +10,14 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message, Session } from '../api';
+import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
-import { loadSession } from '../utils/sessionCache';
+import { useSessionStream } from '../hooks/useSessionStream';
 
 interface BaseChatProps {
   chat: ChatType;
@@ -76,66 +76,79 @@ function BaseChatContent({
   //   session: sessionMetadata,
   // });
 
-  // Session loading state
-  const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
-  const hasLoadedSessionRef = useRef(false);
+  // Keep session streaming active for multi-window sync, but track initial load
+  const [sessionLoadComplete, setSessionLoadComplete] = useState(!resumeSessionId);
+
+  const {
+    session: streamedSession,
+    isLoading: sessionLoading,
+    error: sessionStreamError,
+    // isConnected: sessionStreamConnected, // maybe we show an indicator somewhere?
+  } = useSessionStream(resumeSessionId || undefined);
 
   const [messages, setMessages] = useState(chat.messages || []);
+  const isStreamingRef = useRef(false);
+  const lastStreamedMessageCountRef = useRef(0);
 
-  // Load session on mount if resumeSessionId is provided
+  // Update chat when streamed session data arrives
   useEffect(() => {
-    const needsLoad = resumeSessionId && !hasLoadedSessionRef.current;
+    if (streamedSession && resumeSessionId) {
+      const conversation = streamedSession.conversation || [];
 
-    if (needsLoad) {
-      hasLoadedSessionRef.current = true;
-      setSessionLoadError(null);
+      // Mark initial load as complete
+      if (!sessionLoadComplete) {
+        setSessionLoadComplete(true);
+      }
 
-      // Set chat to empty session to indicate loading state
-      // todo: set to null instead and handle that in other places
-      const emptyChat: ChatType = {
-        sessionId: resumeSessionId,
-        title: 'Loading...',
-        messageHistoryIndex: 0,
-        messages: [],
-        recipe: null,
-        recipeParameters: null,
-      };
-      setChat(emptyChat);
+      // Only update if we're not actively streaming a response AND
+      // the message count has actually changed (to avoid unnecessary re-renders)
+      if (!isStreamingRef.current && conversation.length !== lastStreamedMessageCountRef.current) {
+        lastStreamedMessageCountRef.current = conversation.length;
 
-      loadSession(resumeSessionId)
-        .then((session: Session) => {
-          const conversation = session.conversation || [];
-          const loadedChat: ChatType = {
-            sessionId: session.id,
-            title: session.description || 'Untitled Chat',
-            messageHistoryIndex: 0,
-            messages: conversation,
-            recipe: null,
-            recipeParameters: null,
-          };
+        const loadedChat: ChatType = {
+          sessionId: streamedSession.id,
+          title: streamedSession.description || 'Untitled Chat',
+          messageHistoryIndex: 0,
+          messages: conversation,
+          recipe: null,
+          recipeParameters: null,
+        };
+        setChat(loadedChat);
+        setMessages(conversation);
 
-          setChat(loadedChat);
-        })
-        .catch((error: Error) => {
-          const errorMessage = error.message || 'Failed to load session';
-          setSessionLoadError(errorMessage);
-        });
+        // Log for debugging
+        window.electron.logInfo(
+          `Session updated from stream: ${streamedSession.id}, messages: ${conversation.length}`
+        );
+      }
     }
-  }, [resumeSessionId, setChat]);
+  }, [streamedSession, resumeSessionId, sessionLoadComplete, setChat]);
 
-  // Update messages when chat changes (e.g., when resuming a session)
+  // Update messages when chat.sessionId changes (switching sessions)
+  // but NOT when just chat.messages changes (to avoid conflicts with streaming)
+  const prevSessionIdRef = useRef(chat.sessionId);
   useEffect(() => {
-    if (chat.messages) {
-      setMessages(chat.messages);
+    if (chat.sessionId !== prevSessionIdRef.current) {
+      prevSessionIdRef.current = chat.sessionId;
+      if (chat.messages && !isStreamingRef.current) {
+        setMessages(chat.messages);
+      }
     }
-  }, [chat.messages, chat.sessionId]);
+  }, [chat.sessionId, chat.messages]);
 
+  // Use chat.sessionId as the source of truth - it gets updated by the effect above
+  // when streamedSession arrives
   const { chatState, handleSubmit, stopStreaming } = useChatStream({
     sessionId: chat.sessionId || '',
     messages,
     setMessages,
     onStreamFinish: () => {},
   });
+
+  // Track streaming state to prevent session updates from overwriting messages
+  useEffect(() => {
+    isStreamingRef.current = chatState !== ChatState.Idle;
+  }, [chatState]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -285,21 +298,12 @@ function BaseChatContent({
             {/*  </div>*/}
             {/*)}*/}
 
-            {sessionLoadError && (
+            {sessionStreamError && (
               <div className="flex flex-col items-center justify-center p-8">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
                   <h3 className="font-semibold mb-2">Failed to Load Session</h3>
-                  <p className="text-sm">{sessionLoadError}</p>
+                  <p className="text-sm">{sessionStreamError}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setSessionLoadError(null);
-                    hasLoadedSessionRef.current = false;
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
-                >
-                  Retry
-                </button>
               </div>
             )}
 
@@ -371,20 +375,24 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(messages.length === 0 || isCompacting) && !sessionLoadError && (
-            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  messages.length === 0
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
-            </div>
-          )}
+          {((sessionLoading && !sessionLoadComplete) ||
+            (messages.length === 0 && !resumeSessionId) ||
+            isCompacting) &&
+            !sessionStreamError && (
+              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+                <LoadingGoose
+                  message={
+                    (sessionLoading && !sessionLoadComplete) ||
+                    (messages.length === 0 && !resumeSessionId)
+                      ? 'loading conversation...'
+                      : isCompacting
+                        ? 'goose is compacting the conversation...'
+                        : undefined
+                  }
+                  chatState={chatState}
+                />
+              </div>
+            )}
         </div>
 
         <div

@@ -1,16 +1,27 @@
 use crate::state::AppState;
 use axum::routing::post;
 use axum::{
-    extract::Path,
-    http::StatusCode,
+    extract::{Path, State},
+    http::{self, StatusCode},
+    response::IntoResponse,
     routing::{delete, get, put},
     Json, Router,
 };
+use bytes::Bytes;
+use futures::Stream;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::{
+    convert::Infallible,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
@@ -256,10 +267,150 @@ async fn import_session(
     Ok(Json(session))
 }
 
+pub struct SessionSseResponse {
+    rx: ReceiverStream<String>,
+}
+
+impl SessionSseResponse {
+    fn new(rx: ReceiverStream<String>) -> Self {
+        Self { rx }
+    }
+}
+
+impl Stream for SessionSseResponse {
+    type Item = Result<Bytes, Infallible>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.rx)
+            .poll_next(cx)
+            .map(|opt| opt.map(|s| Ok(Bytes::from(s))))
+    }
+}
+
+impl IntoResponse for SessionSseResponse {
+    fn into_response(self) -> axum::response::Response {
+        let stream = self;
+        let body = axum::body::Body::from_stream(stream);
+
+        http::Response::builder()
+            .header("Content-Type", "text/event-stream")
+            .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive")
+            .header("X-Accel-Buffering", "no") // Disable nginx buffering
+            .body(body)
+            .unwrap()
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+enum SessionEvent {
+    Session { session: Box<Session> },
+    Error { error: String },
+    Ping,
+}
+
+async fn stream_session_event(event: SessionEvent, tx: &mpsc::Sender<String>) -> bool {
+    let json = serde_json::to_string(&event).unwrap_or_else(|e| {
+        format!(
+            r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
+            e
+        )
+    });
+    tx.send(format!("data: {}\n\n", json)).await.is_ok()
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/{session_id}/stream",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session to stream")
+    ),
+    responses(
+        (status = 200, description = "Session stream initiated", content_type = "text/event-stream"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn stream_session(
+    State(_state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<SessionSseResponse, StatusCode> {
+    // Verify session exists first
+    SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let (tx, rx) = mpsc::channel(100);
+    let stream = ReceiverStream::new(rx);
+
+    // Spawn background task to stream session updates
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let mut last_message_count: Option<usize> = None;
+        let mut last_updated_at: Option<String> = None;
+
+        loop {
+            interval.tick().await;
+
+            // Fetch current session state
+            match SessionManager::get_session(&session_id, true).await {
+                Ok(session) => {
+                    // Check if session has been updated since last check
+                    let updated_at_str = session.updated_at.to_rfc3339();
+                    let has_updates = last_message_count != Some(session.message_count)
+                        || last_updated_at.as_ref() != Some(&updated_at_str);
+
+                    if has_updates {
+                        last_message_count = Some(session.message_count);
+                        last_updated_at = Some(updated_at_str);
+
+                        if !stream_session_event(
+                            SessionEvent::Session {
+                                session: Box::new(session),
+                            },
+                            &tx,
+                        )
+                        .await
+                        {
+                            tracing::info!("Session stream client disconnected");
+                            break;
+                        }
+                    } else {
+                        // Send heartbeat ping to keep connection alive
+                        if !stream_session_event(SessionEvent::Ping, &tx).await {
+                            tracing::info!("Session stream client disconnected");
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error fetching session {}: {}", session_id, e);
+                    let _ = stream_session_event(
+                        SessionEvent::Error {
+                            error: format!("Failed to fetch session: {}", e),
+                        },
+                        &tx,
+                    )
+                    .await;
+                    break;
+                }
+            }
+        }
+    });
+
+    Ok(SessionSseResponse::new(stream))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session))
+        .route("/sessions/{session_id}/stream", get(stream_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
         .route("/sessions/import", post(import_session))
