@@ -11,19 +11,21 @@ interface SidecarView {
   icon: React.ReactNode;
   content: React.ReactNode;
   fileName?: string; // Optional fileName for diff viewer
+  instanceId?: string; // Unique instance identifier for multiple views of same type
 }
 
 interface SidecarContextType {
-  activeView: string | null;
+  activeViews: string[]; // Array of active view IDs instead of single activeView
   views: SidecarView[];
   showView: (view: SidecarView) => void;
-  hideView: () => void;
-  showDiffViewer: (diffContent: string, fileName?: string) => void;
-  hideDiffViewer: () => void;
-  showLocalhostViewer: (url?: string, title?: string) => void;
-  hideLocalhostViewer: () => void;
-  showFileViewer: (filePath: string) => void;
-  hideFileViewer: () => void;
+  hideView: (viewId: string) => void; // Hide specific view by ID
+  hideAllViews: () => void; // Hide all views
+  showDiffViewer: (diffContent: string, fileName?: string, instanceId?: string) => void;
+  hideDiffViewer: (instanceId?: string) => void;
+  showLocalhostViewer: (url?: string, title?: string, instanceId?: string) => void;
+  hideLocalhostViewer: (instanceId?: string) => void;
+  showFileViewer: (filePath: string, instanceId?: string) => void;
+  hideFileViewer: (instanceId?: string) => void;
 }
 
 const SidecarContext = createContext<SidecarContextType | null>(null);
@@ -304,85 +306,106 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
 }
 
 export function SidecarProvider({ children, showSidecar = true }: SidecarProviderProps) {
-  const [activeView, setActiveView] = useState<string | null>(null);
+  const [activeViews, setActiveViews] = useState<string[]>([]);
   const [views, setViews] = useState<SidecarView[]>([]);
 
   const showView = async (view: SidecarView) => {
+    console.log('🔍 SidecarProvider: showView called with view:', view.id, view.title);
+    
     setViews((prev) => {
       const existing = prev.find((v) => v.id === view.id);
       if (existing) {
+        console.log('🔍 SidecarProvider: Updating existing view:', view.id);
         return prev.map((v) => (v.id === view.id ? view : v));
       }
+      console.log('🔍 SidecarProvider: Adding new view:', view.id);
       return [...prev, view];
     });
 
-    setActiveView(view.id);
+    setActiveViews((prev) => {
+      if (!prev.includes(view.id)) {
+        console.log('🔍 SidecarProvider: Adding view to activeViews:', view.id);
+        const newActiveViews = [...prev, view.id];
+        console.log('🔍 SidecarProvider: New activeViews:', newActiveViews);
+        return newActiveViews;
+      }
+      console.log('🔍 SidecarProvider: View already in activeViews:', view.id);
+      return prev;
+    });
   };
 
-  const hideView = () => {
-    setActiveView(null);
+  const hideView = (viewId: string) => {
+    setActiveViews((prev) => prev.filter((id) => id !== viewId));
   };
 
-  const showDiffViewer = (content: string, fileName = 'File') => {
+  const hideAllViews = () => {
+    setActiveViews([]);
+  };
+
+  const showDiffViewer = (content: string, fileName = 'File', instanceId?: string) => {
+    const id = instanceId ? `diff-${instanceId}` : 'diff';
     const diffView: SidecarView = {
-      id: 'diff',
+      id,
       title: 'Diff Viewer',
       icon: <FileDiff size={16} />,
       content: <MonacoDiffViewer diffContent={content} _fileName={fileName} />,
       fileName: fileName, // Store fileName for header display
+      instanceId,
     };
     showView(diffView);
   };
 
-  const hideDiffViewer = () => {
-    setViews((prev) => prev.filter((v) => v.id !== 'diff'));
-    if (activeView === 'diff') {
-      setActiveView(null);
-    }
+  const hideDiffViewer = (instanceId?: string) => {
+    const id = instanceId ? `diff-${instanceId}` : 'diff';
+    setViews((prev) => prev.filter((v) => v.id !== id));
+    hideView(id);
   };
 
-  const showLocalhostViewer = (url = 'http://localhost:3000', title = 'Localhost Viewer') => {
+  const showLocalhostViewer = (url = 'http://localhost:3000', title = 'Localhost Viewer', instanceId?: string) => {
+    const id = instanceId ? `localhost-${instanceId}` : 'localhost';
     const localhostView: SidecarView = {
-      id: 'localhost',
+      id,
       title: title,
       icon: <Globe size={16} />,
       content: <SidecarTabs initialUrl={url} />,
       fileName: url,
+      instanceId,
     };
     showView(localhostView);
   };
 
-  const hideLocalhostViewer = () => {
-    setViews((prev) => prev.filter((v) => v.id !== 'localhost'));
-    if (activeView === 'localhost') {
-      setActiveView(null);
-    }
+  const hideLocalhostViewer = (instanceId?: string) => {
+    const id = instanceId ? `localhost-${instanceId}` : 'localhost';
+    setViews((prev) => prev.filter((v) => v.id !== id));
+    hideView(id);
   };
 
-  const showFileViewer = (filePath: string) => {
+  const showFileViewer = (filePath: string, instanceId?: string) => {
     const fileName = filePath.split('/').pop() || filePath;
+    const id = instanceId ? `file-${instanceId}` : 'file';
     const fileView: SidecarView = {
-      id: 'file',
+      id,
       title: 'File Viewer',
       icon: <FileText size={16} />,
       content: <FileViewer filePath={filePath} />,
       fileName: fileName,
+      instanceId,
     };
     showView(fileView);
   };
 
-  const hideFileViewer = () => {
-    setViews((prev) => prev.filter((v) => v.id !== 'file'));
-    if (activeView === 'file') {
-      setActiveView(null);
-    }
+  const hideFileViewer = (instanceId?: string) => {
+    const id = instanceId ? `file-${instanceId}` : 'file';
+    setViews((prev) => prev.filter((v) => v.id !== id));
+    hideView(id);
   };
 
   const contextValue: SidecarContextType = {
-    activeView,
+    activeViews,
     views,
     showView,
     hideView,
+    hideAllViews,
     showDiffViewer,
     hideDiffViewer,
     showLocalhostViewer,
@@ -401,16 +424,18 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
 }
 
 // Separate Sidecar component that can be used as a sibling
-export function Sidecar({ className = '' }: { className?: string }) {
+export function Sidecar({ className = '', viewId }: { className?: string; viewId?: string }) {
   const sidecar = useSidecar();
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('unified');
 
   // Update the diff viewer when view mode changes
   useEffect(() => {
     if (sidecar) {
-      const { activeView, views } = sidecar;
-      const currentView = views.find((v) => v.id === activeView);
-      const isDiffViewer = currentView?.id === 'diff';
+      const { activeViews, views } = sidecar;
+      const currentView = viewId 
+        ? views.find((v) => v.id === viewId)
+        : views.find((v) => activeViews.includes(v.id));
+      const isDiffViewer = currentView?.id?.startsWith('diff');
 
       if (
         isDiffViewer &&
@@ -433,18 +458,33 @@ export function Sidecar({ className = '' }: { className?: string }) {
         ).diffViewerControls!.setViewMode(viewMode);
       }
     }
-  }, [viewMode, sidecar]);
+  }, [viewMode, sidecar, viewId]);
 
   if (!sidecar) return null;
 
-  const { activeView, views, hideView } = sidecar;
-  const currentView = views.find((v) => v.id === activeView);
-  const isVisible = activeView && currentView;
+  const { activeViews, views, hideView } = sidecar;
+  
+  // Determine which view to show
+  const currentView = viewId 
+    ? views.find((v) => v.id === viewId && activeViews.includes(v.id))
+    : views.find((v) => activeViews.includes(v.id));
+    
+  const isVisible = currentView && activeViews.includes(currentView.id);
 
-  if (!isVisible) return null;
+  console.log('🔍 Sidecar: Render check');
+  console.log('🔍 Sidecar: viewId prop:', viewId);
+  console.log('🔍 Sidecar: activeViews:', activeViews);
+  console.log('🔍 Sidecar: views:', views?.map(v => ({ id: v.id, title: v.title })));
+  console.log('🔍 Sidecar: currentView:', currentView ? { id: currentView.id, title: currentView.title } : null);
+  console.log('🔍 Sidecar: isVisible:', isVisible);
+
+  if (!isVisible) {
+    console.log('🔍 Sidecar: Not visible, returning null');
+    return null;
+  }
 
   // Check if current view is diff viewer
-  const isDiffViewer = currentView.id === 'diff';
+  const isDiffViewer = currentView.id.startsWith('diff');
 
   return (
     <div
@@ -520,7 +560,7 @@ export function Sidecar({ className = '' }: { className?: string }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={hideView}
+                    onClick={() => hideView(currentView.id)}
                     className="text-textSubtle hover:text-textStandard cursor-pointer focus:outline-none focus:ring-2 focus:ring-borderProminent focus:ring-offset-1"
                   >
                     <X size={16} />

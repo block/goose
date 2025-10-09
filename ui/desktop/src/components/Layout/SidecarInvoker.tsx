@@ -1,21 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Globe, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useSidecar } from '../SidecarLayout';
 
 interface SidecarInvokerProps {
   onShowLocalhost: () => void;
   onShowFileViewer: (filePath: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file', filePath?: string) => void;
   isVisible: boolean;
 }
 
 export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({ 
   onShowLocalhost, 
   onShowFileViewer, 
+  onAddContainer,
   isVisible 
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Move the hook call to the top level of the component
+  const sidecar = useSidecar();
 
   // Handle click outside to close menu
   useEffect(() => {
@@ -39,7 +45,8 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   };
 
   const handleLocalhostClick = () => {
-    onShowLocalhost();
+    console.log('🔍 SidecarInvoker: Localhost button clicked');
+    onAddContainer('localhost');
     setShowMenu(false);
     setIsHovering(false);
   };
@@ -54,7 +61,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       console.log('Selected file path:', filePath);
       
       if (filePath) {
-        onShowFileViewer(filePath);
+        onAddContainer('file', filePath);
       } else {
         console.log('No file selected');
       }
@@ -62,6 +69,13 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       console.error('Error opening file dialog:', error);
     }
 
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
+  const handleSidecarClick = () => {
+    console.log('🔍 SidecarInvoker: Sidecar button clicked');
+    onAddContainer('sidecar');
     setShowMenu(false);
     setIsHovering(false);
   };
@@ -114,6 +128,16 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
               className="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-background-default border border-border-subtle rounded-lg shadow-xl p-2 min-w-[160px] pointer-events-auto animate-in fade-in slide-in-from-right-2 duration-200"
             >
               <div className="space-y-1">
+                <Button
+                  onClick={handleSidecarClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Sidecar View
+                </Button>
+                
                 <Button
                   onClick={handleLocalhostClick}
                   className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"

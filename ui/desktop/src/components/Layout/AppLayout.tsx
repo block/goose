@@ -108,6 +108,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     }
   };
 
+  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file', filePath?: string) => {
+    console.log('Add container requested:', type, filePath);
+    // This will be handled by MainPanelLayout
+    window.dispatchEvent(new CustomEvent('add-container', { detail: { type, filePath } }));
+  };
+
   // Listen for programmatic request to show the sidecar localhost viewer
   React.useEffect(() => {
     const handler = (e: globalThis.Event) => {
@@ -120,10 +126,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
-  // Show sidecar invoker on chat-related pages when sidecar is not open
+  // Show sidecar invoker on chat-related pages - now always show it since we support multiple sidecars
   const shouldShowSidecarInvoker = 
-    (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair') &&
-    !(sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView));
+    (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair');
 
   return (
     <div className="flex flex-1 w-full relative animate-fade-in">
@@ -155,6 +160,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       <SidecarInvoker 
         onShowLocalhost={handleShowLocalhost}
         onShowFileViewer={handleShowFileViewer}
+        onAddContainer={handleAddContainer}
         isVisible={shouldShowSidecarInvoker}
       />
 

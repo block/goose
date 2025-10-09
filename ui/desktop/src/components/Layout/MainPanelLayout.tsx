@@ -1,78 +1,230 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useSidecar, Sidecar } from '../SidecarLayout';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Globe, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
 
-interface Container {
+interface SidecarContainer {
   id: string;
-  position: 'right-top' | 'right-main' | 'right-bottom';
   content: React.ReactNode;
+  contentType: 'sidecar' | 'localhost' | 'file' | null;
+  title?: string;
 }
 
-interface ContainerContentProps {
-  container: Container;
-  onRemove: (id: string) => void;
-  onSetContent: (id: string, content: React.ReactNode) => void;
+interface ContainerPopoverProps {
+  onSelect: (type: 'sidecar' | 'localhost' | 'file') => void;
+  onClose: () => void;
+  position: { x: number; y: number };
 }
 
-function IndividualContainer({ container, onRemove, onSetContent }: ContainerContentProps) {
-  const [selectedContent, setSelectedContent] = useState<'localhost' | 'sidecar' | null>(null);
+const ContainerPopover: React.FC<ContainerPopoverProps> = ({ onSelect, onClose, position }) => {
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  const handleContentSelect = (contentType: 'localhost' | 'sidecar') => {
-    setSelectedContent(contentType);
-    
-    if (contentType === 'localhost') {
-      onSetContent(container.id, (
-        <div className="h-full bg-background-default rounded-lg border border-border-subtle overflow-hidden">
-          <iframe 
-            src="http://localhost:3000" 
-            className="w-full h-full border-0"
-            title="Localhost Viewer"
-          />
-        </div>
-      ));
-    } else if (contentType === 'sidecar') {
-      onSetContent(container.id, <Sidecar className="h-full" />);
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const handleLocalhostClick = async () => {
+    onSelect('localhost');
+    onClose();
+  };
+
+  const handleFileViewerClick = async () => {
+    try {
+      const filePath = await window.electron.selectFileOrDirectory();
+      if (filePath) {
+        onSelect('file');
+      }
+    } catch (error) {
+      console.error('Error opening file dialog:', error);
     }
+    onClose();
+  };
+
+  const handleSidecarClick = () => {
+    onSelect('sidecar');
+    onClose();
   };
 
   return (
-    <div className="h-full bg-background-muted rounded-lg border border-border-subtle relative group">
-      <div className="absolute top-2 right-2 z-10">
+    <div
+      ref={popoverRef}
+      className="fixed z-50 bg-background-default border border-border-subtle rounded-lg shadow-xl p-2 min-w-[160px] animate-in fade-in slide-in-from-right-2 duration-200"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        transform: 'translate(-100%, -50%)'
+      }}
+    >
+      <div className="space-y-1">
         <Button
-          onClick={() => onRemove(container.id)}
+          onClick={handleSidecarClick}
+          className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
           variant="ghost"
           size="sm"
-          className="w-6 h-6 rounded-full bg-background-default/80 hover:bg-background-default opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Sidecar View
+        </Button>
+        
+        <Button
+          onClick={handleLocalhostClick}
+          className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+          variant="ghost"
+          size="sm"
+        >
+          <Globe className="w-4 h-4 mr-2" />
+          Localhost Viewer
+        </Button>
+        
+        <Button
+          onClick={handleFileViewerClick}
+          className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+          variant="ghost"
+          size="sm"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Open File
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ResizeHandle component for horizontal resizing between containers
+const ResizeHandle: React.FC<{
+  onResize: (delta: number) => void;
+  isResizing: boolean;
+}> = ({ onResize, isResizing }) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    let startX = e.clientX;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - startX;
+      onResize(delta);
+      startX = e.clientX;
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [onResize]);
+
+  return (
+    <div 
+      className={`w-1 cursor-col-resize hover:bg-borderSubtle transition-colors group ${
+        isResizing ? 'bg-borderProminent' : ''
+      }`}
+      onMouseDown={handleMouseDown}
+    >
+      <div 
+        className={`h-8 w-0.5 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors my-auto ml-0.5 ${
+          isResizing ? 'bg-border-strong' : ''
+        }`} 
+      />
+    </div>
+  );
+};
+
+// Individual container component
+const ContainerComponent: React.FC<{
+  container: SidecarContainer;
+  onRemove: () => void;
+  width: number;
+  isLast: boolean;
+  onAddAfter: () => void;
+}> = ({ container, onRemove, width, isLast, onAddAfter }) => {
+  const [isHovering, setIsHovering] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+
+  const handleAddClick = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopoverPosition({
+      x: rect.right,
+      y: rect.top + rect.height / 2
+    });
+    setShowPopover(true);
+  };
+
+  const handlePopoverSelect = (type: 'sidecar' | 'localhost' | 'file') => {
+    onAddAfter();
+    // The parent will handle creating the container with the selected type
+  };
+
+  return (
+    <div 
+      className="h-full relative group flex-shrink-0 overflow-hidden"
+      style={{ width: `${width}px` }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+    >
+      {/* Container header with remove button - only show on hover */}
+      <div className="absolute top-2 right-2 z-30">
+        <Button
+          onClick={onRemove}
+          variant="ghost"
+          size="sm"
+          className="w-6 h-6 rounded-full bg-background-default/90 hover:bg-background-default opacity-0 group-hover:opacity-100 transition-opacity shadow-lg border border-border-subtle"
         >
           <X className="w-3 h-3" />
         </Button>
       </div>
 
-      {container.content || (
-        <div className="h-full flex flex-col items-center justify-center p-4 space-y-3">
-          <p className="text-text-muted text-sm text-center">Select content for this container:</p>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => handleContentSelect('localhost')}
-              variant="outline"
-              size="sm"
-            >
-              Localhost Viewer
-            </Button>
-            <Button
-              onClick={() => handleContentSelect('sidecar')}
-              variant="outline"
-              size="sm"
-            >
-              Sidecar
-            </Button>
+      {/* Container content - fills entire container */}
+      <div className="h-full w-full relative">
+        {container.content || (
+          <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted border border-border-subtle rounded-lg">
+            <p className="text-text-muted text-sm text-center">Empty container</p>
           </div>
+        )}
+      </div>
+
+      {/* Right edge hover zone for adding new container */}
+      {isLast && (
+        <div
+          className="absolute top-0 right-0 w-4 h-full z-10 pointer-events-auto"
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
+        >
+          {isHovering && (
+            <div className="absolute right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2">
+              <Button
+                onClick={handleAddClick}
+                className="w-8 h-8 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 pointer-events-auto"
+                variant="ghost"
+                size="sm"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Popover for content selection */}
+      {showPopover && (
+        <ContainerPopover
+          onSelect={handlePopoverSelect}
+          onClose={() => setShowPopover(false)}
+          position={popoverPosition}
+        />
       )}
     </div>
   );
-}
+};
 
 export const MainPanelLayout: React.FC<{
   children: React.ReactNode;
@@ -80,349 +232,158 @@ export const MainPanelLayout: React.FC<{
   backgroundColor?: string;
 }> = ({ children, removeTopPadding = false, backgroundColor = 'bg-background-default' }) => {
   const sidecar = useSidecar();
-  const [containers, setContainers] = useState<Container[]>([]);
-  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
-  const [horizontalSplitRatio, setHorizontalSplitRatio] = useState(0.7); // 70% left, 30% right
-  const [rightColumnHeights, setRightColumnHeights] = useState({
-    rightTopHeight: '33.33%',
-    rightMainHeight: '33.33%', 
-    rightBottomHeight: '33.33%'
-  });
   
-  const [isHorizontalResizing, setIsHorizontalResizing] = useState(false);
-  const [isVerticalResizing, setIsVerticalResizing] = useState(false);
+  // State for sidecar containers
+  const [containers, setContainers] = useState<SidecarContainer[]>([]);
+  const [chatWidth, setChatWidth] = useState(600); // Fixed width for chat panel
+  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Get containers by position
-  const rightTopContainer = containers.find(c => c.position === 'right-top');
-  const rightMainContainer = containers.find(c => c.position === 'right-main');
-  const rightBottomContainer = containers.find(c => c.position === 'right-bottom');
-
   // Check if main sidecar is visible
-  const mainSidecarVisible = sidecar?.activeView && sidecar?.views.find(v => v.id === sidecar.activeView);
+  const mainSidecarVisible = sidecar?.activeViews && sidecar?.activeViews.length > 0;
 
-  const addContainer = useCallback((position: 'right-top' | 'right-main' | 'right-bottom') => {
-    const newContainer: Container = {
+  // Calculate container widths (equal distribution)
+  const containerWidth = useMemo(() => {
+    if (containers.length === 0) return 0;
+    
+    const availableWidth = (containerRef.current?.clientWidth || window.innerWidth) - chatWidth - (containers.length * 4); // 4px per resize handle
+    return Math.max(300, availableWidth / containers.length);
+  }, [containers.length, chatWidth]);
+
+  // Add a new container
+  const addContainer = useCallback((contentType: 'sidecar' | 'localhost' | 'file' = 'sidecar', afterIndex?: number, filePath?: string) => {
+    const newContainer: SidecarContainer = {
       id: `container-${Date.now()}`,
-      position,
-      content: null
-    };
-    setContainers(prev => [...prev, newContainer]);
-  }, []);
-
-  const removeContainer = useCallback((id: string) => {
-    setContainers(prev => prev.filter(c => c.id !== id));
-  }, []);
-
-  const setContainerContent = useCallback((id: string, content: React.ReactNode) => {
-    setContainers(prev => prev.map(c => 
-      c.id === id ? { ...c, content } : c
-    ));
-  }, []);
-
-  // Horizontal resize handlers
-  const handleHorizontalMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsHorizontalResizing(true);
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      
-      const rect = containerRef.current.getBoundingClientRect();
-      const newRatio = (e.clientX - rect.left) / rect.width;
-      const clampedRatio = Math.max(0.2, Math.min(0.8, newRatio));
-      setHorizontalSplitRatio(clampedRatio);
+      content: null,
+      contentType: null
     };
 
-    const handleMouseUp = () => {
-      setIsHorizontalResizing(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
-
-  // Vertical resize handlers
-  const handleVerticalMouseDown = useCallback((e: React.MouseEvent, resizeType: 'right-top-main' | 'right-main-bottom') => {
-    e.preventDefault();
-    setIsVerticalResizing(true);
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      
-      const rect = containerRef.current.getBoundingClientRect();
-      const relativeY = (e.clientY - rect.top) / rect.height;
-      
-      if (resizeType === 'right-top-main') {
-        const newTopHeight = Math.max(0.1, Math.min(0.8, relativeY));
-        const remainingHeight = 1 - newTopHeight;
-        
-        setRightColumnHeights(prev => ({
-          ...prev,
-          rightTopHeight: `${newTopHeight * 100}%`,
-          rightMainHeight: rightBottomContainer 
-            ? `${remainingHeight * 0.5 * 100}%`
-            : `${remainingHeight * 100}%`,
-          rightBottomHeight: rightBottomContainer 
-            ? `${remainingHeight * 0.5 * 100}%`
-            : prev.rightBottomHeight
-        }));
-      } else if (resizeType === 'right-main-bottom') {
-        const topHeight = parseFloat(rightColumnHeights.rightTopHeight) / 100;
-        const availableHeight = 1 - topHeight;
-        const mainRelativeHeight = (relativeY - topHeight) / availableHeight;
-        const clampedMainHeight = Math.max(0.1, Math.min(0.9, mainRelativeHeight));
-        
-        setRightColumnHeights(prev => ({
-          ...prev,
-          rightMainHeight: `${clampedMainHeight * availableHeight * 100}%`,
-          rightBottomHeight: `${(1 - clampedMainHeight) * availableHeight * 100}%`
-        }));
+    // Create content based on type
+    if (contentType === 'sidecar') {
+      newContainer.content = <Sidecar className="h-full" />;
+      newContainer.contentType = 'sidecar';
+      newContainer.title = 'Sidecar';
+    } else if (contentType === 'localhost') {
+      const instanceId = `container-${newContainer.id}`;
+      if (sidecar) {
+        sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer', instanceId);
+        // Give the sidecar context time to create the view, then render it
+        setTimeout(() => {
+          setContainers(prev => prev.map(c => 
+            c.id === newContainer.id 
+              ? { ...c, content: <Sidecar className="h-full" viewId={`localhost-${instanceId}`} /> }
+              : c
+          ));
+        }, 100);
       }
-    };
+      newContainer.content = <div className="h-full flex items-center justify-center text-text-muted">Loading localhost viewer...</div>;
+      newContainer.contentType = 'localhost';
+      newContainer.title = 'Localhost Viewer';
+    } else if (contentType === 'file' && filePath) {
+      const instanceId = `container-${newContainer.id}`;
+      if (sidecar) {
+        sidecar.showFileViewer(filePath, instanceId);
+        // Give the sidecar context time to create the view, then render it
+        setTimeout(() => {
+          setContainers(prev => prev.map(c => 
+            c.id === newContainer.id 
+              ? { ...c, content: <Sidecar className="h-full" viewId={`file-${instanceId}`} /> }
+              : c
+          ));
+        }, 100);
+      }
+      newContainer.content = <div className="h-full flex items-center justify-center text-text-muted">Loading file viewer...</div>;
+      newContainer.contentType = 'file';
+      newContainer.title = filePath?.split('/').pop() || 'File Viewer';
+    }
 
-    const handleMouseUp = () => {
-      setIsVerticalResizing(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [rightColumnHeights, rightBottomContainer]);
-
-  // Auto-adjust right column when containers are added/removed
-  useEffect(() => {
-    const rightContainers = containers.filter(c => c.position.startsWith('right-'));
-    const count = rightContainers.length;
-    
-    if (count === 0) return;
-    
-    const equalHeight = `${100 / count}%`;
-    setRightColumnHeights({
-      rightTopHeight: rightTopContainer ? equalHeight : '0%',
-      rightMainHeight: rightMainContainer ? equalHeight : '0%', 
-      rightBottomHeight: rightBottomContainer ? equalHeight : '0%'
+    setContainers(prev => {
+      if (afterIndex !== undefined) {
+        const newContainers = [...prev];
+        newContainers.splice(afterIndex + 1, 0, newContainer);
+        return newContainers;
+      }
+      return [...prev, newContainer];
     });
-  }, [containers.length, rightTopContainer, rightMainContainer, rightBottomContainer]);
+  }, [sidecar]);
 
-  const hasRightContainers = containers.some(c => c.position.startsWith('right-'));
+  // Remove a container
+  const removeContainer = useCallback((containerId: string) => {
+    setContainers(prev => prev.filter(c => c.id !== containerId));
+  }, []);
+
+  // Handle chat panel resize
+  const updateChatWidth = useCallback((delta: number) => {
+    setChatWidth(prev => Math.max(300, Math.min(1000, prev + delta)));
+  }, []);
+
+  // Handle container resize
+  const updateContainerWidth = useCallback((index: number, delta: number) => {
+    // For now, we'll keep equal widths and just trigger a re-render
+    // In a more advanced implementation, you could have individual container widths
+    console.log(`Resize container ${index} by ${delta}px`);
+  }, []);
+
+  // Listen for add-container events from SidecarInvoker
+  useEffect(() => {
+    const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file'; filePath?: string }>) => {
+      console.log('🔍 MainPanelLayout: Received add-container event:', e.detail.type, e.detail.filePath);
+      addContainer(e.detail.type, undefined, e.detail.filePath);
+    };
+
+    window.addEventListener('add-container', handleAddContainer as EventListener);
+    return () => window.removeEventListener('add-container', handleAddContainer as EventListener);
+  }, [addContainer]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 MainPanelLayout: containers:', containers.length);
+    console.log('🔍 MainPanelLayout: mainSidecarVisible:', mainSidecarVisible);
+  }, [containers.length, mainSidecarVisible]);
+
+  const hasContainers = containers.length > 0;
 
   return (
     <div className={`h-dvh`} ref={containerRef}>
       <div
         className={`flex ${backgroundColor} flex-1 min-w-0 h-full min-h-0 ${removeTopPadding ? '' : 'pt-[32px]'}`}
       >
-        {/* Left Panel (Main Content) */}
+        {/* Chat Panel - Full width when no containers, fixed width when containers exist */}
         <div 
-          className="flex flex-col flex-1 min-w-0"
-          style={{ 
-            width: hasRightContainers || mainSidecarVisible ? `${horizontalSplitRatio * 100}%` : '100%'
-          }}
+          className={hasContainers ? "flex flex-col flex-shrink-0" : "flex flex-col flex-1"}
+          style={hasContainers ? { width: `${chatWidth}px` } : {}}
         >
           {children}
         </div>
 
-        {/* Horizontal Resize Handle */}
-        {(hasRightContainers || mainSidecarVisible) && (
-          <div 
-            className={`w-1 cursor-col-resize hover:bg-borderSubtle transition-colors group ${
-              isHorizontalResizing ? 'bg-borderProminent' : ''
-            }`}
-            onMouseDown={handleHorizontalMouseDown}
-          >
-            <div 
-              className={`h-8 w-0.5 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors my-auto ml-0.5 ${
-                isHorizontalResizing ? 'bg-border-strong' : ''
-              }`} 
+        {/* Chat Resize Handle - only show when containers exist */}
+        {hasContainers && (
+          <ResizeHandle
+            onResize={updateChatWidth}
+            isResizing={resizingIndex === -1}
+          />
+        )}
+
+        {/* Container Layout - only show when containers exist */}
+        {hasContainers && containers.map((container, index) => (
+          <React.Fragment key={container.id}>
+            <ContainerComponent
+              container={container}
+              onRemove={() => removeContainer(container.id)}
+              width={containerWidth}
+              isLast={index === containers.length - 1}
+              onAddAfter={() => addContainer('sidecar', index)}
             />
-          </div>
-        )}
 
-        {/* Right Panel */}
-        {(hasRightContainers || mainSidecarVisible) && (
-          <div 
-            className="flex flex-col relative"
-            style={{ 
-              width: `${(1 - horizontalSplitRatio) * 100}%`,
-              minWidth: '200px'
-            }}
-          >
-            {/* Main Sidecar (takes precedence when visible) */}
-            {mainSidecarVisible && !hasRightContainers && (
-              <div className="h-full">
-                <Sidecar />
-              </div>
+            {/* Resize Handle between containers */}
+            {index < containers.length - 1 && (
+              <ResizeHandle
+                onResize={(delta) => updateContainerWidth(index, delta)}
+                isResizing={resizingIndex === index}
+              />
             )}
-
-            {/* Multi-container layout */}
-            {hasRightContainers && (
-              <div className="h-full flex flex-col relative">
-                {/* Right Top Container */}
-                {rightTopContainer && (
-                  <div 
-                    className="relative"
-                    style={{ height: rightColumnHeights.rightTopHeight }}
-                  >
-                    <IndividualContainer
-                      container={rightTopContainer}
-                      onRemove={removeContainer}
-                      onSetContent={setContainerContent}
-                    />
-                  </div>
-                )}
-
-                {/* Right Top-Main Resize Handle */}
-                {rightTopContainer && rightMainContainer && (
-                  <div 
-                    className={`h-1 cursor-row-resize hover:bg-borderSubtle transition-colors group ${
-                      isVerticalResizing ? 'bg-borderProminent' : ''
-                    }`}
-                    onMouseDown={(e) => handleVerticalMouseDown(e, 'right-top-main')}
-                  >
-                    <div 
-                      className={`w-8 h-0.5 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors mx-auto mt-0.5 ${
-                        isVerticalResizing ? 'bg-border-strong' : ''
-                      }`} 
-                    />
-                  </div>
-                )}
-
-                {/* Right Main Container */}
-                {rightMainContainer && (
-                  <div 
-                    className="relative"
-                    style={{ height: rightColumnHeights.rightMainHeight }}
-                  >
-                    <IndividualContainer
-                      container={rightMainContainer}
-                      onRemove={removeContainer}
-                      onSetContent={setContainerContent}
-                    />
-
-                    {/* Container addition zones for right main */}
-                    {!rightTopContainer && (
-                      <div
-                        className="absolute top-0 left-0 right-0 h-4 z-20 pointer-events-auto"
-                        onMouseEnter={() => setHoveredEdge('right-top')}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                      >
-                        {hoveredEdge === 'right-top' && (
-                          <div className="absolute left-1/2 top-1 transform -translate-x-1/2">
-                            <Button
-                              onClick={() => addContainer('right-top')}
-                              className="w-6 h-6 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {!rightBottomContainer && (
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-4 z-20 pointer-events-auto"
-                        onMouseEnter={() => setHoveredEdge('right-bottom')}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                      >
-                        {hoveredEdge === 'right-bottom' && (
-                          <div className="absolute left-1/2 bottom-1 transform -translate-x-1/2">
-                            <Button
-                              onClick={() => addContainer('right-bottom')}
-                              className="w-6 h-6 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Right-only container hover zones when no main sidecar */}
-                    {!rightTopContainer && !mainSidecarVisible && (
-                      <div
-                        className="absolute top-0 left-0 right-0 h-4 z-20 pointer-events-auto"
-                        onMouseEnter={() => setHoveredEdge('right-top')}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                      >
-                        {hoveredEdge === 'right-top' && (
-                          <div className="absolute left-1/2 top-1 transform -translate-x-1/2">
-                            <Button
-                              onClick={() => addContainer('right-top')}
-                              className="w-6 h-6 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {!rightBottomContainer && !mainSidecarVisible && (
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-4 z-20 pointer-events-auto"
-                        onMouseEnter={() => setHoveredEdge('right-bottom')}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                      >
-                        {hoveredEdge === 'right-bottom' && (
-                          <div className="absolute left-1/2 bottom-1 transform -translate-x-1/2">
-                            <Button
-                              onClick={() => addContainer('right-bottom')}
-                              className="w-6 h-6 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Right Main-Bottom Resize Handle */}
-                {rightMainContainer && rightBottomContainer && (
-                  <div 
-                    className={`h-1 cursor-row-resize hover:bg-borderSubtle transition-colors group ${
-                      isVerticalResizing ? 'bg-borderProminent' : ''
-                    }`}
-                    onMouseDown={(e) => handleVerticalMouseDown(e, 'right-main-bottom')}
-                  >
-                    <div 
-                      className={`w-8 h-0.5 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors mx-auto mt-0.5 ${
-                        isVerticalResizing ? 'bg-border-strong' : ''
-                      }`} 
-                    />
-                  </div>
-                )}
-
-                {/* Right Bottom Container */}
-                {rightBottomContainer && (
-                  <div 
-                    className="relative"
-                    style={{ height: rightColumnHeights.rightBottomHeight }}
-                  >
-                    <IndividualContainer
-                      container={rightBottomContainer}
-                      onRemove={removeContainer}
-                      onSetContent={setContainerContent}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );

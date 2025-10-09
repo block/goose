@@ -1891,7 +1891,7 @@ export default function ChatInput({
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
-        <div className="flex flex-row items-center">
+        <div className="flex flex-row items-center min-w-0 flex-shrink overflow-hidden">
           {/* Cost Tracker */}
           {COST_TRACKING_ENABLED && (
             <>
@@ -1903,7 +1903,7 @@ export default function ChatInput({
             </>
           )}
           <Tooltip>
-            <div>
+            <div className="flex-shrink-0">
               <ModelsBottomBar
                 sessionId={sessionId}
                 dropdownRef={dropdownRef}
@@ -1914,16 +1914,18 @@ export default function ChatInput({
               />
             </div>
           </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
+          <div className="flex-shrink-0">
+            <BottomMenuModeSelection />
+          </div>
+          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 onClick={() => setIsGoosehintsModalOpen?.(true)}
                 variant="ghost"
                 size="sm"
-                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0"
+                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0 flex-shrink-0"
               >
                 <FolderKey size={16} className="min-[1050px]:mr-1" />
                 <span className="text-xs hidden min-[1050px]:inline">Hints</span>
