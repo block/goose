@@ -1,6 +1,6 @@
 ---
 title: "Build Your Own Recipe Cookbook Generator for goose"
-description: Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes.
+description: Discover how goose can study your past sessions and turn your favorite workflows into reusable automation templates.
 authors: 
     - ian
 ---
@@ -357,11 +357,11 @@ activities:
   <meta property="og:title" content="Build Your Own Recipe Cookbook Generator for goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/10/08/recipe-cookbook-generator" />
-  <meta property="og:description" content="Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes." />
+  <meta property="og:description" content="Discover how goose can study your past sessions and turn your favorite workflows into reusable automation templates." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/recipe-cookbook-generator-ba6ce396585e1fc591e339720ee80a30.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Build Your Own Recipe Cookbook Generator for goose" />
-  <meta name="twitter:description" content="Stop repeating your workloads. Get goose to analyze your previous work sessions to automatically create a personalized cookbook of recipes." />
+  <meta name="twitter:description" content="Discover how goose can study your past sessions and turn your favorite workflows into reusable automation templates." />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/recipe-cookbook-generator-ba6ce396585e1fc591e339720ee80a30.png" />
 </head>
