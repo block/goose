@@ -3,10 +3,6 @@ import { Session } from '../api';
 import { useSessionStreamContext } from '../contexts/SessionStreamContext';
 
 interface UseSessionStreamOptions {
-  /**
-   * Whether to enable streaming. If false, will not connect.
-   * @default true
-   */
   enabled?: boolean;
   onUpdate?: (session: Session) => void;
   onError?: (error: string) => void;
@@ -45,7 +41,6 @@ export function useSessionStream(
   const onUpdateRef = useRef(onUpdate);
   const onErrorRef = useRef(onError);
 
-  // Keep refs up to date
   useEffect(() => {
     onUpdateRef.current = onUpdate;
     onErrorRef.current = onError;
