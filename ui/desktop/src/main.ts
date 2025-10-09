@@ -1254,6 +1254,38 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
+// Tunnel handlers
+ipcMain.handle('start-tunnel', async () => {
+  try {
+    const { startTunnel } = await import('./utils/tunnel');
+    const tunnelInfo = await startTunnel();
+    return tunnelInfo;
+  } catch (error) {
+    console.error('Error starting tunnel:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('stop-tunnel', async () => {
+  try {
+    const { stopTunnel } = await import('./utils/tunnel');
+    stopTunnel();
+  } catch (error) {
+    console.error('Error stopping tunnel:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-tunnel-status', async () => {
+  try {
+    const { getTunnelStatus } = await import('./utils/tunnel');
+    return getTunnelStatus();
+  } catch (error) {
+    console.error('Error getting tunnel status:', error);
+    return { state: 'error', info: null };
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
   const dialogOptions: OpenDialogOptions = {

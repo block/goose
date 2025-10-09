@@ -114,6 +114,17 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  // Tunnel functions
+  startTunnel: () => Promise<{
+    url: string;
+    ipv4: string;
+    ipv6: string;
+    hostname: string;
+    secret: string;
+    port: number;
+  }>;
+  stopTunnel: () => Promise<void>;
+  getTunnelStatus: () => Promise<{ state: string; info: unknown | null }>;
 };
 
 type AppConfigAPI = {
@@ -237,6 +248,9 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  startTunnel: () => ipcRenderer.invoke('start-tunnel'),
+  stopTunnel: () => ipcRenderer.invoke('stop-tunnel'),
+  getTunnelStatus: () => ipcRenderer.invoke('get-tunnel-status'),
 };
 
 const appConfigAPI: AppConfigAPI = {
