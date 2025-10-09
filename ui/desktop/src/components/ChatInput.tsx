@@ -122,6 +122,48 @@ export default function ChatInput({
   append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
+  // Track the available width for responsive layout
+  const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
+  const chatInputRef = useRef<HTMLDivElement>(null);
+
+  // Update available width based on container size
+  useEffect(() => {
+    const updateAvailableWidth = () => {
+      if (chatInputRef.current) {
+        const containerWidth = chatInputRef.current.offsetWidth;
+        setAvailableWidth(containerWidth);
+      } else {
+        setAvailableWidth(window.innerWidth);
+      }
+    };
+
+    // Initial measurement
+    updateAvailableWidth();
+
+    // Listen for window resize
+    const handleResize = () => {
+      updateAvailableWidth();
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Use ResizeObserver to detect container size changes (when sidecars are added/removed)
+    let resizeObserver: ResizeObserver | null = null;
+    if (chatInputRef.current) {
+      resizeObserver = new ResizeObserver(updateAvailableWidth);
+      resizeObserver.observe(chatInputRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, []);
+
+  // Calculate responsive breakpoint based on available width instead of window width
+  const shouldShowIconOnly = availableWidth < 750; // Adjusted from 1050px to 750px for container width
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
@@ -1512,6 +1554,7 @@ export default function ChatInput({
 
   return (
     <div
+      ref={chatInputRef}
       className={`flex flex-col relative h-auto p-4 transition-colors ${
         disableAnimation ? '' : 'page-transition'
       } ${
@@ -1851,7 +1894,7 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher />
+        <DirSwitcher shouldShowIconOnly={shouldShowIconOnly} />
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Action button */}
@@ -1864,8 +1907,8 @@ export default function ChatInput({
               size="sm"
               className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
-              <Action className="w-4 h-4 min-[1050px]:mr-1" />
-              <span className="text-xs hidden min-[1050px]:inline">Actions</span>
+              <Action className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
+              {!shouldShowIconOnly && <span className="text-xs">Actions</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent>Quick Actions</TooltipContent>
@@ -1882,8 +1925,8 @@ export default function ChatInput({
               size="sm"
               className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
             >
-              <Attach className="w-4 h-4 min-[1050px]:mr-1" />
-              <span className="text-xs hidden min-[1050px]:inline">Attach</span>
+              <Attach className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
+              {!shouldShowIconOnly && <span className="text-xs">Attach</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
@@ -1899,6 +1942,7 @@ export default function ChatInput({
                 inputTokens={inputTokens}
                 outputTokens={outputTokens}
                 sessionCosts={sessionCosts}
+                shouldShowIconOnly={shouldShowIconOnly}
               />
             </>
           )}
@@ -1911,12 +1955,13 @@ export default function ChatInput({
                 alerts={alerts}
                 recipeConfig={recipeConfig}
                 hasMessages={messages.length > 0}
+                shouldShowIconOnly={shouldShowIconOnly}
               />
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
           <div className="flex-shrink-0">
-            <BottomMenuModeSelection />
+            <BottomMenuModeSelection shouldShowIconOnly={shouldShowIconOnly} />
           </div>
           <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
           <Tooltip>
@@ -1927,8 +1972,8 @@ export default function ChatInput({
                 size="sm"
                 className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0 flex-shrink-0"
               >
-                <FolderKey size={16} className="min-[1050px]:mr-1" />
-                <span className="text-xs hidden min-[1050px]:inline">Hints</span>
+                <FolderKey size={16} className={shouldShowIconOnly ? '' : 'mr-1'} />
+                {!shouldShowIconOnly && <span className="text-xs">Hints</span>}
               </Button>
             </TooltipTrigger>
             <TooltipContent>Configure goosehints</TooltipContent>

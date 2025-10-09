@@ -28,6 +28,7 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
+  shouldShowIconOnly?: boolean;
 }
 
 export default function ModelsBottomBar({
@@ -37,6 +38,7 @@ export default function ModelsBottomBar({
   alerts,
   recipeConfig,
   hasMessages = false,
+  shouldShowIconOnly = false,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -230,8 +232,8 @@ export default function ModelsBottomBar({
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors px-1">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
-            <Bot className="min-[1050px]:mr-1 h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-xs hidden min-[1050px]:inline">
+            <Bot className={`${shouldShowIconOnly ? '' : 'mr-1'} h-4 w-4 flex-shrink-0`} />
+            <span className={`truncate text-xs ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>
               {displayModel}
               {isLeadWorkerActive && modelMode && (
                 <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>

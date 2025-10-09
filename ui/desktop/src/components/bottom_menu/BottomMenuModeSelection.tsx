@@ -9,7 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
-export const BottomMenuModeSelection = () => {
+interface BottomMenuModeSelectionProps {
+  shouldShowIconOnly?: boolean;
+}
+
+export const BottomMenuModeSelection = ({ shouldShowIconOnly = false }: BottomMenuModeSelectionProps) => {
   const [gooseMode, setGooseMode] = useState('auto');
   const { read, upsert } = useConfig();
 
@@ -57,8 +61,8 @@ export const BottomMenuModeSelection = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center cursor-pointer text-text-default/70 hover:text-text-default transition-colors text-xs px-1">
-            <Tornado className="min-[1050px]:mr-1 h-4 w-4" />
-            <span className="text-xs hidden min-[1050px]:inline">{getValueByKey(gooseMode)}</span>
+            <Tornado className={`${shouldShowIconOnly ? '' : 'mr-1'} h-4 w-4`} />
+            <span className={`text-xs ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>{getValueByKey(gooseMode)}</span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" side="top" align="center">
