@@ -48,6 +48,8 @@ The end result is a personalized cookbook of recipes tailored to your own specif
 
 [I demonstrated on a livestream](https://www.youtube.com/watch?v=-_1GALH2ER0) my whole process of creating this generator using "[vibe prompting](https://www.youtube.com/watch?v=IjXmT0W4f2Q)" -- having an extended conversation with goose to refine the idea and answer potential questions upfront. This approach uses fewer tokens than iterative coding, resulting in higher success rates.
 
+<iframe width="560" height="315" src="https://www.youtube.com/watch?v=-_1GALH2ER0" title="Vibe Code with goose: Automate my workflow" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 During my own conversation with goose, goose asked smart questions like:
 
 - **Pattern recognition**: How should we identify common workflows vs one-off tasks?
