@@ -232,7 +232,18 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let description = provider.generate_session_name(&conversation).await?;
+            let description = match provider.generate_session_name(&conversation).await {
+                Ok(name) => name,
+                Err(e) => {
+                    warn!(
+                        "Failed to generate session name: {}. Using fallback name.",
+                        e
+                    );
+                    let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
+                    format!("Unnamed Session ({})", timestamp)
+                }
+            };
+
             Self::update_session(id)
                 .description(description)
                 .apply()
