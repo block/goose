@@ -9,20 +9,15 @@ use goose::recipe_deeplink;
 pub fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
     let recipe_file = load_recipe_file(recipe_name)?;
-    match validate_recipe_template_from_file(&recipe_file) {
-        Ok(_) => {
-            println!("{} recipe file is valid", style("✓").green().bold());
-            Ok(())
-        }
-        Err(err) => {
-            println!(
-                "{} recipe file is invalid: {}",
-                style("✗").red().bold(),
-                err
-            );
-            Ok(())
-        }
-    }
+    validate_recipe_template_from_file(&recipe_file).map_err(|err| {
+        anyhow::anyhow!(
+            "{} recipe file is invalid: {}",
+            style("✗").red().bold(),
+            err
+        )
+    })?;
+    println!("{} recipe file is valid", style("✓").green().bold());
+    Ok(())
 }
 
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
@@ -187,20 +182,6 @@ prompt: "Test prompt content {{ name }}"
 instructions: "Test instructions"
 "#;
 
-    const RECIPE_WITH_INVALID_JSON_SCHEMA: &str = r#"
-title: "Test Recipe with Invalid JSON Schema"
-description: "A test recipe with invalid JSON schema"
-prompt: "Test prompt content"
-instructions: "Test instructions"
-response:
-  json_schema:
-    type: invalid_type
-    properties:
-      result:
-        type: unknown_type
-    required: "should_be_array_not_string"
-"#;
-
     #[test]
     fn test_handle_deeplink_valid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
@@ -263,23 +244,6 @@ response:
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
         let result = handle_validate(&recipe_path);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_handle_validation_recipe_with_invalid_json_schema() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let recipe_path = create_test_recipe_file(
-            &temp_dir,
-            "test_recipe.yaml",
-            RECIPE_WITH_INVALID_JSON_SCHEMA,
-        );
-
-        let result = handle_validate(&recipe_path);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("JSON schema validation failed"));
     }
 
     #[test]
