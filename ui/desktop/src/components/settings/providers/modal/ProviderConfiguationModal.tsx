@@ -97,7 +97,8 @@ export default function ProviderConfigurationModal() {
               console.debug('API client get failed, falling back to fetch', e);
             }
 
-            // Fallback to a direct fetch
+            /* Fallback to a direct fetch (commented out for SDK-only testing)
+// Fallback to a direct fetch
             try {
               const electronCfg =
                 window.electron && window.electron.getConfig ? window.electron.getConfig() : null;
@@ -138,6 +139,7 @@ export default function ProviderConfigurationModal() {
             } catch (err) {
               console.debug('Failed to fetch custom provider JSON', err);
             }
+            */
           } catch (err) {
             console.debug(err);
           }
