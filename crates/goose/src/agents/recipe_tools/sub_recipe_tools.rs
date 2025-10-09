@@ -7,7 +7,7 @@ use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
 use crate::agents::subagent_execution_tool::lib::ExecutionMode;
-use crate::agents::subagent_execution_tool::task_types::Task;
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskPayload};
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -76,15 +76,13 @@ fn create_tasks_from_params(
         .map_err(|e| anyhow::anyhow!("Failed to build recipe: {}", e))?;
 
         // Create task with the fully-formed recipe
-        let payload = json!({
-            "recipe": recipe,
-            "return_last_only": false,
-            "sequential_when_repeated": sub_recipe.sequential_when_repeated
-        });
-
         let task = Task {
             id: uuid::Uuid::new_v4().to_string(),
-            payload,
+            payload: TaskPayload {
+                recipe,
+                return_last_only: false,
+                sequential_when_repeated: sub_recipe.sequential_when_repeated,
+            },
         };
 
         tasks.push(task);

@@ -53,21 +53,9 @@ async fn handle_recipe_task(
     use crate::agents::subagent_handler::run_complete_subagent_task;
     use crate::model::ModelConfig;
     use crate::providers;
-    use crate::recipe::Recipe;
 
-    let recipe_value = task
-        .payload
-        .get("recipe")
-        .ok_or_else(|| "Missing recipe in inline_recipe task payload".to_string())?;
-
-    let recipe: Recipe = serde_json::from_value(recipe_value.clone())
-        .map_err(|e| format!("Invalid recipe in payload: {}", e))?;
-
-    let return_last_only = task
-        .payload
-        .get("return_last_only")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let recipe = task.payload.recipe;
+    let return_last_only = task.payload.return_last_only;
 
     // Apply recipe extensions if specified
     // - None: inherit parent extensions (default)

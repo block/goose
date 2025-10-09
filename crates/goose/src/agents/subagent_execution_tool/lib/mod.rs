@@ -34,12 +34,9 @@ pub async fn execute_tasks(
         }
         ExecutionMode::Parallel => {
             // Check if any task requires sequential execution
-            let any_sequential = tasks.iter().any(|task| {
-                task.payload
-                    .get("sequential_when_repeated")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false)
-            });
+            let any_sequential = tasks
+                .iter()
+                .any(|task| task.payload.sequential_when_repeated);
 
             if any_sequential {
                 Ok(json!(

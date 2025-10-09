@@ -15,7 +15,6 @@ use crate::agents::subagent_execution_tool::notification_events::{
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskResult, TaskStatus};
 use crate::agents::subagent_execution_tool::utils::{count_by_status, get_task_name};
 use crate::utils::is_token_cancelled;
-use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,27 +27,8 @@ const THROTTLE_INTERVAL_MS: u64 = 250;
 const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
-    // Try to extract metadata from the recipe in payload
-    task_info
-        .task
-        .payload
-        .get("recipe")
-        .and_then(|r| r.get("metadata"))
-        .and_then(|m| m.as_object())
-        .map(|metadata| {
-            metadata
-                .iter()
-                .map(|(key, value)| {
-                    let value_str = match value {
-                        Value::String(s) => s.clone(),
-                        _ => value.to_string(),
-                    };
-                    format!("{}={}", key, value_str)
-                })
-                .collect::<Vec<_>>()
-                .join(",")
-        })
-        .unwrap_or_default()
+    // Return the recipe title (always present as it's a required field)
+    task_info.task.payload.recipe.title.clone()
 }
 
 pub struct TaskExecutionTracker {

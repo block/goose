@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
+use crate::recipe::Recipe;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -16,9 +17,18 @@ pub enum ExecutionMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskPayload {
+    pub recipe: Recipe,
+    #[serde(default)]
+    pub return_last_only: bool,
+    #[serde(default)]
+    pub sequential_when_repeated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
-    pub payload: Value, // Contains the recipe and execution config
+    pub payload: TaskPayload,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
