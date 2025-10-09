@@ -17,13 +17,18 @@ pub async fn run_complete_subagent_task(
     task_config: TaskConfig,
     return_last_only: bool,
 ) -> Result<String, anyhow::Error> {
-    let messages = get_agent_messages(recipe, task_config).await.map_err(|e| {
+    let (messages, final_output) = get_agent_messages(recipe, task_config).await.map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to execute task: {}", e),
             None,
         )
     })?;
+
+    // If we have validated output from FinalOutputTool, return it
+    if let Some(output) = final_output {
+        return Ok(output);
+    }
 
     // Extract text content based on return_last_only flag
     let response_text = if return_last_only {
@@ -92,7 +97,7 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
-) -> BoxFuture<'static, Result<Conversation>> {
+) -> BoxFuture<'static, Result<(Conversation, Option<String>)>> {
     Box::pin(async move {
         // Extract instruction from recipe
         let text_instruction = recipe
@@ -133,6 +138,7 @@ fn get_agent_messages(
         }
 
         // Add FinalOutputTool if response schema is specified
+        let has_response_schema = recipe.response.is_some();
         if let Some(response) = recipe.response {
             agent.add_final_output_tool(response).await;
         }
@@ -185,6 +191,18 @@ fn get_agent_messages(
             }
         }
 
-        Ok(session_messages)
+        // Extract final output if FinalOutputTool was used
+        let final_output = if has_response_schema {
+            agent
+                .final_output_tool
+                .lock()
+                .await
+                .as_ref()
+                .and_then(|tool| tool.final_output.clone())
+        } else {
+            None
+        };
+
+        Ok((session_messages, final_output))
     })
 }
