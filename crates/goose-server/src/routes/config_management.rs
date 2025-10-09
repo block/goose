@@ -315,6 +315,9 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
                                     .map(|m| m.name.clone())
                                     .unwrap_or_default();
 
+                                // TODO(Douwe): consider refactoring this per-provider base URL
+                                // key handling to a shared helper to reduce duplication and
+                                // centralize legacy-key migration logic.
                                 // Use a per-provider base URL key to avoid collisions with legacy
                                 // shared key names and to match the keys used when registering
                                 // custom providers into the runtime registry.
