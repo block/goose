@@ -49,6 +49,8 @@ pub struct OpenAiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     base_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    models_path: Option<String>,
     organization: Option<String>,
     project: Option<String>,
     model: ModelConfig,
@@ -104,6 +106,7 @@ impl OpenAiProvider {
         Ok(Self {
             api_client,
             base_path,
+            models_path: None,
             organization,
             project,
             model,
@@ -157,6 +160,7 @@ impl OpenAiProvider {
         Ok(Self {
             api_client,
             base_path,
+            models_path: config.models_path.clone(),
             organization: None,
             project: None,
             model,
@@ -233,7 +237,10 @@ impl Provider for OpenAiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
+        let models_path = self
+            .models_path
+            .clone()
+            .unwrap_or_else(|| self.base_path.replace("v1/chat/completions", "v1/models"));
         let response = self.api_client.response_get(&models_path).await?;
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
