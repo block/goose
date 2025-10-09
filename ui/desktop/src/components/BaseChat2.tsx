@@ -150,6 +150,27 @@ function BaseChatContent({
     isStreamingRef.current = chatState !== ChatState.Idle;
   }, [chatState]);
 
+  // Track previous message count to detect when user sends a message
+  const prevMessageCountRef = useRef(messages.length);
+
+  // Auto-scroll when a new user message is added
+  useEffect(() => {
+    const currentCount = messages.length;
+    const prevCount = prevMessageCountRef.current;
+
+    // If messages increased and the last message is from the user, scroll to bottom
+    if (currentCount > prevCount && messages[currentCount - 1]?.role === 'user') {
+      // Wait a bit for the message to render, then scroll
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 50);
+    }
+
+    prevMessageCountRef.current = currentCount;
+  }, [messages]);
+
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
@@ -239,7 +260,8 @@ function BaseChatContent({
     </>
   );
 
-  const showPopularTopics = messages.length === 0;
+  // Only show popular topics if there are no messages AND we're not loading a session
+  const showPopularTopics = messages.length === 0 && !resumeSessionId;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
