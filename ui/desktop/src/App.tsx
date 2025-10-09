@@ -28,6 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import LauncherView from './components/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -89,8 +90,7 @@ const PairRouteWrapper = ({
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams] = useSearchParams();
-  const [initialMessage] = useState(routeState.initialMessage);
-
+  const initialMessage = routeState.initialMessage;
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   return (
@@ -485,6 +485,21 @@ export function AppInner() {
     };
   }, []);
 
+  // Handle initial message from launcher
+  useEffect(() => {
+    const handleSetInitialMessage = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const initialMessage = args[0] as string;
+      if (initialMessage) {
+        console.log('Received initial message from launcher:', initialMessage);
+        navigate('/pair', { state: { initialMessage } });
+      }
+    };
+    window.electron.on('set-initial-message', handleSetInitialMessage);
+    return () => {
+      window.electron.off('set-initial-message', handleSetInitialMessage);
+    };
+  }, [navigate]);
+
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
   }
@@ -510,6 +525,7 @@ export function AppInner() {
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
+          <Route path="launcher" element={<LauncherView />} />
           <Route
             path="welcome"
             element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}

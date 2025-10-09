@@ -10,6 +10,7 @@ import {
   MenuItem,
   Notification,
   powerSaveBlocker,
+  screen,
   session,
   shell,
   Tray,
@@ -502,7 +503,7 @@ const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blocke
 
 const createChat = async (
   app: App,
-  _query?: string,
+  initialMessage?: string,
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
@@ -703,6 +704,13 @@ const createChat = async (
   log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
+  // If we have an initial message, send it to the window once it's ready
+  if (initialMessage) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.send('set-initial-message', initialMessage);
+    });
+  }
+
   // Set up local keyboard shortcuts that only work when the window is focused
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'r' && input.meta) {
@@ -791,6 +799,65 @@ const createChat = async (
     }
   });
   return mainWindow;
+};
+
+const createLauncher = () => {
+  const launcherWindow = new BrowserWindow({
+    width: 600,
+    height: 80,
+    frame: false,
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#ffffff',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      additionalArguments: [JSON.stringify(appConfig)],
+      partition: 'persist:goose',
+    },
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    hasShadow: true,
+    vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+  });
+
+  // Center on screen
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  const windowBounds = launcherWindow.getBounds();
+
+  launcherWindow.setPosition(
+    Math.round(width / 2 - windowBounds.width / 2),
+    Math.round(height / 3 - windowBounds.height / 2)
+  );
+
+  // Load launcher window content
+  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+
+  url.hash = '/launcher';
+  launcherWindow.loadURL(formatUrl(url));
+
+  // Destroy window when it loses focus
+  launcherWindow.on('blur', () => {
+    launcherWindow.destroy();
+  });
+
+  // Also destroy on escape key
+  launcherWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Escape') {
+      launcherWindow.destroy();
+      event.preventDefault();
+    }
+  });
+
+  return launcherWindow;
 };
 
 // Track tray instance
@@ -1659,28 +1726,6 @@ const focusWindow = () => {
   }
 };
 
-const registerGlobalHotkey = (accelerator: string) => {
-  // Unregister any existing shortcuts first
-  globalShortcut.unregisterAll();
-
-  try {
-    globalShortcut.register(accelerator, () => {
-      focusWindow();
-    });
-
-    // Check if the shortcut was registered successfully
-    if (globalShortcut.isRegistered(accelerator)) {
-      return true;
-    } else {
-      console.error('Failed to register global hotkey');
-      return false;
-    }
-  } catch (e) {
-    console.error('Error registering global hotkey:', e);
-    return false;
-  }
-};
-
 async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
@@ -1736,8 +1781,13 @@ async function appMain() {
     });
   });
 
-  // Register the default global hotkey
-  registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+  try {
+    globalShortcut.register('CommandOrControl+Alt+Shift+G', () => {
+      createLauncher();
+    });
+  } catch (e) {
+    console.error('Error registering launcher hotkey:', e);
+  }
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -1989,6 +2039,13 @@ async function appMain() {
       );
     }
   );
+
+  ipcMain.on('close-window', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window && !window.isDestroyed()) {
+      window.close();
+    }
+  });
 
   ipcMain.on('notify', (_event, data) => {
     try {
