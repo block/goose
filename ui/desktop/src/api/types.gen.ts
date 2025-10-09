@@ -873,8 +873,8 @@ export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
     display_name: string;
+    engine: string;
     models: Array<string>;
-    provider_type: string;
     supports_streaming?: boolean | null;
 };
 
@@ -1263,6 +1263,64 @@ export type RemoveCustomProviderResponses = {
 };
 
 export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
+
+export type GetCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type GetCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetCustomProviderResponses = {
+    /**
+     * Custom provider retrieved successfully
+     */
+    200: LoadedProvider;
+};
+
+export type GetCustomProviderResponse = GetCustomProviderResponses[keyof GetCustomProviderResponses];
+
+export type UpdateCustomProviderData = {
+    body: UpdateCustomProviderRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type UpdateCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateCustomProviderResponses = {
+    /**
+     * Custom provider updated successfully
+     */
+    200: string;
+};
+
+export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;

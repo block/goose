@@ -338,6 +338,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::get_provider_models,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
+        super::routes::config_management::get_custom_provider,
+        super::routes::config_management::update_custom_provider,
         super::routes::config_management::remove_custom_provider,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,

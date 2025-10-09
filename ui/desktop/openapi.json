@@ -409,6 +409,84 @@
       }
     },
     "/config/custom-providers/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom provider retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadedProvider"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "update_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom provider updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "super::routes::config_management"
@@ -4518,7 +4596,7 @@
       "UpdateCustomProviderRequest": {
         "type": "object",
         "required": [
-          "provider_type",
+          "engine",
           "display_name",
           "api_url",
           "api_key",
@@ -4534,14 +4612,14 @@
           "display_name": {
             "type": "string"
           },
+          "engine": {
+            "type": "string"
+          },
           "models": {
             "type": "array",
             "items": {
               "type": "string"
             }
-          },
-          "provider_type": {
-            "type": "string"
           },
           "supports_streaming": {
             "type": "boolean",

@@ -79,7 +79,7 @@ pub struct UpsertPermissionsQuery {
 
 #[derive(Deserialize, ToSchema)]
 pub struct UpdateCustomProviderRequest {
-    pub provider_type: String,
+    pub engine: String,
     pub display_name: String,
     pub api_url: String,
     pub api_key: String,
@@ -605,7 +605,7 @@ pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
     let config = goose::config::declarative_providers::create_custom_provider(
-        &request.provider_type,
+        &request.engine,
         request.display_name,
         request.api_url,
         request.api_key,
@@ -625,7 +625,7 @@ pub async fn create_custom_provider(
     get,
     path = "/config/custom-providers/{id}",
     responses(
-        (status = 200, description = "Custom provider retrieved successfully", body = DeclarativeProviderConfig),
+        (status = 200, description = "Custom provider retrieved successfully", body = LoadedProvider),
         (status = 404, description = "Provider not found"),
         (status = 500, description = "Internal server error")
     )
@@ -677,7 +677,7 @@ pub async fn update_custom_provider(
 ) -> Result<Json<String>, StatusCode> {
     goose::config::declarative_providers::update_custom_provider(
         &id,
-        &request.provider_type,
+        &request.engine,
         request.display_name,
         request.api_url,
         request.api_key,
@@ -719,6 +719,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/config/custom-providers/{id}",
             post(update_custom_provider),
         )
+        .route("/config/custom-providers/{id}", get(get_custom_provider))
         .with_state(state)
 }
 

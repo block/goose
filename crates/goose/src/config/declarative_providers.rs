@@ -86,7 +86,7 @@ pub fn generate_api_key_name(id: &str) -> String {
 }
 
 pub fn create_custom_provider(
-    provider_type: &str,
+    engine: &str,
     display_name: String,
     api_url: String,
     api_key: String,
@@ -106,11 +106,11 @@ pub fn create_custom_provider(
 
     let provider_config = DeclarativeProviderConfig {
         name: id.clone(),
-        engine: match provider_type {
+        engine: match engine {
             "openai_compatible" => ProviderEngine::OpenAI,
             "anthropic_compatible" => ProviderEngine::Anthropic,
             "ollama_compatible" => ProviderEngine::Ollama,
-            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", engine)),
         },
         display_name: display_name.clone(),
         description: Some(format!("Custom {} provider", display_name)),

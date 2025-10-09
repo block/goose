@@ -8,7 +8,9 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::declarative_providers::DeclarativeProviderConfig;
+use goose::config::declarative_providers::{
+    create_custom_provider, remove_custom_provider, DeclarativeProviderConfig,
+};
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
     name_to_key, remove_extension, set_extension, set_extension_enabled,
@@ -1915,7 +1917,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         .initial_value(true)
         .interact()?;
 
-    DeclarativeProviderConfig::create(
+    create_custom_provider(
         provider_type,
         display_name.clone(),
         api_url,
@@ -1950,7 +1952,7 @@ fn remove_provider() -> Result<(), Box<dyn Error>> {
         .items(&provider_items)
         .interact()?;
 
-    DeclarativeProviderConfig::remove(selected_id)?;
+    remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())
 }
