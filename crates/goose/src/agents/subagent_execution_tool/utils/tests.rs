@@ -1,4 +1,4 @@
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskStatus, TaskType};
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskStatus};
 use crate::agents::subagent_execution_tool::utils::{
     count_by_status, get_task_name, strip_ansi_codes,
 };
@@ -20,45 +20,43 @@ mod test_get_task_name {
     use super::*;
 
     #[test]
-    fn test_extracts_sub_recipe_name() {
-        let sub_recipe_task = Task {
+    fn test_extracts_recipe_title() {
+        let task = Task {
             id: "task_1".to_string(),
-            task_type: TaskType::SubRecipe,
             payload: json!({
-                "sub_recipe": {
-                    "name": "my_recipe",
-                    "recipe_path": "/path/to/recipe"
-                }
+                "recipe": {
+                    "title": "my_recipe",
+                    "instructions": "do something"
+                },
+                "sub_recipe_name": "my_recipe"
             }),
         };
 
-        let task_info = create_task_info_with_defaults(sub_recipe_task, TaskStatus::Pending);
+        let task_info = create_task_info_with_defaults(task, TaskStatus::Pending);
 
         assert_eq!(get_task_name(&task_info), "my_recipe");
     }
 
     #[test]
-    fn falls_back_to_task_id_for_inline_recipe() {
-        let inline_task = Task {
+    fn falls_back_to_task_id_for_recipe_without_title() {
+        let task = Task {
             id: "task_2".to_string(),
-            task_type: TaskType::InlineRecipe,
             payload: json!({"recipe": {"instructions": "do something"}}),
         };
 
-        let task_info = create_task_info_with_defaults(inline_task, TaskStatus::Pending);
+        let task_info = create_task_info_with_defaults(task, TaskStatus::Pending);
 
         assert_eq!(get_task_name(&task_info), "task_2");
     }
 
     #[test]
-    fn falls_back_to_task_id_when_sub_recipe_name_missing() {
+    fn falls_back_to_task_id_when_recipe_title_missing() {
         let malformed_task = Task {
             id: "task_3".to_string(),
-            task_type: TaskType::SubRecipe,
             payload: json!({
-                "sub_recipe": {
-                    "recipe_path": "/path/to/recipe"
-                    // missing "name" field
+                "recipe": {
+                    "instructions": "do something"
+                    // missing "title" field
                 }
             }),
         };
@@ -69,11 +67,10 @@ mod test_get_task_name {
     }
 
     #[test]
-    fn falls_back_to_task_id_when_sub_recipe_missing() {
+    fn falls_back_to_task_id_when_recipe_missing() {
         let malformed_task = Task {
             id: "task_4".to_string(),
-            task_type: TaskType::SubRecipe,
-            payload: json!({}), // missing "sub_recipe" field
+            payload: json!({}), // missing "recipe" field
         };
 
         let task_info = create_task_info_with_defaults(malformed_task, TaskStatus::Pending);
@@ -88,8 +85,12 @@ mod count_by_status {
     fn create_test_task(id: &str, status: TaskStatus) -> TaskInfo {
         let task = Task {
             id: id.to_string(),
-            task_type: TaskType::InlineRecipe,
-            payload: json!({}),
+            payload: json!({
+                "recipe": {
+                    "title": "Test Recipe",
+                    "instructions": "Test"
+                }
+            }),
         };
         create_task_info_with_defaults(task, status)
     }
