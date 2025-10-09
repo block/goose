@@ -164,34 +164,65 @@ const BentoBox: React.FC<{
     }
   }, [containers.length]);
 
-  // Handle resizing between containers
+  // Store parent width to avoid DOM queries during resize
+  const parentWidthRef = useRef<number>(800);
+  
+  // Update parent width when containers change
+  useEffect(() => {
+    const updateParentWidth = () => {
+      const bentoElement = document.querySelector('[data-bento-container="true"]');
+      if (bentoElement) {
+        parentWidthRef.current = bentoElement.clientWidth;
+      }
+    };
+    
+    updateParentWidth();
+    window.addEventListener('resize', updateParentWidth);
+    return () => window.removeEventListener('resize', updateParentWidth);
+  }, [containers.length]);
+
+  // Handle resizing between containers - FIXED VERSION
   const handleResize = useCallback((containerIndex: number, delta: number) => {
     if (containerIndex >= containers.length - 1) return; // Can't resize last container
     
-    const leftContainer = containers[containerIndex];
-    const rightContainer = containers[containerIndex + 1];
-    
     setContainerWidths(prev => {
-      const leftCurrentWidth = prev[leftContainer.id] || 100 / containers.length;
-      const rightCurrentWidth = prev[rightContainer.id] || 100 / containers.length;
+      // Get current widths for all containers
+      const currentWidths = containers.map(container => 
+        prev[container.id] || 100 / containers.length
+      );
       
-      // Calculate new widths (delta is in pixels, convert to percentage)
-      const containerElement = document.querySelector(`[data-container-id="${leftContainer.id}"]`);
-      const parentWidth = containerElement?.parentElement?.offsetWidth || 800;
-      const deltaPercent = (delta / parentWidth) * 100;
+      // Convert pixel delta to percentage using cached parent width
+      const deltaPercent = (delta / parentWidthRef.current) * 100;
       
-      // Apply constraints (minimum 10% width for each container)
-      const minWidth = 10;
-      const newLeftWidth = Math.max(minWidth, Math.min(90, leftCurrentWidth + deltaPercent));
-      const newRightWidth = Math.max(minWidth, Math.min(90, rightCurrentWidth - deltaPercent));
+      // Apply delta to the two containers being resized
+      const newWidths = [...currentWidths];
+      const minWidth = 5; // Minimum 5% width per container
+      const maxWidth = 80; // Maximum 80% width per container
       
-      // Only update if both widths are valid
-      if (newLeftWidth >= minWidth && newRightWidth >= minWidth) {
-        return {
-          ...prev,
-          [leftContainer.id]: newLeftWidth,
-          [rightContainer.id]: newRightWidth
-        };
+      // Calculate proposed new widths
+      const proposedLeftWidth = currentWidths[containerIndex] + deltaPercent;
+      const proposedRightWidth = currentWidths[containerIndex + 1] - deltaPercent;
+      
+      // Apply constraints
+      const constrainedLeftWidth = Math.max(minWidth, Math.min(maxWidth, proposedLeftWidth));
+      const constrainedRightWidth = Math.max(minWidth, Math.min(maxWidth, proposedRightWidth));
+      
+      // Check if both constraints can be satisfied
+      const totalConstrainedWidth = constrainedLeftWidth + constrainedRightWidth;
+      const originalTotalWidth = currentWidths[containerIndex] + currentWidths[containerIndex + 1];
+      
+      // Only apply changes if constraints are satisfied and total width is preserved
+      if (Math.abs(totalConstrainedWidth - originalTotalWidth) < 0.1) {
+        newWidths[containerIndex] = constrainedLeftWidth;
+        newWidths[containerIndex + 1] = constrainedRightWidth;
+        
+        // Convert back to object format
+        const updatedWidths = {};
+        containers.forEach((container, index) => {
+          updatedWidths[container.id] = newWidths[index];
+        });
+        
+        return updatedWidths;
       }
       
       return prev;
@@ -258,7 +289,7 @@ const BentoBox: React.FC<{
   return (
     <div className="flex-1 h-full bg-background-default rounded-xl overflow-hidden relative">
       {/* Container grid */}
-      <div className="flex h-full w-full">
+      <div className="flex h-full w-full" data-bento-container="true">
         {containers.map((container, index) => (
           <React.Fragment key={container.id}>
             <div 
