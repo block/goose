@@ -1,0 +1,6 @@
+{
+  "paths": {
+    "specs": ".codex/specs",
+    "steering": ".codex/steering"
+  }
+}

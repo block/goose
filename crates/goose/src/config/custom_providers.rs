@@ -94,7 +94,6 @@ impl CustomProviderConfig {
             supports_streaming,
         };
 
-        // save to JSON file
         let custom_providers_dir = custom_providers_dir();
         std::fs::create_dir_all(&custom_providers_dir)?;
 
@@ -145,18 +144,9 @@ pub fn register_custom_providers(
 ) -> Result<()> {
     let configs = load_custom_providers(dir)?;
 
-    // Detect legacy shared key usage in keyring/config that could override
-    // per-provider base URLs. Historically a single key name
-    // "CUSTOM_PROVIDER_BASE_URL" was used for all providers which could
-    // result in cross-provider collisions if stored in the keyring. If that
-    // legacy key exists, log a warning so operators can remove/migrate it.
     let global_config = crate::config::Config::global();
     if let Ok(val) = global_config.get_secret::<String>("CUSTOM_PROVIDER_BASE_URL") {
         tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}.", val);
-        // Attempt to remove the legacy shared key from secret storage. This is
-        // a best-effort cleanup to prevent custom providers from picking up a
-        // wrong global base_url. If deletion fails, log the error and continue
-        // without panicking.
         match global_config.delete_secret("CUSTOM_PROVIDER_BASE_URL") {
             Ok(_) => tracing::info!(
                 "Removed legacy secret key 'CUSTOM_PROVIDER_BASE_URL' from secret storage."
@@ -170,15 +160,6 @@ pub fn register_custom_providers(
 
     for config in configs {
         let config_clone = config.clone();
-        // Use a unique base URL key per custom provider to avoid collisions in the
-        // global config/keyring. Previously this used the constant
-        // "CUSTOM_PROVIDER_BASE_URL" for every provider which caused different
-        // providers to read/write the same key and mix up values stored in the
-        // keyring or config file.
-        //
-        // Ensure the per-provider key always uses the form: CUSTOM_<ID>_BASE_URL
-        // where <ID> is the provider name (without any leading "custom_") in
-        // upper-case. This avoids accidentally creating a shared/legacy key.
         let provider_id = config.name.trim_start_matches("custom_");
         let base_url_key = format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
         let description = config
