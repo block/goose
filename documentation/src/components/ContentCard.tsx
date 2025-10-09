@@ -6,7 +6,7 @@ interface ContentCardProps {
   type: ContentType;
   title: string;
   description: string;
-  thumbnailUrl?: string; // must import blog images from topic -- see subagents.mdx for example
+  thumbnailUrl?: string; // meta url or ES6 import for blogs
   linkUrl: string;
   date?: string;
   duration?: string; // e.g. '6:04' for videos and '5 min read' for blogs
