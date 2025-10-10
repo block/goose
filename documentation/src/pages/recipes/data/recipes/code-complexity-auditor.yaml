@@ -1,0 +1,112 @@
+version: "1.0.0"
+title: Code Complexity Auditor
+description: |
+  Automatically analyzes your project's source code to detect complex, hard-to-maintain functions and classes. 
+  The Code Complexity Auditor identifies cyclomatic complexity, nesting depth, and common code smells across 
+  multiple programming languages, highlighting areas that may require refactoring. It produces a structured 
+  Markdown report that lists functions, their complexity scores, and actionable recommendations for simplification. 
+  Ideal for developers, teams, or open-source contributors, it helps maintain clean, readable, and maintainable 
+  codebases. Whether reviewing legacy code or onboarding new team members, this tool provides clear insights into 
+  code health efficiently.
+
+activities:
+  - Scan all project directories recursively to locate source code files in supported languages
+  - Examine each function, method, and class to compute cyclomatic complexity and nesting depth
+  - Flag high-complexity or deeply nested functions and detect code smells like long methods, duplicated logic, or excessive branching
+  - Compile results into a structured report categorized by file and function
+  - Include recommendations for simplification or refactoring
+
+instructions: |
+  Begin by recursively traversing the entire project directory structure to identify and catalog all source code files. 
+  Automatically detect the programming language of each file based on file extensions and language-specific patterns. 
+  Support multiple languages including Python (.py), JavaScript (.js, .jsx, .ts, .tsx), Java (.java), C++ (.cpp, .cc, .h), 
+  Ruby (.rb), Go (.go), PHP (.php), and others as appropriate.
+
+  For each identified source file, perform a comprehensive static analysis by parsing the code structure to locate all 
+  functions, methods, class definitions, and other executable code units. Use language-specific parsing techniques to 
+  accurately identify code boundaries and logical structures. For each code unit discovered, calculate the following metrics:
+
+  1. Cyclomatic Complexity: Count all decision points including if/else statements, switch/case blocks, loops (for, while, 
+  do-while), logical operators (&&, ||), ternary operators, and exception handling blocks. Each decision point adds to the 
+  complexity score, representing the number of independent paths through the code.
+
+  2. Nesting Depth: Measure the maximum level of nested control structures within each function. Deep nesting indicates 
+  code that may be difficult to understand and maintain.
+
+  3. Function Length: Count the total lines of code and number of statements within each function to identify excessively 
+  long methods that should be refactored.
+
+  4. Code Smells: Detect patterns such as duplicated code blocks, excessive parameter lists, long conditional chains, and 
+  repeated logic that suggests opportunities for abstraction.
+
+  Compare each calculated metric against configurable thresholds (default cyclomatic complexity threshold of 10, nesting 
+  depth of 4, function length of 50 lines). Flag any code units that exceed these thresholds as requiring attention.
+
+  Generate a comprehensive Markdown report structured hierarchically by file path, then by function or class name. For 
+  each flagged code unit, include the function name, starting line number, all calculated metrics, identified issues, and 
+  specific, actionable recommendations for improvement. Prioritize the report by displaying the most complex and problematic 
+  functions first, enabling developers to focus on the highest-impact refactoring opportunities.
+
+  Provide concrete refactoring suggestions such as extracting helper functions, reducing conditional nesting through early 
+  returns or guard clauses, replacing complex conditionals with polymorphism or strategy patterns, and breaking large 
+  functions into smaller, single-responsibility methods. Include a summary table and overview section highlighting overall 
+  code health statistics and the most critical areas requiring immediate attention.
+
+  Output the complete report to the specified file name without modifying any original source code files.
+
+parameters:
+  - key: output_file
+    input_type: string
+    requirement: optional
+    default: "complexity-report.md"
+    description: "Name of the output report file"
+  - key: language
+    input_type: string
+    requirement: optional
+    default: "auto"
+    description: "Programming language to analyze (auto-detect if not specified)"
+  - key: threshold
+    input_type: string
+    requirement: optional
+    default: 10
+    description: "Cyclomatic complexity threshold for flagging functions"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  You are an expert software engineer, code reviewer, and technical analyst. Your task is to analyze all 
+  source code files in the specified project directory and produce a comprehensive Code Complexity Report in Markdown. 
+  Scan every function, method, and class, identifying complexity metrics and possible code issues. Focus on cyclomatic 
+  complexity, nesting depth, function length, and duplication. For each code unit, calculate a numeric complexity score 
+  and identify if it exceeds recommended thresholds. For high-complexity code, provide clear, actionable suggestions 
+  for refactoring, simplification, or modularization.
+
+  Begin by recursively scanning the project directory, identifying files by their extensions or language patterns. 
+  If language is specified as {{language}}, focus on those files; otherwise support multiple programming languages 
+  including Python, JavaScript, Java, and C++. Detect functions, methods, and classes using language-specific parsing 
+  rules. For each code unit, compute the number of decision points, loops, conditional branches, and nested structures 
+  to derive a cyclomatic complexity score. Assess maximum nesting depth, noting functions or methods that may be 
+  difficult to read or maintain. Flag any instances of long methods, duplicated logic, or repeated patterns.
+
+  Use a cyclomatic complexity threshold of {{threshold}} to flag functions that need attention. Any function exceeding 
+  this threshold should be highlighted as requiring refactoring.
+
+  After computing metrics, structure the output by file, then by function or class. Each entry should include: 
+  function/method name, start line, complexity score, nesting depth, detected issues, and recommendations. Highlight 
+  the most critical areas first—functions with the highest complexity or deepest nesting. Provide clear suggestions 
+  for improvement, such as splitting large functions, reducing nested conditionals, or abstracting repeated logic 
+  into helper functions. Where appropriate, give examples of refactoring or modularization ideas without modifying the 
+  original code.
+
+  Assemble the full report in Markdown, including a table summarizing all files and functions with their scores. 
+  Provide an overview section explaining the purpose of the audit, the thresholds used, and a brief description of 
+  the most critical complexity hotspots. Ensure the report is readable for developers at all skill levels and can 
+  serve as a reference for refactoring or code review discussions. Only analyze actual code; do not make assumptions 
+  about behavior. Present results clearly and concisely for copy, sharing, or pull request discussions.
+  
+  Save the final report to {{output_file}}.
