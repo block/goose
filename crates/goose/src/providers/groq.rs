@@ -3,7 +3,6 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -30,10 +29,8 @@ pub struct GroqProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GroqProvider);
-
 impl GroqProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GROQ_API_KEY")?;
         let host: String = config

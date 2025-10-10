@@ -258,7 +258,7 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     )
 )]
 pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
-    let mut providers_metadata = get_providers();
+    let mut providers_metadata = get_providers().await;
 
     let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
 
@@ -347,7 +347,7 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let all = get_providers();
+    let all = get_providers().await;
     let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
         return Err(StatusCode::BAD_REQUEST);
     };
@@ -358,6 +358,7 @@ pub async fn get_provider_models(
     let model_config =
         ModelConfig::new(&metadata.default_model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let provider = goose::providers::create(&name, model_config)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match provider.fetch_supported_models().await {
@@ -449,7 +450,7 @@ pub async fn get_pricing(
         }
     } else {
         // Get only configured providers' pricing
-        let providers_metadata = get_providers();
+        let providers_metadata = get_providers().await;
 
         for metadata in providers_metadata {
             // Skip unconfigured providers if filtering
@@ -684,7 +685,7 @@ pub async fn create_custom_provider(
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers().await {
         tracing::warn!("Failed to refresh custom providers after creation: {}", e);
     }
 
@@ -706,7 +707,7 @@ pub async fn remove_custom_provider(
     goose::config::custom_providers::CustomProviderConfig::remove(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers().await {
         tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
     }
 
