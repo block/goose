@@ -119,8 +119,16 @@ fn scan_directory_for_recipes(dir: &Path) -> Result<Vec<(PathBuf, Recipe)>> {
         if path.is_file() {
             if let Some(extension) = path.extension() {
                 if RECIPE_FILE_EXTENSIONS.contains(&extension.to_string_lossy().as_ref()) {
-                    if let Ok(recipe) = Recipe::from_file_path(&path) {
-                        recipes.push((path.clone(), recipe));
+                    match Recipe::from_file_path(&path) {
+                        Ok(recipe) => recipes.push((path.clone(), recipe)),
+                        Err(e) => {
+                            let error_message = format!(
+                                "Failed to load recipe from file {}: {}",
+                                path.display(),
+                                e
+                            );
+                            tracing::error!("{}", error_message);
+                        }
                     }
                 }
             }
@@ -130,7 +138,7 @@ fn scan_directory_for_recipes(dir: &Path) -> Result<Vec<(PathBuf, Recipe)>> {
     Ok(recipes)
 }
 
-fn generate_recipe_filename(title: &str) -> String {
+fn generate_recipe_filename(title: &str, recipe_library_dir: &Path) -> PathBuf {
     let base_name = title
         .to_lowercase()
         .chars()
@@ -145,41 +153,29 @@ fn generate_recipe_filename(title: &str) -> String {
     } else {
         base_name
     };
-    format!("{}.yaml", filename)
+
+    let mut candidate = recipe_library_dir.join(format!("{}.yaml", filename));
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let mut counter = 1;
+    loop {
+        candidate = recipe_library_dir.join(format!("{}-{}.yaml", filename, counter));
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
 }
 
-pub fn save_recipe_to_file(
-    recipe: Recipe,
-    is_global: Option<bool>,
-    file_path: Option<PathBuf>,
-) -> anyhow::Result<PathBuf> {
-    let is_global_value = is_global.unwrap_or(true);
-
-    let default_file_path =
-        get_recipe_library_dir(is_global_value).join(generate_recipe_filename(&recipe.title));
+pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    let recipe_library_dir = get_recipe_library_dir(true);
 
     let file_path_value = match file_path {
         Some(path) => path,
-        None => {
-            if default_file_path.exists() {
-                return Err(anyhow::anyhow!(
-                    "Recipe file already exists at: {:?}",
-                    default_file_path
-                ));
-            }
-            default_file_path
-        }
+        None => generate_recipe_filename(&recipe.title, &recipe_library_dir),
     };
-    let all_recipes = list_local_recipes()?;
-
-    for (existing_path, existing_recipe) in &all_recipes {
-        if existing_recipe.title == recipe.title && existing_path != &file_path_value {
-            return Err(anyhow::anyhow!(
-                "Recipe with title '{}' already exists",
-                recipe.title
-            ));
-        }
-    }
 
     let yaml_content = serde_yaml::to_string(&recipe)?;
     fs::write(&file_path_value, yaml_content)?;

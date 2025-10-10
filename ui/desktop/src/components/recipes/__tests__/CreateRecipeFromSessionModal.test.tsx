@@ -13,7 +13,7 @@ vi.mock('../../../toasts', () => ({
   toastError: vi.fn(),
 }));
 
-vi.mock('../../../recipe/recipeStorage', () => ({
+vi.mock('../../../recipe/recipe_management', () => ({
   saveRecipe: vi.fn(),
 }));
 
@@ -146,8 +146,6 @@ describe('CreateRecipeFromSessionModal', () => {
       expect(screen.getByDisplayValue('Analyzed instructions with {{param1}}')).toBeInTheDocument();
       const promptInput = screen.getByTestId('prompt-input');
       expect(promptInput).toBeInTheDocument();
-      const recipeNameInput = screen.getByTestId('recipe-name-input');
-      expect(recipeNameInput).toBeInTheDocument();
     });
 
     it('shows recipe form fields after analysis', async () => {
@@ -164,21 +162,6 @@ describe('CreateRecipeFromSessionModal', () => {
       expect(screen.getByTestId('description-input')).toBeInTheDocument();
       expect(screen.getByTestId('instructions-input')).toBeInTheDocument();
       expect(screen.getByTestId('prompt-input')).toBeInTheDocument();
-      expect(screen.getByTestId('recipe-name-input')).toBeInTheDocument();
-    });
-
-    it('shows save location options', async () => {
-      render(<CreateRecipeFromSessionModal {...defaultProps} />);
-
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('save-location-field')).toBeInTheDocument();
-        },
-        { timeout: 2000 }
-      );
-
-      expect(screen.getByTestId('global-radio')).toBeInTheDocument();
-      expect(screen.getByTestId('directory-radio')).toBeInTheDocument();
     });
   });
 
@@ -199,21 +182,6 @@ describe('CreateRecipeFromSessionModal', () => {
       await user.type(titleInput, 'Modified Title');
 
       expect(screen.getByDisplayValue('Modified Title')).toBeInTheDocument();
-    });
-
-    it('allows changing save location', async () => {
-      const user = userEvent.setup();
-      render(<CreateRecipeFromSessionModal {...defaultProps} />);
-
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('directory-radio')).toBeInTheDocument();
-        },
-        { timeout: 2000 }
-      );
-
-      await user.click(screen.getByTestId('directory-radio'));
-      expect(screen.getByTestId('directory-radio')).toBeChecked();
     });
 
     it('validates required fields', async () => {

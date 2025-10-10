@@ -34,7 +34,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
-const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
+const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 

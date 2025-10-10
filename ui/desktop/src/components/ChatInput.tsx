@@ -82,6 +82,7 @@ interface ChatInputProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipe?: Recipe | null;
+  recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -109,6 +110,7 @@ export default function ChatInput({
   sessionCosts,
   setIsGoosehintsModalOpen,
   recipe,
+  recipeId,
   recipeAccepted,
   initialPrompt,
   toolCount,
@@ -1619,6 +1621,7 @@ export default function ChatInput({
                 setView={setView}
                 alerts={alerts}
                 recipe={recipe}
+                recipeId={recipeId}
                 hasMessages={messages.length > 0}
               />
             </div>

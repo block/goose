@@ -286,8 +286,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     });
   };
 
+  const recipeId: string | null =
+    (window.appConfig.get('recipeId') as string | null | undefined) ?? null;
+
   return {
     recipe: finalRecipe,
+    recipeId,
     recipeParameters,
     filteredParameters,
     initialPrompt,

@@ -16,8 +16,6 @@ describe('RecipeFormFields', () => {
       activities: [],
       parameters: [],
       jsonSchema: '',
-      recipeName: '',
-      global: true,
       ...initialValues,
     };
 
@@ -126,19 +124,6 @@ describe('RecipeFormFields', () => {
 
       expect(parameterInput).toHaveValue('');
       expect(addButton).toBeDisabled();
-    });
-  });
-
-  describe('Always Visible Fields', () => {
-    it('always shows recipe name field', () => {
-      render(<TestWrapper />);
-      expect(screen.getByText('Recipe Name')).toBeInTheDocument();
-    });
-
-    it('always shows save location field', () => {
-      render(<TestWrapper />);
-      expect(screen.getByText('Save Location')).toBeInTheDocument();
-      expect(screen.getByText('Global - Available across all Goose sessions')).toBeInTheDocument();
     });
   });
 
@@ -262,8 +247,6 @@ describe('RecipeFormFields', () => {
             activities: [],
             parameters: [],
             jsonSchema: '',
-            recipeName: '',
-            global: true,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -355,8 +338,6 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
-            recipeName: '',
-            global: true,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -522,8 +503,6 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
-            recipeName: '',
-            global: true,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -597,8 +576,6 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
-            recipeName: '',
-            global: true,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);

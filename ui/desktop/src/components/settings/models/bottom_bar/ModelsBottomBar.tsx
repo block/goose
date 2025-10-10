@@ -1,4 +1,4 @@
-import { Sliders, ChefHat, Bot, Eye, Save } from 'lucide-react';
+import { Sliders, ChefHat, Bot, Eye } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
@@ -17,9 +17,7 @@ import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 import { Recipe } from '../../../../recipe';
-import { generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import CreateEditRecipeModal from '../../../recipes/CreateEditRecipeModal';
-import SaveRecipeDialog from '../../../recipes/shared/SaveRecipeDialog';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -27,6 +25,7 @@ interface ModelsBottomBarProps {
   setView: (view: View) => void;
   alerts: Alert[];
   recipe?: Recipe | null;
+  recipeId?: string | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
 }
 
@@ -36,6 +35,7 @@ export default function ModelsBottomBar({
   setView,
   alerts,
   recipe,
+  recipeId,
   hasMessages = false,
 }: ModelsBottomBarProps) {
   const {
@@ -53,9 +53,6 @@ export default function ModelsBottomBar({
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
-
-  // Save recipe dialog state
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   // View recipe modal state
   const [showViewRecipeModal, setShowViewRecipeModal] = useState(false);
@@ -174,13 +171,6 @@ export default function ModelsBottomBar({
     }
   };
 
-  // Handle save recipe - show save dialog
-  const handleSaveRecipeClick = () => {
-    if (recipe) {
-      setShowSaveDialog(true);
-    }
-  };
-
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
@@ -219,10 +209,6 @@ export default function ModelsBottomBar({
                 <span>View/Edit Recipe</span>
                 <Eye className="ml-auto h-4 w-4" />
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSaveRecipeClick}>
-                <span>Save Recipe</span>
-                <Save className="ml-auto h-4 w-4" />
-              </DropdownMenuItem>
             </>
           )}
 
@@ -256,15 +242,6 @@ export default function ModelsBottomBar({
         <LeadWorkerSettings isOpen={isLeadWorkerModalOpen} onClose={handleLeadWorkerModalClose} />
       ) : null}
 
-      {/* Save Recipe Dialog */}
-      {showSaveDialog && recipe && (
-        <SaveRecipeDialog
-          isOpen={showSaveDialog}
-          onClose={() => setShowSaveDialog(false)}
-          recipe={recipe}
-        />
-      )}
-
       {/* View Recipe Modal */}
       {/* todo: we don't have the actual recipe name when in chat only in recipes list view so we generate it for now */}
       {recipe && (
@@ -272,7 +249,7 @@ export default function ModelsBottomBar({
           isOpen={showViewRecipeModal}
           onClose={() => setShowViewRecipeModal(false)}
           recipe={recipe}
-          recipeName={generateRecipeFilename(recipe)}
+          recipeId={recipeId}
         />
       )}
     </div>

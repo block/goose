@@ -586,7 +586,6 @@ export type Recipe = {
 export type RecipeManifestResponse = {
     id: string;
     lastModified: string;
-    name: string;
     recipe: Recipe;
 };
 
@@ -665,7 +664,6 @@ export type RunNowResponse = {
 
 export type SaveRecipeRequest = {
     id?: string | null;
-    is_global?: boolean | null;
     recipe: Recipe;
 };
 
