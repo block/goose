@@ -9,6 +9,7 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use thiserror::Error;
 
 const KEYRING_SERVICE: &str = "goose";
@@ -100,6 +101,7 @@ impl From<keyring::Error> for ConfigError {
 pub struct Config {
     config_path: PathBuf,
     secrets: SecretStorage,
+    guard: Mutex<()>,
 }
 
 enum SecretStorage {
@@ -129,6 +131,7 @@ impl Default for Config {
         Config {
             config_path,
             secrets,
+            guard: Mutex::new(()),
         }
     }
 }
@@ -152,6 +155,7 @@ impl Config {
             secrets: SecretStorage::Keyring {
                 service: service.to_string(),
             },
+            guard: Mutex::new(()),
         })
     }
 
@@ -168,6 +172,7 @@ impl Config {
             secrets: SecretStorage::File {
                 path: secrets_path.as_ref().to_path_buf(),
             },
+            guard: Mutex::new(()),
         })
     }
 
@@ -592,6 +597,9 @@ impl Config {
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
     pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+        // Lock before reading to prevent race condition.
+        let _guard = self.guard.lock().unwrap();
+
         // Load current values with recovery if needed
         let mut values = self.load_values()?;
 
@@ -616,6 +624,9 @@ impl Config {
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
     pub fn delete(&self, key: &str) -> Result<(), ConfigError> {
+        // Lock before reading to prevent race condition.
+        let _guard = self.guard.lock().unwrap();
+
         let mut values = self.load_values()?;
         values.remove(key);
 
@@ -669,6 +680,9 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
     pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+        // Lock before reading to prevent race condition.
+        let _guard = self.guard.lock().unwrap();
+
         let mut values = self.load_secrets()?;
         values.insert(key.to_string(), value);
 
@@ -697,6 +711,9 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the remaining values
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
+        // Lock before reading to prevent race condition.
+        let _guard = self.guard.lock().unwrap();
+
         let mut values = self.load_secrets()?;
         values.remove(key);
 
