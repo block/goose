@@ -56,15 +56,10 @@ impl SubAgent {
     pub async fn new(task_config: TaskConfig) -> Result<Arc<Self>, anyhow::Error> {
         debug!("Creating new subagent with id: {}", task_config.id);
 
-        // Create a new extension manager for this subagent
         let extension_manager = ExtensionManager::new();
 
-        // Determine which extensions to add:
-        // 1. If task_config.extensions is Some(vec), use those specific extensions
-        // 2. If task_config.extensions is None, use all enabled extensions (backward compatibility)
-
-        let extensions_to_add = if let Some(ref extensions) = task_config.extensions {
-            // Use the explicitly specified extensions
+        let provided_extensions = task_config.extensions.as_ref().filter(|e| !e.is_empty());
+        let extensions_to_add = if let Some(extensions) = provided_extensions {
             extensions.clone()
         } else {
             // Default behavior: use all enabled extensions
