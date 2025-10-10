@@ -111,6 +111,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
             setRecipeAccepted(true);
           }
         } catch {
+          hasCheckedRecipeRef.current = null;
           setHasSecurityWarnings(false);
           setIsRecipeWarningModalOpen(true);
         }
