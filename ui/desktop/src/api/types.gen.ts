@@ -683,6 +683,7 @@ export type Session = {
     description: string;
     extension_data: ExtensionData;
     id: string;
+    in_use: boolean;
     input_tokens?: number | null;
     message_count: number;
     output_tokens?: number | null;

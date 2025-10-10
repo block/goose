@@ -3961,7 +3961,8 @@
           "created_at",
           "updated_at",
           "extension_data",
-          "message_count"
+          "message_count",
+          "in_use"
         ],
         "properties": {
           "accumulated_input_tokens": {
@@ -3999,6 +4000,9 @@
           },
           "id": {
             "type": "string"
+          },
+          "in_use": {
+            "type": "boolean"
           },
           "input_tokens": {
             "type": "integer",

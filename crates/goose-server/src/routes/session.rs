@@ -341,7 +341,7 @@ async fn stream_session(
     Path(session_id): Path<String>,
 ) -> Result<SessionSseResponse, StatusCode> {
     // Verify session exists first
-    SessionManager::get_session(&session_id, false)
+    let initial_session = SessionManager::get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -350,9 +350,29 @@ async fn stream_session(
 
     // Spawn background task to stream session updates
     tokio::spawn(async move {
+        // Send initial session state immediately
+        if !stream_session_event(
+            SessionEvent::Session {
+                session: Box::new(initial_session.clone()),
+            },
+            &tx,
+        )
+        .await
+        {
+            tracing::info!("Session stream client disconnected");
+            return;
+        }
+
+        // If session is not in use, close the stream immediately
+        if !initial_session.in_use {
+            tracing::info!("Session {} not in use, closing stream", session_id);
+            return;
+        }
+
+        // Session is in use, continue streaming until it's no longer in use
         let mut interval = tokio::time::interval(Duration::from_secs(1));
-        let mut last_message_count: Option<usize> = None;
-        let mut last_updated_at: Option<String> = None;
+        let mut last_message_count: Option<usize> = Some(initial_session.message_count);
+        let mut last_updated_at: Option<String> = Some(initial_session.updated_at.to_rfc3339());
 
         loop {
             interval.tick().await;
@@ -369,6 +389,8 @@ async fn stream_session(
                         last_message_count = Some(session.message_count);
                         last_updated_at = Some(updated_at_str);
 
+                        let session_in_use = session.in_use;
+
                         if !stream_session_event(
                             SessionEvent::Session {
                                 session: Box::new(session),
@@ -380,7 +402,23 @@ async fn stream_session(
                             tracing::info!("Session stream client disconnected");
                             break;
                         }
+
+                        if !session_in_use {
+                            tracing::info!(
+                                "Session {} no longer in use, closing stream",
+                                session_id
+                            );
+                            break;
+                        }
                     } else {
+                        if !session.in_use {
+                            tracing::info!(
+                                "Session {} no longer in use, closing stream",
+                                session_id
+                            );
+                            break;
+                        }
+
                         // Send heartbeat ping to keep connection alive
                         if !stream_session_event(SessionEvent::Ping, &tx).await {
                             tracing::info!("Session stream client disconnected");

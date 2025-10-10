@@ -77,6 +77,7 @@ const SessionsView: React.FC = () => {
           created_at: '',
           updated_at: '',
           extension_data: {},
+          in_use: false,
         }
       }
       isLoading={isLoadingSession}

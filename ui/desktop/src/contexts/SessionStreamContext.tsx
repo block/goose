@@ -30,6 +30,15 @@ const SessionStreamContext = createContext<SessionStreamContextValue | undefined
  * Provider that manages SSE streams for multiple sessions.
  * Each session ID gets its own stream, and all components using the same session ID
  * will see the same data.
+ *
+ * The stream behavior is controlled by the session's `in_use` flag:
+ * - When subscribing to a session stream, the server immediately sends the current session state
+ * - If `in_use = false`: The stream closes immediately after sending the initial state
+ * - If `in_use = true`: The stream continues until the session is no longer in use
+ * - When the agent finishes work and marks `in_use = false`, the stream sends a final update and closes
+ *
+ * This prevents unnecessary polling of idle sessions while still providing real-time updates
+ * when the agent is actively working.
  */
 export function SessionStreamProvider({ children }: { children: ReactNode }) {
   // Map of sessionId -> session state
@@ -173,8 +182,11 @@ export function SessionStreamProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Stream ended normally
+      // Stream ended normally (session no longer in use or completed)
       updateSessionState(sessionId, { isConnected: false });
+
+      // Don't reconnect - the stream closed because the session is no longer in use
+      // If the user starts a new interaction, a new stream will be created
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Expected when we abort the connection
@@ -187,16 +199,17 @@ export function SessionStreamProvider({ children }: { children: ReactNode }) {
         error: err instanceof Error ? err.message : 'Connection error',
       });
 
+      // Only reconnect on actual errors, not when stream closes normally
       // Clear existing reconnect timeout
       const existingTimeout = reconnectTimeoutsRef.current.get(sessionId);
       if (existingTimeout) {
         clearTimeout(existingTimeout);
       }
 
-      // Schedule reconnect
+      // Schedule reconnect only for error cases
       const timeout = setTimeout(() => {
         if (mountedRef.current && activeStreamsRef.current.get(sessionId)) {
-          console.log('Attempting to reconnect to session stream...');
+          console.log('Attempting to reconnect to session stream after error...');
           connect(sessionId);
         }
       }, 3000);
