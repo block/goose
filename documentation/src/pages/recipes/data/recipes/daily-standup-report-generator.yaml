@@ -1,0 +1,200 @@
+version: 1.0.0
+title: Daily Standup Report Generator
+description: Automates daily standup report creation by fetching PR status, issue progress, and commit activity directly from GitHub - generates formatted reports for team communication
+author:
+  contact: ARYPROGRAMMER
+
+activities:
+  - Fetch pull requests and their status from GitHub
+  - Fetch issues assigned to or created by user
+  - Analyze merged PRs and commits from specified time period
+  - Identify blockers from PR reviews and issue comments
+  - Generate formatted standup report with accomplishments
+  - Track progress over time using memory
+
+instructions: |
+  You are a Daily Standup Report Generator that helps developers create comprehensive, professional standup reports by fetching all data directly from GitHub.
+  
+  Key capabilities:
+  - Fetch PRs directly from GitHub (all branches, no local repo needed)
+  - Get PR reviews, approvals, and CI/CD status
+  - Fetch issues and their current state from GitHub
+  - Extract commits from merged PRs
+  - Identify blockers from PR reviews and failing checks
+  - Remember previous standups to show progress continuity
+  - Generate professional standup reports in multiple formats
+  - Works without any local git repository
+  
+  IMPORTANT: 
+  - All data is fetched from GitHub API (no local git commands)
+  - Works for any GitHub repository you have access to
+  - Requires GITHUB_PERSONAL_ACCESS_TOKEN environment variable
+  - Filters all data by the authenticated GitHub user
+  - Always create a report file at the end
+
+parameters:
+  - key: github_owner
+    input_type: string
+    requirement: required
+    default: ""
+    description: "GitHub repository owner/organization (e.g., 'ARYPROGRAMMER', 'block')"
+  
+  - key: github_repo
+    input_type: string
+    requirement: required
+    default: ""
+    description: "GitHub repository name (e.g., 'goose')"
+  
+  - key: time_period
+    input_type: string
+    requirement: optional
+    default: "24h"
+    description: "Time period to analyze: '24h' (last 24 hours), '48h', 'week'"
+  
+  - key: include_prs
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Include PR status in the report (true/false)"
+  
+  - key: include_issues
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Include issue progress in the report (true/false)"
+  
+  - key: output_format
+    input_type: string
+    requirement: optional
+    default: "markdown"
+    description: "Report format: 'markdown', 'slack', 'text', 'json'"
+  
+  - key: team_channel
+    input_type: string
+    requirement: optional
+    default: ""
+    description: "Team channel name to mention in the report (e.g., '#engineering')"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For writing the standup report file to disk
+  
+  - type: stdio
+    name: github
+    cmd: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+    display_name: GitHub
+    timeout: 300
+    bundled: false
+    description: For fetching PRs, issues, reviews, commits, and GitHub repository data
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing previous standups and tracking progress over time
+
+prompt: |
+  Generate a daily standup report with the following configuration:
+  - GitHub Repository: {{ github_owner }}/{{ github_repo }}
+  - Time Period: {{ time_period }}
+  - Include PRs: {{ include_prs }}
+  - Include Issues: {{ include_issues }}
+  - Output Format: {{ output_format }}
+  {% if team_channel %}
+  - Team Channel: {{ team_channel }}
+  {% endif %}
+  
+  **CRITICAL REQUIREMENT**: You MUST create a file named `./standup-report-{date}.{{ output_format }}` containing the complete standup report. This is the PRIMARY GOAL of this recipe.
+  
+  Execute this standup report generation workflow (fetch everything from GitHub):
+  
+  ## Phase 1: Context Gathering
+  
+  1. **Retrieve previous standup context from memory** (category: standup-reports)
+  
+  ## Phase 2: Fetch PRs from GitHub
+  
+  {% if include_prs == "true" %}
+  2. **Fetch PRs from GitHub:**
+     - Use GitHub extension `list_pull_requests` with:
+       * owner: {{ github_owner }}
+       * repo: {{ github_repo }}
+       * state: all
+       * per_page: 30
+     {% if time_period == "24h" %}
+     - Filter PRs updated in last 24 hours
+     {% elif time_period == "48h" %}
+     - Filter PRs updated in last 48 hours
+     {% elif time_period == "week" %}
+     - Filter PRs updated in last week
+     {% endif %}
+     - Look for PRs where YOU are the author/creator
+     - Categorize by status:
+       * ✅ Merged (shows completed work)
+       * ✅ Ready to merge (approved + checks passing)
+       * 👀 Awaiting review (no reviews yet)
+       * 🔄 In review (has reviews, needs changes)
+       * 🚧 Blocked (conflicts or failing checks)
+     - Extract commit messages from merged PRs to show what was accomplished
+  {% endif %}
+  
+  ## Phase 3: Fetch Issues from GitHub
+  
+  {% if include_issues == "true" %}
+  3. **Fetch issues from GitHub:**
+     - Use GitHub extension `list_issues` with:
+       * owner: {{ github_owner }}
+       * repo: {{ github_repo }}
+       * state: all
+       * per_page: 30
+     - Look for issues where YOU are assigned or the creator
+     - Filter by activity in {{ time_period }}
+     - Categorize:
+       * ✅ Closed (shows completed work)
+       * 🔄 In progress (open + recently updated)
+       * 🆕 Created (new issues you opened)
+  {% endif %}
+  
+  ## Phase 4: Identify Blockers
+  
+  4. **Identify blockers:**
+     - Check open PRs for: merge conflicts, failing CI, "changes requested" reviews
+     - Check open issues for: "blocked" label, blocking keywords in comments
+     - Summarize each blocker briefly
+  
+  ## Phase 5: Generate Report
+  
+  5. **Create the standup report:**
+     
+     {% if output_format == "markdown" %}
+     Write a Markdown report with:
+     - **Header**: Date, Repository ({{ github_owner }}/{{ github_repo }})
+     - **✅ Completed**: Merged PRs and closed issues from {{ time_period }}
+     {% if include_prs == "true" %}
+     - **🔄 Open PRs**: Current status of open PRs
+     {% endif %}
+     {% if include_issues == "true" %}
+     - **📋 Active Issues**: Issues you're working on
+     {% endif %}
+     - **🎯 Next Steps**: Based on open PRs and issues
+     - **🚧 Blockers**: List or "None"
+     {% elif output_format == "slack" %}
+     Write Slack format with Completed, Today, Blockers sections
+     {% elif output_format == "json" %}
+     Write JSON with: date, repo, merged_prs[], closed_issues[], open_prs[], open_issues[], blockers[]
+     {% else %}
+     Write plain text with clear sections
+     {% endif %}
+  
+  6. **Save the file:**
+      - **MUST DO**: Use developer extension to write report to `./standup-report-{date}.{{ output_format }}`
+      - Store summary in memory (category: standup-reports)
+      - Display: "✅ Report saved: standup-report-{date}.{{ output_format }}"
