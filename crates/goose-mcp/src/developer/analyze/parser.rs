@@ -380,11 +380,19 @@ impl ElementExtractor {
                             ast_recursion_limit,
                         );
                         if let Some(method_name) = method_name {
-                            (
-                                ReferenceType::MethodDefinition,
-                                method_name,
-                                Some(text.to_string()),
-                            )
+                            // Use language-specific handler to find receiver type, or fall back to text
+                            let type_name = Self::find_receiver_type(&node, source, language)
+                                .or_else(|| Some(text.to_string()));
+
+                            if let Some(type_name) = type_name {
+                                (
+                                    ReferenceType::MethodDefinition,
+                                    method_name,
+                                    Some(type_name),
+                                )
+                            } else {
+                                continue;
+                            }
                         } else {
                             continue;
                         }
@@ -426,6 +434,18 @@ impl ElementExtractor {
         languages::get_language_info(language)
             .and_then(|info| info.find_method_for_receiver_handler)
             .and_then(|handler| handler(receiver_node, source, ast_recursion_limit))
+    }
+
+    fn find_receiver_type(
+        receiver_node: &tree_sitter::Node,
+        source: &str,
+        language: &str,
+    ) -> Option<String> {
+        use crate::developer::analyze::languages;
+
+        languages::get_language_info(language)
+            .and_then(|info| info.find_receiver_type_handler)
+            .and_then(|handler| handler(receiver_node, source))
     }
 
     fn find_containing_function(

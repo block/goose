@@ -52,7 +52,6 @@ export function useAgent(): UseAgentReturn {
   const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
     (window.appConfig.get('recipe') as Recipe) || null
   );
-
   const { getExtensions, addExtension, read } = useConfig();
 
   const resetChat = useCallback(() => {

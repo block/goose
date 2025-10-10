@@ -1019,7 +1019,7 @@ pub async fn cli() -> Result<()> {
                             .and_then(|rf| {
                                 goose::recipe::template_recipe::parse_recipe_content(
                                     &rf.content,
-                                    rf.parent_dir.to_string_lossy().to_string(),
+                                    Some(rf.parent_dir.to_string_lossy().to_string()),
                                 )
                                 .ok()
                                 .map(|(r, _)| r.version)

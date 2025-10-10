@@ -1,43 +1,25 @@
 use anyhow::Result;
 use console::style;
+use goose::recipe::validate_recipe::validate_recipe_template_from_file;
 
 use crate::recipes::github_recipe::RecipeSource;
-use crate::recipes::recipe::load_recipe_for_validation;
-use crate::recipes::search_recipe::list_available_recipes;
+use crate::recipes::search_recipe::{list_available_recipes, load_recipe_file};
 use goose::recipe_deeplink;
 
-/// Validates a recipe file
-///
-/// # Arguments
-///
-/// * `file_path` - Path to the recipe file to validate
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
-    match load_recipe_for_validation(recipe_name) {
-        Ok(_) => {
-            println!("{} recipe file is valid", style("✓").green().bold());
-            Ok(())
-        }
-        Err(err) => {
-            println!("{} {}", style("✗").red().bold(), err);
-            Err(err)
-        }
-    }
+    let recipe_file = load_recipe_file(recipe_name)?;
+    validate_recipe_template_from_file(&recipe_file).map_err(|err| {
+        anyhow::anyhow!(
+            "{} recipe file is invalid: {}",
+            style("✗").red().bold(),
+            err
+        )
+    })?;
+    println!("{} recipe file is valid", style("✓").green().bold());
+    Ok(())
 }
 
-/// Generates a deeplink for a recipe file
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     match generate_deeplink(recipe_name) {
         Ok((deeplink_url, recipe)) => {
@@ -60,15 +42,6 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     }
 }
 
-/// Opens a recipe in Goose Desktop
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_open(recipe_name: &str) -> Result<()> {
     // Generate the deeplink using the helper function (no printing)
     // This reuses all the validation and encoding logic
@@ -107,16 +80,6 @@ pub fn handle_open(recipe_name: &str) -> Result<()> {
     }
 }
 
-/// Lists all available recipes from local paths and GitHub repositories
-///
-/// # Arguments
-///
-/// * `format` - Output format ("text" or "json")
-/// * `verbose` - Whether to show detailed information
-///
-/// # Returns
-///
-/// Result indicating success or failure
 pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     let recipes = match list_available_recipes() {
         Ok(recipes) => recipes,
@@ -168,18 +131,10 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Helper function to generate a deeplink
-///
-/// # Arguments
-///
-/// * `recipe_name` - Path to the recipe file
-///
-/// # Returns
-///
-/// Result containing the deeplink URL and recipe
 fn generate_deeplink(recipe_name: &str) -> Result<(String, goose::recipe::Recipe)> {
+    let recipe_file = load_recipe_file(recipe_name)?;
     // Load the recipe file first to validate it
-    let recipe = load_recipe_for_validation(recipe_name)?;
+    let recipe = validate_recipe_template_from_file(&recipe_file)?;
     match recipe_deeplink::encode(&recipe) {
         Ok(encoded) => {
             let full_url = format!("goose://recipe?config={}", encoded);
@@ -225,20 +180,6 @@ title: "Test Recipe"
 description: "A test recipe for deeplink generation"
 prompt: "Test prompt content {{ name }}"
 instructions: "Test instructions"
-"#;
-
-    const RECIPE_WITH_INVALID_JSON_SCHEMA: &str = r#"
-title: "Test Recipe with Invalid JSON Schema"
-description: "A test recipe with invalid JSON schema"
-prompt: "Test prompt content"
-instructions: "Test instructions"
-response:
-  json_schema:
-    type: invalid_type
-    properties:
-      result:
-        type: unknown_type
-    required: "should_be_array_not_string"
 "#;
 
     #[test]
@@ -303,23 +244,6 @@ response:
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
         let result = handle_validate(&recipe_path);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_handle_validation_recipe_with_invalid_json_schema() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let recipe_path = create_test_recipe_file(
-            &temp_dir,
-            "test_recipe.yaml",
-            RECIPE_WITH_INVALID_JSON_SCHEMA,
-        );
-
-        let result = handle_validate(&recipe_path);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("JSON schema validation failed"));
     }
 
     #[test]

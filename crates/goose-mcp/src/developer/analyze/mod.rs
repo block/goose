@@ -179,7 +179,7 @@ impl CodeAnalyzer {
             )
         })?;
 
-        if let Some(cached) = self.cache.get(&path.to_path_buf(), modified) {
+        if let Some(cached) = self.cache.get(&path.to_path_buf(), modified, mode) {
             tracing::trace!("Using cached result for {:?}", path);
             return Ok(cached);
         }
@@ -224,7 +224,8 @@ impl CodeAnalyzer {
 
         result.line_count = line_count;
 
-        self.cache.put(path.to_path_buf(), modified, result.clone());
+        self.cache
+            .put(path.to_path_buf(), modified, mode, result.clone());
 
         Ok(result)
     }
