@@ -294,8 +294,10 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
+    pendingDeepLink = null;
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
+    pendingDeepLink = null;
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const recipeDeeplink = parsedUrl.searchParams.get('config');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -312,8 +314,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       recipeDeeplink || undefined,
       scheduledJobId || undefined
     );
+    pendingDeepLink = null;
   }
-  pendingDeepLink = null;
 }
 
 let windowDeeplinkURL: string | null = null;
@@ -346,6 +348,7 @@ app.on('open-url', async (_event, url) => {
         recipeDeeplink || undefined,
         scheduledJobId || undefined
       );
+      windowDeeplinkURL = null;
       return; // Skip the rest of the handler
     }
 
@@ -363,8 +366,10 @@ app.on('open-url', async (_event, url) => {
 
     if (parsedUrl.hostname === 'extension') {
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+      pendingDeepLink = null;
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+      pendingDeepLink = null;
     }
   }
 });
@@ -2183,21 +2188,6 @@ async function appMain() {
     } catch (error) {
       console.error('Error opening directory in explorer:', error);
       return false;
-    }
-  });
-
-  // Handle installation completion for both extensions and recipes
-  ipcMain.on('installation-complete', (_event, success: boolean) => {
-    console.log(`[Main] Installation complete: ${success ? 'success' : 'failure'}`);
-
-    // Clear both deeplink URLs to prevent showing installation prompts again
-    if (windowDeeplinkURL) {
-      console.log('[Main] Clearing windowDeeplinkURL after installation');
-      windowDeeplinkURL = null;
-    }
-    if (pendingDeepLink) {
-      console.log('[Main] Clearing pendingDeepLink after installation');
-      pendingDeepLink = null;
     }
   });
 }
