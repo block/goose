@@ -21,7 +21,7 @@ use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
 use rmcp::model::Tool;
 
-const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet-latest";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-0",

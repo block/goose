@@ -114,6 +114,14 @@ pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>>
     constructor(model).await
 }
 
+pub async fn create_with_named_model(
+    provider_name: &str,
+    model_name: &str,
+) -> Result<Arc<dyn Provider>> {
+    let config = ModelConfig::new(model_name)?;
+    create(provider_name, config).await
+}
+
 async fn create_lead_worker_from_env(
     default_provider_name: &str,
     default_model: &ModelConfig,
