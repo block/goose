@@ -116,63 +116,79 @@ prompt: |
   
   Execute this standup report generation workflow (fetch everything from GitHub):
   
-  ## Phase 1: Context Gathering
+  ## Phase 1: Context Gathering & User Identification
   
   1. **Retrieve previous standup context from memory** (category: standup-reports)
+  2. **Identify the authenticated GitHub user:**
+     - The GitHub MCP server authenticates using GITHUB_PERSONAL_ACCESS_TOKEN
+     - When you fetch PRs and issues, the API returns data for the authenticated user
+     - Note: You'll need to filter results to show only items where the authenticated user is the author or assignee
   
   ## Phase 2: Fetch PRs from GitHub
   
   {% if include_prs == "true" %}
-  2. **Fetch PRs from GitHub:**
-     - Use GitHub extension `list_pull_requests` with:
+  3. **Fetch PRs from GitHub:**
+     - Use GitHub extension tool `list_pull_requests` with these parameters:
        * owner: {{ github_owner }}
        * repo: {{ github_repo }}
-       * state: all
-       * per_page: 30
+       * state: all (to get both open and closed PRs)
+       * per_page: 100 (maximum allowed)
+       * page: 1
      {% if time_period == "24h" %}
-     - Filter PRs updated in last 24 hours
+     - After fetching, filter PRs updated in last 24 hours by checking the `updated_at` timestamp
      {% elif time_period == "48h" %}
-     - Filter PRs updated in last 48 hours
+     - After fetching, filter PRs updated in last 48 hours by checking the `updated_at` timestamp
      {% elif time_period == "week" %}
-     - Filter PRs updated in last week
+     - After fetching, filter PRs updated in last week by checking the `updated_at` timestamp
      {% endif %}
-     - Look for PRs where YOU are the author/creator
+     - **IMPORTANT**: Filter to show only PRs where the authenticated user is the author (check PR.user field)
      - Categorize by status:
-       * ✅ Merged (shows completed work)
-       * ✅ Ready to merge (approved + checks passing)
-       * 👀 Awaiting review (no reviews yet)
-       * 🔄 In review (has reviews, needs changes)
-       * 🚧 Blocked (conflicts or failing checks)
-     - Extract commit messages from merged PRs to show what was accomplished
+       * ✅ Merged (shows completed work - check if `merged_at` is not null)
+       * ✅ Ready to merge (check review_decision field for 'APPROVED' and mergeable_state)
+       * 👀 Awaiting review (no reviews yet or review count is 0)
+       * 🔄 In review (has reviews, may need changes based on review state)
+       * 🚧 Blocked (has conflicts or failing checks - check mergeable field)
+     - For merged PRs, you can use `get_pull_request` tool to get detailed commit information if needed
   {% endif %}
   
   ## Phase 3: Fetch Issues from GitHub
   
   {% if include_issues == "true" %}
-  3. **Fetch issues from GitHub:**
-     - Use GitHub extension `list_issues` with:
+  4. **Fetch issues from GitHub:**
+     - Use GitHub extension tool `list_issues` with these parameters:
        * owner: {{ github_owner }}
        * repo: {{ github_repo }}
-       * state: all
-       * per_page: 30
-     - Look for issues where YOU are assigned or the creator
-     - Filter by activity in {{ time_period }}
+       * state: all (to get both open and closed issues)
+       * per_page: 100 (maximum allowed)
+       * page: 1
+     - **IMPORTANT**: Filter to show only issues where the authenticated user is either:
+       * The assignee (check assignees array)
+       * The creator (check user field)
+     - Filter by activity in {{ time_period }} by checking `updated_at` timestamp
      - Categorize:
-       * ✅ Closed (shows completed work)
-       * 🔄 In progress (open + recently updated)
-       * 🆕 Created (new issues you opened)
+       * ✅ Closed (state is 'closed' and closed within the time period)
+       * 🔄 In progress (state is 'open' and recently updated)
+       * 🆕 Created (state is 'open' and created within the time period)
   {% endif %}
   
   ## Phase 4: Identify Blockers
   
-  4. **Identify blockers:**
-     - Check open PRs for: merge conflicts, failing CI, "changes requested" reviews
-     - Check open issues for: "blocked" label, blocking keywords in comments
-     - Summarize each blocker briefly
+  5. **Identify blockers:**
+     - For open PRs: 
+       * Use `get_pull_request_status` tool to check for failing CI/CD checks
+       * Check the `mergeable` field - if false, there are merge conflicts
+       * Check review state - if "CHANGES_REQUESTED", it needs updates
+     - For open issues:
+       * Look for "blocked" label in the labels array
+       * Search comments for keywords like "blocked", "waiting", "dependency"
+     - Summarize each blocker with:
+       * What is blocked (PR# or Issue#)
+       * Why it's blocked
+       * What's needed to unblock
   
   ## Phase 5: Generate Report
   
-  5. **Create the standup report:**
+  6. **Create the standup report:**
      
      {% if output_format == "markdown" %}
      Write a Markdown report with:
@@ -195,6 +211,8 @@ prompt: |
      {% endif %}
   
   6. **Save the file:**
-      - **MUST DO**: Use developer extension to write report to `./standup-report-{date}.{{ output_format }}`
-      - Store summary in memory (category: standup-reports)
-      - Display: "✅ Report saved: standup-report-{date}.{{ output_format }}"
+      - **MUST DO**: Use the developer extension's file writing capability to create the file `./standup-report-{date}.{{ output_format }}`
+      - The file must contain the complete standup report generated above
+      - Store a summary in memory using the memory extension (category: standup-reports) for future context
+      - Display confirmation message: "✅ Report saved: standup-report-{date}.{{ output_format }}"
+      - Include file location in the confirmation
