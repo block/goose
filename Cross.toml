@@ -8,12 +8,20 @@ pre-build = [
     # Add the ARM64 architecture and install necessary dependencies
     "dpkg --add-architecture arm64",
     """\
+    apt-get update && apt install -y software-properties-common && \
+     add-apt-repository -y ppa:pipewire-debian/pipewire-upstream
+    """,
+    """\
     apt-get update --fix-missing && apt-get install -y \
      curl \
      unzip \
      pkg-config \
      libssl-dev:arm64 \
      libdbus-1-dev:arm64 \
+     libegl1-mesa-dev:arm64 \
+     libgbm-dev:arm64 \
+     libpipewire-0.3-dev:arm64 \
+     libwayland-dev:arm64 \
      libxcb1-dev:arm64 \
      gcc-10
     """
@@ -23,12 +31,20 @@ pre-build = [
 xargo = false
 pre-build = [
     """\
+    apt-get update && apt install -y software-properties-common && \
+     add-apt-repository -y ppa:pipewire-debian/pipewire-upstream
+    """,
+    """\
     apt-get update && apt-get install -y \
      curl \
      unzip \
      pkg-config \
      libssl-dev \
      libdbus-1-dev \
+     libegl1-mesa-dev \
+     libgbm-dev \
+     libpipewire-0.3-dev \
+     libwayland-dev \
      libxcb1-dev \
      gcc-10
     """
