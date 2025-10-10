@@ -167,8 +167,7 @@ pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<A
 /// Check if messages need compaction and compact them if necessary
 ///
 /// This is a convenience wrapper function that combines checking and compaction.
-/// If the most recent message is a user message, it will be preserved by removing it
-/// before compaction and adding it back afterwards.
+/// Uses perform_compaction internally to handle the actual compaction process.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
@@ -207,35 +206,7 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before auto-compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
-        } else {
-            (messages, None)
-        }
-    } else {
-        (messages, None)
-    };
-
-    // Perform the compaction on messages excluding the preserved user message
-    // The summarize_context method already handles the visibility properly
-    let (mut summary_messages, _, summarization_usage) =
-        agent.summarize_context(messages_to_compact).await?;
-
-    // Add back the preserved user message if it exists
-    // (keeps default visibility: both true)
-    if let Some(user_message) = preserved_user_message {
-        summary_messages.push(user_message);
-    }
-
-    Ok(AutoCompactResult {
-        compacted: true,
-        messages: summary_messages,
-        summarization_usage,
-    })
+    perform_compaction(agent, messages).await
 }
 
 #[cfg(test)]
