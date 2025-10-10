@@ -12,7 +12,7 @@ activities:
   - Build interactive documentation with cross-references
   - Remember documentation patterns for consistency
 
-instructions: |
+prompt: |
   You are a Code Documentation Generator that creates comprehensive, well-structured documentation for codebases.
   Your goal is to analyze source code, extract relevant information, and generate clear, helpful documentation.
   
@@ -36,7 +36,7 @@ parameters:
   - key: doc_format
     input_type: string
     requirement: optional
-    default: "markdown"
+    default: "html"
     description: "Documentation format: 'markdown', 'html', 'restructuredtext', 'javadoc', 'jsdoc'"
   
   - key: include_examples
@@ -85,7 +85,10 @@ extensions:
     bundled: true
     description: For researching documentation standards and best practices
 
-prompt: |
+settings:
+  temperature: 0.3
+
+instructions: |
   Generate comprehensive documentation for the codebase with the following configuration:
   - Source Path: {{ source_path }}
   - Documentation Format: {{ doc_format }}
@@ -110,6 +113,9 @@ prompt: |
      - Look for existing doc files, READMEs, or inline documentation
      - Check if there are documentation standards already in use
      - Retrieve any stored documentation preferences from memory
+     - If documentation already exists, analyze it to maintain consistency in style and format
+     - Preserve existing documentation structure while filling in gaps for undocumented items
+     - Extract inline docstrings/comments to use as foundation for generated documentation
   
   3. **Research documentation standards:**
      - Use the browser to look up the standard documentation format for the detected language
@@ -117,7 +123,9 @@ prompt: |
      - For JavaScript/TypeScript: Look for JSDoc standards
      - For Rust: Look for rustdoc conventions
      - For Go: Look for godoc conventions
-     - Store the documentation standards in memory for consistency
+     - Store the documentation standards in memory specifically for this {{ source_path }} project
+     - Consider creating a .goosehints file or updating AGENTS.md in the project root to persist these standards
+     - Check if .goosehints or AGENTS.md already exists and use those guidelines if present
   
   ## Phase 2: Code Analysis and Extraction
   
@@ -128,7 +136,8 @@ prompt: |
        * Parameters with types (if available)
        * Return type
        * Existing comments or docstrings
-       * Complexity and purpose
+       * Purpose based on implementation analysis
+       * Cyclomatic complexity level (simple: 1-5 branches, moderate: 6-10, complex: 11+)
      
      - **Classes/Structs/Types:**
        * Name and inheritance/implementation
@@ -143,9 +152,10 @@ prompt: |
        * Exported values
      
      - **Modules/Packages:**
-       * Module purpose
+       * Module purpose (inferred from: exported functions, file name, directory structure, and existing comments)
        * Exported interfaces
        * Dependencies
+       * Note: If purpose cannot be confidently determined, use placeholder like "TODO: Add module description" and flag for manual review
   
   5. **Analyze code context:**
      - Understand the purpose of each code element from its implementation
@@ -192,39 +202,60 @@ prompt: |
      - Use Markdown formatting with proper headers (##, ###)
      - Create code blocks with language-specific syntax highlighting
      - Use tables for parameter lists
-     - Add hyperlinks for cross-references
+     - Add hyperlinks using [text](#anchor) for internal links and [text](file.md#section) for cross-file references
+     - Create anchor links using header IDs (e.g., ## Function Name creates #function-name anchor)
      {% elif doc_format == "html" %}
      - Generate valid HTML5 documentation
      - Include CSS styling for readability
-     - Add navigation links
+     - Add navigation links using <a href="..."> tags
      - Create searchable index
      {% elif doc_format == "restructuredtext" %}
      - Use reStructuredText formatting
      - Proper directive usage for code blocks
-     - Cross-reference using :ref: and :doc:
+     - Cross-reference using :ref:`label` and :doc:`filename`
+     - Use :py:func:`module.function` for Python cross-references
      {% elif doc_format == "javadoc" or doc_format == "jsdoc" %}
      - Generate language-specific doc comments
      - Use @param, @return, @throws tags
      - Include @example tags for usage
+     - Use @see and @link for cross-references
      {% endif %}
   
   {% if include_examples == "true" %}
   9. **Generate usage examples:**
      For each documented function/class:
-     - Create realistic usage scenarios
-     - Show input data and expected output
-     - Demonstrate error handling
+     - Generate synthetic but realistic usage examples that demonstrate the API
+     - Show input data and expected output based on the function's signature and implementation
+     - Demonstrate error handling where applicable
      - Include edge cases where relevant
-     - Ensure examples are runnable (or clearly marked as pseudocode)
+     - Mark examples clearly as "Example Usage" or "Code Example"
+     - Ensure examples use the actual function signatures from the codebase
+     - If you find actual usage in test files or other parts of the codebase, you may reference or adapt those patterns
+     - Keep examples simple and focused on demonstrating the specific functionality
   {% endif %}
   
   ## Phase 4: Cross-Referencing and Index
   
   10. **Build cross-references:**
-      - Link related functions and classes
+      {% if doc_format == "markdown" %}
+      - Link related functions and classes using [FunctionName](#functionname) format
+      - Create "See Also" sections with links to related documentation
+      - Build dependency graphs showing relationships
+      - Add links from examples back to detailed docs using relative paths
+      {% elif doc_format == "html" %}
+      - Link related functions and classes using <a href="#anchor"> tags
       - Create "See Also" sections
       - Build dependency graphs showing relationships
       - Add links from examples back to detailed docs
+      {% elif doc_format == "restructuredtext" %}
+      - Use :ref:`label` for internal references
+      - Use :doc:`filename` for cross-file references
+      - Create "See Also" sections with proper reST directives
+      {% else %}
+      - Use format-appropriate linking mechanisms
+      - Create "See Also" sections
+      - Build relationship documentation
+      {% endif %}
   
   11. **Generate documentation index:**
       - Create a master index file (index.md, index.html, etc.)
@@ -243,9 +274,11 @@ prompt: |
       - Check for typos and grammar issues
   
   13. **Save documentation patterns:**
-      - Store the documentation style used in memory for future runs
+      - Store the documentation style used in memory specifically for this {{ source_path }} project
       - Remember any project-specific conventions discovered
       - Save successful example patterns for reuse
+      - Create or update .goosehints file in {{ source_path }} with documentation preferences
+      - Consider updating AGENTS.md with documentation standards for future reference
   
   14. **Generate summary report:**
       - List all files documented
