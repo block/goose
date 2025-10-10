@@ -246,6 +246,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   };
 
   const handleRecipeCancel = () => {
+    hasCheckedRecipeRef.current = null;
     setIsRecipeWarningModalOpen(false);
     window.electron.closeWindow();
   };
