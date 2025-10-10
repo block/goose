@@ -73,7 +73,7 @@ fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Resul
 }
 
 async fn get_registry() -> &'static RwLock<ProviderRegistry> {
-    REGISTRY.get_or_init(|| init_registry()).await
+    REGISTRY.get_or_init(init_registry).await
 }
 
 pub async fn providers() -> Vec<ProviderMetadata> {

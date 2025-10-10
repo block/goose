@@ -2,10 +2,7 @@ use anyhow::Result;
 use dotenvy::dotenv;
 use goose::conversation::message::Message;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
-use goose::providers::{
-    base::{Provider, Usage},
-    create_with_named_model,
-};
+use goose::providers::{base::Usage, create_with_named_model};
 use tokio_stream::StreamExt;
 
 #[tokio::main]

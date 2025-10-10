@@ -365,39 +365,43 @@ async fn test_provider(
 ) -> Result<()> {
     TEST_REPORT.record_fail(name);
 
-    let lock = ENV_LOCK.lock().unwrap();
+    let original_env = {
+        let _lock = ENV_LOCK.lock().unwrap();
 
-    load_env();
+        load_env();
 
-    let mut original_env = HashMap::new();
-    for &var in required_vars {
-        if let Ok(val) = std::env::var(var) {
-            original_env.insert(var, val);
-        }
-    }
-    if let Some(mods) = &env_modifications {
-        for &var in mods.keys() {
+        let mut original_env = HashMap::new();
+        for &var in required_vars {
             if let Ok(val) = std::env::var(var) {
                 original_env.insert(var, val);
             }
         }
-    }
-
-    if let Some(mods) = &env_modifications {
-        for (&var, value) in mods.iter() {
-            match value {
-                Some(val) => std::env::set_var(var, val),
-                None => std::env::remove_var(var),
+        if let Some(mods) = &env_modifications {
+            for &var in mods.keys() {
+                if let Ok(val) = std::env::var(var) {
+                    original_env.insert(var, val);
+                }
             }
         }
-    }
 
-    let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
-    if missing_vars {
-        println!("Skipping {} tests - credentials not configured", name);
-        TEST_REPORT.record_skip(name);
-        return Ok(());
-    }
+        if let Some(mods) = &env_modifications {
+            for (&var, value) in mods.iter() {
+                match value {
+                    Some(val) => std::env::set_var(var, val),
+                    None => std::env::remove_var(var),
+                }
+            }
+        }
+
+        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
+        if missing_vars {
+            println!("Skipping {} tests - credentials not configured", name);
+            TEST_REPORT.record_skip(name);
+            return Ok(());
+        }
+
+        original_env
+    };
 
     let provider = match create_with_named_model(&name.to_lowercase(), model_name).await {
         Ok(p) => p,
@@ -408,18 +412,19 @@ async fn test_provider(
         }
     };
 
-    for (&var, value) in original_env.iter() {
-        std::env::set_var(var, value);
-    }
-    if let Some(mods) = env_modifications {
-        for &var in mods.keys() {
-            if !original_env.contains_key(var) {
-                std::env::remove_var(var);
+    {
+        let _lock = ENV_LOCK.lock().unwrap();
+        for (&var, value) in original_env.iter() {
+            std::env::set_var(var, value);
+        }
+        if let Some(mods) = env_modifications {
+            for &var in mods.keys() {
+                if !original_env.contains_key(var) {
+                    std::env::remove_var(var);
+                }
             }
         }
     }
-
-    std::mem::drop(lock);
 
     let tester = ProviderTester::new(provider, name.to_string());
     match tester.run_test_suite().await {
