@@ -74,6 +74,10 @@ export const DefaultSubmitHandler = async (
       // Explicitly define is_secret as a boolean (true/false)
       const isSecret = parameter.secret === true;
 
+      if (isSecret && value === 'true') {
+        return Promise.resolve();
+      }
+
       // Pass the is_secret flag from the parameter definition
       return upsertFn(configKey, value, isSecret);
     }

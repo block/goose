@@ -44,7 +44,7 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
 });
 
 // Memoize the ProviderCards component
-const ProviderCards = memo(function ProviderCards({
+export default memo(function ProviderCards({
   providers,
   isOnboarding,
   refreshProviders,
@@ -55,47 +55,50 @@ const ProviderCards = memo(function ProviderCards({
   refreshProviders?: () => void;
   onProviderLaunch: (provider: ProviderDetails) => void;
 }) {
-  const { openModal } = useProviderModal();
-  const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
+  const launch = onProviderLaunch || (() => {});
 
-  // Memoize these functions so they don't get recreated on every render
-  const configureProviderViaModal = useCallback(
-    (provider: ProviderDetails) => {
-      openModal(provider, {
-        onSubmit: () => {
-          // Only refresh if the function is provided
-          if (refreshProviders) {
-            refreshProviders();
-          }
-        },
-        onDelete: (_values: unknown) => {
-          if (refreshProviders) {
-            refreshProviders();
-          }
-        },
-        formProps: {},
-      });
-    },
-    [openModal, refreshProviders]
-  );
+  // Inner component that uses the provider modal context
+  const ProvidersContent = memo(function ProvidersContent() {
+    const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
+    const { openModal } = useProviderModal();
 
-  const deleteProviderConfigViaModal = useCallback(
-    (provider: ProviderDetails) => {
-      openModal(provider, {
-        onDelete: (_values: unknown) => {
-          // Only refresh if the function is provided
-          if (refreshProviders) {
-            refreshProviders();
-          }
-        },
-        formProps: {},
-      });
-    },
-    [openModal, refreshProviders]
-  );
+    // Memoize these functions so they don't get recreated on every render
+    const configureProviderViaModal = useCallback(
+      (provider: ProviderDetails) => {
+        openModal(provider, {
+          onSubmit: () => {
+            // Only refresh if the function is provided
+            if (refreshProviders) {
+              refreshProviders();
+            }
+          },
+          onDelete: (_values: unknown) => {
+            if (refreshProviders) {
+              refreshProviders();
+            }
+          },
+          formProps: {},
+        });
+      },
+      [openModal]
+    );
 
-  const handleCreateCustomProvider = useCallback(
-    async (data: CreateCustomProviderRequest) => {
+    const deleteProviderConfigViaModal = useCallback(
+      (provider: ProviderDetails) => {
+        openModal(provider, {
+          onDelete: (_values: unknown) => {
+            // Only refresh if the function is provided
+            if (refreshProviders) {
+              refreshProviders();
+            }
+          },
+          formProps: {},
+        });
+      },
+      [openModal]
+    );
+
+    const handleCreateCustomProvider = useCallback(async (data: CreateCustomProviderRequest) => {
       try {
         const { createCustomProvider } = await import('../../../api');
         await createCustomProvider({ body: data });
@@ -106,82 +109,97 @@ const ProviderCards = memo(function ProviderCards({
       } catch (error) {
         console.error('Failed to create custom provider:', error);
       }
-    },
-    [refreshProviders]
-  );
+    }, []);
+    const providerCardsByGroup = useMemo(() => {
+      // Copy the array before sorting to avoid mutating props
+      const providersArray = Array.isArray(providers) ? providers.slice() : [];
 
-  // Use useMemo to memoize the cards array
-  const providerCards = useMemo(() => {
-    // providers needs to be an array
-    const providersArray = Array.isArray(providers) ? providers : [];
-    const cards = providersArray.map((provider) => (
-      <ProviderCard
-        key={provider.name}
-        provider={provider}
-        onConfigure={() => configureProviderViaModal(provider)}
-        onDelete={() => deleteProviderConfigViaModal(provider)}
-        onLaunch={() => onProviderLaunch(provider)}
-        isOnboarding={isOnboarding}
-      />
-    ));
+      // Split into configured and available, then sort each group alphabetically by provider name
+      const configured = providersArray
+        .filter((p) => p.is_configured)
+        .sort((a, b) =>
+          (a.metadata?.display_name || a.name).localeCompare(b.metadata?.display_name || b.name)
+        );
 
-    cards.push(
-      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+      const available = providersArray
+        .filter((p) => !p.is_configured)
+        .sort((a, b) =>
+          (a.metadata?.display_name || a.name).localeCompare(b.metadata?.display_name || b.name)
+        );
+
+      const configuredCards = configured.map((provider) => (
+        <ProviderCard
+          key={provider.name}
+          provider={provider}
+          onConfigure={() => configureProviderViaModal(provider)}
+          onDelete={() => deleteProviderConfigViaModal(provider)}
+          onLaunch={() => launch(provider)}
+          isOnboarding={isOnboarding}
+        />
+      ));
+
+      const availableCards = available.map((provider) => (
+        <ProviderCard
+          key={provider.name}
+          provider={provider}
+          onConfigure={() => configureProviderViaModal(provider)}
+          onDelete={() => deleteProviderConfigViaModal(provider)}
+          onLaunch={() => launch(provider)}
+          isOnboarding={isOnboarding}
+        />
+      ));
+
+      return { configuredCards, availableCards };
+    }, [configureProviderViaModal, deleteProviderConfigViaModal]);
+
+    return (
+      <div className="space-y-8">
+        {providerCardsByGroup.configuredCards.length > 0 && (
+          <div>
+            <h2 className="text-lg font-medium text-text-default mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+              Configured Providers ({providerCardsByGroup.configuredCards.length})
+            </h2>
+            <GridLayout>
+              {providerCardsByGroup.configuredCards}
+              <CustomProviderCard
+                key="add-custom"
+                onClick={() => setShowCustomProviderModal(true)}
+              />
+            </GridLayout>
+          </div>
+        )}
+
+        {providerCardsByGroup.availableCards.length > 0 && (
+          <div>
+            <h2 className="text-lg font-medium text-text-muted mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+              Available Providers ({providerCardsByGroup.availableCards.length})
+            </h2>
+            <GridLayout>{providerCardsByGroup.availableCards}</GridLayout>
+          </div>
+        )}
+
+        <ProviderConfigurationModal />
+
+        <Dialog open={showCustomProviderModal} onOpenChange={setShowCustomProviderModal}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Add Custom Provider</DialogTitle>
+            </DialogHeader>
+            <CustomProviderForm
+              onSubmit={handleCreateCustomProvider}
+              onCancel={() => setShowCustomProviderModal(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
     );
-
-    return cards;
-  }, [
-    providers,
-    isOnboarding,
-    configureProviderViaModal,
-    deleteProviderConfigViaModal,
-    onProviderLaunch,
-  ]);
+  });
 
   return (
-    <>
-      {providerCards}
-
-      <Dialog open={showCustomProviderModal} onOpenChange={setShowCustomProviderModal}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Add Custom Provider</DialogTitle>
-          </DialogHeader>
-          <CustomProviderForm
-            onSubmit={handleCreateCustomProvider}
-            onCancel={() => setShowCustomProviderModal(false)}
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+    <ProviderModalProvider>
+      <ProvidersContent />
+    </ProviderModalProvider>
   );
-});
-
-export default memo(function ProviderGrid({
-  providers,
-  isOnboarding,
-  refreshProviders,
-  onProviderLaunch,
-}: {
-  providers: ProviderDetails[];
-  isOnboarding: boolean;
-  refreshProviders?: () => void;
-  onProviderLaunch?: (provider: ProviderDetails) => void;
-}) {
-  // Memoize the modal provider and its children to avoid recreating on every render
-  const modalProviderContent = useMemo(
-    () => (
-      <ProviderModalProvider>
-        <ProviderCards
-          providers={providers}
-          isOnboarding={isOnboarding}
-          refreshProviders={refreshProviders}
-          onProviderLaunch={onProviderLaunch || (() => {})}
-        />
-        <ProviderConfigurationModal />
-      </ProviderModalProvider>
-    ),
-    [providers, isOnboarding, refreshProviders, onProviderLaunch]
-  );
-  return <GridLayout>{modalProviderContent}</GridLayout>;
 });

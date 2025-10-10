@@ -94,7 +94,6 @@ impl CustomProviderConfig {
             supports_streaming,
         };
 
-        // save to JSON file
         let custom_providers_dir = custom_providers_dir();
         std::fs::create_dir_all(&custom_providers_dir)?;
 
@@ -145,8 +144,24 @@ pub fn register_custom_providers(
 ) -> Result<()> {
     let configs = load_custom_providers(dir)?;
 
+    let global_config = crate::config::Config::global();
+    if let Ok(val) = global_config.get_secret::<String>("CUSTOM_PROVIDER_BASE_URL") {
+        tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}.", val);
+        match global_config.delete_secret("CUSTOM_PROVIDER_BASE_URL") {
+            Ok(_) => tracing::info!(
+                "Removed legacy secret key 'CUSTOM_PROVIDER_BASE_URL' from secret storage."
+            ),
+            Err(e) => tracing::error!(
+                "Failed to remove legacy secret key 'CUSTOM_PROVIDER_BASE_URL': {}",
+                e
+            ),
+        }
+    }
+
     for config in configs {
         let config_clone = config.clone();
+        let provider_id = config.name.trim_start_matches("custom_");
+        let base_url_key = format!("CUSTOM_{}_BASE_URL", provider_id.to_uppercase());
         let description = config
             .description
             .clone()
@@ -171,36 +186,66 @@ pub fn register_custom_providers(
 
         match config.engine {
             ProviderEngine::OpenAI => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
+                ];
                 registry.register_with_name::<OpenAiProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         OpenAiProvider::from_custom_config(model, config_clone.clone())
                     },
                 );
             }
             ProviderEngine::Ollama => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
+                ];
                 registry.register_with_name::<OllamaProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         OllamaProvider::from_custom_config(model, config_clone.clone())
                     },
                 );
             }
             ProviderEngine::Anthropic => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
+                ];
                 registry.register_with_name::<AnthropicProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         AnthropicProvider::from_custom_config(model, config_clone.clone())
                     },
