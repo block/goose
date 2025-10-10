@@ -76,7 +76,6 @@ impl ProviderRegistry {
             ProviderEntry {
                 metadata: custom_metadata,
                 constructor: Arc::new(move |model| {
-                    // Wrap in Arc instead of Box
                     let result = constructor(model);
                     Box::pin(async move {
                         let provider = result?;
