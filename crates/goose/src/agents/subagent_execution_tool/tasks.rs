@@ -41,7 +41,6 @@ async fn get_task_result(
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    // All tasks now contain recipes directly - no conversion needed
     handle_recipe_task(task, task_config, cancellation_token).await
 }
 

@@ -64,7 +64,6 @@ fn create_tasks_from_params(
         let recipe_file = load_local_recipe_file(&sub_recipe.path)
             .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
 
-        // Build the recipe with parameters applied
         let recipe = build_recipe_from_template(
             recipe_file,
             task_command_param
@@ -75,7 +74,6 @@ fn create_tasks_from_params(
         )
         .map_err(|e| anyhow::anyhow!("Failed to build recipe: {}", e))?;
 
-        // Create task with the fully-formed recipe
         let task = Task {
             id: uuid::Uuid::new_v4().to_string(),
             payload: TaskPayload {

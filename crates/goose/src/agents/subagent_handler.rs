@@ -25,7 +25,6 @@ pub async fn run_complete_subagent_task(
         )
     })?;
 
-    // If we have validated output from FinalOutputTool, return it
     if let Some(output) = final_output {
         return Ok(output);
     }
@@ -99,7 +98,6 @@ fn get_agent_messages(
     task_config: TaskConfig,
 ) -> BoxFuture<'static, Result<(Conversation, Option<String>)>> {
     Box::pin(async move {
-        // Extract instruction from recipe
         let text_instruction = recipe
             .instructions
             .clone()

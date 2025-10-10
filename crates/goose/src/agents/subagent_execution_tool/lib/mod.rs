@@ -33,7 +33,6 @@ pub async fn execute_tasks(
             }
         }
         ExecutionMode::Parallel => {
-            // Check if any task requires sequential execution
             let any_sequential = tasks
                 .iter()
                 .any(|task| task.payload.sequential_when_repeated);
