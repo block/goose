@@ -82,103 +82,96 @@ export default function CustomProviderForm({
     });
   };
 
-  const isFieldEditable = (fieldName: string) => {
-    if (!initialData) return true;
-    if (!isEditable) return fieldName === 'apiKey';
-    return true;
-  };
-
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-      <div>
-        <label
-          htmlFor="provider-select"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          Provider Type
-          <span className="text-red-500 ml-1">*</span>
-        </label>
-        <Select
-          id="provider-select"
-          aria-invalid={!!validationErrors.providerType}
-          aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
-          options={[
-            { value: 'openai_compatible', label: 'OpenAI Compatible' },
-            { value: 'anthropic_compatible', label: 'Anthropic Compatible' },
-            { value: 'ollama_compatible', label: 'Ollama Compatible' },
-          ]}
-          value={{
-            value: engine,
-            label:
-              engine === 'openai_compatible'
-                ? 'OpenAI Compatible'
-                : engine === 'anthropic_compatible'
-                  ? 'Anthropic Compatible'
-                  : 'Ollama Compatible',
-          }}
-          onChange={(option: unknown) => {
-            const selectedOption = option as { value: string; label: string } | null;
-            if (selectedOption) setEngine(selectedOption.value);
-          }}
-          isSearchable={false}
-          isDisabled={!isFieldEditable('providerType')}
-        />
-        {validationErrors.providerType && (
-          <p id="provider-select-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.providerType}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label
-          htmlFor="display-name"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          Display Name
-          <span className="text-red-500 ml-1">*</span>
-        </label>
-        <Input
-          id="display-name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Your Provider Name"
-          aria-invalid={!!validationErrors.displayName}
-          aria-describedby={validationErrors.displayName ? 'display-name-error' : undefined}
-          className={validationErrors.displayName ? 'border-red-500' : ''}
-          disabled={!isFieldEditable('displayName')}
-        />
-        {validationErrors.displayName && (
-          <p id="display-name-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.displayName}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label
-          htmlFor="api-url"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          API URL
-          <span className="text-red-500 ml-1">*</span>
-        </label>
-        <Input
-          id="api-url"
-          value={apiUrl}
-          onChange={(e) => setApiUrl(e.target.value)}
-          placeholder="https://api.example.com/v1/messages"
-          aria-invalid={!!validationErrors.apiUrl}
-          aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
-          className={validationErrors.apiUrl ? 'border-red-500' : ''}
-          disabled={!isFieldEditable('apiUrl')}
-        />
-        {validationErrors.apiUrl && (
-          <p id="api-url-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.apiUrl}
-          </p>
-        )}
-      </div>
+      {isEditable && (
+        <>
+          <div>
+            <label
+              htmlFor="provider-select"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
+            >
+              Provider Type
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <Select
+              id="provider-select"
+              aria-invalid={!!validationErrors.providerType}
+              aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
+              options={[
+                { value: 'openai_compatible', label: 'OpenAI Compatible' },
+                { value: 'anthropic_compatible', label: 'Anthropic Compatible' },
+                { value: 'ollama_compatible', label: 'Ollama Compatible' },
+              ]}
+              value={{
+                value: engine,
+                label:
+                  engine === 'openai_compatible'
+                    ? 'OpenAI Compatible'
+                    : engine === 'anthropic_compatible'
+                      ? 'Anthropic Compatible'
+                      : 'Ollama Compatible',
+              }}
+              onChange={(option: unknown) => {
+                const selectedOption = option as { value: string; label: string } | null;
+                if (selectedOption) setEngine(selectedOption.value);
+              }}
+              isSearchable={false}
+            />
+            {validationErrors.providerType && (
+              <p id="provider-select-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.providerType}
+              </p>
+            )}
+          </div>
+          <div>
+            <label
+              htmlFor="display-name"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
+            >
+              Display Name
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <Input
+              id="display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Your Provider Name"
+              aria-invalid={!!validationErrors.displayName}
+              aria-describedby={validationErrors.displayName ? 'display-name-error' : undefined}
+              className={validationErrors.displayName ? 'border-red-500' : ''}
+            />
+            {validationErrors.displayName && (
+              <p id="display-name-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.displayName}
+              </p>
+            )}
+          </div>
+          <div>
+            <label
+              htmlFor="api-url"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
+            >
+              API URL
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <Input
+              id="api-url"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://api.example.com/v1/messages"
+              aria-invalid={!!validationErrors.apiUrl}
+              aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
+              className={validationErrors.apiUrl ? 'border-red-500' : ''}
+            />
+            {validationErrors.apiUrl && (
+              <p id="api-url-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.apiUrl}
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       <div>
         <label
@@ -217,49 +210,47 @@ export default function CustomProviderForm({
           </div>
         )}
       </div>
-
-      <div>
-        <label
-          htmlFor="available-models"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          Available Models (comma-separated)
-          <span className="text-red-500 ml-1">*</span>
-        </label>
-        <Input
-          id="available-models"
-          value={models}
-          onChange={(e) => setModels(e.target.value)}
-          placeholder="model-a, model-b, model-c"
-          aria-invalid={!!validationErrors.models}
-          aria-describedby={validationErrors.models ? 'available-models-error' : undefined}
-          className={validationErrors.models ? 'border-red-500' : ''}
-          disabled={!isFieldEditable('models')}
-        />
-        {validationErrors.models && (
-          <p id="available-models-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.models}
-          </p>
-        )}
-      </div>
-
-      <div className="flex items-center space-x-2 mb-10">
-        <Checkbox
-          id="supports-streaming"
-          checked={supportsStreaming}
-          onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
-          disabled={!isFieldEditable('supportsStreaming')}
-        />
-        <label
-          htmlFor="supports-streaming"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-        >
-          Provider supports streaming responses
-        </label>
-      </div>
-
+      {isEditable && (
+        <>
+          <div>
+            <label
+              htmlFor="available-models"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
+            >
+              Available Models (comma-separated)
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <Input
+              id="available-models"
+              value={models}
+              onChange={(e) => setModels(e.target.value)}
+              placeholder="model-a, model-b, model-c"
+              aria-invalid={!!validationErrors.models}
+              aria-describedby={validationErrors.models ? 'available-models-error' : undefined}
+              className={validationErrors.models ? 'border-red-500' : ''}
+            />
+            {validationErrors.models && (
+              <p id="available-models-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.models}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center space-x-2 mb-10">
+            <Checkbox
+              id="supports-streaming"
+              checked={supportsStreaming}
+              onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
+            />
+            <label
+              htmlFor="supports-streaming"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
+            >
+              Provider supports streaming responses
+            </label>
+          </div>
+        </>
+      )}
       <SecureStorageNotice />
-
       <div className="flex justify-end space-x-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

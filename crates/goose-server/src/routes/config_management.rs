@@ -1,5 +1,6 @@
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
+use axum::routing::put;
 use axum::{
     extract::Path,
     routing::{delete, get, post},
@@ -262,7 +263,7 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     let providers_response: Vec<ProviderDetails> = providers
         .into_iter()
         .map(|(metadata, provider_type)| {
-            let is_configured = check_provider_configured(&metadata);
+            let is_configured = check_provider_configured(&metadata, provider_type);
 
             ProviderDetails {
                 name: metadata.name.clone(),
@@ -292,14 +293,27 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
+    let loaded_provider = goose::config::declarative_providers::load_provider(name.as_str()).ok();
+    // TODO(Douwe): support a get models url for custom providers
+    if let Some(loaded_provider) = loaded_provider {
+        return Ok(Json(
+            loaded_provider
+                .config
+                .models
+                .into_iter()
+                .map(|m| m.name)
+                .collect::<Vec<_>>(),
+        ));
+    }
+
     let all = get_providers()
         .into_iter()
-        .map(|(m, _)| m)
+        //.map(|(m, p)| m)
         .collect::<Vec<_>>();
-    let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
+    let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
         return Err(StatusCode::BAD_REQUEST);
     };
-    if !check_provider_configured(&metadata) {
+    if !check_provider_configured(&metadata, provider_type) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -396,9 +410,9 @@ pub async fn get_pricing(
             }
         }
     } else {
-        for (metadata, _) in get_providers() {
+        for (metadata, provider_type) in get_providers() {
             // Skip unconfigured providers if filtering
-            if !check_provider_configured(&metadata) {
+            if !check_provider_configured(&metadata, provider_type) {
                 continue;
             }
 
@@ -715,10 +729,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/config/custom-providers/{id}",
             delete(remove_custom_provider),
         )
-        .route(
-            "/config/custom-providers/{id}",
-            post(update_custom_provider),
-        )
+        .route("/config/custom-providers/{id}", put(update_custom_provider))
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .with_state(state)
 }

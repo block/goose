@@ -140,49 +140,48 @@ pub fn update_custom_provider(
     api_key: String,
     models: Vec<String>,
     supports_streaming: Option<bool>,
-) -> Result<DeclarativeProviderConfig> {
-    let file_path = custom_providers_dir().join(format!("{}.json", id));
-
-    if !file_path.exists() {
-        return Err(anyhow::anyhow!("Provider not found: {}", id));
-    }
-
-    let existing_content = std::fs::read_to_string(&file_path)?;
-    let existing_config: DeclarativeProviderConfig = serde_json::from_str(&existing_content)?;
+) -> Result<()> {
+    let loaded_provider = load_provider(id)?;
+    let existing_config = loaded_provider.config;
+    let editable = loaded_provider.is_editable;
 
     let config = Config::global();
-    config.set_secret(
-        &existing_config.api_key_env,
-        serde_json::Value::String(api_key),
-    )?;
+    if api_key != "" {
+        config.set_secret(
+            &existing_config.api_key_env,
+            serde_json::Value::String(api_key),
+        )?;
+    }
 
-    let model_infos: Vec<ModelInfo> = models
-        .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
-        .collect();
+    if editable {
+        let model_infos: Vec<ModelInfo> = models
+            .into_iter()
+            .map(|name| ModelInfo::new(name, 128000))
+            .collect();
 
-    let updated_config = DeclarativeProviderConfig {
-        name: id.to_string(),
-        engine: match provider_type {
-            "openai_compatible" => ProviderEngine::OpenAI,
-            "anthropic_compatible" => ProviderEngine::Anthropic,
-            "ollama_compatible" => ProviderEngine::Ollama,
-            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
-        },
-        display_name,
-        description: existing_config.description,
-        api_key_env: existing_config.api_key_env,
-        base_url: api_url,
-        models: model_infos,
-        headers: existing_config.headers,
-        timeout_seconds: existing_config.timeout_seconds,
-        supports_streaming,
-    };
+        let updated_config = DeclarativeProviderConfig {
+            name: id.to_string(),
+            engine: match provider_type {
+                "openai_compatible" => ProviderEngine::OpenAI,
+                "anthropic_compatible" => ProviderEngine::Anthropic,
+                "ollama_compatible" => ProviderEngine::Ollama,
+                _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+            },
+            display_name,
+            description: existing_config.description,
+            api_key_env: existing_config.api_key_env,
+            base_url: api_url,
+            models: model_infos,
+            headers: existing_config.headers,
+            timeout_seconds: existing_config.timeout_seconds,
+            supports_streaming,
+        };
 
-    let json_content = serde_json::to_string_pretty(&updated_config)?;
-    std::fs::write(file_path, json_content)?;
-
-    Ok(updated_config)
+        let file_path = custom_providers_dir().join(format!("{}.json", id));
+        let json_content = serde_json::to_string_pretty(&updated_config)?;
+        std::fs::write(file_path, json_content)?;
+    }
+    Ok(())
 }
 
 pub fn remove_custom_provider(id: &str) -> Result<()> {
