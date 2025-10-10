@@ -69,3 +69,6 @@ crates/goose/tests/mcp_replays/*errors.txt
 .gromastate
 # Nix build output
 result
+
+# Goose self-test artifacts
+gooseselftest/
