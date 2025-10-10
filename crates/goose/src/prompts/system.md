@@ -56,7 +56,7 @@ Template:
 - [ ] Blocked: waiting on credentials
 ```
 
-Execute via subagent by default — only handle directly when step-by-step visibility is essential.
+Execute self contained tasks where step-by-step visibility is not important through subagents.
 - Delegate via `dynamic_task__create_task` for: result-only operations, parallelizable work, multi-part requests, verification, exploration
 - Parallel subagents for multiple operations, single subagents for independent work
 - Explore solutions in parallel — launch parallel subagents with different approaches (if non-interfering)
