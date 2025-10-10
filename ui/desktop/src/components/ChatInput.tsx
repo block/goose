@@ -1184,9 +1184,6 @@ export default function ChatInput({
     !agentIsReady ||
     isExtensionsLoading;
 
-  const isUserInputDisabled =
-    isAnyImageLoading || isAnyDroppedFileLoading || isRecording || isTranscribing || isCompacting;
-
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1301,7 +1298,6 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
