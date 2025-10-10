@@ -41,6 +41,10 @@ type ExtractFunctionNameHandler = fn(&tree_sitter::Node, &str, &str) -> Option<S
 /// Takes: (receiver_node, source, ast_recursion_limit)
 type FindMethodForReceiverHandler = fn(&tree_sitter::Node, &str, Option<usize>) -> Option<String>;
 
+/// Handler for finding the receiver type from a receiver node
+/// Takes: (receiver_node, source)
+type FindReceiverTypeHandler = fn(&tree_sitter::Node, &str) -> Option<String>;
+
 /// Language configuration containing all language-specific information
 ///
 /// This struct serves as a single source of truth for language support.
@@ -61,6 +65,8 @@ pub struct LanguageInfo {
     pub extract_function_name_handler: Option<ExtractFunctionNameHandler>,
     /// Optional handler for finding method names from receiver nodes
     pub find_method_for_receiver_handler: Option<FindMethodForReceiverHandler>,
+    /// Optional handler for finding receiver type from receiver nodes
+    pub find_receiver_type_handler: Option<FindReceiverTypeHandler>,
 }
 
 /// Get language configuration for a given language
@@ -76,15 +82,17 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: None,
+            find_receiver_type_handler: None,
         }),
         "rust" => Some(LanguageInfo {
             element_query: rust::ELEMENT_QUERY,
             call_query: rust::CALL_QUERY,
-            reference_query: "",
+            reference_query: rust::REFERENCE_QUERY,
             function_node_kinds: &["function_item", "impl_item"],
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: Some(rust::extract_function_name_for_kind),
-            find_method_for_receiver_handler: None,
+            find_method_for_receiver_handler: Some(rust::find_method_for_receiver),
+            find_receiver_type_handler: Some(rust::find_receiver_type),
         }),
         "javascript" | "typescript" => Some(LanguageInfo {
             element_query: javascript::ELEMENT_QUERY,
@@ -98,6 +106,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: None,
+            find_receiver_type_handler: None,
         }),
         "go" => Some(LanguageInfo {
             element_query: go::ELEMENT_QUERY,
@@ -107,6 +116,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: Some(go::find_method_for_receiver),
+            find_receiver_type_handler: None,
         }),
         "java" => Some(LanguageInfo {
             element_query: java::ELEMENT_QUERY,
@@ -116,6 +126,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: None,
+            find_receiver_type_handler: None,
         }),
         "kotlin" => Some(LanguageInfo {
             element_query: kotlin::ELEMENT_QUERY,
@@ -125,6 +136,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: None,
+            find_receiver_type_handler: None,
         }),
         "swift" => Some(LanguageInfo {
             element_query: swift::ELEMENT_QUERY,
@@ -139,6 +151,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["simple_identifier"],
             extract_function_name_handler: Some(swift::extract_function_name_for_kind),
             find_method_for_receiver_handler: None,
+            find_receiver_type_handler: None,
         }),
         "ruby" => Some(LanguageInfo {
             element_query: ruby::ELEMENT_QUERY,
@@ -148,6 +161,7 @@ pub fn get_language_info(language: &str) -> Option<LanguageInfo> {
             function_name_kinds: &["identifier", "field_identifier", "property_identifier"],
             extract_function_name_handler: None,
             find_method_for_receiver_handler: Some(ruby::find_method_for_receiver),
+            find_receiver_type_handler: None,
         }),
         _ => None,
     }

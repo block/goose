@@ -20,7 +20,7 @@ import { PanelLeft } from 'lucide-react';
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser or with [Homebrew](https://brew.sh/).
-        
+
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
         <MacDesktopInstallButtons/>
 
@@ -33,7 +33,7 @@ import { PanelLeft } from 'lucide-react';
           :::
         </div>
         <h3>Option 2: Install via Homebrew</h3>
-        Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too. 
+        Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too.
         ```bash
           brew install --cask block-goose
         ```
@@ -87,7 +87,7 @@ import { PanelLeft } from 'lucide-react';
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser.
-        
+
         <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
         <LinuxDesktopInstallButtons/>
 
@@ -97,7 +97,7 @@ import { PanelLeft } from 'lucide-react';
           2. Navigate to the directory where it is saved in a terminal
           3. Run `sudo dpkg -i (filename).deb`
           4. Launch Goose from the app menu
-          
+
           :::tip Updating Goose
           It's best to keep Goose updated by periodically running the installation steps again.
           :::
@@ -133,7 +133,7 @@ import { PanelLeft } from 'lucide-react';
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser.
-        
+
         <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
         <WindowsDesktopInstallButtons/>
 
@@ -162,6 +162,17 @@ import { PanelLeft } from 'lucide-react';
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        ```
+
+        **PowerShell Installation:**
+        Download the PowerShell installation script to your current directory.
+
+        ```powershell
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/block/goose/main/download_cli.ps1" -OutFile "download_cli.ps1";
+        ```
+        Then run the script to install Goose:
+        ```powershell
+        .\download_cli.ps1
         ```
 
         :::info Windows PATH Setup
@@ -223,7 +234,7 @@ import { PanelLeft } from 'lucide-react';
 
           ```sh
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-          ```  
+          ```
 
           If needed, add Goose to your path:
 
@@ -369,7 +380,7 @@ The Goose CLI and Desktop UI share all core configurations, including LLM provid
 
 :::info
 While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config file while others implement their own storage methods.
-::: 
+:::
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
