@@ -38,6 +38,16 @@ export function RecipeFormFields({
   const [newParameterName, setNewParameterName] = useState('');
   const [expandedParameters, setExpandedParameters] = useState<Set<string>>(new Set());
 
+  // Force re-render when instructions, prompt, or activities change
+  const [_forceRender, setForceRender] = useState(0);
+
+  React.useEffect(() => {
+    return form.store.subscribe(() => {
+      // Force re-render when any form field changes to update parameter usage indicators
+      setForceRender((prev) => prev + 1);
+    });
+  }, [form.store]);
+
   const parseParametersFromInstructions = React.useCallback(
     (instructions: string, prompt?: string, activities?: string[]): Parameter[] => {
       const instructionVars = extractTemplateVariables(instructions);
