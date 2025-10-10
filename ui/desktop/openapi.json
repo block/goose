@@ -1867,6 +1867,41 @@
         ]
       }
     },
+    "/sessions/{session_id}/stream": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "stream_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session to stream",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session stream initiated"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/user_recipe_values": {
       "put": {
         "tags": [
@@ -3926,7 +3961,8 @@
           "created_at",
           "updated_at",
           "extension_data",
-          "message_count"
+          "message_count",
+          "in_use"
         ],
         "properties": {
           "accumulated_input_tokens": {
@@ -3964,6 +4000,9 @@
           },
           "id": {
             "type": "string"
+          },
+          "in_use": {
+            "type": "boolean"
           },
           "input_tokens": {
             "type": "integer",

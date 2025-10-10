@@ -683,6 +683,7 @@ export type Session = {
     description: string;
     extension_data: ExtensionData;
     id: string;
+    in_use: boolean;
     input_tokens?: number | null;
     message_count: number;
     output_tokens?: number | null;
@@ -2382,6 +2383,36 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type StreamSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session to stream
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/stream';
+};
+
+export type StreamSessionErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StreamSessionResponses = {
+    /**
+     * Session stream initiated
+     */
+    200: unknown;
+};
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;

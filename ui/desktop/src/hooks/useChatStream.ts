@@ -43,15 +43,30 @@ export function useChatStream({
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Use refs to track current state without triggering re-renders
+  const messagesRef = useRef<Message[]>(messages);
+  const sessionIdRef = useRef<string>(sessionId);
+
+  // Keep refs in sync with props
+  messagesRef.current = messages;
+  sessionIdRef.current = sessionId;
+
   const handleSubmit = useCallback(
     async (userMessage: string) => {
+      // Abort any existing stream
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
       const newMessage: Message = {
         role: 'user',
         content: [{ type: 'text', text: userMessage }],
         created: Date.now(),
       };
 
-      let currentMessages = [...messages, newMessage];
+      // Use the current messages from ref to avoid stale closure
+      let currentMessages = [...messagesRef.current, newMessage];
       setMessages(currentMessages);
       setChatState(ChatState.Streaming);
 
@@ -67,7 +82,7 @@ export function useChatStream({
             'X-Secret-Key': await window.electron.getSecretKey(),
           },
           body: JSON.stringify({
-            session_id: sessionId,
+            session_id: sessionIdRef.current,
             messages: currentMessages,
           }),
           signal: abortControllerRef.current.signal,
@@ -117,18 +132,29 @@ export function useChatStream({
             }
           }
         }
+
+        // Stream completed without explicit finish event
+        setChatState(ChatState.Idle);
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
           console.error('Stream error:', error);
         }
         setChatState(ChatState.Idle);
+      } finally {
+        // Clean up abort controller
+        if (abortControllerRef.current) {
+          abortControllerRef.current = null;
+        }
       }
     },
-    [sessionId, messages, setMessages, onStreamFinish]
+    [setMessages, onStreamFinish]
   );
 
   const stopStreaming = useCallback(() => {
-    abortControllerRef.current?.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setChatState(ChatState.Idle);
   }, []);
 

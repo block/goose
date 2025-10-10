@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 2;
+const CURRENT_SCHEMA_VERSION: i32 = 3;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -42,6 +42,7 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    pub in_use: bool,
 }
 
 pub struct SessionUpdateBuilder {
@@ -241,6 +242,10 @@ impl SessionManager {
             Ok(())
         }
     }
+
+    pub async fn mark_in_use(id: &str, in_use: bool) -> Result<()> {
+        Self::instance().await?.mark_in_use(id, in_use).await
+    }
 }
 
 pub struct SessionStorage {
@@ -284,6 +289,7 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            in_use: false,
         }
     }
 }
@@ -325,6 +331,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            in_use: row.try_get("in_use").unwrap_or(false),
         })
     }
 }
@@ -409,7 +416,8 @@ impl SessionStorage {
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
                 recipe_json TEXT,
-                user_recipe_values_json TEXT
+                user_recipe_values_json TEXT,
+                in_use INTEGER NOT NULL DEFAULT 0
             )
         "#,
         )
@@ -610,6 +618,15 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            3 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN in_use INTEGER NOT NULL DEFAULT 0
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -650,7 +667,7 @@ impl SessionStorage {
         SELECT id, working_dir, description, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json, user_recipe_values_json
+               schedule_id, recipe_json, user_recipe_values_json, in_use
         FROM sessions
         WHERE id = ?
     "#,
@@ -850,7 +867,7 @@ impl SessionStorage {
         SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+               s.schedule_id, s.recipe_json, s.user_recipe_values_json, s.in_use,
                COUNT(m.id) as message_count
         FROM sessions s
         INNER JOIN messages m ON s.id = m.session_id
@@ -861,6 +878,15 @@ impl SessionStorage {
         .fetch_all(&self.pool)
         .await
         .map_err(Into::into)
+    }
+
+    async fn mark_in_use(&self, session_id: &str, in_use: bool) -> Result<()> {
+        sqlx::query("UPDATE sessions SET in_use = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(in_use)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {

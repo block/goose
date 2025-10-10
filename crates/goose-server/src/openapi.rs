@@ -349,6 +349,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
         super::routes::session::get_session,
+        super::routes::session::stream_session,
         super::routes::session::get_session_insights,
         super::routes::session::update_session_description,
         super::routes::session::delete_session,
