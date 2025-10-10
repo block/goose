@@ -721,6 +721,10 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Orchestrate parallel work on GitHub issues using swarm intelligence
+    #[command(about = "Orchestrate parallel work on GitHub issues using swarm intelligence")]
+    Swarm(crate::commands::swarm::SwarmArgs),
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -767,6 +771,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Swarm(_)) => "swarm",
         None => "default_session",
     };
 
@@ -1239,6 +1244,10 @@ pub async fn cli() -> Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Swarm(args)) => {
+            crate::commands::swarm::run(args).await?;
             return Ok(());
         }
         None => {
