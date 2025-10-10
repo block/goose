@@ -6,7 +6,7 @@ use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_execution_tool::{
     lib::ExecutionMode,
-    task_types::{Task, TaskType},
+    task_types::{Task, TaskPayload},
 };
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::{Recipe, RecipeBuilder};
@@ -257,17 +257,6 @@ pub async fn create_dynamic_task(
         // All tasks must use the new inline recipe path
         match task_params_to_inline_recipe(task_param, &loaded_extensions) {
             Ok(recipe) => {
-                let recipe_json = match serde_json::to_value(&recipe) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        return ToolCallResult::from(Err(ErrorData {
-                            code: ErrorCode::INTERNAL_ERROR,
-                            message: Cow::from(format!("Failed to serialize recipe: {}", e)),
-                            data: None,
-                        }));
-                    }
-                };
-
                 // Extract return_last_only flag if present
                 let return_last_only = task_param
                     .get("return_last_only")
@@ -276,11 +265,11 @@ pub async fn create_dynamic_task(
 
                 let task = Task {
                     id: uuid::Uuid::new_v4().to_string(),
-                    task_type: TaskType::InlineRecipe,
-                    payload: json!({
-                        "recipe": recipe_json,
-                        "return_last_only": return_last_only
-                    }),
+                    payload: TaskPayload {
+                        recipe,
+                        return_last_only,
+                        sequential_when_repeated: false,
+                    },
                 };
                 tasks.push(task);
             }

@@ -19,6 +19,7 @@ pub mod google;
 pub mod groq;
 pub mod lead_worker;
 pub mod litellm;
+pub mod model_override;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
@@ -38,3 +39,4 @@ pub mod venice;
 pub mod xai;
 
 pub use factory::{create, providers, refresh_custom_providers};
+pub use model_override::ModelOverrideProvider;
