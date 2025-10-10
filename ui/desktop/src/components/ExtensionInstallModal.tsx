@@ -215,6 +215,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
             setView(view as View, options);
           }
         );
+        window.electron.notifyInstallationComplete(true);
       } else {
         throw new Error('addExtension function not provided to component');
       }
@@ -224,6 +225,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Installation failed';
       console.error('Extension installation failed:', error);
+      window.electron.notifyInstallationComplete(false);
 
       setModalState((prev) => ({
         ...prev,

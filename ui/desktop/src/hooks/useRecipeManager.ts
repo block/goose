@@ -222,16 +222,19 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         await window.electron.recordRecipeHash(finalRecipe);
         setRecipeAccepted(true);
         setIsRecipeWarningModalOpen(false);
+        window.electron.notifyInstallationComplete(true);
       }
     } catch (error) {
       console.error('Error recording recipe hash:', error);
       setRecipeAccepted(true);
       setIsRecipeWarningModalOpen(false);
+      window.electron.notifyInstallationComplete(false);
     }
   };
 
   const handleRecipeCancel = () => {
     setIsRecipeWarningModalOpen(false);
+    window.electron.notifyInstallationComplete(false);
     window.electron.closeWindow();
   };
 

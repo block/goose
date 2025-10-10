@@ -2185,6 +2185,21 @@ async function appMain() {
       return false;
     }
   });
+
+  // Handle installation completion for both extensions and recipes
+  ipcMain.on('installation-complete', (_event, success: boolean) => {
+    console.log(`[Main] Installation complete: ${success ? 'success' : 'failure'}`);
+
+    // Clear both deeplink URLs to prevent showing installation prompts again
+    if (windowDeeplinkURL) {
+      console.log('[Main] Clearing windowDeeplinkURL after installation');
+      windowDeeplinkURL = null;
+    }
+    if (pendingDeepLink) {
+      console.log('[Main] Clearing pendingDeepLink after installation');
+      pendingDeepLink = null;
+    }
+  });
 }
 
 app.whenReady().then(async () => {

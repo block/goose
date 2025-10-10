@@ -15,6 +15,7 @@ const mockElectron = {
   logInfo: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
+  notifyInstallationComplete: vi.fn(),
 };
 
 (window as any).electron = mockElectron;
