@@ -117,13 +117,6 @@ extensions:
     bundled: true
     description: Core tool for file operations, shell commands, and code analysis
   
-  - type: builtin
-    name: todo
-    display_name: Todo
-    timeout: 300
-    bundled: true
-    description: Track test progress and issues found
-
 prompt: |
   Execute the Goose Self-Testing Integration Suite in {{ workspace_dir }}.
   Test phases: {{ test_phases }}, Depth: {{ test_depth }}, Parallel: {{ parallel_tests }}
@@ -165,12 +158,16 @@ prompt: |
   {% if test_phases == "all" or "extensions" in test_phases %}
   ## 🔧 PHASE 2: Extension System Testing
   
-  1. Use platform__search_available_extensions to discover extensions
+  ### Todo Extension Testing (Built-in)
+  1. Create initial todos and verify they persist
+  2. Update todos and confirm changes are retained
+  3. Clear todos and verify clean state
+
+  ### Dynamic Extension Management
+  1. Use platform__search_available_extensions to discover available extensions
   2. Document all available extensions
-  3. Test enabling the todo extension if not already enabled
-  4. Create todos and verify they persist
-  5. Test disabling and re-enabling extensions
-  6. Verify extension isolation
+  3. Test enabling and disabling dynamic extensions (if any available)
+  4. Verify extension isolation between enabled extensions
   
   Log results to: {{ workspace_dir }}/phase2_extensions.md
   {% endif %}
