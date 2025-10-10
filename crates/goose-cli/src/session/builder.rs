@@ -309,7 +309,26 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         }
     } else if let Some(session_id) = session_config.session_id {
-        Some(session_id)
+        // Check if the session exists; if not, we'll create a new one with this ID later
+        match SessionManager::get_session(&session_id, false).await {
+            Ok(_) => {
+                // Session exists, resume it (for backward compatibility)
+                Some(session_id)
+            }
+            Err(_) => {
+                // Session doesn't exist, create a new one with this ID
+                let session = SessionManager::create_session(
+                    std::env::current_dir().unwrap(),
+                    session_id.clone(),
+                )
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to create session: {}", e));
+                    process::exit(1);
+                });
+                Some(session.id)
+            }
+        }
     } else {
         let session = SessionManager::create_session(
             std::env::current_dir().unwrap(),
