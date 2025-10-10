@@ -294,10 +294,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
-    pendingDeepLink = null;
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
-    pendingDeepLink = null;
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const recipeDeeplink = parsedUrl.searchParams.get('config');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -314,8 +312,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       recipeDeeplink || undefined,
       scheduledJobId || undefined
     );
-    pendingDeepLink = null;
   }
+  pendingDeepLink = null;
 }
 
 let windowDeeplinkURL: string | null = null;
@@ -366,11 +364,10 @@ app.on('open-url', async (_event, url) => {
 
     if (parsedUrl.hostname === 'extension') {
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-      pendingDeepLink = null;
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
-      pendingDeepLink = null;
     }
+    pendingDeepLink = null;
   }
 });
 
