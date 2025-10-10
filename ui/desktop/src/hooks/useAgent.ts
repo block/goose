@@ -75,7 +75,7 @@ export function useAgent(): UseAgentReturn {
         const messages = agentSession.conversation || [];
         return {
           sessionId: agentSession.id,
-          title: agentSession.recipe?.title || agentSession.description,
+          title: agentSession.recipe?.title || agentSession.name,
           messageHistoryIndex: 0,
           messages: messages?.map((message: ApiMessage) =>
             convertApiMessageToFrontendMessage(message)
@@ -168,7 +168,7 @@ export function useAgent(): UseAgentReturn {
 
           let initChat: ChatType = {
             sessionId: agentSession.id,
-            title: agentSession.recipe?.title || agentSession.description,
+            title: agentSession.recipe?.title || agentSession.name,
             messageHistoryIndex: 0,
             messages: messages,
             recipe: recipe,

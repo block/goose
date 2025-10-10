@@ -316,7 +316,8 @@ mod tests {
         crate::session::Session {
             id: "test_session".to_string(),
             working_dir: PathBuf::from(working_dir),
-            description: "Test session".to_string(),
+            name: "Test session".to_string(),
+            user_set_name: false,
             created_at: Default::default(),
             updated_at: Default::default(),
             schedule_id: Some("test_job".to_string()),
@@ -729,7 +730,7 @@ mod tests {
             comprehensive_metadata.working_dir.to_str().unwrap(),
             "/test/working/dir"
         );
-        assert_eq!(comprehensive_metadata.description, "Test session");
+        assert_eq!(comprehensive_metadata.name, "Test session");
         assert_eq!(
             comprehensive_metadata.schedule_id,
             Some("test_job".to_string())

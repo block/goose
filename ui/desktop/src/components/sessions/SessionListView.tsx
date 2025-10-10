@@ -21,6 +21,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { getSessionName } from '../../utils/sessionCompat';
 import {
   deleteSession,
   exportSession,
@@ -45,7 +46,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     useEffect(() => {
       if (session && isOpen) {
-        setDescription(session.description || session.id);
+        setDescription(getSessionName(session));
       } else if (!isOpen) {
         // Reset state when modal closes
         setDescription('');
@@ -57,7 +58,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (!session || disabled) return;
 
       const trimmedDescription = description.trim();
-      if (trimmedDescription === session.description) {
+      if (trimmedDescription === getSessionName(session)) {
         onClose();
         return;
       }
@@ -80,7 +81,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('Failed to update session description:', errorMessage);
         toast.error(`Failed to update session description: ${errorMessage}`);
-        setDescription(session.description || session.id);
+        setDescription(getSessionName(session));
       } finally {
         setIsUpdating(false);
       }
@@ -333,7 +334,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       startTransition(() => {
         const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
         const filtered = sessions.filter((session) => {
-          const description = session.description || session.id;
+          const description = getSessionName(session);
           const workingDir = session.working_dir;
           const sessionId = session.id;
 
@@ -416,7 +417,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setShowDeleteConfirmation(false);
       const sessionToDeleteId = sessionToDelete.id;
-      const sessionName = sessionToDelete.description || sessionToDelete.id;
+      const sessionName = getSessionName(sessionToDelete);
       setSessionToDelete(null);
 
       try {
@@ -451,7 +452,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${session.description || session.id}.json`;
+      a.download = `${getSessionName(session)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -557,9 +558,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-16 break-words">
-              {session.description || session.id}
-            </h3>
+            <h3 className="text-base mb-1 pr-16 break-words">{getSessionName(session)}</h3>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -806,7 +805,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <ConfirmationModal
           isOpen={showDeleteConfirmation}
           title="Delete Session"
-          message={`Are you sure you want to delete the session "${sessionToDelete?.description || sessionToDelete?.id}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete the session "${getSessionName(sessionToDelete)}"? This action cannot be undone.`}
           confirmLabel="Delete Session"
           cancelLabel="Cancel"
           confirmVariant="destructive"

@@ -135,7 +135,7 @@ async fn update_session_description(
     }
 
     SessionManager::update_session(&session_id)
-        .description(request.description)
+        .name(request.description)
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

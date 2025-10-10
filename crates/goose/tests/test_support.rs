@@ -381,7 +381,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
     Session {
         id: "".to_string(),
         working_dir: PathBuf::from(working_dir),
-        description: "Test session".to_string(),
+        name: "Test session".to_string(),
+        user_set_name: false,
         created_at: Default::default(),
         schedule_id: Some("test_job".to_string()),
         recipe: None,

@@ -99,10 +99,10 @@ async fn start_agent(
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, StatusCode> {
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let description = format!("New session {}", counter);
+    let name = format!("New session {}", counter);
 
     let mut session =
-        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
+        SessionManager::create_session(PathBuf::from(&payload.working_dir), Some(name))
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
