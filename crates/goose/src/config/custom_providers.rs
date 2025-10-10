@@ -31,6 +31,8 @@ pub struct CustomProviderConfig {
     pub api_key_env: String,
     pub base_url: String,
     pub models: Vec<ModelInfo>,
+    #[serde(default)]
+    pub models_path: Option<String>,
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
@@ -89,6 +91,7 @@ impl CustomProviderConfig {
             api_key_env: api_key_name,
             base_url: api_url,
             models: model_infos,
+            models_path: None,
             headers: None,
             timeout_seconds: None,
             supports_streaming,

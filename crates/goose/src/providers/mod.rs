@@ -6,6 +6,7 @@ pub mod base;
 pub mod bedrock;
 pub mod claude_code;
 pub mod cursor_agent;
+mod custom;
 pub mod databricks;
 pub mod embedding;
 pub mod errors;

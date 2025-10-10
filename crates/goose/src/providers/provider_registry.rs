@@ -73,6 +73,22 @@ impl ProviderRegistry {
         );
     }
 
+    pub fn register_with_metadata<P, F>(&mut self, metadata: ProviderMetadata, constructor: F)
+    where
+        P: Provider + 'static,
+        F: Fn(ModelConfig) -> Result<P> + Send + Sync + 'static,
+    {
+        let name = metadata.name.clone();
+
+        self.entries.insert(
+            name,
+            ProviderEntry {
+                metadata,
+                constructor: Box::new(move |model| Ok(Arc::new(constructor(model)?))),
+            },
+        );
+    }
+
     pub fn with_providers<F>(mut self, setup: F) -> Self
     where
         F: FnOnce(&mut Self),

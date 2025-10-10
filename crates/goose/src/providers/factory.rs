@@ -7,6 +7,7 @@ use super::{
     bedrock::BedrockProvider,
     claude_code::ClaudeCodeProvider,
     cursor_agent::CursorAgentProvider,
+    custom,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
@@ -57,12 +58,20 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<VeniceProvider, _>(VeniceProvider::from_env);
         registry.register::<XaiProvider, _>(XaiProvider::from_env);
 
+        if let Err(e) = register_bundled_providers(registry) {
+            tracing::warn!("Failed to load bundled providers: {}", e);
+        }
+
         if let Err(e) = load_custom_providers_into_registry(registry) {
             tracing::warn!("Failed to load custom providers: {}", e);
         }
     });
     RwLock::new(registry)
 });
+
+fn register_bundled_providers(registry: &mut ProviderRegistry) -> Result<()> {
+    custom::register_bundled_custom_providers(registry)
+}
 
 fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Result<()> {
     let config_dir = custom_providers_dir();
