@@ -96,50 +96,6 @@ export default function ProviderConfigurationModal() {
             } catch (e) {
               console.debug('API client get failed, falling back to fetch', e);
             }
-
-            /* Fallback to a direct fetch (commented out for SDK-only testing)
-// Fallback to a direct fetch
-            try {
-              const electronCfg =
-                window.electron && window.electron.getConfig ? window.electron.getConfig() : null;
-              const hostCfg = electronCfg?.GOOSE_API_HOST ?? window.appConfig?.get('GOSE_API_HOST');
-              const portCfg = electronCfg?.GOOSE_PORT ?? window.appConfig?.get('GOSE_PORT');
-              let base = null;
-              if (hostCfg) {
-                base = String(hostCfg);
-                if (!base.startsWith('http://') && !base.startsWith('https://'))
-                  base = `http://${base}`;
-                base = base.replace(/\/+$/g, '');
-              } else if (window.location && window.location.origin) {
-                base = window.location.origin.replace(/\/+$/g, '');
-              } else {
-                base = 'http://127.0.0.1:17123';
-              }
-
-              const url = portCfg
-                ? `${base}:${portCfg}/config/custom-providers/${currentProvider.name}`
-                : `${base}/config/custom-providers/${currentProvider.name}`;
-              const res = await fetch(url, { headers: { 'X-Secret-Key': secretKey } });
-              if (res.ok) {
-                const body = await res.json();
-                setConfigValues((prev) => ({
-                  ...prev,
-                  display_name: body.display_name ?? prev.display_name,
-                  description: body.description ?? prev.description,
-                  headers: body.headers ? JSON.stringify(body.headers) : prev.headers,
-                  timeout_seconds: body.timeout_seconds
-                    ? String(body.timeout_seconds)
-                    : prev.timeout_seconds,
-                  supports_streaming:
-                    body.supports_streaming !== undefined
-                      ? body.supports_streaming
-                      : prev.supports_streaming,
-                }));
-              }
-            } catch (err) {
-              console.debug('Failed to fetch custom provider JSON', err);
-            }
-            */
           } catch (err) {
             console.debug(err);
           }
