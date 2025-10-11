@@ -1,5 +1,3 @@
-// src/lib.rs or tests/truncate_agent_tests.rs
-
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -71,19 +69,21 @@ impl ProviderType {
         }
     }
 
-    fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
+    async fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
         Ok(match self {
-            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config)?),
-            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config)?),
-            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config)?),
-            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config)?),
-            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config)?),
-            ProviderType::GcpVertexAI => Arc::new(GcpVertexAIProvider::from_env(model_config)?),
-            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config)?),
-            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config)?),
-            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config)?),
-            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config)?),
-            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config)?),
+            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config).await?),
+            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config).await?),
+            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config).await?),
+            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config).await?),
+            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config).await?),
+            ProviderType::GcpVertexAI => {
+                Arc::new(GcpVertexAIProvider::from_env(model_config).await?)
+            }
+            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config).await?),
+            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config).await?),
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config).await?),
+            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config).await?),
+            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config).await?),
         })
     }
 }
@@ -114,7 +114,7 @@ async fn run_truncate_test(
         .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
-    let provider = provider_type.create_provider(model_config)?;
+    let provider = provider_type.create_provider(model_config).await?;
 
     let agent = Agent::new();
     agent.update_provider(provider).await?;

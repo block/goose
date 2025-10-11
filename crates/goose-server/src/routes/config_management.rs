@@ -8,8 +8,8 @@ use axum::{
 };
 use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
+use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
-use goose::config::{DeclarativeProviderConfig, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
@@ -259,7 +259,7 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     )
 )]
 pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
-    let providers = get_providers();
+    let providers = get_providers().await;
     let providers_response: Vec<ProviderDetails> = providers
         .into_iter()
         .map(|(metadata, provider_type)| {
@@ -307,6 +307,7 @@ pub async fn get_provider_models(
     }
 
     let all = get_providers()
+        .await
         .into_iter()
         //.map(|(m, p)| m)
         .collect::<Vec<_>>();
@@ -320,6 +321,7 @@ pub async fn get_provider_models(
     let model_config =
         ModelConfig::new(&metadata.default_model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let provider = goose::providers::create(&name, model_config)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match provider.fetch_supported_models().await {
@@ -410,7 +412,7 @@ pub async fn get_pricing(
             }
         }
     } else {
-        for (metadata, provider_type) in get_providers() {
+        for (metadata, provider_type) in get_providers().await {
             // Skip unconfigured providers if filtering
             if !check_provider_configured(&metadata, provider_type) {
                 continue;
@@ -628,7 +630,7 @@ pub async fn create_custom_provider(
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers().await {
         tracing::warn!("Failed to refresh custom providers after creation: {}", e);
     }
 
@@ -662,13 +664,11 @@ pub async fn get_custom_provider(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_custom_provider(
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<String>, StatusCode> {
+pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<String>, StatusCode> {
     goose::config::declarative_providers::remove_custom_provider(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers().await {
         tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
     }
 
@@ -700,7 +700,7 @@ pub async fn update_custom_provider(
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers().await {
         tracing::warn!("Failed to refresh custom providers after update: {}", e);
     }
 

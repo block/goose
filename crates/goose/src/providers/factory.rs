@@ -29,51 +29,82 @@ use crate::config::declarative_providers::register_declarative_providers;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
 use anyhow::Result;
-use once_cell::sync::Lazy;
+use tokio::sync::OnceCell;
 
 const DEFAULT_LEAD_TURNS: usize = 3;
 const DEFAULT_FAILURE_THRESHOLD: usize = 2;
 const DEFAULT_FALLBACK_TURNS: usize = 2;
 
-static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
-    let registry = ProviderRegistry::new().with_providers(|registry| {
-        registry.register::<AnthropicProvider, _>(AnthropicProvider::from_env, true);
-        registry.register::<AzureProvider, _>(AzureProvider::from_env, false);
-        registry.register::<BedrockProvider, _>(BedrockProvider::from_env, false);
-        registry.register::<ClaudeCodeProvider, _>(ClaudeCodeProvider::from_env, true);
-        registry.register::<CursorAgentProvider, _>(CursorAgentProvider::from_env, false);
-        registry.register::<DatabricksProvider, _>(DatabricksProvider::from_env, true);
-        registry.register::<GcpVertexAIProvider, _>(GcpVertexAIProvider::from_env, false);
-        registry.register::<GeminiCliProvider, _>(GeminiCliProvider::from_env, false);
-        registry.register::<GithubCopilotProvider, _>(GithubCopilotProvider::from_env, false);
-        registry.register::<GoogleProvider, _>(GoogleProvider::from_env, true);
-        //        registry.register::<GroqProvider, _>(GroqProvider::from_env, false);
-        registry.register::<LiteLLMProvider, _>(LiteLLMProvider::from_env, false);
-        registry.register::<OllamaProvider, _>(OllamaProvider::from_env, true);
-        registry.register::<OpenAiProvider, _>(OpenAiProvider::from_env, true);
-        registry.register::<OpenRouterProvider, _>(OpenRouterProvider::from_env, true);
-        registry.register::<SageMakerTgiProvider, _>(SageMakerTgiProvider::from_env, false);
-        registry.register::<SnowflakeProvider, _>(SnowflakeProvider::from_env, false);
-        registry.register::<TetrateProvider, _>(TetrateProvider::from_env, true);
-        registry.register::<VeniceProvider, _>(VeniceProvider::from_env, false);
-        registry.register::<XaiProvider, _>(XaiProvider::from_env, false);
+static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
-        if let Err(e) = register_declarative_providers(registry) {
-            tracing::warn!("Failed to load custom providers: {}", e);
-        }
+async fn init_registry() -> RwLock<ProviderRegistry> {
+    let mut registry = ProviderRegistry::new().with_providers(|registry| {
+        registry
+            .register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)), true);
+        registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)), false);
+        registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
+        registry
+            .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
+        registry.register::<CursorAgentProvider, _>(
+            |m| Box::pin(CursorAgentProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<DatabricksProvider, _>(|m| Box::pin(DatabricksProvider::from_env(m)), true);
+        registry.register::<GcpVertexAIProvider, _>(
+            |m| Box::pin(GcpVertexAIProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)), false);
+        registry.register::<GithubCopilotProvider, _>(
+            |m| Box::pin(GithubCopilotProvider::from_env(m)),
+            false,
+        );
+        registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
+        registry.register::<GroqProvider, _>(|m| Box::pin(GroqProvider::from_env(m)), false);
+        registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
+        registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);
+        registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)), true);
+        registry
+            .register::<OpenRouterProvider, _>(|m| Box::pin(OpenRouterProvider::from_env(m)), true);
+        registry.register::<SageMakerTgiProvider, _>(
+            |m| Box::pin(SageMakerTgiProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<SnowflakeProvider, _>(|m| Box::pin(SnowflakeProvider::from_env(m)), false);
+        registry.register::<TetrateProvider, _>(|m| Box::pin(TetrateProvider::from_env(m)), true);
+        registry.register::<VeniceProvider, _>(|m| Box::pin(VeniceProvider::from_env(m)), false);
+        registry.register::<XaiProvider, _>(|m| Box::pin(XaiProvider::from_env(m)), false);
     });
+    if let Err(e) = load_custom_providers_into_registry(&mut registry) {
+        tracing::warn!("Failed to load custom providers: {}", e);
+    }
     RwLock::new(registry)
-});
-
-pub fn providers() -> Vec<(ProviderMetadata, ProviderType)> {
-    REGISTRY.read().unwrap().all_metadata_with_types()
 }
 
-pub fn refresh_custom_providers() -> Result<()> {
-    let mut registry = REGISTRY.write().unwrap();
-    registry.remove_custom_providers();
+fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Result<()> {
+    register_declarative_providers(registry)
+}
 
-    if let Err(e) = register_declarative_providers(&mut registry) {
+async fn get_registry() -> &'static RwLock<ProviderRegistry> {
+    REGISTRY.get_or_init(init_registry).await
+}
+
+pub async fn providers() -> Vec<(ProviderMetadata, ProviderType)> {
+    get_registry()
+        .await
+        .read()
+        .unwrap()
+        .all_metadata_with_types()
+}
+
+pub async fn refresh_custom_providers() -> Result<()> {
+    let registry = get_registry().await;
+    registry.write().unwrap().remove_custom_providers();
+
+    if let Err(e) = load_custom_providers_into_registry(&mut registry.write().unwrap()) {
         tracing::warn!("Failed to refresh custom providers: {}", e);
         return Err(e);
     }
@@ -82,18 +113,36 @@ pub fn refresh_custom_providers() -> Result<()> {
     Ok(())
 }
 
-pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
+pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
     if let Ok(lead_model_name) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
         tracing::info!("Creating lead/worker provider from environment variables");
-        return create_lead_worker_from_env(name, &model, &lead_model_name);
+        return create_lead_worker_from_env(name, &model, &lead_model_name).await;
     }
 
-    REGISTRY.read().unwrap().create(name, model)
+    let registry = get_registry().await;
+    let constructor = {
+        let guard = registry.read().unwrap();
+        guard
+            .entries
+            .get(name)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?
+            .constructor
+            .clone()
+    };
+    constructor(model).await
 }
 
-fn create_lead_worker_from_env(
+pub async fn create_with_named_model(
+    provider_name: &str,
+    model_name: &str,
+) -> Result<Arc<dyn Provider>> {
+    let config = ModelConfig::new(model_name)?;
+    create(provider_name, config).await
+}
+
+async fn create_lead_worker_from_env(
     default_provider_name: &str,
     default_model: &ModelConfig,
     lead_model_name: &str,
@@ -121,14 +170,30 @@ fn create_lead_worker_from_env(
 
     let worker_model_config = create_worker_model_config(default_model)?;
 
-    let lead_provider = REGISTRY
-        .read()
-        .unwrap()
-        .create(&lead_provider_name, lead_model_config)?;
-    let worker_provider = REGISTRY
-        .read()
-        .unwrap()
-        .create(default_provider_name, worker_model_config)?;
+    let registry = get_registry().await;
+
+    let lead_constructor = {
+        let guard = registry.read().unwrap();
+        guard
+            .entries
+            .get(&lead_provider_name)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", lead_provider_name))?
+            .constructor
+            .clone()
+    };
+
+    let worker_constructor = {
+        let guard = registry.read().unwrap();
+        guard
+            .entries
+            .get(default_provider_name)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", default_provider_name))?
+            .constructor
+            .clone()
+    };
+
+    let lead_provider = lead_constructor(lead_model_config).await?;
+    let worker_provider = worker_constructor(worker_model_config).await?;
 
     Ok(Arc::new(LeadWorkerProvider::new_with_settings(
         lead_provider,
@@ -201,8 +266,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_create_lead_worker_provider() {
+    #[tokio::test]
+    async fn test_create_lead_worker_provider() {
         let _guard = EnvVarGuard::new(&[
             "GOOSE_LEAD_MODEL",
             "GOOSE_LEAD_PROVIDER",
@@ -212,7 +277,7 @@ mod tests {
         _guard.set("GOOSE_LEAD_MODEL", "gpt-4o");
 
         let gpt4mini_config = ModelConfig::new_or_fail("gpt-4o-mini");
-        let result = create("openai", gpt4mini_config.clone());
+        let result = create("openai", gpt4mini_config.clone()).await;
 
         match result {
             Ok(_) => {}
@@ -225,11 +290,11 @@ mod tests {
         _guard.set("GOOSE_LEAD_PROVIDER", "anthropic");
         _guard.set("GOOSE_LEAD_TURNS", "5");
 
-        let _result = create("openai", gpt4mini_config);
+        let _result = create("openai", gpt4mini_config).await;
     }
 
-    #[test]
-    fn test_lead_model_env_vars_with_defaults() {
+    #[tokio::test]
+    async fn test_lead_model_env_vars_with_defaults() {
         let _guard = EnvVarGuard::new(&[
             "GOOSE_LEAD_MODEL",
             "GOOSE_LEAD_PROVIDER",
@@ -240,7 +305,7 @@ mod tests {
 
         _guard.set("GOOSE_LEAD_MODEL", "grok-3");
 
-        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
 
         match result {
             Ok(_) => {}
@@ -257,8 +322,8 @@ mod tests {
         let _result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
     }
 
-    #[test]
-    fn test_create_regular_provider_without_lead_config() {
+    #[tokio::test]
+    async fn test_create_regular_provider_without_lead_config() {
         let _guard = EnvVarGuard::new(&[
             "GOOSE_LEAD_MODEL",
             "GOOSE_LEAD_PROVIDER",
@@ -267,7 +332,7 @@ mod tests {
             "GOOSE_LEAD_FALLBACK_TURNS",
         ]);
 
-        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
 
         match result {
             Ok(_) => {}

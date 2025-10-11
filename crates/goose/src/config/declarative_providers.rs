@@ -146,7 +146,7 @@ pub fn update_custom_provider(
     let editable = loaded_provider.is_editable;
 
     let config = Config::global();
-    if api_key != "" {
+    if !api_key.is_empty() {
         config.set_secret(
             &existing_config.api_key_env,
             serde_json::Value::String(api_key),
