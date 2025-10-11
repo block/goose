@@ -34,6 +34,23 @@
     ]
   },
   {
+    "id": "apify-mcp-server",
+    "name": "Apify",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "command": "npx -y apify-mcp-server@latest",
+    "link": "https://github.com/apify/apify-mcp-server",
+    "installation_notes": "Install using npx. Requires an Apify API token.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "APIFY_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "asana-mcp",
     "name": "Asana",
     "description": "Task automation, project tracking, and team collaboration",
