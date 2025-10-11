@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { Recipe, scanRecipe } from '../recipe';
-import { Message, createUserMessage } from '../types/message';
+import { createUserMessage } from '../types/message';
+import { Message } from '../api';
+
 import {
   updateSystemPromptWithParameters,
   substituteParameters,

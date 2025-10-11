@@ -13,6 +13,12 @@ use utoipa::ToSchema;
 use crate::conversation::tool_result_serde;
 use crate::utils::sanitize_unicode_tags;
 
+#[derive(ToSchema)]
+pub enum ToolCallResult<T> {
+    Success { value: T },
+    Error { error: String },
+}
+
 /// Custom deserializer for MessageContent that sanitizes Unicode Tags in text content
 fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageContent>, D::Error>
 where

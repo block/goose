@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Message } from '../types/message';
+import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { CompactionMarker } from './context_management/CompactionMarker';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Message, SummarizationRequestedContent } from '../../types/message';
+import { Message, SummarizationRequested } from '../../api';
 
 interface CompactionMarkerProps {
   message: Message;
@@ -7,8 +7,9 @@ interface CompactionMarkerProps {
 
 export const CompactionMarker: React.FC<CompactionMarkerProps> = ({ message }) => {
   const compactionContent = message.content.find(
-    (content) => content.type === 'summarizationRequested'
-  ) as SummarizationRequestedContent | undefined;
+    (content): content is SummarizationRequested & { type: 'summarizationRequested' } =>
+      content.type === 'summarizationRequested'
+  );
 
   const markerText = compactionContent?.msg || 'Conversation compacted';
 

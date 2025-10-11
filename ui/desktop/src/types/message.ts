@@ -1,116 +1,8 @@
-/**
- * Message types that match the Rust message structures
- * for direct serialization between client and server
- */
+import { Content, Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
 
-export type Role = 'user' | 'assistant';
+export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
+export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
 
-export interface TextContent {
-  type: 'text';
-  text: string;
-  annotations?: Record<string, unknown>;
-}
-
-export interface ImageContent {
-  type: 'image';
-  data: string;
-  mimeType: string;
-  annotations?: Record<string, unknown>;
-}
-
-export interface ResourceContent {
-  type: 'resource';
-  resource: {
-    uri: string;
-    mimeType: string;
-    text?: string;
-    blob?: string;
-  };
-  annotations?: Record<string, unknown>;
-}
-
-export type Content = TextContent | ImageContent | ResourceContent;
-
-export interface ToolCall {
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolCallResult<T> {
-  status: 'success' | 'error';
-  value?: T;
-  error?: string;
-}
-
-export interface ToolRequest {
-  id: string;
-  toolCall: ToolCallResult<ToolCall>;
-}
-
-export interface ToolResponse {
-  id: string;
-  toolResult: ToolCallResult<Content[]>;
-}
-
-export interface ToolRequestMessageContent {
-  type: 'toolRequest';
-  id: string;
-  toolCall: ToolCallResult<ToolCall>;
-}
-
-export interface ToolResponseMessageContent {
-  type: 'toolResponse';
-  id: string;
-  toolResult: ToolCallResult<Content[]>;
-}
-
-export interface ToolConfirmationRequestMessageContent {
-  type: 'toolConfirmationRequest';
-  id: string;
-  toolName: string;
-  arguments: Record<string, unknown>;
-  prompt?: string;
-}
-
-export interface ExtensionCall {
-  name: string;
-  arguments: Record<string, unknown>;
-  extensionName: string;
-}
-
-export interface ExtensionCallResult<T> {
-  status: 'success' | 'error';
-  value?: T;
-  error?: string;
-}
-
-export interface ContextLengthExceededContent {
-  type: 'contextLengthExceeded';
-  msg: string;
-}
-
-export interface SummarizationRequestedContent {
-  type: 'summarizationRequested';
-  msg: string;
-}
-
-export type MessageContent =
-  | TextContent
-  | ImageContent
-  | ToolRequestMessageContent
-  | ToolResponseMessageContent
-  | ToolConfirmationRequestMessageContent
-  | ContextLengthExceededContent
-  | SummarizationRequestedContent;
-
-export interface Message {
-  id?: string;
-  role: Role;
-  created: number;
-  content: MessageContent[];
-}
-
-// Helper functions to create messages
 export function createUserMessage(text: string): Message {
   return {
     id: generateId(),
@@ -190,56 +82,42 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
   };
 }
 
-// Generate a unique ID for messages
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-// Helper functions to extract content from messages
 export function getTextContent(message: Message): string {
   return message.content
-    .filter(
-      (content): content is TextContent | ContextLengthExceededContent =>
-        content.type === 'text' || content.type === 'contextLengthExceeded'
-    )
     .map((content) => {
-      if (content.type === 'text') {
-        return content.text;
-      } else if (content.type === 'contextLengthExceeded') {
-        return content.msg;
-      }
+      if (content.type === 'text') return content.text;
+      if (content.type === 'contextLengthExceeded') return content.msg;
       return '';
     })
     .join('');
 }
 
-export function getToolRequests(message: Message): ToolRequestMessageContent[] {
+export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
   return message.content.filter(
-    (content): content is ToolRequestMessageContent => content.type === 'toolRequest'
+    (content): content is ToolRequest & { type: 'toolRequest' } => content.type === 'toolRequest'
   );
 }
 
-export function getToolResponses(message: Message): ToolResponseMessageContent[] {
+export function getToolResponses(message: Message): (ToolResponse & { type: 'toolResponse' })[] {
   return message.content.filter(
-    (content): content is ToolResponseMessageContent => content.type === 'toolResponse'
+    (content): content is ToolResponse & { type: 'toolResponse' } => content.type === 'toolResponse'
   );
 }
 
 export function getToolConfirmationContent(
   message: Message
-): ToolConfirmationRequestMessageContent | undefined {
+): (ToolConfirmationRequest & { type: 'toolConfirmationRequest' }) | undefined {
   return message.content.find(
-    (content): content is ToolConfirmationRequestMessageContent =>
+    (content): content is ToolConfirmationRequest & { type: 'toolConfirmationRequest' } =>
       content.type === 'toolConfirmationRequest'
   );
 }
 
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
-  if (toolRequests.length === 0) return false;
-
-  // For now, we'll assume all tool calls are completed when this is checked
-  // In a real implementation, you'd need to check if all tool requests have responses
-  // by looking through subsequent messages
-  return true;
+  return toolRequests.length > 0;
 }

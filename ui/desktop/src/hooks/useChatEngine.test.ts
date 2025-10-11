@@ -1,12 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useChatEngine } from './useChatEngine';
-import { Message, getTextContent } from '../types/message';
-import { ChatType } from '../types/chat';
+import { act, renderHook } from '@testing-library/react';
 import type { Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useChatEngine } from './useChatEngine';
+import { getTextContent } from '../types/message';
+import { Message } from '../api';
+import { ChatType } from '../types/chat';
 
 // Mock the useMessageStream hook which is a dependency of useChatEngine
 vi.mock('./useMessageStream', () => ({

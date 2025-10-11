@@ -137,6 +137,7 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParam>,
     required_envs: Vec<&str>,
 ) {
+    std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
     let replay_file_name = command
         .iter()
         .map(|s| s.replace("/", "_"))

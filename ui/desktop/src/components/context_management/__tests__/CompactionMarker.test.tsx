@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { CompactionMarker } from '../CompactionMarker';
-import { Message } from '../../../types/message';
+import { Message } from '../../../api';
 
 describe('CompactionMarker', () => {
   it('should render default message when no summarizationRequested content found', () => {
