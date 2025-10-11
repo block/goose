@@ -1,13 +1,23 @@
-use etcetera::{choose_app_strategy, AppStrategy};
+#![allow(dead_code)]
+
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use ignore::gitignore::Gitignore;
+use once_cell::sync::Lazy;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
 
-use crate::developer::goose_hints::import_files::read_referenced_files;
+use super::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+
+// Define APP_STRATEGY for the goose crate
+pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
+    top_level_domain: "Block".to_string(),
+    author: "Block".to_string(),
+    app_name: "goose".to_string(),
+});
 
 fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
@@ -64,7 +74,7 @@ pub fn load_hint_files(
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
         // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+        let global_hints_path = choose_app_strategy(APP_STRATEGY.clone())
             .map(|strategy| strategy.in_config_dir(hints_filename))
             .unwrap_or_else(|_| {
                 let path_str = format!("~/.config/goose/{}", hints_filename);
@@ -116,7 +126,9 @@ pub fn load_hint_files(
 
     let mut hints = String::new();
     if !global_hints_contents.is_empty() {
-        hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+        hints.push_str(
+            "\n### Global Hints\nContext files that apply to all projects & directories.\n",
+        );
         hints.push_str(&global_hints_contents.join("\n"));
     }
 
@@ -124,7 +136,9 @@ pub fn load_hint_files(
         if !hints.is_empty() {
             hints.push_str("\n\n");
         }
-        hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+        hints.push_str(
+            "### Project Hints\nContext files for working on the project in this directory.\n",
+        );
         hints.push_str(&local_hints_contents.join("\n"));
     }
 
