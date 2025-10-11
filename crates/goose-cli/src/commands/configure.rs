@@ -8,7 +8,7 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::custom_providers::CustomProviderConfig;
+use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
     name_to_key, remove_extension, set_extension, set_extension_enabled,
@@ -425,7 +425,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
         .iter()
-        .map(|p| (&p.name, p.display_name.as_str(), p.description.as_str()))
+        .map(|(p, _)| (&p.name, p.display_name.as_str(), p.description.as_str()))
         .collect();
 
     // Get current default provider if it exists
@@ -439,9 +439,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .interact()?;
 
     // Get the selected provider's metadata
-    let provider_meta = available_providers
+    let (provider_meta, _) = available_providers
         .iter()
-        .find(|p| &p.name == provider_name)
+        .find(|(p, _)| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
     // Configure required provider keys
@@ -1915,7 +1915,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         .initial_value(true)
         .interact()?;
 
-    CustomProviderConfig::create_and_save(
+    create_custom_provider(
         provider_type,
         display_name.clone(),
         api_url,
@@ -1929,9 +1929,9 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
 }
 
 fn remove_provider() -> Result<(), Box<dyn Error>> {
-    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
+    let custom_providers_dir = goose::config::declarative_providers::custom_providers_dir();
     let custom_providers = if custom_providers_dir.exists() {
-        goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
+        goose::config::declarative_providers::load_custom_providers(&custom_providers_dir)?
     } else {
         Vec::new()
     };
@@ -1950,7 +1950,7 @@ fn remove_provider() -> Result<(), Box<dyn Error>> {
         .items(&provider_items)
         .interact()?;
 
-    CustomProviderConfig::remove(selected_id)?;
+    remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())
 }

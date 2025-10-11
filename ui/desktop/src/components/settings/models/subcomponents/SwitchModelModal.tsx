@@ -18,6 +18,7 @@ import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import { ProviderType } from '../../../../api';
 
 type SwitchModelModalProps = {
   sessionId: string | null;
@@ -165,8 +166,9 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
         const results = await Promise.all(modelPromises);
 
         // Process results and build grouped options
-        const groupedOptions: { options: { value: string; label: string; provider: string }[] }[] =
-          [];
+        const groupedOptions: {
+          options: { value: string; label: string; provider: string; providerType: ProviderType }[];
+        }[] = [];
         const errors: string[] = [];
 
         results.forEach(({ provider: p, models, error }) => {
@@ -178,13 +180,19 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
                 options: p.metadata.known_models.map(({ name }) => ({
                   value: name,
                   label: name,
+                  providerType: p.provider_type,
                   provider: p.name,
                 })),
               });
             }
           } else if (models && models.length > 0) {
             groupedOptions.push({
-              options: models.map((m) => ({ value: m, label: m, provider: p.name })),
+              options: models.map((m) => ({
+                value: m,
+                label: m,
+                provider: p.name,
+                providerType: p.provider_type,
+              })),
             });
           }
         });
@@ -196,12 +204,14 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
 
         // Add the "Custom model" option to each provider group
         groupedOptions.forEach((group) => {
-          const providerName = group.options[0]?.provider;
-          if (providerName && !providerName.startsWith('custom_')) {
+          const option = group.options[0];
+          const providerName = option?.provider;
+          if (providerName && option?.providerType !== 'Custom') {
             group.options.push({
               value: 'custom',
               label: 'Use custom model',
               provider: providerName,
+              providerType: option?.providerType,
             });
           }
         });

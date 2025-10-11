@@ -15,7 +15,7 @@ use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
-use crate::config::custom_providers::CustomProviderConfig;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
@@ -69,7 +69,10 @@ impl AnthropicProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)
