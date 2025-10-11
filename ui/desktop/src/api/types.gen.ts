@@ -81,10 +81,6 @@ export type ContextLengthExceeded = {
  */
 export type ContextManageRequest = {
     /**
-     * Operation to perform: "truncation" or "summarize"
-     */
-    manageAction: string;
-    /**
      * Collection of messages to be managed
      */
     messages: Array<Message>;

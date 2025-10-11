@@ -117,12 +117,9 @@ goose run -t "Review the failed tests in tests/integration/, identify why the au
 Set up your environment variables to avoid some of the repetitive runtime decisions.
 
 ```bash
-export GOOSE_CONTEXT_STRATEGY=summarize
 export GOOSE_MAX_TURNS=50
 export GOOSE_MODE=auto
 ```
-
-The `CONTEXT_STRATEGY` and `MAX_TURNS` settings help manage conversation limits, while `GOOSE_MODE` set to `auto` allows for non-interactive execution.
 
 ### 3. **Implement Robust Error Handling**
 
@@ -257,7 +254,6 @@ export GOOSE_MODE=auto  # Automatically approve safe operations
 **Mitigation**: Configure appropriate context strategies and monitor token usage:
 
 ```bash
-export GOOSE_CONTEXT_STRATEGY=summarize  # Usually the best choice for automation
 export GOOSE_MAX_TURNS=100  # Prevent runaway execution
 ```
 
@@ -284,7 +280,6 @@ fi
 
 ```bash
 # Context management
-export GOOSE_CONTEXT_STRATEGY=summarize
 export GOOSE_MAX_TURNS=50
 
 # Tool behavior
@@ -318,7 +313,7 @@ Whether you're looking to streamline your CI/CD pipelines, automate server maint
 **Start your automation journey today:**
 
 1. **Install Goose** and configure your environment variables
-2. **Create your first recipe** with clear prompts and detailed instructions  
+2. **Create your first recipe** with clear prompts and detailed instructions
 3. **Test in a safe environment** before deploying to production
 4. **Integrate with your existing workflows** and watch your productivity soar
 

@@ -49,7 +49,6 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
         // Get the summary from the backend
         const summaryResponse = await manageContextFromBackend({
           messages: messages,
-          manageAction: 'summarize',
           sessionId: sessionId,
         });
 

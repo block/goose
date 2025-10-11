@@ -2151,14 +2151,9 @@
         "description": "Request payload for context management operations",
         "required": [
           "messages",
-          "manageAction",
           "sessionId"
         ],
         "properties": {
-          "manageAction": {
-            "type": "string",
-            "description": "Operation to perform: \"truncation\" or \"summarize\""
-          },
           "messages": {
             "type": "array",
             "items": {

@@ -176,7 +176,6 @@ describe('ContextManager', () => {
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
         messages: mockMessages,
-        manageAction: 'summarize',
         sessionId: 'test-session-id',
       });
 
@@ -400,7 +399,6 @@ describe('ContextManager', () => {
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
         messages: mockMessages,
-        manageAction: 'summarize',
         sessionId: 'test-session-id',
       });
 
