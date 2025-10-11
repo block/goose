@@ -64,6 +64,7 @@ impl CustomProviderConfig {
         api_key: String,
         models: Vec<String>,
         supports_streaming: Option<bool>,
+        headers: Option<HashMap<String, String>>,
     ) -> Result<Self> {
         let id = Self::generate_id(&display_name);
         let api_key_name = Self::generate_api_key_name(&id);
@@ -89,7 +90,7 @@ impl CustomProviderConfig {
             api_key_env: api_key_name,
             base_url: api_url,
             models: model_infos,
-            headers: None,
+            headers,
             timeout_seconds: None,
             supports_streaming,
         };
@@ -209,4 +210,143 @@ pub fn register_custom_providers(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_custom_provider_config_with_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let provider_dir = temp_dir.path().to_path_buf();
+
+        // Create test headers
+        let mut headers = HashMap::new();
+        headers.insert(
+            "x-origin-client-id".to_string(),
+            "test-client-id".to_string(),
+        );
+        headers.insert("x-origin-secret".to_string(), "test-secret".to_string());
+
+        // Create a custom provider config with headers
+        let config = CustomProviderConfig {
+            name: "test_provider".to_string(),
+            engine: ProviderEngine::OpenAI,
+            display_name: "Test Provider".to_string(),
+            description: Some("Test provider with custom headers".to_string()),
+            api_key_env: "TEST_PROVIDER_API_KEY".to_string(),
+            base_url: "https://api.test.com/v1/chat/completions".to_string(),
+            models: vec![
+                ModelInfo::new("test-model-1", 128000),
+                ModelInfo::new("test-model-2", 65536),
+            ],
+            headers: Some(headers.clone()),
+            timeout_seconds: Some(300),
+            supports_streaming: Some(true),
+        };
+
+        // Save the config to a file
+        let json_content = serde_json::to_string_pretty(&config).unwrap();
+        let file_path = provider_dir.join("test_provider.json");
+        std::fs::write(&file_path, json_content).unwrap();
+
+        // Load the config back and verify
+        let loaded_configs = load_custom_providers(&provider_dir).unwrap();
+        assert_eq!(loaded_configs.len(), 1);
+
+        let loaded_config = &loaded_configs[0];
+        assert_eq!(loaded_config.name, "test_provider");
+        assert_eq!(loaded_config.display_name, "Test Provider");
+        assert_eq!(
+            loaded_config.base_url,
+            "https://api.test.com/v1/chat/completions"
+        );
+
+        // Verify headers are loaded correctly
+        assert!(loaded_config.headers.is_some());
+        let loaded_headers = loaded_config.headers.as_ref().unwrap();
+        assert_eq!(loaded_headers.len(), 2);
+        assert_eq!(
+            loaded_headers.get("x-origin-client-id").unwrap(),
+            "test-client-id"
+        );
+        assert_eq!(
+            loaded_headers.get("x-origin-secret").unwrap(),
+            "test-secret"
+        );
+    }
+
+    #[test]
+    fn test_custom_provider_without_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let provider_dir = temp_dir.path().to_path_buf();
+
+        // Create a custom provider config without headers
+        let config = CustomProviderConfig {
+            name: "test_provider_no_headers".to_string(),
+            engine: ProviderEngine::OpenAI,
+            display_name: "Test Provider No Headers".to_string(),
+            description: Some("Test provider without custom headers".to_string()),
+            api_key_env: "TEST_PROVIDER_API_KEY".to_string(),
+            base_url: "https://api.test.com/v1/chat/completions".to_string(),
+            models: vec![ModelInfo::new("test-model", 128000)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: Some(true),
+        };
+
+        // Save and load the config
+        let json_content = serde_json::to_string_pretty(&config).unwrap();
+        let file_path = provider_dir.join("test_provider_no_headers.json");
+        std::fs::write(&file_path, json_content).unwrap();
+
+        let loaded_configs = load_custom_providers(&provider_dir).unwrap();
+        assert_eq!(loaded_configs.len(), 1);
+
+        let loaded_config = &loaded_configs[0];
+        assert!(loaded_config.headers.is_none());
+    }
+
+    #[test]
+    fn test_generate_id() {
+        assert_eq!(
+            CustomProviderConfig::generate_id("My Custom Provider"),
+            "custom_my_custom_provider"
+        );
+        assert_eq!(
+            CustomProviderConfig::generate_id("Test API"),
+            "custom_test_api"
+        );
+    }
+
+    #[test]
+    fn test_generate_api_key_name() {
+        assert_eq!(
+            CustomProviderConfig::generate_api_key_name("custom_test_provider"),
+            "CUSTOM_TEST_PROVIDER_API_KEY"
+        );
+    }
+
+    #[test]
+    fn test_provider_engine_serialization() {
+        // Test OpenAI engine
+        let openai_engine = ProviderEngine::OpenAI;
+        let serialized = serde_json::to_string(&openai_engine).unwrap();
+        assert_eq!(serialized, "\"openai\"");
+
+        let deserialized: ProviderEngine = serde_json::from_str(&serialized).unwrap();
+        matches!(deserialized, ProviderEngine::OpenAI);
+
+        // Test Anthropic engine
+        let anthropic_engine = ProviderEngine::Anthropic;
+        let serialized = serde_json::to_string(&anthropic_engine).unwrap();
+        assert_eq!(serialized, "\"anthropic\"");
+
+        // Test Ollama engine
+        let ollama_engine = ProviderEngine::Ollama;
+        let serialized = serde_json::to_string(&ollama_engine).unwrap();
+        assert_eq!(serialized, "\"ollama\"");
+    }
 }
