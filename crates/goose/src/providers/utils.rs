@@ -80,6 +80,14 @@ pub fn map_http_error_to_provider_error(
             );
             ProviderError::Authentication(message)
         }
+        StatusCode::PAYLOAD_TOO_LARGE => {
+            let payload_str = if let Some(payload) = &payload {
+                payload.to_string()
+            } else {
+                "Payload is too large.".to_string()
+            };
+            ProviderError::ContextLengthExceeded(payload_str)
+        }
         StatusCode::BAD_REQUEST => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {

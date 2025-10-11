@@ -4,7 +4,7 @@
   "display_name": "Groq (d)",
   "description": "Fast inference with Groq hardware",
   "api_key_env": "GROQ_API_KEY",
-  "base_url": "https://api.groq.com/openai/v1",
+  "base_url": "https://api.groq.com/openai/v1/chat/completions",
   "models": [
     {
       "name": "openai/gpt-oss-120b",

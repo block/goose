@@ -186,7 +186,7 @@ const ProviderCards = memo(function ProviderCards({
     supports_streaming: editingProvider.config.supports_streaming ?? true,
   };
 
-  const editable = !!editingProvider?.isEditable;
+  const editable = editingProvider ? editingProvider.isEditable : true;
   const title = (editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add') + '  Provider';
   return (
     <>
