@@ -64,7 +64,7 @@ fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
     std::fs::create_dir_all(&temp_dir)?;
 
     // Generate a unique filename with timestamp
-    let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+    let timestamp = Utc::now().format("%Y%m%d_%H%M%S%.6f");
     let filename = format!("mcp_response_{}.txt", timestamp);
     let file_path = temp_dir.join(&filename);
 
