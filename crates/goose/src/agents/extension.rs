@@ -1,3 +1,4 @@
+use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -34,14 +35,15 @@ impl ProcessExit {
     }
 }
 
-pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> =
-    Lazy::new(|| {
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
+    || {
         let mut map = HashMap::new();
 
         map.insert(
             todo_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: todo_extension::EXTENSION_NAME,
+                display_name: todo_extension::EXTENSION_NAME,
                 description:
                     "Enable a todo list for Goose so it can keep track of what it is doing",
                 default_enabled: true,
@@ -49,17 +51,35 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
-        map
-    });
+        map.insert(
+            extension_manager_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: extension_manager_extension::EXTENSION_NAME,
+                display_name: extension_manager_extension::DISPLAY_NAME,
+                description:
+                    "Enable extension management tools for discovering, enabling, and disabling extensions",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
 
-#[derive(Debug, Clone)]
+        map
+    },
+);
+
+#[derive(Clone)]
 pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
+    pub extension_manager:
+        Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
+    pub tool_route_manager:
+        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionDef {
     pub name: &'static str,
+    pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
@@ -235,6 +255,7 @@ pub enum ExtensionConfig {
         /// The name used to identify this extension
         name: String,
         description: String,
+        display_name: Option<String>, // needed for the UI
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]

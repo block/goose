@@ -86,6 +86,7 @@ fn get_extensions_map() -> HashMap<String, ExtensionEntry> {
                     ExtensionEntry {
                         config: ExtensionConfig::Platform {
                             name: def.name.to_string(),
+                            display_name: Some(def.display_name.to_string()),
                             description: def.description.to_string(),
                             bundled: Some(true),
                             available_tools: Vec::new(),
