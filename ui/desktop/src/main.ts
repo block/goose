@@ -484,7 +484,11 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-const windowPowerSaveBlockers = new Map<number, number>();
+
+// Track power save blockers per window
+const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+// Track pending initial messages per window
+const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
 
 const createChat = async (
   app: App,
@@ -677,7 +681,7 @@ const createChat = async (
   }
   if (
     appPath === '/' &&
-    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined)
+    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
   ) {
     appPath = '/pair';
   }
@@ -696,11 +700,9 @@ const createChat = async (
   log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
-  // If we have an initial message, send it to the window once it's ready
+  // If we have an initial message, store it to send after React is ready
   if (initialMessage) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.webContents.send('set-initial-message', initialMessage);
-    });
+    pendingInitialMessages.set(mainWindow.id, initialMessage);
   }
 
   // Set up local keyboard shortcuts that only work when the window is focused
@@ -738,6 +740,9 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+
+    // Clean up pending initial message
+    pendingInitialMessages.delete(windowId);
 
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
@@ -1058,8 +1063,20 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
-ipcMain.on('react-ready', () => {
+ipcMain.on('react-ready', (event) => {
   log.info('React ready event received');
+
+  // Get the window that sent the react-ready event
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const windowId = window?.id;
+
+  // Send any pending initial message for this window
+  if (windowId && pendingInitialMessages.has(windowId)) {
+    const initialMessage = pendingInitialMessages.get(windowId)!;
+    log.info('Sending pending initial message to window:', initialMessage);
+    window.webContents.send('set-initial-message', initialMessage);
+    pendingInitialMessages.delete(windowId);
+  }
 
   if (pendingDeepLink) {
     log.info('Processing pending deep link:', pendingDeepLink);
