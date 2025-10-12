@@ -1904,9 +1904,10 @@ mod tests {
         let server_info = server.get_info();
         let instructions = server_info.instructions.unwrap_or_default();
 
-        // Should use traditional description with str_replace command
-        assert!(instructions.contains("Replace text in one or more files"));
+        // Should contain the condensed TEXT_EDITOR section with str_replace command
+        assert!(instructions.contains("TEXT_EDITOR:"));
         assert!(instructions.contains("str_replace"));
+        assert!(instructions.contains("diff for multi-file, or old_str+new_str"));
 
         // Should not contain editor API description or edit_file command
         assert!(!instructions.contains("Edit the file with the new content"));
