@@ -12,14 +12,7 @@ pub const PLATFORM_MANAGE_SCHEDULE_TOOL_NAME: &str = "platform__manage_schedule"
 pub fn read_resource_tool() -> Tool {
     Tool::new(
         PLATFORM_READ_RESOURCE_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Read a resource from an extension.
-
-            Resources allow extensions to share data that provide context to LLMs, such as
-            files, database schemas, or application-specific information. This tool searches for the
-            resource URI in the provided extension, and reads in the resource content. If no extension
-            is provided, the tool will search all extensions for the resource.
-        "#}.to_string(),
+        "Read extension resource (files/schemas/data). Searches URI in extension or all if none specified.".to_string(),
         object!({
             "type": "object",
             "required": ["uri"],
@@ -40,15 +33,7 @@ pub fn read_resource_tool() -> Tool {
 pub fn list_resources_tool() -> Tool {
     Tool::new(
         PLATFORM_LIST_RESOURCES_TOOL_NAME.to_string(),
-        indoc! {r#"
-            List resources from an extension(s).
-
-            Resources allow extensions to share data that provide context to LLMs, such as
-            files, database schemas, or application-specific information. This tool lists resources
-            in the provided extension, and returns a list for the user to browse. If no extension
-            is provided, the tool will search all extensions for the resource.
-        "#}
-        .to_string(),
+        "List extension resources. Returns browsable list. Searches all if no extension specified.".to_string(),
         object!({
             "type": "object",
             "properties": {
@@ -68,10 +53,7 @@ pub fn list_resources_tool() -> Tool {
 pub fn search_available_extensions_tool() -> Tool {
     Tool::new(
         PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME.to_string(),
-        "Searches for additional extensions available to help complete tasks.
-        Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.
-        These extensions might provide the exact tools needed to solve your problem.
-        If you find a relevant one, consider using your tools to enable it.".to_string(),
+        "Find missing functionality/extensions. Enable found items via manage_extensions.".to_string(),
         object!({
             "type": "object",
             "required": [],
@@ -89,11 +71,7 @@ pub fn search_available_extensions_tool() -> Tool {
 pub fn manage_extensions_tool() -> Tool {
     Tool::new(
         PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME.to_string(),
-        "Tool to manage extensions and tools in goose context.
-            Enable or disable extensions to help complete tasks.
-            Enable or disable an extension by providing the extension name.
-            "
-        .to_string(),
+        "Enable or disable extensions. Actions: enable|disable.".to_string(),
         object!({
             "type": "object",
             "required": ["action", "extension_name"],
@@ -114,22 +92,7 @@ pub fn manage_extensions_tool() -> Tool {
 pub fn manage_schedule_tool() -> Tool {
     Tool::new(
         PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Manage scheduled recipe execution for this goose instance.
-            
-            Actions:
-            - "list": List all scheduled jobs
-            - "create": Create a new scheduled job from a recipe file
-            - "run_now": Execute a scheduled job immediately  
-            - "pause": Pause a scheduled job
-            - "unpause": Resume a paused job
-            - "delete": Remove a scheduled job
-            - "kill": Terminate a currently running job
-            - "inspect": Get details about a running job
-            - "sessions": List execution history for a job
-            - "session_content": Get the full content (messages) of a specific session
-        "#}
-        .to_string(),
+        "Schedule recipes (this goose). Jobs: list|create[file]|delete. Control: run_now|pause|unpause|kill[proc]. View: inspect[job]|sessions|content.".to_string(),
         object!({
             "type": "object",
             "required": ["action"],

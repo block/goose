@@ -47,16 +47,17 @@ impl TodoClient {
             instructions: Some(indoc! {r#"
                 Task Management
 
-                Use todo_read and todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
+                Use todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
+                Your TODO content is automatically available in your context.
 
                 Workflow:
-                - Start: read → write checklist
-                - During: read → update progress
+                - Start: write initial checklist
+                - During: update progress
                 - End: verify all complete
 
-                Warning: todo_write overwrites entirely; always todo_read first (skipping is an error)
+                Warning: todo_write overwrites entirely; always include ALL content you want to keep
 
-                Keep items short, specific, action-oriented. Not using the todo tools for complex tasks is an error.
+                Keep items short, specific, action-oriented. Not using the todo tool for complex tasks is an error.
 
                 Template:
                 - [ ] Implement feature X
@@ -157,14 +158,7 @@ impl TodoClient {
         vec![
             Tool::new(
                 "todo_read".to_string(),
-                indoc! {r#"
-                        Read the entire TODO file content.
-
-                        This tool reads the complete TODO file and returns its content as a string.
-                        Use this to view current tasks, notes, and any other information stored in the TODO file.
-
-                        The tool will return an error if the TODO file doesn't exist or cannot be read.
-                    "#}.to_string(),
+                "Read TODO content. Returns as string.".to_string(),
                 object!({
                         "type": "object",
                         "properties": {},
@@ -179,18 +173,7 @@ impl TodoClient {
             }),
             Tool::new(
                 "todo_write".to_string(),
-                indoc! {r#"
-                    Write or overwrite the entire TODO file content.
-
-                    This tool replaces the complete TODO file content with the provided string.
-                    Use this to update tasks, add new items, or reorganize the TODO file.
-
-                    WARNING: This operation completely replaces the file content. Make sure to include
-                    all content you want to keep, not just the changes.
-
-                    The tool will create the TODO file if it doesn't exist, or overwrite it if it does.
-                    Returns an error if the file cannot be written due to permissions or other I/O issues.
-                "#}.to_string(),
+                "Overwrite TODO. WARNING: Complete replacement - include ALL content to keep.".to_string(),
                 object!({
                     "type": "object",
                     "properties": {

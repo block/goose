@@ -193,55 +193,30 @@ impl ServerHandler for DeveloperServer {
 
         let base_instructions = match os {
             "windows" => formatdoc! {r#"
-                The developer extension gives you the capabilities to edit code files and run shell commands,
-                and can be used to solve a wide range of problems.
-
-                You can use the shell tool to run Windows commands (PowerShell or CMD).
-                When using paths, you can use either backslashes or forward slashes.
-
-                Use the shell tool as needed to locate files or interact with the project.
-
-                Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
-                - delegate analysis, retain summaries
-
-                Your windows/screen tools can be used for visual debugging. You should not use these tools unless
-                prompted to, but you can mention they are available if they are relevant.
-
-                operating system: {os}
-                current directory: {cwd}
-                {container_info}
+                Developer: edit code, run shell, analyze codebases.
+                OS: {os} | CWD: {cwd}{container_info}
+                Shell: PowerShell/CMD. Use forward slashes in paths.
+                Analyze: delegate via return_last_only=true subagents.
+                Screen/windows tools available for debugging.
                 "#,
                 os=os,
                 cwd=cwd.to_string_lossy(),
-                container_info=if in_container { "container: true" } else { "" },
+                container_info=if in_container { " | container" } else { "" },
             },
             _ => {
                 let shell_info = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
                 formatdoc! {r#"
-                The developer extension gives you the capabilities to edit code files and run shell commands,
-                and can be used to solve a wide range of problems.
-
-            You can use the shell tool to run any command that would work on the relevant operating system.
-            Use the shell tool as needed to locate files or interact with the project.
-
-            Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
-            - delegate analysis, retain summaries
-
-            Your windows/screen tools can be used for visual debugging. You should not use these tools unless
-            prompted to, but you can mention they are available if they are relevant.
-
-            Always prefer ripgrep (rg -C 3) to grep.
-
-            operating system: {os}
-            current directory: {cwd}
-            shell: {shell}
-            {container_info}
+                Developer: edit code, run shell, analyze codebases.
+                OS: {os} | CWD: {cwd} | Shell: {shell}{container_info}
+                Analyze: delegate via return_last_only=true subagents.
+                Screen/windows tools available for debugging.
+                Use rg only, not grep/find/ls -r.
                 "#,
                 os=os,
                 cwd=cwd.to_string_lossy(),
                 shell=shell_info,
-                container_info=if in_container { "container: true" } else { "" },
+                container_info=if in_container { " | container" } else { "" },
                 }
             }
         };
@@ -260,117 +235,40 @@ impl ServerHandler for DeveloperServer {
         // Check if editor model exists and augment with custom llm editor tool description
         let editor_description = if let Some(ref editor) = self.editor_model {
             formatdoc! {r#"
-
-                Additional Text Editor Tool Instructions:
-
-                Perform text editing operations on files.
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                {}
-
+TEXT_EDITOR:
+Commands: view|write|str_replace|insert|undo_edit
+⚠️ write=full overwrite (include all content)
+str_replace: diff for multi-file, or old_str+new_str (exact match incl. whitespace, avoid ambiguous)
+insert: insert_line (0=start, -1=end) + new_str
+Batch edits: use unified diff
+{}
             "#, editor.get_str_replace_description()}
         } else {
             formatdoc! {r#"
-
-                Additional Text Editor Tool Instructions:
-
-                Perform text editing operations on files.
-
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-
+TEXT_EDITOR:
+Commands: view|write|str_replace|insert|undo_edit
+⚠️ write=full overwrite (include all content)
+str_replace: diff for multi-file, or old_str+new_str (exact match incl. whitespace, avoid ambiguous)
+insert: insert_line (0=start, -1=end) + new_str
+Batch edits: use unified diff
             "#}
         };
 
-        // Create comprehensive shell tool instructions
-        let common_shell_instructions = indoc! {r#"
-            Additional Shell Tool Instructions:
-            Execute a command in the shell.
-
-            This will return the output and error concatenated into a single string, as
-            you would see from running on the command line. There will also be an indication
-            of if the command succeeded or failed.
-
-            Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-            **Important**: Each shell command runs in its own process. Things like directory changes or
-            sourcing files do not persist between tool calls. So you may need to repeat them each time by
-            stringing together commands.
-        "#};
-
-        let windows_specific = indoc! {r#"
-            **Important**: For searching files and code:
-
-            Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-              - To locate a file by name: `rg --files | rg example.py`
-              - To locate content inside files: `rg 'class Example'`
-
-            Alternative Windows commands (if ripgrep is not installed):
-              - To locate a file by name: `dir /s /b example.py`
-              - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-            Note: Alternative commands may show ignored/hidden files that should be excluded.
-
-              - Multiple commands: Use && to chain commands, avoid newlines
-              - Example: `cd example && dir` or `activate.bat && pip install numpy`
-
-             **Important**: Use forward slashes in paths (e.g., `C:/Users/name`) to avoid
-                 escape character issues with backslashes, i.e. \n in a path could be
-                 mistaken for a newline.
-        "#};
-
-        let unix_specific = indoc! {r#"
-            If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-            this tool does not run indefinitely.
-
-            **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
-            other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
-              - List files by name: `rg --files | rg <filename>`
-              - List files that contain a regex: `rg '<regex>' -l`
-
-              - Multiple commands: Use && to chain commands, avoid newlines
-              - Example: `cd example && ls` or `source env/bin/activate && pip install numpy`
-        "#};
-
+        // Condensed shell tool instructions
         let shell_tool_desc = match os {
-            "windows" => format!("{}{}", common_shell_instructions, windows_specific),
-            _ => format!("{}{}", common_shell_instructions, unix_specific),
+            "windows" => indoc! {r#"
+SHELL: stdout+stderr string | New process each call (no persist) | Max 400KB
+Chain: && | Large output: pipe to files
+Search (prefer rg): `rg --files|rg name`, `rg 'pattern'`
+Alt Win: `dir /s /b file`, `findstr /s /i "text" *.py` (may show hidden)
+⚠️ Use forward slashes (C:/Users) to avoid \n escape issues
+            "#},
+            _ => indoc! {r#"
+SHELL: stdout+stderr string | New process each call (no persist) | Max 400KB
+Chain: && | Background: cmd & | Large output: pipe to files
+Search (rg ONLY, no find/ls -r): `rg --files|rg name`, `rg 'pattern' -l`
+Examples: `cd dir && ls`, `source venv && pip install`
+            "#},
         };
 
         // Return base instructions directly when no hints are found
@@ -574,7 +472,7 @@ impl DeveloperServer {
     /// of the screen_capture tool.
     #[tool(
         name = "list_windows",
-        description = "List all available window titles that can be used with screen_capture. Returns a list of window titles that can be used with the window_title parameter of the screen_capture tool."
+        description = "Get available window titles for screen_capture."
     )]
     pub async fn list_windows(&self) -> Result<CallToolResult, ErrorData> {
         let windows = Window::all().map_err(|_| {
@@ -606,7 +504,7 @@ impl DeveloperServer {
     /// Only one of display or window_title should be specified.
     #[tool(
         name = "screen_capture",
-        description = "Capture a screenshot of a specified display or window. You can capture either: 1. A full display (monitor) using the display parameter 2. A specific window by its title using the window_title parameter. Only one of display or window_title should be specified."
+        description = "Screenshot: display# XOR window_title (use only one)."
     )]
     pub async fn screen_capture(
         &self,
