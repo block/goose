@@ -138,14 +138,18 @@ copy-binary-windows:
     } else { \
         Write-Host 'Windows goose-scheduler-executor binary not found.' -ForegroundColor Yellow; \
     }"
-    @if [ -f ./temporal-service/temporal-service.exe ]; then \
-        echo "Copying Windows temporal-service binary..."; \
-        cp -p ./temporal-service/temporal-service.exe ./ui/desktop/src/bin/; \
-    else \
-        echo "Windows temporal-service binary not found. Building it..."; \
-        cd temporal-service && GOOS=windows GOARCH=amd64 go build -o temporal-service.exe main.go && cp temporal-service.exe ../ui/desktop/src/bin/; \
-    fi
-    @echo "Note: Temporal CLI for Windows will be downloaded at runtime if needed"
+    @powershell.exe -Command "if (Test-Path './temporal-service/temporal-service.exe') { \
+        Write-Host 'Copying Windows temporal-service binary...'; \
+        Copy-Item -Path './temporal-service/temporal-service.exe' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows temporal-service binary not found. Building it...'; \
+        Push-Location 'temporal-service'; \
+        $env:GOOS='windows'; $env:GOARCH='amd64'; \
+        go build -o temporal-service.exe main.go; \
+        Copy-Item -Path 'temporal-service.exe' -Destination '../ui/desktop/src/bin/' -Force; \
+        Pop-Location; \
+    }"
+    @powershell.exe -Command "Write-Host 'Note: Temporal CLI for Windows will be downloaded at runtime if needed'"
 
 # Run UI with latest
 run-ui:
