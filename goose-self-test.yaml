@@ -12,7 +12,6 @@ activities:
   - Test extension discovery and management
   - Create and orchestrate subagents for meta-testing
   - Generate and execute test recipes
-  - Validate scheduling system operations
   - Test error boundaries and security controls
   - Measure performance and resource usage
   - Generate comprehensive test report
@@ -22,7 +21,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, subagents, recipes, advanced, scheduling"
+    description: "Which test phases to run: all, basic, extensions, subagents, recipes, advanced"
   
   - key: test_depth
     input_type: string
