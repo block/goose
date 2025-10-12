@@ -274,6 +274,25 @@ impl Provider for OllamaProvider {
             }
         }))
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self.api_client.response_get("v1/models").await?;
+
+        let json: Value = response.json().await?;
+
+        let arr = match json.get("data").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(None),
+        };
+
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+
+        models.sort();
+        Ok(Some(models))
+    }
 }
 
 impl OllamaProvider {
