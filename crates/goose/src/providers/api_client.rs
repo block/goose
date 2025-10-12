@@ -186,8 +186,8 @@ impl fmt::Debug for AuthMethod {
 impl ApiResponse {
     pub async fn from_response(response: Response) -> Result<Self> {
         let status = response.status();
-        let payload = response.json().await.ok();
-        Ok(Self { status, payload })
+        let payload = response.json().await?;
+        Ok(Self { status, payload: Some(payload) })
     }
 }
 
