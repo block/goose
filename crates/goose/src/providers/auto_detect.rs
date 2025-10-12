@@ -8,7 +8,7 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
         ("groq", "GROQ_API_KEY"),
         ("xai", "XAI_API_KEY"),
         ("ollama", "OLLAMA_API_KEY"),
-        ("openrouter", "OPENROUTER_API_KEY"),
+        //("openrouter", "OPENROUTER_API_KEY"), Open Router seems to return the models also without a key
     ];
 
     let tasks: Vec<_> = provider_tests
