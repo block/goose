@@ -22,6 +22,7 @@ export default function Pair({
   setView,
   setIsGoosehintsModalOpen,
   resumeSessionId,
+  initialMessage,
 }: PairProps & PairRouteState) {
   return (
     <BaseChat2
@@ -30,6 +31,7 @@ export default function Pair({
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       resumeSessionId={resumeSessionId}
+      initialMessage={initialMessage}
     />
   );
 }
