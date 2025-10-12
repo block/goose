@@ -160,11 +160,12 @@ impl TodoClient {
                 "todo_read".to_string(),
                 "Read TODO content. Returns as string.".to_string(),
                 object!({
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }),
-            ).annotate(ToolAnnotations {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }),
+            )
+            .annotate(ToolAnnotations {
                 title: Some("Read TODO file".to_string()),
                 read_only_hint: Some(true),
                 destructive_hint: Some(false),
@@ -173,7 +174,8 @@ impl TodoClient {
             }),
             Tool::new(
                 "todo_write".to_string(),
-                "Overwrite TODO. WARNING: Complete replacement - include ALL content to keep.".to_string(),
+                "Overwrite TODO. WARNING: Complete replacement - include ALL content to keep."
+                    .to_string(),
                 object!({
                     "type": "object",
                     "properties": {
@@ -184,13 +186,14 @@ impl TodoClient {
                     },
                     "required": ["content"]
                 }),
-            ).annotate(ToolAnnotations {
+            )
+            .annotate(ToolAnnotations {
                 title: Some("Write TODO file".to_string()),
                 read_only_hint: Some(false),
                 destructive_hint: Some(true),
                 idempotent_hint: Some(false),
                 open_world_hint: Some(false),
-            })
+            }),
         ]
     }
 }

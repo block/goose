@@ -33,7 +33,8 @@ pub fn read_resource_tool() -> Tool {
 pub fn list_resources_tool() -> Tool {
     Tool::new(
         PLATFORM_LIST_RESOURCES_TOOL_NAME.to_string(),
-        "List extension resources. Returns browsable list. Searches all if no extension specified.".to_string(),
+        "List extension resources. Returns browsable list. Searches all if no extension specified."
+            .to_string(),
         object!({
             "type": "object",
             "properties": {
@@ -53,13 +54,15 @@ pub fn list_resources_tool() -> Tool {
 pub fn search_available_extensions_tool() -> Tool {
     Tool::new(
         PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME.to_string(),
-        "Find missing functionality/extensions. Enable found items via manage_extensions.".to_string(),
+        "Find missing functionality/extensions. Enable found items via manage_extensions."
+            .to_string(),
         object!({
             "type": "object",
             "required": [],
             "properties": {}
-        })
-    ).annotate(ToolAnnotations {
+        }),
+    )
+    .annotate(ToolAnnotations {
         title: Some("Discover extensions".to_string()),
         read_only_hint: Some(true),
         destructive_hint: Some(false),
