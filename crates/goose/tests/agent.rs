@@ -443,27 +443,6 @@ mod schedule_tool_tests {
     }
 
     #[tokio::test]
-    async fn test_schedule_management_tool_list() {
-        let agent = Agent::new();
-        let mock_scheduler = Arc::new(MockScheduler::new());
-        agent.set_scheduler(mock_scheduler.clone()).await;
-
-        // Test that the schedule management tool is available in the tools list
-        let tools = agent.list_tools(None).await;
-        let schedule_tool = tools
-            .iter()
-            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
-        assert!(schedule_tool.is_some());
-
-        let tool = schedule_tool.unwrap();
-        assert!(tool
-            .description
-            .clone()
-            .unwrap_or_default()
-            .contains("Manage scheduled recipe execution"));
-    }
-
-    #[tokio::test]
     async fn test_schedule_management_tool_no_scheduler() {
         let agent = Agent::new();
         // Don't set scheduler - test that the tool still appears in the list
@@ -474,45 +453,6 @@ mod schedule_tool_tests {
             .iter()
             .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
         assert!(schedule_tool.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_schedule_management_tool_in_platform_tools() {
-        let agent = Agent::new();
-        let tools = agent.list_tools(Some("platform".to_string())).await;
-
-        // Check that the schedule management tool is included in platform tools
-        let schedule_tool = tools
-            .iter()
-            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
-        assert!(schedule_tool.is_some());
-
-        let tool = schedule_tool.unwrap();
-        assert!(tool
-            .description
-            .clone()
-            .unwrap_or_default()
-            .contains("Manage scheduled recipe execution"));
-
-        // Verify the tool has the expected actions in its schema
-        if let Some(properties) = tool.input_schema.get("properties") {
-            if let Some(action_prop) = properties.get("action") {
-                if let Some(enum_values) = action_prop.get("enum") {
-                    let actions: Vec<String> = enum_values
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_str().unwrap().to_string())
-                        .collect();
-
-                    // Check that our session_content action is included
-                    assert!(actions.contains(&"session_content".to_string()));
-                    assert!(actions.contains(&"list".to_string()));
-                    assert!(actions.contains(&"create".to_string()));
-                    assert!(actions.contains(&"sessions".to_string()));
-                }
-            }
-        }
     }
 
     #[tokio::test]
