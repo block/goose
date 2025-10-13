@@ -26,7 +26,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
-  const hasCheckedRecipeRef = useRef<string | null>(null);
+  const hasCheckedRecipeRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -55,6 +55,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setRecipeAccepted(false);
         setIsParameterModalOpen(false);
         setIsRecipeWarningModalOpen(false);
+        hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
         chatContext.setChat({
           ...chatContext.chat,
@@ -76,11 +77,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
-      // Create a unique key for this recipe to prevent duplicate checks
-      const recipeKey = finalRecipe ? `${finalRecipe.title}-${finalRecipe.instructions}` : null;
-
-      // If we've already checked this exact recipe, don't check again
-      if (recipeKey && hasCheckedRecipeRef.current === recipeKey) {
+      // Only check once per recipe load
+      if (hasCheckedRecipeRef.current) {
         return;
       }
 
@@ -94,10 +92,11 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
           // Recipe loaded from session metadata should be automatically accepted
           setRecipeAccepted(true);
           setIsRecipeWarningModalOpen(false);
+          hasCheckedRecipeRef.current = true;
           return;
         }
 
-        hasCheckedRecipeRef.current = recipeKey;
+        hasCheckedRecipeRef.current = true;
 
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);
@@ -111,12 +110,10 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
             setRecipeAccepted(true);
           }
         } catch {
-          hasCheckedRecipeRef.current = null;
           setHasSecurityWarnings(false);
           setIsRecipeWarningModalOpen(true);
         }
       } else {
-        hasCheckedRecipeRef.current = null;
         setRecipeAccepted(false);
         setIsRecipeWarningModalOpen(false);
       }
@@ -246,7 +243,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   };
 
   const handleRecipeCancel = () => {
-    hasCheckedRecipeRef.current = null;
     setIsRecipeWarningModalOpen(false);
     window.electron.closeWindow();
   };
