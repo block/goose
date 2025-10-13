@@ -34,6 +34,11 @@ async fn toolshim_postprocess(
 impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+        // Determine the current mode from config
+        let config = crate::config::Config::global();
+        let mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let is_autonomous = mode == "auto";
+
         // Get router enabled status
         let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
@@ -42,7 +47,15 @@ impl Agent {
 
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {
+            // Get all tools but filter out subagent tools if not in autonomous mode
             tools = self.list_tools(None).await;
+            if !is_autonomous {
+                // Filter out subagent-related tools
+                tools.retain(|tool| {
+                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
+                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
+                });
+            }
         }
 
         // Add frontend tools
