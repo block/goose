@@ -296,7 +296,6 @@ impl IntoResponse for SessionSseResponse {
             .header("Content-Type", "text/event-stream")
             .header("Cache-Control", "no-cache")
             .header("Connection", "keep-alive")
-            .header("X-Accel-Buffering", "no") // Disable nginx buffering
             .body(body)
             .unwrap()
     }
