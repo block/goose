@@ -311,10 +311,14 @@ enum SessionEvent {
 
 async fn stream_session_event(event: SessionEvent, tx: &mpsc::Sender<String>) -> bool {
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
-        format!(
-            r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
-            e
-        )
+        // If we can't serialize the event, create a proper error event
+        let error_event = SessionEvent::Error {
+            error: format!("Failed to serialize event: {}", e),
+        };
+        // This should always succeed since it's a simple error event
+        serde_json::to_string(&error_event).unwrap_or_else(|_| {
+            r#"{"type":"Error","error":"Critical serialization failure"}"#.to_string()
+        })
     });
     tx.send(format!("data: {}\n\n", json)).await.is_ok()
 }
