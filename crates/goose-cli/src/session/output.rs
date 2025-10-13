@@ -161,6 +161,44 @@ pub fn set_thinking_message(s: &String) {
     }
 }
 
+pub fn render_message_with_timing(message: &Message, debug: bool, tool_timings: &std::collections::HashMap<String, std::time::Duration>) {
+    let theme = get_theme();
+
+    for content in &message.content {
+        match content {
+            MessageContent::Text(text) => print_markdown(&text.text, theme),
+            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
+            MessageContent::ToolResponse(resp) => {
+                let timing = tool_timings.get(&resp.id).copied();
+                render_tool_response(resp, theme, debug, timing);
+            }
+            MessageContent::Image(image) => {
+                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+            }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
+                    println!("\n{}", console::style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                println!("\n{}", console::style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
+            MessageContent::SummarizationRequested(summarization) => {
+                println!("\n{}", console::style(&summarization.msg).yellow());
+            }
+            _ => {
+                println!("WARNING: Message content type could not be rendered");
+            }
+        }
+    }
+
+    let _ = std::io::stdout().flush();
+}
+
 pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
 
@@ -168,7 +206,7 @@ pub fn render_message(message: &Message, debug: bool) {
         match content {
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug, None),
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
@@ -245,7 +283,7 @@ pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
 
-fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
+pub fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
@@ -258,7 +296,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
+pub fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool, timing: Option<std::time::Duration>) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -291,6 +329,13 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
             }
         }
         Err(e) => print_markdown(&e.to_string(), theme),
+    }
+
+    // Display timing information if available
+    if let Some(duration) = timing {
+        let elapsed_str = format_elapsed_time(duration);
+        println!("{}", console::style(format!("⚡️ {}", elapsed_str)).dim());
+        println!(); // Add extra newline for spacing
     }
 }
 
@@ -539,7 +584,7 @@ pub fn env_no_color() -> bool {
     std::env::var_os("NO_COLOR").is_none()
 }
 
-fn print_markdown(content: &str, theme: Theme) {
+pub fn print_markdown(content: &str, theme: Theme) {
     if std::io::stdout().is_terminal() {
         bat::PrettyPrinter::new()
             .input(bat::Input::from_bytes(content.as_bytes()))
@@ -938,6 +983,19 @@ impl McpSpinners {
             spinner.disable_steady_tick();
         }
         self.multi_bar.clear()
+    }
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+pub fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
     }
 }
 

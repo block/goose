@@ -3,6 +3,7 @@ mod completion;
 mod export;
 mod input;
 mod output;
+mod output_timing_tests;
 mod prompt;
 mod task_execution_display;
 mod thinking;
@@ -44,7 +45,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
+use console;
+
 use tokio;
 use tokio_util::sync::CancellationToken;
 
@@ -64,6 +68,7 @@ pub struct CliSession {
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
+    tool_call_timings: Arc<Mutex<HashMap<String, Instant>>>,
 }
 
 // Cache structure for completion data
@@ -151,6 +156,7 @@ impl CliSession {
             max_turns,
             edit_mode,
             retry_config,
+            tool_call_timings: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -1023,6 +1029,10 @@ impl CliSession {
                                                 tool_name = %tool_call.name,
                                                 "Tool call started"
                                             );
+                                            // Record the start time for this tool call
+                                            if let Ok(mut timings) = self.tool_call_timings.lock() {
+                                                timings.insert(tool_request.id.clone(), Instant::now());
+                                            }
                                         }
                                     }
                                     if let MessageContent::ToolResponse(tool_response) = content {
@@ -1062,7 +1072,32 @@ impl CliSession {
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
-                                output::render_message(&message, self.debug);
+                                
+                                // Collect timing information for this message and render with timing
+                                let mut tool_timings = HashMap::new();
+                                
+                                // First pass: collect all tool response IDs and their timings
+                                let tool_response_ids: Vec<String> = message.content.iter()
+                                    .filter_map(|content| {
+                                        if let MessageContent::ToolResponse(resp) = content {
+                                            Some(resp.id.clone())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+                                
+                                // Get timing data for all tool responses in this message
+                                if let Ok(mut timings) = self.tool_call_timings.lock() {
+                                    for tool_id in tool_response_ids {
+                                        if let Some(start_time) = timings.remove(&tool_id) {
+                                            let duration = start_time.elapsed();
+                                            tool_timings.insert(tool_id.clone(), duration);
+                                        }
+                                    }
+                                }
+                                
+                                output::render_message_with_timing(&message, self.debug, &tool_timings);
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
