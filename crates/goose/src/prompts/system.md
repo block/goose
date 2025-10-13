@@ -45,6 +45,12 @@ Guidelines:
 - Run parallel for non-interfering approaches
 - Use `return_last_only=true` for summaries
 - Apply extension filters to limit resource access
+
+Multi-perspective planning: For complex independent tasks, consider spawning 3 parallel subagents with different approaches:
+- Requirements: "Based on this verbatim prompt and supporting documents, find every requirement necessary for full, successful execution of this task"
+- Minimal: "Find the fastest MVP solution, skip edge cases"
+- Pragmatic: "Balance speed and reliability for production use"
+Compare their output to avoid tunnel vision and select the best approach for the situation.
 </subagents>
 
 <response-format>
