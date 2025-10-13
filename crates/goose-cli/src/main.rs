@@ -9,28 +9,12 @@ async fn main() -> Result<()> {
 
     let result = cli().await;
 
-    // Only wait for telemetry flush if OTLP is configured
-    let should_wait = goose::config::Config::global()
-        .get_param::<String>("otel_exporter_otlp_endpoint")
-        .is_ok();
+    // Shutdown OTLP providers if they were initialized
+    if goose::tracing::is_otlp_initialized() {
+        // Give batch exporters a moment to flush pending data
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    if should_wait {
-        // Use a shorter, dynamic wait with max timeout
-        let max_wait = tokio::time::Duration::from_millis(500);
-        let start = tokio::time::Instant::now();
-
-        // Give telemetry a chance to flush, but don't wait too long
-        while start.elapsed() < max_wait {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-            // In future, we could check if there are pending spans/metrics here
-            // For now, we just do a quick wait to allow batch exports to complete
-            if start.elapsed() >= tokio::time::Duration::from_millis(200) {
-                break; // Most exports should complete within 200ms
-            }
-        }
-
-        // Then shutdown the providers
+        // Shutdown providers (calls shutdown on meter provider and tracer provider)
         goose::tracing::shutdown_otlp();
     }
 

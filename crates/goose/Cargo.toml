@@ -69,6 +69,7 @@ tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio", "metrics"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "http-proto", "reqwest-client"] }
+opentelemetry-stdout = { version = "0.27", features = ["trace", "metrics"] }
 tonic = "0.12"
 keyring = { version = "3.6.2", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
 serde_yaml = "0.9.34"

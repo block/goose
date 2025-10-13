@@ -92,6 +92,9 @@ impl RouterToolSelector for LLMToolSelector {
                 })?;
 
             let user_message = Message::user().with_text(&user_prompt);
+
+            tracing::info!("Calling provider for router tool selection");
+
             let response = self
                 .llm_provider
                 .complete("system", &[user_message], &[])

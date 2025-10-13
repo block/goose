@@ -55,7 +55,7 @@ use rmcp::model::{
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, warn};
 
 use super::final_output_tool::FinalOutputTool;
 use super::model_selector::autopilot::AutoPilot;
@@ -131,13 +131,23 @@ pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Co
 // tool_stream combines a stream of ServerNotifications with a future representing the
 // final result of the tool call. MCP notifications are not request-scoped, but
 // this lets us capture all notifications emitted during the tool call for
-// simpler consumption
-pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
+// simpler consumption.
+// If tool_name is provided, a "gen_ai.tool.call" span will be created and kept alive
+// during the tool execution.
+pub fn tool_stream<S, F>(rx: S, done: F, tool_name: Option<String>) -> ToolStream
 where
     S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
     F: Future<Output = ToolResult<Vec<Content>>> + Send + 'static,
 {
     Box::pin(async_stream::stream! {
+        // Create span if tool name is provided
+        let tool_span = tool_name.as_ref().map(|name| {
+            tracing::info_span!("gen_ai.tool.call", tool.name = %name)
+        });
+
+        // Enter span if it exists
+        let _span_guard = tool_span.as_ref().map(|span| span.enter());
+
         tokio::pin!(done);
         let mut rx = rx;
 
@@ -305,6 +315,7 @@ impl Agent {
         // Handle pre-approved and read-only tools
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
+                let tool_name = tool_call.name.to_string();
                 let (req_id, tool_result) = self
                     .dispatch_tool_call(
                         tool_call,
@@ -322,10 +333,13 @@ impl Agent {
                                 .notification_stream
                                 .unwrap_or_else(|| Box::new(stream::empty())),
                             result.result,
+                            Some(tool_name.clone()),
                         ),
-                        Err(e) => {
-                            tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
-                        }
+                        Err(e) => tool_stream(
+                            Box::new(stream::empty()),
+                            futures::future::ready(Err(e)),
+                            Some(tool_name),
+                        ),
                     },
                 ));
             }
@@ -385,7 +399,8 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    /// Note: Span instrumentation is handled in tool_stream where the future is actually consumed
+    #[allow(clippy::too_many_lines)]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParam,
@@ -956,7 +971,6 @@ impl Agent {
         Ok(None)
     }
 
-    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
         unfixed_conversation: Conversation,
@@ -1005,7 +1019,25 @@ impl Agent {
             initial_messages,
             config,
         } = context;
-        let reply_span = tracing::Span::current();
+
+        // Get model name for span attributes
+        let provider = self.provider().await?;
+        let model_name = provider.get_model_config().model_name.clone();
+
+        // Create a span for the agent reply loop (goose-specific, not semantic convention)
+        // Only add session.id attribute if a session exists
+        let reply_span = if let Some(session_config) = &session {
+            tracing::info_span!(
+                "agent.reply",
+                session.id = %session_config.id,
+                model = %model_name
+            )
+        } else {
+            tracing::info_span!(
+                "agent.reply",
+                model = %model_name
+            )
+        };
         self.reset_retry_attempts().await;
 
         // This will need further refactoring. In the ideal world we pass the new message into
@@ -1057,7 +1089,10 @@ impl Agent {
         }
 
         Ok(Box::pin(async_stream::try_stream! {
-            let _ = reply_span.enter();
+            // Enter span to set context for child spans (tool calls, LLM calls)
+            // Note: Holding guard across .await is not ideal per tracing docs, but necessary
+            // for context propagation in streams. The alternative (.instrument()) doesn't work for streams.
+            let _span_guard = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session
                 .as_ref()
@@ -1501,18 +1536,29 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
-        tracing::info!("Starting recipe creation with {} messages", messages.len());
-
-        let extensions_info = self.extension_manager.get_extensions_info().await;
-        tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-
-        // Get model name from provider
+        // Get model name from provider first for span creation
         let provider = self.provider().await.map_err(|e| {
             tracing::error!("Failed to get provider for recipe creation: {}", e);
             e
         })?;
         let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
+
+        // Create span following OpenTelemetry GenAI semantic conventions
+        let span = tracing::info_span!(
+            "recipe_creation",
+            otel.name = format!("recipe_creation {}", model_name),
+            gen_ai.request.model = %model_name,
+            gen_ai.system = "goose",
+            gen_ai.operation.name = "recipe_creation"
+        );
+        let _enter = span.enter();
+
+        tracing::info!("Starting recipe creation with {} messages", messages.len());
+
+        let extensions_info = self.extension_manager.get_extensions_info().await;
+        tracing::debug!("Retrieved {} extensions info", extensions_info.len());
+
         tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
@@ -1556,6 +1602,7 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
+
         let (result, _usage) = self
             .provider
             .lock()

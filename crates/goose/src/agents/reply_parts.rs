@@ -86,6 +86,7 @@ impl Agent {
 
     /// Stream a response from the LLM provider.
     /// Handles toolshim transformations if needed
+    /// Creates a "chat" span that stays alive for the entire streaming operation.
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
         system_prompt: &str,
@@ -108,42 +109,46 @@ impl Agent {
         let toolshim_tools = toolshim_tools.to_owned();
         let provider = provider.clone();
 
-        let mut stream = if provider.supports_streaming() {
-            debug!("WAITING_LLM_STREAM_START");
-            let msg_stream = provider
-                .stream(
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await?;
-            debug!("WAITING_LLM_STREAM_END");
-            msg_stream
-        } else {
-            debug!("WAITING_LLM_START");
-            let (message, mut usage) = provider
-                .complete(
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await?;
-            debug!("WAITING_LLM_END");
-
-            // Ensure we have token counts for non-streaming case
-            usage
-                .ensure_tokens(
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &message,
-                    &tools,
-                )
-                .await?;
-
-            stream_from_single_message(message, usage)
-        };
-
+        // Streaming response (no span here - parent span in agent.reply_internal handles it)
         Ok(Box::pin(try_stream! {
+
+            let mut stream = if provider.supports_streaming() {
+                debug!("WAITING_LLM_STREAM_START");
+                let msg_stream = provider
+                    .stream(
+                        system_prompt.as_str(),
+                        messages_for_provider.messages(),
+                        &tools,
+                    )
+                    .await?;
+                debug!("WAITING_LLM_STREAM_END");
+                msg_stream
+            } else {
+                debug!("WAITING_LLM_START");
+                let (message, mut usage) = provider
+                    .complete(
+                        system_prompt.as_str(),
+                        messages_for_provider.messages(),
+                        &tools,
+                    )
+                    .await?;
+                debug!("WAITING_LLM_END");
+
+                // Ensure we have token counts for non-streaming case
+                usage
+                    .ensure_tokens(
+                        system_prompt.as_str(),
+                        messages_for_provider.messages(),
+                        &message,
+                        &tools,
+                    )
+                    .await?;
+
+                stream_from_single_message(message, usage)
+            };
+
+            // Collect all messages from the HTTP stream
+            let mut messages = Vec::new();
             while let Some(Ok((mut message, usage))) = stream.next().await {
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
@@ -155,6 +160,11 @@ impl Agent {
                     message = Some(toolshim_postprocess(message.unwrap(), &toolshim_tools).await?);
                 }
 
+                messages.push((message, usage));
+            }
+
+            // Yield the collected messages to the caller
+            for (message, usage) in messages {
                 yield (message, usage);
             }
         }))

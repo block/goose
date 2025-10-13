@@ -91,6 +91,7 @@ impl Agent {
                             }
 
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                                let tool_name = tool_call.name.to_string();
                                 let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session.clone()).await;
                                 let mut futures = tool_futures.lock().await;
 
@@ -98,10 +99,12 @@ impl Agent {
                                     Ok(result) => tool_stream(
                                         result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
                                         result.result,
+                                        Some(tool_name.clone()),
                                     ),
                                     Err(e) => tool_stream(
                                         Box::new(stream::empty()),
                                         futures::future::ready(Err(e)),
+                                        Some(tool_name),
                                     ),
                                 }));
 
