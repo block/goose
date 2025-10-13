@@ -83,6 +83,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       }
 
       if (finalRecipe) {
+        hasCheckedRecipeRef.current = true;
+
         // If the recipe comes from session metadata (not from navigation state),
         // it means it was already accepted in a previous session, so auto-accept it
         const hasMessages = chat.messages.length > 0;
@@ -92,11 +94,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
           // Recipe loaded from session metadata should be automatically accepted
           setRecipeAccepted(true);
           setIsRecipeWarningModalOpen(false);
-          hasCheckedRecipeRef.current = true;
           return;
         }
-
-        hasCheckedRecipeRef.current = true;
 
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);
