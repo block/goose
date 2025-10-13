@@ -1113,7 +1113,7 @@ impl ExtensionManager {
         use chrono::Local;
 
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let mut content = format!("Current date and time: {}\n", timestamp);
+        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
 
         let extensions = self.extensions.lock().await;
         for (name, extension) in extensions.iter() {
@@ -1128,6 +1128,8 @@ impl ExtensionManager {
                 }
             }
         }
+
+        content.push_str("\n</info-msg>");
 
         Some(content)
     }
