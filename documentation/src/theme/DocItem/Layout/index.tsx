@@ -15,14 +15,30 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
+import styles from './CopyPageButton.module.css';
 
 type Props = WrapperProps<typeof LayoutType>;
+
+// Constants for better maintainability
+const COPY_FEEDBACK_DURATION = 2000;
 
 // Component for the Copy Page button
 function CopyPageButton(): ReactNode {
   const [copied, setCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const handleCopy = async () => {
+    // Check if clipboard API is available
+    if (!navigator.clipboard) {
+      setError('Clipboard not supported in this browser');
+      setTimeout(() => setError(null), COPY_FEEDBACK_DURATION);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    
     try {
       // For now, just copy a placeholder text
       // In Phase 2, we'll copy the actual markdown content
@@ -31,54 +47,51 @@ function CopyPageButton(): ReactNode {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       
-      // Reset the "Copied" state after 2 seconds
+      // Reset the "Copied" state after timeout
       setTimeout(() => {
         setCopied(false);
-      }, 2000);
+      }, COPY_FEEDBACK_DURATION);
     } catch (err) {
+      setError('Failed to copy. Please try again.');
+      setTimeout(() => setError(null), COPY_FEEDBACK_DURATION);
       console.error('Failed to copy text: ', err);
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Display error message if there's an error
+  if (error) {
+    return (
+      <div className={styles.copyButton} style={{ backgroundColor: 'var(--ifm-color-danger-contrast-background)' }}>
+        <span>{error}</span>
+      </div>
+    );
+  }
 
   return (
     <button
       onClick={handleCopy}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '6px 12px',
-        backgroundColor: 'var(--ifm-color-emphasis-200)',
-        border: '1px solid var(--ifm-color-emphasis-300)',
-        borderRadius: '6px',
-        color: 'var(--ifm-color-content)',
-        fontSize: '14px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        fontFamily: 'var(--ifm-font-family-base)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--ifm-color-emphasis-300)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--ifm-color-emphasis-200)';
-      }}
+      className={styles.copyButton}
+      aria-label={copied ? 'Page copied to clipboard' : 'Copy page to clipboard'}
+      type="button"
+      disabled={isLoading}
     >
       {/* Copy icon - simple SVG */}
       <svg
-        width="16"
-        height="16"
+        className={styles.copyIcon}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        aria-hidden="true"
       >
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
       </svg>
-      {copied ? 'Copied' : 'Copy page'}
+      {isLoading ? 'Copying...' : copied ? 'Copied' : 'Copy page'}
     </button>
   );
 }
@@ -86,17 +99,6 @@ function CopyPageButton(): ReactNode {
 // Hook to determine if we should show the copy button
 function useShouldShowCopyButton(): boolean {
   const {metadata} = useDoc();
-  
-  // Debug: Log metadata to understand the structure
-  React.useEffect(() => {
-    console.log('DocItem Metadata for Copy Button:', {
-      source: metadata?.source,
-      permalink: metadata?.permalink,
-      isGeneratedIndex: metadata?.isGeneratedIndex,
-      type: metadata?.type,
-      frontMatter: metadata?.frontMatter,
-    });
-  }, [metadata]);
 
   // Show copy button only on actual content pages (not category/index pages)
   // A content page should have a source file (.md file)
@@ -108,17 +110,7 @@ function useShouldShowCopyButton(): boolean {
   // Don't show on category pages (they typically have /category/ in the permalink)
   const isNotCategoryPage = !metadata?.permalink?.includes('/category/');
   
-  const shouldShow = hasSource && isNotGeneratedIndex && isNotCategoryPage;
-  
-  console.log('Copy button decision:', {
-    hasSource,
-    isNotGeneratedIndex,
-    isNotCategoryPage,
-    shouldShow,
-    permalink: metadata?.permalink
-  });
-  
-  return shouldShow;
+  return hasSource && isNotGeneratedIndex && isNotCategoryPage;
 }
 
 /**
@@ -157,22 +149,13 @@ function CustomDocItemContent({children}: {children: ReactNode}): ReactNode {
   return (
     <div className={clsx(ThemeClassNames.docs.docMarkdown, 'markdown')}>
       {syntheticTitle && (
-        <header style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start',
-          marginBottom: '1rem'
-        }}>
-          <Heading as="h1" style={{ margin: 0, flex: 1 }}>{syntheticTitle}</Heading>
+        <header className={styles.headerWithButton}>
+          <Heading as="h1" className={styles.headerTitle}>{syntheticTitle}</Heading>
           {shouldShowCopyButton && <CopyPageButton />}
         </header>
       )}
       {!syntheticTitle && shouldShowCopyButton && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: '1rem',
-        }}>
+        <div className={styles.buttonContainer}>
           <CopyPageButton />
         </div>
       )}

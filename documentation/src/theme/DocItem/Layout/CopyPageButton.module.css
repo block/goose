@@ -1,0 +1,98 @@
+/* Copy Page Button Styles */
+.copyButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--ifm-color-emphasis-200);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  color: var(--ifm-color-content);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--ifm-font-family-base);
+  line-height: 1;
+}
+
+.copyButton:hover {
+  background-color: var(--ifm-color-emphasis-300);
+}
+
+.copyButton:focus {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.copyButton:active {
+  transform: translateY(1px);
+}
+
+.copyButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.copyButton:disabled:hover {
+  background-color: var(--ifm-color-emphasis-200);
+  transform: none;
+}
+
+.copyIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Header layout styles */
+.headerWithButton {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.headerTitle {
+  margin: 0;
+  flex: 1;
+}
+
+.buttonContainer {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .copyButton {
+    font-size: 12px;
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  
+  .copyIcon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .headerWithButton {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .buttonContainer {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] .copyButton {
+  background-color: var(--ifm-color-emphasis-200);
+  border-color: var(--ifm-color-emphasis-300);
+}
+
+[data-theme='dark'] .copyButton:hover {
+  background-color: var(--ifm-color-emphasis-300);
+}
