@@ -6,6 +6,7 @@ use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use futures::stream::Stream;
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteConnectOptions;
@@ -13,7 +14,9 @@ use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
@@ -256,6 +259,59 @@ impl SessionManager {
             .await?
             .is_session_in_use(id, stale_minutes)
             .await
+    }
+
+    pub async fn stream_updates(
+        session_id: String,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Session>> + Send>>> {
+        // Verify session exists first
+        let initial_session = Self::get_session(&session_id, true).await?;
+
+        let stream = async_stream::stream! {
+            yield Ok(initial_session.clone());
+
+            // If session is not in use, close the stream immediately
+            if !initial_session.in_use {
+                return;
+            }
+
+            // Session is in use, continue streaming until it's no longer in use
+            let mut interval = tokio::time::interval(Duration::from_secs(1));
+            let mut last_message_count: Option<usize> = Some(initial_session.message_count);
+            let mut last_updated_at: Option<String> = Some(initial_session.updated_at.to_rfc3339());
+
+            loop {
+                interval.tick().await;
+
+                match Self::get_session(&session_id, true).await {
+                    Ok(session) => {
+                        let updated_at_str = session.updated_at.to_rfc3339();
+                        let has_updates = last_message_count != Some(session.message_count)
+                            || last_updated_at.as_ref() != Some(&updated_at_str);
+
+                        if has_updates {
+                            last_message_count = Some(session.message_count);
+                            last_updated_at = Some(updated_at_str);
+
+                            let session_in_use = session.in_use;
+                            yield Ok(session);
+
+                            if !session_in_use {
+                                return;
+                            }
+                        } else if !session.in_use {
+                            return;
+                        }
+                    }
+                    Err(e) => {
+                        yield Err(e);
+                        return;
+                    }
+                }
+            }
+        };
+
+        Ok(Box::pin(stream))
     }
 }
 

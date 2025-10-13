@@ -89,6 +89,7 @@ interface ChatInputProps {
   autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
+  isSessionInUse?: boolean;
 }
 
 export default function ChatInput({
@@ -117,6 +118,7 @@ export default function ChatInput({
   autoSubmit = false,
   append,
   isExtensionsLoading = false,
+  isSessionInUse = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1182,7 +1184,8 @@ export default function ChatInput({
     isTranscribing ||
     isCompacting ||
     !agentIsReady ||
-    isExtensionsLoading;
+    isExtensionsLoading ||
+    isSessionInUse;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1423,19 +1426,21 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isCompacting
-                      ? 'Compacting conversation...'
-                      : isAnyImageLoading
-                        ? 'Waiting for images to save...'
-                        : isAnyDroppedFileLoading
-                          ? 'Processing dropped files...'
-                          : isRecording
-                            ? 'Recording...'
-                            : isTranscribing
-                              ? 'Transcribing...'
-                              : (chatContext?.agentWaitingMessage ?? 'Send')}
+                  {isSessionInUse
+                    ? 'Session in use in another window'
+                    : isExtensionsLoading
+                      ? 'Loading extensions...'
+                      : isCompacting
+                        ? 'Compacting conversation...'
+                        : isAnyImageLoading
+                          ? 'Waiting for images to save...'
+                          : isAnyDroppedFileLoading
+                            ? 'Processing dropped files...'
+                            : isRecording
+                              ? 'Recording...'
+                              : isTranscribing
+                                ? 'Transcribing...'
+                                : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>

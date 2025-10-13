@@ -78,31 +78,41 @@ function BaseChatContent({
 
   // Keep session streaming active for multi-window sync, but track initial load
   const [sessionLoadComplete, setSessionLoadComplete] = useState(!resumeSessionId);
+  const sessionIdToStream = resumeSessionId || chat.sessionId;
 
   const {
     session: streamedSession,
     isLoading: sessionLoading,
     error: sessionStreamError,
     // isConnected: sessionStreamConnected, // maybe we show an indicator somewhere?
-  } = useSessionStream(resumeSessionId || undefined);
+  } = useSessionStream(sessionIdToStream || undefined);
 
   const [messages, setMessages] = useState(chat.messages || []);
   const isStreamingRef = useRef(false);
   const lastStreamedMessageCountRef = useRef(0);
+  const [isSessionInUse, setIsSessionInUse] = useState(false);
 
   // Update chat when streamed session data arrives
   useEffect(() => {
-    if (streamedSession && resumeSessionId) {
+    if (streamedSession) {
       const conversation = streamedSession.conversation || [];
 
-      // Mark initial load as complete
-      if (!sessionLoadComplete) {
+      // Mark initial load as complete if we're resuming
+      if (resumeSessionId && !sessionLoadComplete) {
         setSessionLoadComplete(true);
       }
 
-      // Only update if we're not actively streaming a response AND
-      // the message count has actually changed (to avoid unnecessary re-renders)
-      if (!isStreamingRef.current && conversation.length !== lastStreamedMessageCountRef.current) {
+      // Always update in_use state for multi-window coordination
+      setIsSessionInUse(streamedSession.in_use || false);
+
+      // Only update messages if:
+      // 1. We're resuming a session (initial load), OR
+      // 2. We're not actively streaming locally AND message count changed
+      const shouldUpdateMessages =
+        resumeSessionId ||
+        (!isStreamingRef.current && conversation.length !== lastStreamedMessageCountRef.current);
+
+      if (shouldUpdateMessages && !isStreamingRef.current) {
         lastStreamedMessageCountRef.current = conversation.length;
 
         const loadedChat: ChatType = {
@@ -118,11 +128,11 @@ function BaseChatContent({
 
         // Log for debugging
         window.electron.logInfo(
-          `Session updated from stream: ${streamedSession.id}, messages: ${conversation.length}`
+          `Session updated from stream: ${streamedSession.id}, messages: ${conversation.length}, in_use: ${streamedSession.in_use}`
         );
       }
     }
-  }, [streamedSession, resumeSessionId, sessionLoadComplete, setChat]);
+  }, [streamedSession, resumeSessionId, sessionLoadComplete, setChat, isStreamingRef]);
 
   // Update messages when chat.sessionId changes (switching sessions)
   // but NOT when just chat.messages changes (to avoid conflicts with streaming)
@@ -414,6 +424,16 @@ function BaseChatContent({
                 />
               </div>
             )}
+
+          {/* Fixed session in progress notice at bottom left */}
+          {isSessionInUse && !isStreamingRef.current && (
+            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+              <div className="text-xs text-blue-700 dark:text-blue-300 bg-blue-400/50 px-3 py-2 rounded-lg shadow-md">
+                <span className="font-semibold">Session in progress</span>
+                <span className="ml-1">• Updates will appear automatically</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div
@@ -445,6 +465,7 @@ function BaseChatContent({
             //autoSubmit={autoSubmit}
             autoSubmit={false}
             //append={append}
+            isSessionInUse={isSessionInUse}
             {...customChatInputProps}
           />
         </div>

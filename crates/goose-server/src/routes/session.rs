@@ -18,7 +18,6 @@ use std::{
     convert::Infallible,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -306,7 +305,6 @@ impl IntoResponse for SessionSseResponse {
 enum SessionEvent {
     Session { session: Box<Session> },
     Error { error: String },
-    Ping,
 }
 
 async fn stream_session_event(event: SessionEvent, tx: &mpsc::Sender<String>) -> bool {
@@ -343,94 +341,36 @@ async fn stream_session(
     State(_state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
 ) -> Result<SessionSseResponse, StatusCode> {
-    // Verify session exists first
-    let initial_session = SessionManager::get_session(&session_id, true)
+    let session_stream = SessionManager::stream_updates(session_id.clone())
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
 
-    // Spawn background task to stream session updates
+    // Spawn background task to convert session stream to SSE events
     tokio::spawn(async move {
-        // Send initial session state immediately
-        if !stream_session_event(
-            SessionEvent::Session {
-                session: Box::new(initial_session.clone()),
-            },
-            &tx,
-        )
-        .await
-        {
-            tracing::info!("Session stream client disconnected");
-            return;
-        }
+        use futures::StreamExt;
 
-        // If session is not in use, close the stream immediately
-        if !initial_session.in_use {
-            tracing::info!("Session {} not in use, closing stream", session_id);
-            return;
-        }
+        tokio::pin!(session_stream);
 
-        // Session is in use, continue streaming until it's no longer in use
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        let mut last_message_count: Option<usize> = Some(initial_session.message_count);
-        let mut last_updated_at: Option<String> = Some(initial_session.updated_at.to_rfc3339());
-
-        loop {
-            interval.tick().await;
-
-            // Fetch current session state
-            match SessionManager::get_session(&session_id, true).await {
+        while let Some(result) = session_stream.next().await {
+            match result {
                 Ok(session) => {
-                    // Check if session has been updated since last check
-                    let updated_at_str = session.updated_at.to_rfc3339();
-                    let has_updates = last_message_count != Some(session.message_count)
-                        || last_updated_at.as_ref() != Some(&updated_at_str);
-
-                    if has_updates {
-                        last_message_count = Some(session.message_count);
-                        last_updated_at = Some(updated_at_str);
-
-                        let session_in_use = session.in_use;
-
-                        if !stream_session_event(
-                            SessionEvent::Session {
-                                session: Box::new(session),
-                            },
-                            &tx,
-                        )
-                        .await
-                        {
-                            tracing::info!("Session stream client disconnected");
-                            break;
-                        }
-
-                        if !session_in_use {
-                            tracing::info!(
-                                "Session {} no longer in use, closing stream",
-                                session_id
-                            );
-                            break;
-                        }
-                    } else {
-                        if !session.in_use {
-                            tracing::info!(
-                                "Session {} no longer in use, closing stream",
-                                session_id
-                            );
-                            break;
-                        }
-
-                        // Send heartbeat ping to keep connection alive
-                        if !stream_session_event(SessionEvent::Ping, &tx).await {
-                            tracing::info!("Session stream client disconnected");
-                            break;
-                        }
+                    if !stream_session_event(
+                        SessionEvent::Session {
+                            session: Box::new(session),
+                        },
+                        &tx,
+                    )
+                    .await
+                    {
+                        tracing::info!("Session stream client disconnected");
+                        break;
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Error fetching session {}: {}", session_id, e);
+                    tracing::error!("Error in session stream: {}", e);
                     let _ = stream_session_event(
                         SessionEvent::Error {
                             error: format!("Failed to fetch session: {}", e),
@@ -442,6 +382,7 @@ async fn stream_session(
                 }
             }
         }
+        tracing::info!("Session stream completed for {}", session_id);
     });
 
     Ok(SessionSseResponse::new(stream))
