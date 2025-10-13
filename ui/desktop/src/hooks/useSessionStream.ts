@@ -36,7 +36,8 @@ export function useSessionStream(
   options: UseSessionStreamOptions = {}
 ): UseSessionStreamResult {
   const { enabled = true, onUpdate, onError } = options;
-  const { getSessionState, refreshSession } = useSessionStreamContext();
+  const { getSessionState, refreshSession, registerStream, unregisterStream } =
+    useSessionStreamContext();
 
   const onUpdateRef = useRef(onUpdate);
   const onErrorRef = useRef(onError);
@@ -52,23 +53,12 @@ export function useSessionStream(
       return;
     }
 
-    interface SessionStreamManager {
-      register: (sessionId: string) => void;
-      unregister: (sessionId: string) => void;
-    }
-
-    const manager = (window as typeof window & { __sessionStreamManager?: SessionStreamManager })
-      .__sessionStreamManager;
-    if (manager) {
-      manager.register(sessionId);
-    }
+    registerStream(sessionId);
 
     return () => {
-      if (manager) {
-        manager.unregister(sessionId);
-      }
+      unregisterStream(sessionId);
     };
-  }, [sessionId, enabled]);
+  }, [sessionId, enabled, registerStream, unregisterStream]);
 
   // Get current state from context
   const state = sessionId
