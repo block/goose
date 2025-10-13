@@ -474,7 +474,7 @@ impl CliSession {
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
                             plan_messages.push(Message::user().with_text(&content));
-                            let reasoner = get_reasoner()?;
+                            let reasoner = get_reasoner().await?;
                             self.plan_with_reasoner_model(plan_messages, reasoner)
                                 .await?;
                         }
@@ -581,7 +581,7 @@ impl CliSession {
                     let mut plan_messages = self.messages.clone();
                     plan_messages.push(Message::user().with_text(&message_text));
 
-                    let reasoner = get_reasoner()?;
+                    let reasoner = get_reasoner().await?;
                     self.plan_with_reasoner_model(plan_messages, reasoner)
                         .await?;
                 }
@@ -1632,7 +1632,7 @@ impl CliSession {
     }
 }
 
-fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
+async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
@@ -1660,7 +1660,7 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let model_config =
         ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
-    let reasoner = create(&provider, model_config)?;
+    let reasoner = create(&provider, model_config).await?;
 
     Ok(reasoner)
 }

@@ -157,6 +157,7 @@ function BaseChatContent({
   // Use shared recipe manager
   const {
     recipe,
+    recipeId,
     recipeParameters,
     filteredParameters,
     initialPrompt,
@@ -478,6 +479,7 @@ function BaseChatContent({
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipe={recipe}
+            recipeId={recipeId}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}

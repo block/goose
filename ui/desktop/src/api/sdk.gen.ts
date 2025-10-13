@@ -274,9 +274,6 @@ export const startTetrateSetup = <ThrowOnError extends boolean = false>(options?
     });
 };
 
-/**
- * Create a Recipe configuration from the current session
- */
 export const createRecipe = <ThrowOnError extends boolean = false>(options: Options<CreateRecipeData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateRecipeResponses, CreateRecipeErrors, ThrowOnError>({
         url: '/recipes/create',

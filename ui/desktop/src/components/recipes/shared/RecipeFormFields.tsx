@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Parameter } from '../../../recipe';
-import { RecipeNameField } from './RecipeNameField';
 
 import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
@@ -24,8 +23,6 @@ interface RecipeFormFieldsProps {
   onInstructionsChange?: (value: string) => void;
   onPromptChange?: (value: string) => void;
   onJsonSchemaChange?: (value: string) => void;
-  onRecipeNameChange?: (value: string) => void;
-  onGlobalChange?: (value: boolean) => void;
 }
 
 export function RecipeFormFields({
@@ -35,13 +32,21 @@ export function RecipeFormFields({
   onInstructionsChange,
   onPromptChange,
   onJsonSchemaChange,
-  onRecipeNameChange,
-  onGlobalChange,
 }: RecipeFormFieldsProps) {
   const [showJsonSchemaEditor, setShowJsonSchemaEditor] = useState(false);
   const [showInstructionsEditor, setShowInstructionsEditor] = useState(false);
   const [newParameterName, setNewParameterName] = useState('');
   const [expandedParameters, setExpandedParameters] = useState<Set<string>>(new Set());
+
+  // Force re-render when instructions, prompt, or activities change
+  const [_forceRender, setForceRender] = useState(0);
+
+  React.useEffect(() => {
+    return form.store.subscribe(() => {
+      // Force re-render when any form field changes to update parameter usage indicators
+      setForceRender((prev) => prev + 1);
+    });
+  }, [form.store]);
 
   const parseParametersFromInstructions = React.useCallback(
     (instructions: string, prompt?: string, activities?: string[]): Parameter[] => {
@@ -457,71 +462,6 @@ export function RecipeFormFields({
               }}
               error={field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined}
             />
-          </div>
-        )}
-      </form.Field>
-
-      {/* Recipe Name Field */}
-      <form.Field name="recipeName">
-        {(field: FormFieldApi<string | undefined>) => (
-          <div>
-            <div data-testid="recipe-name-field">
-              <RecipeNameField
-                id="recipe-name-field"
-                value={field.state.value || ''}
-                onChange={(value) => {
-                  field.handleChange(value);
-                  onRecipeNameChange?.(value);
-                }}
-                onBlur={field.handleBlur}
-                errors={field.state.meta.errors}
-              />
-            </div>
-          </div>
-        )}
-      </form.Field>
-
-      {/* Save Location Field */}
-      <form.Field name="global">
-        {(field: FormFieldApi<boolean>) => (
-          <div data-testid="save-location-field">
-            <label className="block text-sm font-medium text-text-standard mb-2">
-              Save Location
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="save-location"
-                  checked={field.state.value === true}
-                  onChange={() => {
-                    field.handleChange(true);
-                    onGlobalChange?.(true);
-                  }}
-                  className="mr-2"
-                  data-testid="global-radio"
-                />
-                <span className="text-sm text-text-standard">
-                  Global - Available across all Goose sessions
-                </span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="save-location"
-                  checked={field.state.value === false}
-                  onChange={() => {
-                    field.handleChange(false);
-                    onGlobalChange?.(false);
-                  }}
-                  className="mr-2"
-                  data-testid="directory-radio"
-                />
-                <span className="text-sm text-text-standard">
-                  Directory - Available in the working directory
-                </span>
-              </label>
-            </div>
           </div>
         )}
       </form.Field>

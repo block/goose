@@ -260,7 +260,6 @@ function BaseChatContent({
     </>
   );
 
-  // Only show popular topics if there are no messages AND we're not loading a session
   const showPopularTopics = messages.length === 0 && !resumeSessionId;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;

@@ -15,6 +15,7 @@ import { ChatSmart, Gear } from '../icons';
 import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import EnvironmentBadge from './EnvironmentBadge';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -165,7 +166,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter />
+      <SidebarFooter className="pb-2 flex items-start">
+        <EnvironmentBadge />
+      </SidebarFooter>
     </>
   );
 };

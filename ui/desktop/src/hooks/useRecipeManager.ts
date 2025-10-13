@@ -28,6 +28,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
+  const hasCheckedRecipeRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -56,6 +57,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setRecipeAccepted(false);
         setIsParameterModalOpen(false);
         setIsRecipeWarningModalOpen(false);
+        hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
         chatContext.setChat({
           ...chatContext.chat,
@@ -77,14 +79,23 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
+      // Only check once per recipe load
+      if (hasCheckedRecipeRef.current) {
+        return;
+      }
+
       if (finalRecipe) {
+        hasCheckedRecipeRef.current = true;
+
         // If the recipe comes from session metadata (not from navigation state),
         // it means it was already accepted in a previous session, so auto-accept it
-        const isFromSessionMetadata = !recipe && finalRecipe;
+        const hasMessages = chat.messages.length > 0;
+        const isFromSessionMetadata = !recipe && finalRecipe && hasMessages;
 
         if (isFromSessionMetadata) {
           // Recipe loaded from session metadata should be automatically accepted
           setRecipeAccepted(true);
+          setIsRecipeWarningModalOpen(false);
           return;
         }
 
@@ -110,7 +121,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     };
 
     checkRecipeAcceptance();
-  }, [finalRecipe, recipe]);
+  }, [finalRecipe, recipe, chat.messages.length]);
 
   // Filter parameters to only show valid ones that are actually used in the recipe
   const filteredParameters = useMemo(() => {
@@ -288,8 +299,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     });
   };
 
+  const recipeId: string | null =
+    (window.appConfig.get('recipeId') as string | null | undefined) ?? null;
+
   return {
     recipe: finalRecipe,
+    recipeId,
     recipeParameters,
     filteredParameters,
     initialPrompt,

@@ -20,7 +20,7 @@ use super::utils::{
 };
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
@@ -48,10 +48,8 @@ pub struct TetrateProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(TetrateProvider);
-
 impl TetrateProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("TETRATE_API_KEY")?;
         // API host for LLM endpoints (/v1/chat/completions, /v1/models)

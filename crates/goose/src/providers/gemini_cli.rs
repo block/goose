@@ -10,7 +10,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -26,10 +26,8 @@ pub struct GeminiCliProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GeminiCliProvider);
-
 impl GeminiCliProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
             .get_param("GEMINI_CLI_COMMAND")
@@ -364,31 +362,21 @@ impl Provider for GeminiCliProvider {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_gemini_cli_model_config() {
-        let provider = GeminiCliProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "gemini-2.5-pro");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
-    fn test_gemini_cli_invalid_model_no_fallback() {
+    #[tokio::test]
+    async fn test_gemini_cli_invalid_model_no_fallback() {
         // Test that an invalid model is kept as-is (no fallback)
         let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = GeminiCliProvider::from_env(invalid_model).unwrap();
+        let provider = GeminiCliProvider::from_env(invalid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "invalid-model");
     }
 
-    #[test]
-    fn test_gemini_cli_valid_model() {
+    #[tokio::test]
+    async fn test_gemini_cli_valid_model() {
         // Test that a valid model is preserved
         let valid_model = ModelConfig::new_or_fail(GEMINI_CLI_DEFAULT_MODEL);
-        let provider = GeminiCliProvider::from_env(valid_model).unwrap();
+        let provider = GeminiCliProvider::from_env(valid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, GEMINI_CLI_DEFAULT_MODEL);

@@ -22,7 +22,7 @@ import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
-import { COST_TRACKING_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
@@ -82,6 +82,7 @@ interface ChatInputProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipe?: Recipe | null;
+  recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -109,6 +110,7 @@ export default function ChatInput({
   sessionCosts,
   setIsGoosehintsModalOpen,
   recipe,
+  recipeId,
   recipeAccepted,
   initialPrompt,
   toolCount,
@@ -1182,9 +1184,6 @@ export default function ChatInput({
     !agentIsReady ||
     isExtensionsLoading;
 
-  const isUserInputDisabled =
-    isAnyImageLoading || isAnyDroppedFileLoading || isRecording || isTranscribing || isCompacting;
-
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1299,7 +1298,6 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1346,7 +1344,8 @@ export default function ChatInput({
                         OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Models.</b>
                       </p>
-                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
+                      dictationSettings.provider === 'elevenlabs' ? (
                       <p>
                         ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Chat</b> {'>'} <b>Voice Dictation.</b>
@@ -1619,6 +1618,7 @@ export default function ChatInput({
                 setView={setView}
                 alerts={alerts}
                 recipe={recipe}
+                recipeId={recipeId}
                 hasMessages={messages.length > 0}
               />
             </div>

@@ -931,7 +931,6 @@
         "tags": [
           "Recipe Management"
         ],
-        "summary": "Create a Recipe configuration from the current session",
         "operationId": "create_recipe",
         "requestBody": {
           "content": {
@@ -3654,7 +3653,6 @@
       "RecipeManifestResponse": {
         "type": "object",
         "required": [
-          "name",
           "recipe",
           "lastModified",
           "id"
@@ -3664,9 +3662,6 @@
             "type": "string"
           },
           "lastModified": {
-            "type": "string"
-          },
-          "name": {
             "type": "string"
           },
           "recipe": {
@@ -3876,10 +3871,6 @@
         "properties": {
           "id": {
             "type": "string",
-            "nullable": true
-          },
-          "is_global": {
-            "type": "boolean",
             "nullable": true
           },
           "recipe": {

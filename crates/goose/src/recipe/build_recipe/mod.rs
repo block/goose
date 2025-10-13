@@ -1,11 +1,12 @@
 use crate::recipe::read_recipe_file_content::{read_parameter_file_content, RecipeFile};
-use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_content_with_params};
+use crate::recipe::template_recipe::render_recipe_content_with_params;
+use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
 };
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
@@ -34,7 +35,11 @@ where
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
-    let recipe_parameters = validate_recipe_parameters(&recipe_file_content, recipe_dir_str)?;
+    let recipe_parameters = validate_recipe_template_from_content(
+        &recipe_file_content,
+        Some(recipe_dir_str.to_string()),
+    )?
+    .parameters;
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, recipe_dir_str, user_prompt_fn)?;
@@ -46,18 +51,6 @@ where
     };
 
     Ok((rendered_content, missing_params))
-}
-
-pub fn validate_recipe_parameters(
-    recipe_file_content: &str,
-    recipe_dir_str: &str,
-) -> Result<Option<Vec<RecipeParameter>>> {
-    let (raw_recipe, template_variables) =
-        parse_recipe_content(recipe_file_content, recipe_dir_str.to_string())?;
-    let recipe_parameters = raw_recipe.parameters;
-    validate_optional_parameters(&recipe_parameters)?;
-    validate_parameters_in_template(&recipe_parameters, &template_variables)?;
-    Ok(recipe_parameters)
 }
 
 pub fn build_recipe_from_template<F>(
@@ -92,87 +85,6 @@ where
     }
 
     Ok(recipe)
-}
-
-fn validate_parameters_in_template(
-    recipe_parameters: &Option<Vec<RecipeParameter>>,
-    template_variables: &HashSet<String>,
-) -> Result<()> {
-    let mut template_variables = template_variables.clone();
-    template_variables.remove(BUILT_IN_RECIPE_DIR_PARAM);
-
-    let param_keys: HashSet<String> = recipe_parameters
-        .as_ref()
-        .unwrap_or(&vec![])
-        .iter()
-        .map(|p| p.key.clone())
-        .collect();
-
-    let missing_keys = template_variables
-        .difference(&param_keys)
-        .collect::<Vec<_>>();
-
-    let extra_keys = param_keys
-        .difference(&template_variables)
-        .collect::<Vec<_>>();
-
-    if missing_keys.is_empty() && extra_keys.is_empty() {
-        return Ok(());
-    }
-
-    let mut message = String::new();
-
-    if !missing_keys.is_empty() {
-        message.push_str(&format!(
-            "Missing definitions for parameters in the recipe file: {}.",
-            missing_keys
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-
-    if !extra_keys.is_empty() {
-        message.push_str(&format!(
-            "\nUnnecessary parameter definitions: {}.",
-            extra_keys
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    Err(anyhow::anyhow!("{}", message.trim_end()))
-}
-
-fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Result<()> {
-    let empty_params = vec![];
-    let params = parameters.as_ref().unwrap_or(&empty_params);
-
-    let file_params_with_defaults: Vec<String> = params
-        .iter()
-        .filter(|p| matches!(p.input_type, RecipeParameterInputType::File) && p.default.is_some())
-        .map(|p| p.key.clone())
-        .collect();
-
-    if !file_params_with_defaults.is_empty() {
-        return Err(anyhow::anyhow!("File parameters cannot have default values to avoid importing sensitive user files: {}", file_params_with_defaults.join(", ")));
-    }
-
-    let optional_params_without_default_values: Vec<String> = params
-        .iter()
-        .filter(|p| {
-            matches!(p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
-        })
-        .map(|p| p.key.clone())
-        .collect();
-
-    if optional_params_without_default_values.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
-    }
 }
 
 pub fn apply_values_to_parameters<F>(

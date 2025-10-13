@@ -9,7 +9,7 @@ import { RecipeFormData } from './shared/recipeFormSchema';
 import { createRecipe } from '../../api/sdk.gen';
 import { RecipeParameter } from './shared/recipeFormSchema';
 import { toastError } from '../../toasts';
-import { generateRecipeFilename } from '../../recipe/recipeStorage';
+import { saveRecipe } from '../../recipe/recipe_management';
 
 interface CreateRecipeFromSessionModalProps {
   isOpen: boolean;
@@ -91,7 +91,6 @@ export default function CreateRecipeFromSessionModal({
             form.setFieldValue('instructions', recipe.instructions || '');
             form.setFieldValue('activities', recipe.activities || []);
             form.setFieldValue('parameters', recipe.parameters || []);
-            form.setFieldValue('recipeName', generateRecipeFilename(recipe));
 
             if (recipe.response?.json_schema) {
               form.setFieldValue(
@@ -184,12 +183,7 @@ export default function CreateRecipeFromSessionModal({
         extensions: [], // Will be populated based on current extensions
       };
 
-      const { saveRecipe } = await import('../../recipe/recipeStorage');
-      await saveRecipe(recipe, {
-        name: formData.recipeName || formData.title,
-        title: formData.title,
-        global: formData.global,
-      });
+      await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();

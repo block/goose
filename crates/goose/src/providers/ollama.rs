@@ -6,7 +6,7 @@ use super::utils::{get_model, handle_response_openai_compat, handle_status_opena
 use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
@@ -43,10 +43,8 @@ pub struct OllamaProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(OllamaProvider);
-
 impl OllamaProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OLLAMA_HOST")
