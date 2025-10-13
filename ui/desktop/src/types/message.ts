@@ -87,6 +87,9 @@ function generateId(): string {
 }
 
 export function getTextContent(message: Message): string {
+  if (!message.content) {
+    return '';
+  }
   return message.content
     .map((content) => {
       if (content.type === 'text') return content.text;
@@ -97,12 +100,18 @@ export function getTextContent(message: Message): string {
 }
 
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
+  if (!message.content) {
+    return [];
+  }
   return message.content.filter(
     (content): content is ToolRequest & { type: 'toolRequest' } => content.type === 'toolRequest'
   );
 }
 
 export function getToolResponses(message: Message): (ToolResponse & { type: 'toolResponse' })[] {
+  if (!message.content) {
+    return [];
+  }
   return message.content.filter(
     (content): content is ToolResponse & { type: 'toolResponse' } => content.type === 'toolResponse'
   );
@@ -111,6 +120,9 @@ export function getToolResponses(message: Message): (ToolResponse & { type: 'too
 export function getToolConfirmationContent(
   message: Message
 ): (ToolConfirmationRequest & { type: 'toolConfirmationRequest' }) | undefined {
+  if (!message.content) {
+    return undefined;
+  }
   return message.content.find(
     (content): content is ToolConfirmationRequest & { type: 'toolConfirmationRequest' } =>
       content.type === 'toolConfirmationRequest'
