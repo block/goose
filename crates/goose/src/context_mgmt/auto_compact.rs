@@ -331,6 +331,7 @@ mod tests {
             conversation: Some(conversation),
             message_count,
             user_recipe_values: None,
+            // in_use is not relevant for compaction - compaction only checks token counts
             in_use: false,
         }
     }
