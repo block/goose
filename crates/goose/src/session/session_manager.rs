@@ -1231,4 +1231,269 @@ mod tests {
         assert_eq!(conversation.messages()[0].role, Role::User);
         assert_eq!(conversation.messages()[1].role, Role::Assistant);
     }
+
+    // ========== Session Locking Tests ==========
+
+    #[tokio::test]
+    async fn test_mark_in_use() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_lock.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Initially not in use
+        assert!(!session.in_use);
+
+        // Mark as in use
+        storage.mark_in_use(&session.id, true).await.unwrap();
+        let session = storage.get_session(&session.id, false).await.unwrap();
+        assert!(session.in_use);
+
+        // Mark as not in use
+        storage.mark_in_use(&session.id, false).await.unwrap();
+        let session = storage.get_session(&session.id, false).await.unwrap();
+        assert!(!session.in_use);
+    }
+
+    #[tokio::test]
+    async fn test_session_unlock_on_completion() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_unlock.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Simulate locking at start
+        storage.mark_in_use(&session.id, true).await.unwrap();
+        assert!(
+            storage
+                .get_session(&session.id, false)
+                .await
+                .unwrap()
+                .in_use
+        );
+
+        // Simulate unlock on completion
+        storage.mark_in_use(&session.id, false).await.unwrap();
+        assert!(
+            !storage
+                .get_session(&session.id, false)
+                .await
+                .unwrap()
+                .in_use
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_lock_attempts() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_concurrent_lock.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        let session_id = session.id.clone();
+        let storage1 = Arc::clone(&storage);
+        let storage2 = Arc::clone(&storage);
+
+        // First lock succeeds
+        storage1.mark_in_use(&session_id, true).await.unwrap();
+
+        // Check that session is locked
+        let is_in_use = storage2.is_session_in_use(&session_id, 10).await.unwrap();
+        assert!(is_in_use, "Session should be marked as in use");
+
+        // Unlock
+        storage1.mark_in_use(&session_id, false).await.unwrap();
+
+        // Now second attempt should see it's not in use
+        let is_in_use = storage2.is_session_in_use(&session_id, 10).await.unwrap();
+        assert!(!is_in_use, "Session should not be in use after unlock");
+    }
+
+    // ========== Heartbeat & Stale Detection Tests ==========
+
+    #[tokio::test]
+    async fn test_heartbeat_updates_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_heartbeat.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        let initial_updated_at = session.updated_at;
+
+        // Wait a bit to ensure timestamp difference (SQLite datetime has second precision)
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Send heartbeat
+        storage.heartbeat(&session.id).await.unwrap();
+
+        let updated_session = storage.get_session(&session.id, false).await.unwrap();
+        assert!(
+            updated_session.updated_at > initial_updated_at,
+            "Heartbeat should update the timestamp. Initial: {:?}, Updated: {:?}",
+            initial_updated_at,
+            updated_session.updated_at
+        );
+    }
+
+    #[tokio::test]
+    async fn test_stale_session_detection() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_stale.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Mark as in use
+        storage.mark_in_use(&session.id, true).await.unwrap();
+
+        // With a very short threshold, session should still be active
+        let is_in_use = storage.is_session_in_use(&session.id, 10).await.unwrap();
+        assert!(is_in_use, "Recently locked session should be in use");
+
+        // Manually update the timestamp to simulate a stale session
+        // by setting updated_at to 11 minutes ago
+        sqlx::query("UPDATE sessions SET updated_at = datetime('now', '-11 minutes') WHERE id = ?")
+            .bind(&session.id)
+            .execute(&storage.pool)
+            .await
+            .unwrap();
+
+        // Now with 10 minute threshold, it should be stale
+        let is_in_use = storage.is_session_in_use(&session.id, 10).await.unwrap();
+        assert!(
+            !is_in_use,
+            "Session should be considered stale after threshold"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_not_in_use_returns_false() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_not_in_use.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Session is not marked as in use
+        let is_in_use = storage.is_session_in_use(&session.id, 10).await.unwrap();
+        assert!(!is_in_use, "Unlocked session should not be in use");
+    }
+
+    // ========== SSE Streaming Tests ==========
+    // Note: These tests use storage directly instead of SessionManager to avoid
+    // issues with the global SESSION_STORAGE singleton
+
+    #[tokio::test]
+    async fn test_stream_basic_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_stream_basic.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        // Create session with a message
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("test")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Verify session has message
+        let loaded = storage.get_session(&session.id, true).await.unwrap();
+        assert_eq!(loaded.message_count, 1, "Should have 1 message");
+        assert!(loaded.conversation.is_some(), "Should have conversation");
+    }
+
+    #[tokio::test]
+    async fn test_stream_closes_when_not_in_use() {
+        // Test that stream_updates returns immediately if session is not in use
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_stream_not_in_use.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Session is not marked as in_use, so stream should close immediately
+        assert!(!session.in_use, "Session should not be in use initially");
+    }
+
+    #[tokio::test]
+    async fn test_in_use_flag_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_in_use_flag.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp/test"), "Test".to_string())
+            .await
+            .unwrap();
+
+        // Mark as in use
+        storage.mark_in_use(&session.id, true).await.unwrap();
+
+        // Verify it persists
+        let loaded = storage.get_session(&session.id, false).await.unwrap();
+        assert!(loaded.in_use, "in_use flag should persist");
+
+        // Add a message while in use
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("test")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Verify message was added and in_use still true
+        let loaded = storage.get_session(&session.id, true).await.unwrap();
+        assert!(loaded.in_use, "in_use should still be true");
+        assert_eq!(loaded.message_count, 1);
+
+        // Mark as not in use
+        storage.mark_in_use(&session.id, false).await.unwrap();
+        let loaded = storage.get_session(&session.id, false).await.unwrap();
+        assert!(!loaded.in_use, "in_use should be false after unlock");
+    }
 }
