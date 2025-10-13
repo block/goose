@@ -277,7 +277,6 @@ function BaseChatContent({
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
   return (
     <div className="h-full flex flex-col min-h-0">
-      <h2>Warning: BaseChat2!</h2>
       <MainPanelLayout
         backgroundColor={'bg-background-muted'}
         removeTopPadding={true}
