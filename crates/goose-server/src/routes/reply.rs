@@ -215,15 +215,10 @@ pub async fn reply(
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        if let Err(e) = SessionManager::mark_in_use(&session_id, true).await {
-            tracing::error!("Failed to mark session as in use: {}", e);
-        }
-
         let agent = match state.get_agent(session_id.clone()).await {
             Ok(agent) => agent,
             Err(e) => {
                 tracing::error!("Failed to get session agent: {}", e);
-                let _ = SessionManager::mark_in_use(&session_id, false).await;
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: format!("Failed to get session agent: {}", e),
@@ -240,7 +235,6 @@ pub async fn reply(
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session for {}: {}", session_id, e);
-                let _ = SessionManager::mark_in_use(&session_id, false).await;
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: format!("Failed to read session: {}", e),
@@ -400,10 +394,6 @@ pub async fn reply(
                 interface = "ui",
                 "Session duration"
             );
-        }
-
-        if let Err(e) = SessionManager::mark_in_use(&session_id, false).await {
-            tracing::error!("Failed to mark session as not in use: {}", e);
         }
 
         let _ = stream_event(

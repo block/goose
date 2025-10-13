@@ -995,6 +995,22 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Check if session is already in use (with 10 minute stale threshold)
+        const STALE_LOCK_MINUTES: u64 = 10;
+
+        if let Some(ref session_config) = session {
+            let is_in_use =
+                SessionManager::is_session_in_use(&session_config.id, STALE_LOCK_MINUTES).await?;
+            if is_in_use {
+                return Err(anyhow::anyhow!(
+                    "Session {} is currently in use by another request. Please wait for the current operation to complete.",
+                    session_config.id
+                ));
+            }
+
+            SessionManager::mark_in_use(&session_config.id, true).await?;
+        }
+
         let context = self.prepare_reply_context(conversation, &session).await?;
         let ReplyContext {
             mut conversation,
@@ -1389,6 +1405,20 @@ impl Agent {
                 }
 
                 tokio::task::yield_now().await;
+
+                // Update heartbeat after each turn to show session is still active
+                if let Some(ref session_config) = session {
+                    if let Err(e) = SessionManager::heartbeat(&session_config.id).await {
+                        warn!("Failed to update session heartbeat: {}", e);
+                    }
+                }
+            }
+
+            // Mark session as not in use when done (success or cancellation)
+            if let Some(ref session_config) = session {
+                if let Err(e) = SessionManager::mark_in_use(&session_config.id, false).await {
+                    error!("Failed to mark session as not in use on completion: {}", e);
+                }
             }
         }))
     }

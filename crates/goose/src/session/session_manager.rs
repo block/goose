@@ -246,6 +246,17 @@ impl SessionManager {
     pub async fn mark_in_use(id: &str, in_use: bool) -> Result<()> {
         Self::instance().await?.mark_in_use(id, in_use).await
     }
+
+    pub async fn heartbeat(id: &str) -> Result<()> {
+        Self::instance().await?.heartbeat(id).await
+    }
+
+    pub async fn is_session_in_use(id: &str, stale_minutes: u64) -> Result<bool> {
+        Self::instance()
+            .await?
+            .is_session_in_use(id, stale_minutes)
+            .await
+    }
 }
 
 pub struct SessionStorage {
@@ -887,6 +898,28 @@ impl SessionStorage {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn heartbeat(&self, session_id: &str) -> Result<()> {
+        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn is_session_in_use(&self, session_id: &str, stale_minutes: u64) -> Result<bool> {
+        let session = self.get_session(session_id, false).await?;
+
+        if !session.in_use {
+            return Ok(false);
+        }
+
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(session.updated_at);
+        let stale_threshold = chrono::Duration::minutes(stale_minutes as i64);
+
+        Ok(elapsed < stale_threshold)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
