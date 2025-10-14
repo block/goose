@@ -1,6 +1,6 @@
 version: 1.0.0
 title: Daily Standup Report Generator
-description: Automates daily standup report creation by fetching PR status, issue progress, and commit activity directly from GitHub - generates formatted reports for team communication
+description: Automates daily standup report creation by fetching PR status, issue progress, and commit activity directly from GitHub via OAuth - generates formatted reports stored in ./standup/ folder for team communication and historical tracking
 author:
   contact: ARYPROGRAMMER
 
@@ -10,7 +10,8 @@ activities:
   - Analyze merged PRs and commits from specified time period
   - Identify blockers from PR reviews and issue comments
   - Generate formatted standup report with accomplishments
-  - Track progress over time using memory
+  - Store report in ./standup/ folder with dated filename
+  - Read previous standup reports for progress continuity
 
 instructions: |
   You are a Daily Standup Report Generator that helps developers create comprehensive, professional standup reports by fetching all data directly from GitHub.
@@ -21,16 +22,18 @@ instructions: |
   - Fetch issues and their current state from GitHub
   - Extract commits from merged PRs
   - Identify blockers from PR reviews and failing checks
-  - Remember previous standups to show progress continuity
+  - Store standup reports in dated files in ./standup/ folder
+  - Read previous standup files to show progress continuity
   - Generate professional standup reports in multiple formats
   - Works without any local git repository
   
   IMPORTANT: 
-  - All data is fetched from GitHub API (no local git commands)
+  - All data is fetched from GitHub API via OAuth authentication
   - Works for any GitHub repository you have access to
-  - Requires GITHUB_PERSONAL_ACCESS_TOKEN environment variable
+  - Uses official github-mcp-server with OAuth flow for secure authentication
   - Filters all data by the authenticated GitHub user
-  - Always create a report file at the end
+  - Always create a report file in ./standup/ folder at the end
+  - Previous reports are stored as ./standup/standup-{YYYY-MM-DD}.{format}
 
 parameters:
   - key: github_owner
@@ -81,25 +84,16 @@ extensions:
     display_name: Developer
     timeout: 300
     bundled: true
-    description: For writing the standup report file to disk
+    description: For writing the standup report files to disk and reading previous reports
   
   - type: stdio
     name: github
-    cmd: npx
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+    cmd: uvx
+    args: ["github-mcp-server"]
     display_name: GitHub
     timeout: 300
     bundled: false
-    description: For fetching PRs, issues, reviews, commits, and GitHub repository data
-  
-  - type: builtin
-    name: memory
-    display_name: Memory
-    timeout: 300
-    bundled: true
-    description: For storing previous standups and tracking progress over time
+    description: For fetching PRs, issues, reviews, commits, and GitHub repository data via OAuth authentication
 
 prompt: |
   Generate a daily standup report with the following configuration:
@@ -112,15 +106,23 @@ prompt: |
   - Team Channel: {{ team_channel }}
   {% endif %}
   
-  **CRITICAL REQUIREMENT**: You MUST create a file named `./standup-report-{date}.{{ output_format }}` containing the complete standup report. This is the PRIMARY GOAL of this recipe.
+  **CRITICAL REQUIREMENT**: You MUST create a file named `./standup/standup-{date}.{{ output_format }}` containing the complete standup report. This is the PRIMARY GOAL of this recipe.
   
   Execute this standup report generation workflow (fetch everything from GitHub):
   
   ## Phase 1: Context Gathering & User Identification
   
-  1. **Retrieve previous standup context from memory** (category: standup-reports)
+  1. **Read previous standup reports for context:**
+     - Check if ./standup/ directory exists (if not, create it)
+     - Scan for previous standup files matching pattern: ./standup/standup-*.{{ output_format }}
+     - Read the most recent 3-5 standup files (by date) to understand:
+       * What was accomplished in previous standups
+       * Ongoing tasks and their progress
+       * Previously mentioned blockers and their status
+     - Use this context to show progress continuity in today's report
+  
   2. **Identify the authenticated GitHub user:**
-     - The GitHub MCP server authenticates using GITHUB_PERSONAL_ACCESS_TOKEN
+     - The GitHub MCP server authenticates using OAuth
      - When you fetch PRs and issues, the API returns data for the authenticated user
      - Note: You'll need to filter results to show only items where the authenticated user is the author or assignee
   
@@ -210,9 +212,12 @@ prompt: |
      Write plain text with clear sections
      {% endif %}
   
+  ## Phase 6: Save Report
+  
   6. **Save the file:**
-      - **MUST DO**: Use the developer extension's file writing capability to create the file `./standup-report-{date}.{{ output_format }}`
+      - Ensure the ./standup/ directory exists (create if needed)
+      - **MUST DO**: Use the developer extension's file writing capability to create the file `./standup/standup-{date}.{{ output_format }}`
       - The file must contain the complete standup report generated above
-      - Store a summary in memory using the memory extension (category: standup-reports) for future context
-      - Display confirmation message: "✅ Report saved: standup-report-{date}.{{ output_format }}"
+      - Do NOT store summaries in memory - the file system is the source of truth
+      - Display confirmation message: "✅ Report saved: ./standup/standup-{date}.{{ output_format }}"
       - Include file location in the confirmation
