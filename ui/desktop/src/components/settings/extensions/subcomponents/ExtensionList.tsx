@@ -86,7 +86,7 @@ export function getFriendlyTitle(extension: FixedExtensionEntry): string {
     extension.name;
   return name
     .split(/[-_]/) // Split on hyphens and underscores
-    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 

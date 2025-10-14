@@ -1449,9 +1449,6 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .list_tools(Some(selected_extension_name.clone()))
         .await
         .into_iter()
-        .filter(|tool| {
-            tool.name != LIST_RESOURCES_TOOL_NAME && tool.name != READ_RESOURCE_TOOL_NAME
-        })
         .map(|tool| {
             ToolInfo::new(
                 &tool.name,

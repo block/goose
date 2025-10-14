@@ -57,6 +57,7 @@ enum RecipeExtensionConfigInternal {
         name: String,
         #[serde(default)]
         description: Option<String>,
+        display_name: Option<String>,
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -152,6 +153,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 available_tools
             },
             Platform {
+                display_name,
                 bundled,
                 available_tools
             },
