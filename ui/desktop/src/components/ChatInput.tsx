@@ -1112,6 +1112,11 @@ export default function ChatInput({
 
       evt.preventDefault();
 
+      // Check if submit button is disabled - if so, don't allow Enter key submission
+      if (isSubmitButtonDisabled) {
+        return;
+      }
+
       // Handle interruption and queue logic
       if (handleInterruptionAndQueue()) {
         return;
