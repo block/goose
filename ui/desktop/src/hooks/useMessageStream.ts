@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls } from '../types/message';
-import { Message, Role } from '../api';
+import { Conversation, Message, Role } from '../api';
 
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
@@ -34,6 +34,7 @@ type MessageEvent =
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -325,6 +326,11 @@ export function useMessageStream({
                       mode: parsedEvent.mode,
                     };
                     setCurrentModelInfo(modelInfo);
+                    break;
+                  }
+
+                  case 'UpdateConversation': {
+                    setMessages(parsedEvent.conversation);
                     break;
                   }
 

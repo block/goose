@@ -127,7 +127,7 @@ fn get_agent_messages(
             }
         }
 
-        let mut session_messages =
+        let mut conversation =
             Conversation::new_unvalidated(
                 vec![Message::user().with_text(text_instruction.clone())],
             );
@@ -141,15 +141,16 @@ fn get_agent_messages(
         };
 
         let mut stream = agent
-            .reply(session_messages.clone(), Some(session_config), None)
+            .reply(conversation.clone(), Some(session_config), None)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
-                Ok(AgentEvent::Message(msg)) => session_messages.push(msg),
-                Ok(AgentEvent::McpNotification(_))
-                | Ok(AgentEvent::ModelChange { .. })
-                | Ok(AgentEvent::HistoryReplaced(_)) => {}
+                Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
                 Err(e) => {
                     tracing::error!("Error receiving message from subagent: {}", e);
                     break;
@@ -157,6 +158,6 @@ fn get_agent_messages(
             }
         }
 
-        Ok(session_messages)
+        Ok(conversation)
     })
 }

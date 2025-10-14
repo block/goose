@@ -163,7 +163,7 @@ impl CliSession {
         agent: &Agent,
         message_suffix: &str,
     ) -> Result<()> {
-        let (summarized_messages, _, _) = agent.summarize_context(messages.messages()).await?;
+        let (summarized_messages, _, _) = agent.compact_messages(messages.messages()).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
         *messages = summarized_messages;
@@ -677,7 +677,7 @@ impl CliSession {
                         // Call the summarize_context method
                         let (summarized_messages, _token_counts, summarization_usage) = self
                             .agent
-                            .summarize_context(self.messages.messages())
+                            .compact_messages(self.messages.messages())
                             .await?;
 
                         // Update the session messages with the summarized ones
@@ -947,7 +947,6 @@ impl CliSession {
 
                                 let selected = match context_strategy.as_str() {
                                     "clear" => "clear",
-                                    "truncate" => "truncate",
                                     "summarize" => "summarize",
                                     _ => {
                                         if interactive {
@@ -975,18 +974,6 @@ impl CliSession {
                                         };
                                         output::render_text(&msg, Some(Color::Yellow), true);
                                         break;  // exit the loop to hand back control to the user
-                                    }
-                                    "truncate" => {
-                                        // Truncate messages to fit within context length
-                                        let (truncated_messages, _) = self.agent.truncate_context(self.messages.messages()).await?;
-                                        let msg = if context_strategy == "truncate" {
-                                            format!("Context maxed out - automatically truncated messages.\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
-                                        } else {
-                                            format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
-                                        };
-                                        output::render_text("", Some(Color::Yellow), true);
-                                        output::render_text(&msg, Some(Color::Yellow), true);
-                                        self.messages = truncated_messages;
                                     }
                                     "summarize" => {
                                         // Use the helper function to summarize context
@@ -1171,10 +1158,10 @@ impl CliSession {
                                 _ => (),
                             }
                         }
-            Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
-                self.messages = Conversation::new_unvalidated(new_messages.clone());
-            }
-            Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                        Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
+                            self.messages = updated_conversation;
+                        }
+                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             // Log model change if in debug mode
                             if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
@@ -1182,6 +1169,7 @@ impl CliSession {
                         }
 
                         Some(Err(e)) => {
+                            // TODO(Douwe): Delete this
                             // Check if it's a ProviderError::ContextLengthExceeded
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))

@@ -1200,7 +1200,7 @@ async fn run_scheduled_job_internal(
     }
 
     if let Some(ref prompt_text) = recipe.prompt {
-        let mut all_session_messages =
+        let mut conversation =
             Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
         let session_config = SessionConfig {
@@ -1213,11 +1213,7 @@ async fn run_scheduled_job_internal(
         };
 
         match agent
-            .reply(
-                all_session_messages.clone(),
-                Some(session_config.clone()),
-                None,
-            )
+            .reply(conversation.clone(), Some(session_config.clone()), None)
             .await
         {
             Ok(mut stream) => {
@@ -1231,11 +1227,13 @@ async fn run_scheduled_job_internal(
                             if msg.role == rmcp::model::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
-                            all_session_messages.push(msg);
+                            conversation.push(msg);
                         }
                         Ok(AgentEvent::McpNotification(_)) => {}
                         Ok(AgentEvent::ModelChange { .. }) => {}
-                        Ok(AgentEvent::HistoryReplaced(_)) => {}
+                        Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                            conversation = updated_conversation;
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
