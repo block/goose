@@ -150,7 +150,7 @@ pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<A
 
     // Perform the compaction on messages excluding the preserved user message
     let (mut compacted_messages, _, summarization_usage) =
-        agent.summarize_context(messages_to_compact).await?;
+        agent.compact_messages(messages_to_compact).await?;
 
     // Add back the preserved user message if it exists
     if let Some(user_message) = preserved_user_message {

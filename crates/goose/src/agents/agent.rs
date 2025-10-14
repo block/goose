@@ -112,7 +112,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
-    HistoryReplaced(Vec<Message>),
+    HistoryReplaced(Conversation),
 }
 
 impl Default for Agent {
@@ -972,7 +972,7 @@ impl Agent {
                 yield AgentEvent::Message(
                     Message::assistant().with_summarization_requested(compaction_message)
                 );
-                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+                yield AgentEvent::HistoryReplaced(conversation.clone());
                 if let Some(session_to_store) = &session {
                     SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                 }
@@ -1306,7 +1306,7 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
                             match auto_compact::perform_compaction(self, conversation.messages()).await {
@@ -1318,16 +1318,17 @@ impl Agent {
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );
-                                    yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                                     }
                                     continue;
                                 }
-                                Err(_) => {
-                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
-                                    ));
+                                Err(e) => {
+                                    error!("Error: {}", e);
+                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                        ));
                                     break;
                                 }
                             }

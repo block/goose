@@ -1,68 +1,74 @@
-use anyhow::Ok;
-
 use crate::conversation::message::{Message, MessageMetadata};
 use crate::conversation::Conversation;
-use crate::token_counter::create_async_token_counter;
-
-use crate::context_mgmt::summarize::summarize_messages;
-use crate::context_mgmt::truncate::{truncate_messages, OldestFirstTruncation};
-use crate::context_mgmt::{estimate_target_context_limit, get_messages_token_counts_async};
+use anyhow::Ok;
+use rmcp::model::Role;
+use serde::Serialize;
+use std::sync::Arc;
 
 use super::super::agents::Agent;
+use crate::prompt_template::render_global_file;
 
-impl Agent {
-    /// Public API to truncate oldest messages so that the conversation's token count is within the allowed context limit.
-    pub async fn truncate_context(
-        &self,
-        messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
-    ) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
-        let provider = self.provider().await?;
-        let token_counter = create_async_token_counter()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-        let target_context_limit = estimate_target_context_limit(provider);
-        let token_counts = get_messages_token_counts_async(&token_counter, messages);
+#[derive(Serialize)]
+struct SummarizeContext {
+    messages: String,
+}
 
-        let (mut new_messages, mut new_token_counts) = truncate_messages(
-            messages,
-            &token_counts,
-            target_context_limit,
-            &OldestFirstTruncation,
-        )?;
+use crate::providers::base::{Provider, ProviderUsage};
 
-        // Only add an assistant message if we have room for it and it won't cause another overflow
-        let assistant_message = Message::assistant().with_text("I had run into a context length exceeded error so I truncated some of the oldest messages in our conversation.");
-        let assistant_tokens =
-            token_counter.count_chat_tokens("", std::slice::from_ref(&assistant_message), &[]);
-
-        let current_total: usize = new_token_counts.iter().sum();
-        if current_total + assistant_tokens <= target_context_limit {
-            new_messages.push(assistant_message);
-            new_token_counts.push(assistant_tokens);
-        } else {
-            // If we can't fit the assistant message, at least log what happened
-            tracing::warn!("Cannot add truncation notice message due to context limits. Current: {}, Assistant: {}, Limit: {}", 
-                          current_total, assistant_tokens, target_context_limit);
-        }
-
-        Ok((new_messages, new_token_counts))
+/// Summarization function that uses the detailed prompt from the markdown template
+async fn do_compact_messages(
+    provider: Arc<dyn Provider>,
+    messages: &[Message],
+) -> anyhow::Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
+    if messages.is_empty() {
+        return std::prelude::rust_2015::Ok(None);
     }
 
+    // Format all messages as a single string for the summarization prompt
+    let messages_text = messages
+        .iter()
+        .map(|msg| format!("{:?}", msg))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let context = SummarizeContext {
+        messages: messages_text,
+    };
+
+    // Render the one-shot summarization prompt
+    let system_prompt = render_global_file("summarize_oneshot.md", &context)?;
+
+    // Create a simple user message requesting summarization
+    let user_message = Message::user()
+        .with_text("Please summarize the conversation history provided in the system prompt.");
+    let summarization_request = vec![user_message];
+
+    // Send the request to the provider and fetch the response
+    let (mut response, mut provider_usage) = provider
+        .complete_fast(&system_prompt, &summarization_request, &[])
+        .await?;
+
+    // Set role to user as it will be used in following conversation as user content
+    response.role = Role::User;
+
+    // Ensure we have token counts, estimating if necessary
+    provider_usage
+        .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+
+    std::prelude::rust_2015::Ok(Some((response, provider_usage)))
+}
+
+impl Agent {
     /// Public API to summarize the conversation so that its token count is within the allowed context limit.
     /// Returns the summarized messages, token counts, and the ProviderUsage from summarization
-    pub async fn summarize_context(
+    pub async fn compact_messages(
         &self,
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
-    ) -> Result<
-        (
-            Conversation,
-            Vec<usize>,
-            Option<crate::providers::base::ProviderUsage>,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
         let provider = self.provider().await?;
-        let summary_result = summarize_messages(provider.clone(), messages).await?;
+        let summary_result = do_compact_messages(provider.clone(), messages).await?;
 
         let (summary_message, summarization_usage) = match summary_result {
             Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),

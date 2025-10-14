@@ -567,6 +567,7 @@ async fn process_message_streaming(
                                         ))
                                         .await;
                                 }
+                                // TODO(douwe): delete this
                                 MessageContent::ContextLengthExceeded(msg) => {
                                     let mut sender = sender.lock().await;
                                     let _ = sender
@@ -582,7 +583,7 @@ async fn process_message_streaming(
                                         .await;
 
                                     let (summarized_messages, _, _) =
-                                        agent.summarize_context(messages.messages()).await?;
+                                        agent.compact_messages(messages.messages()).await?;
                                     SessionManager::replace_conversation(
                                         &session_id,
                                         &summarized_messages,
