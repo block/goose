@@ -94,16 +94,18 @@ function CopyPageButton(): ReactNode {
           const tabsContainer = node as HTMLElement;
           let markdown = '\n\n';
           
-          // Find all tab panels
-          const tabPanels = tabsContainer.querySelectorAll('[role="tabpanel"]');
+          // Find all tab buttons to get labels
+          const tabButtons = Array.from(tabsContainer.querySelectorAll('[role="tab"]'));
           
-          tabPanels.forEach((panel) => {
+          // Find all tab panels
+          const tabPanels = Array.from(tabsContainer.querySelectorAll('[role="tabpanel"]'));
+          
+          // Match panels with buttons by index
+          tabPanels.forEach((panel, index) => {
             const panelElement = panel as HTMLElement;
             
-            // Get the tab label from the corresponding tab button
-            const tabId = panelElement.getAttribute('id');
-            const tabButton = tabsContainer.querySelector(`[aria-controls="${tabId}"]`);
-            const tabLabel = tabButton?.textContent?.trim() || 'Section';
+            // Get the tab label from the corresponding button (same index)
+            const tabLabel = tabButtons[index]?.textContent?.trim() || 'Section';
             
             // Add the tab label as a heading
             markdown += `## ${tabLabel}\n\n`;
