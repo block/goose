@@ -1426,6 +1426,21 @@ mod tests {
             .await
             .unwrap();
 
+        // Add a message so the session can be retrieved
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("test")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
         // Session is not marked as in use
         let is_in_use = storage.is_session_in_use(&session.id, 10).await.unwrap();
         assert!(!is_in_use, "Unlocked session should not be in use");
