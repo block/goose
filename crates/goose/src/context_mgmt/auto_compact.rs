@@ -1,9 +1,7 @@
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::{
-    agents::Agent, config::Config, context_mgmt::get_messages_token_counts_async,
-    token_counter::create_async_token_counter,
-};
+use crate::providers::base::ProviderUsage;
+use crate::{agents::Agent, config::Config, token_counter::create_async_token_counter};
 use anyhow::Result;
 use tracing::{debug, info};
 
@@ -74,7 +72,13 @@ pub async fn check_compaction_needed(
             let token_counter = create_async_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-            let token_counts = get_messages_token_counts_async(&token_counter, messages);
+
+            let token_counts: Vec<_> = messages
+                .iter()
+                .filter(|m| m.is_agent_visible())
+                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                .collect();
+
             (token_counts.iter().sum(), "estimated")
         }
     };
@@ -120,50 +124,6 @@ pub async fn check_compaction_needed(
     })
 }
 
-/// Perform compaction on messages without checking thresholds
-///
-/// This function directly performs compaction on the provided messages.
-/// If the most recent message is a user message, it will be preserved by removing it
-/// before compaction and adding it back afterwards.
-///
-/// # Arguments
-/// * `agent` - The agent to use for context management
-/// * `messages` - The current message history
-///
-/// # Returns
-/// * `AutoCompactResult` containing the compacted messages and metadata
-pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
-    info!("Performing message compaction");
-
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
-        } else {
-            (messages, None)
-        }
-    } else {
-        (messages, None)
-    };
-
-    // Perform the compaction on messages excluding the preserved user message
-    let (mut compacted_messages, _, summarization_usage) =
-        agent.compact_messages(messages_to_compact).await?;
-
-    // Add back the preserved user message if it exists
-    if let Some(user_message) = preserved_user_message {
-        compacted_messages.push(user_message);
-    }
-
-    Ok(AutoCompactResult {
-        compacted: true,
-        messages: compacted_messages,
-        summarization_usage,
-    })
-}
-
 /// Check if messages need compaction and compact them if necessary
 ///
 /// This is a convenience wrapper function that combines checking and compaction.
@@ -182,7 +142,7 @@ pub async fn check_and_compact_messages(
     messages: &[Message],
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
-) -> Result<AutoCompactResult> {
+) -> std::result::Result<(Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
     // First check if compaction is needed
     let check_result =
         check_compaction_needed(agent, messages, threshold_override, session_metadata).await?;
@@ -194,11 +154,11 @@ pub async fn check_and_compact_messages(
             check_result.usage_ratio * 100.0,
             check_result.percentage_until_compaction
         );
-        return Ok(AutoCompactResult {
-            compacted: false,
-            messages: Conversation::new_unvalidated(messages.to_vec()),
-            summarization_usage: None,
-        });
+        return Ok((
+            Conversation::new_unvalidated(messages.to_vec()),
+            Vec::new(),
+            None,
+        ));
     }
 
     info!(
@@ -206,7 +166,7 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    perform_compaction(agent, messages).await
+    agent.compact_messages(messages).await
 }
 
 #[cfg(test)]

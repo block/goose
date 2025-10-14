@@ -903,7 +903,7 @@ impl Agent {
     }
 
     /// Handle auto-compaction logic and return compacted messages if needed
-    async fn handle_auto_compaction(
+    async fn maybe_auto_compact(
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
@@ -964,7 +964,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let compaction_result = self
-            .handle_auto_compaction(unfixed_conversation.messages(), &session)
+            .maybe_auto_compact(unfixed_conversation.messages(), &session)
             .await?;
 
         if let Some((conversation, compaction_message, _summarization_usage)) = compaction_result {
@@ -1309,7 +1309,7 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            match auto_compact::perform_compaction(self, conversation.messages()).await {
+                            match self.compact_messages(conversation.messages()) {
                                 Ok(compact_result) => {
                                     conversation = compact_result.messages;
 
