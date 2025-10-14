@@ -10,7 +10,9 @@ Usage:
 
 Interactive commands:
     1 - No error (pass through)
-    2 - Context length exceeded error
+    2 - Context length exceeded error (1 error)
+    2 4 - Context length exceeded error (4 errors in a row)
+    2 0.3 - Context length exceeded error (30% of requests)
     3 - Rate limit error
     4 - Unknown server error (500)
     q - Quit
@@ -246,19 +248,63 @@ class ErrorProxy:
     def __init__(self):
         """Initialize the error proxy."""
         self.error_mode = ErrorMode.NO_ERROR
+        self.error_count = 0  # Remaining errors to inject (0 = unlimited/percentage mode)
+        self.error_percentage = 0.0  # Percentage of requests to error (0.0 = count mode)
         self.request_count = 0
         self.session: Optional[ClientSession] = None
         self.lock = threading.Lock()
         
-    def set_error_mode(self, mode: ErrorMode):
-        """Set the error injection mode."""
+    def set_error_mode(self, mode: ErrorMode, count: int = 1, percentage: float = 0.0):
+        """
+        Set the error injection mode.
+        
+        Args:
+            mode: The error mode to use
+            count: Number of errors to inject (default 1, 0 for unlimited)
+            percentage: Percentage of requests to error (0.0-1.0, 0.0 for count mode)
+        """
         with self.lock:
             self.error_mode = mode
+            self.error_count = count
+            self.error_percentage = percentage
+            
+    def should_inject_error(self) -> bool:
+        """
+        Determine if we should inject an error for this request.
+        
+        Returns:
+            True if an error should be injected, False otherwise
+        """
+        import random
+        
+        with self.lock:
+            if self.error_mode == ErrorMode.NO_ERROR:
+                return False
+                
+            # Percentage mode
+            if self.error_percentage > 0.0:
+                return random.random() < self.error_percentage
+            
+            # Count mode
+            if self.error_count > 0:
+                self.error_count -= 1
+                return True
+            elif self.error_count == 0 and self.error_percentage == 0.0:
+                # Count reached zero, switch back to NO_ERROR
+                self.error_mode = ErrorMode.NO_ERROR
+                return False
+            
+            return False
             
     def get_error_mode(self) -> ErrorMode:
         """Get the current error injection mode."""
         with self.lock:
             return self.error_mode
+    
+    def get_error_config(self) -> tuple[ErrorMode, int, float]:
+        """Get the current error configuration."""
+        with self.lock:
+            return (self.error_mode, self.error_count, self.error_percentage)
         
     async def start_session(self):
         """Start the aiohttp client session."""
@@ -337,12 +383,12 @@ class ErrorProxy:
         """
         self.request_count += 1
         provider = self.detect_provider(request)
-        mode = self.get_error_mode()
         
         logger.info(f"📨 Request #{self.request_count}: {request.method} {request.path} -> {provider}")
         
         # Check if we should inject an error
-        if mode != ErrorMode.NO_ERROR:
+        if self.should_inject_error():
+            mode = self.get_error_mode()
             error_config = ERROR_CONFIGS.get(provider, ERROR_CONFIGS['openai']).get(
                 mode, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
             )
@@ -423,7 +469,7 @@ class ErrorProxy:
 
 def print_status(proxy: ErrorProxy):
     """Print the current proxy status."""
-    mode = proxy.get_error_mode()
+    mode, count, percentage = proxy.get_error_config()
     mode_names = {
         ErrorMode.NO_ERROR: "✅ No error (pass through)",
         ErrorMode.CONTEXT_LENGTH: "📏 Context length exceeded",
@@ -432,12 +478,20 @@ def print_status(proxy: ErrorProxy):
     }
     
     print("\n" + "=" * 60)
-    print(f"Current mode: {mode_names.get(mode, 'Unknown')}")
+    mode_str = mode_names.get(mode, 'Unknown')
+    if mode != ErrorMode.NO_ERROR:
+        if percentage > 0.0:
+            mode_str += f" ({percentage*100:.0f}% of requests)"
+        elif count > 0:
+            mode_str += f" ({count} remaining)"
+    print(f"Current mode: {mode_str}")
     print(f"Requests handled: {proxy.request_count}")
     print("=" * 60)
     print("\nCommands:")
     print("  1 - No error (pass through)")
-    print("  2 - Context length exceeded error")
+    print("  2 - Context length exceeded error (1 time)")
+    print("  2 4 - Context length exceeded error (4 times)")
+    print("  2 0.3 - Context length exceeded error (30% of requests)")
     print("  3 - Rate limit error")
     print("  4 - Unknown server error (500)")
     print("  q - Quit")
@@ -450,27 +504,66 @@ def stdin_reader(proxy: ErrorProxy, loop):
     
     while True:
         try:
-            command = input("Enter command: ").strip().lower()
+            command = input("Enter command: ").strip()
             
-            if command == 'q':
+            if command.lower() == 'q':
                 print("\n🛑 Shutting down proxy...")
                 # Schedule the shutdown in the event loop
                 asyncio.run_coroutine_threadsafe(shutdown_server(loop), loop)
                 break
-            elif command == '1':
-                proxy.set_error_mode(ErrorMode.NO_ERROR)
+            
+            # Parse command
+            parts = command.split()
+            if not parts:
+                continue
+                
+            try:
+                error_type = int(parts[0])
+                
+                # Validate error type
+                if error_type < 1 or error_type > 4:
+                    print(f"❌ Invalid error type: {error_type}. Must be 1-4")
+                    continue
+                
+                # Map to ErrorMode
+                mode_map = {
+                    1: ErrorMode.NO_ERROR,
+                    2: ErrorMode.CONTEXT_LENGTH,
+                    3: ErrorMode.RATE_LIMIT,
+                    4: ErrorMode.SERVER_ERROR
+                }
+                mode = mode_map[error_type]
+                
+                # Parse count or percentage
+                count = 1
+                percentage = 0.0
+                
+                if len(parts) > 1:
+                    value_str = parts[1]
+                    try:
+                        # Check if it's a decimal (percentage)
+                        if '.' in value_str:
+                            percentage = float(value_str)
+                            if percentage < 0.0 or percentage > 1.0:
+                                print(f"❌ Invalid percentage: {percentage}. Must be between 0.0 and 1.0")
+                                continue
+                            count = 0  # Percentage mode
+                        else:
+                            # It's an integer count
+                            count = int(value_str)
+                            if count < 0:
+                                print(f"❌ Invalid count: {count}. Must be >= 0")
+                                continue
+                    except ValueError:
+                        print(f"❌ Invalid value: '{value_str}'. Must be an integer or decimal")
+                        continue
+                
+                # Set the error mode
+                proxy.set_error_mode(mode, count, percentage)
                 print_status(proxy)
-            elif command == '2':
-                proxy.set_error_mode(ErrorMode.CONTEXT_LENGTH)
-                print_status(proxy)
-            elif command == '3':
-                proxy.set_error_mode(ErrorMode.RATE_LIMIT)
-                print_status(proxy)
-            elif command == '4':
-                proxy.set_error_mode(ErrorMode.SERVER_ERROR)
-                print_status(proxy)
-            else:
-                print(f"❌ Invalid input: '{command}'. Please enter 1, 2, 3, 4, or q")
+                
+            except ValueError:
+                print(f"❌ Invalid input: '{command}'. Please enter a number 1-4, optionally followed by count or percentage")
                 
         except EOFError:
             # Handle Ctrl+D
