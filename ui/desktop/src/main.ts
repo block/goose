@@ -52,6 +52,7 @@ import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { decodeRecipe } from './api';
 import { Client, createClient, createConfig } from './api/client';
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
 async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
   try {
@@ -345,6 +346,7 @@ app.on('open-url', async (_event, url) => {
         recipeDeeplink || undefined,
         scheduledJobId || undefined
       );
+      windowDeeplinkURL = null;
       return; // Skip the rest of the handler
     }
 
@@ -365,6 +367,7 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
+    pendingDeepLink = null;
   }
 });
 
@@ -588,6 +591,15 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  if (!app.isPackaged) {
+    installExtension(REACT_DEVELOPER_TOOLS, {
+      loadExtensionOptions: { allowFileAccess: true },
+      session: mainWindow.webContents.session,
+    })
+      .then(() => log.info('added react dev tools'))
+      .catch((err) => log.info('failed to install react dev tools:', err));
+  }
 
   const goosedClient = createClient(
     createConfig({

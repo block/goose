@@ -5,9 +5,10 @@ use crate::{
     session::SessionManager,
 };
 use anyhow::{anyhow, Result};
-use futures::future::BoxFuture;
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use std::future::Future;
+use std::pin::Pin;
 use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
@@ -93,7 +94,7 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     text_instruction: String,
     task_config: TaskConfig,
-) -> BoxFuture<'static, Result<Conversation>> {
+) -> Pin<Box<dyn Future<Output = Result<Conversation>> + Send>> {
     Box::pin(async move {
         let agent_manager = AgentManager::instance()
             .await
@@ -148,7 +149,7 @@ fn get_agent_messages(
                 Ok(AgentEvent::Message(msg)) => session_messages.push(msg),
                 Ok(AgentEvent::McpNotification(_))
                 | Ok(AgentEvent::ModelChange { .. })
-                | Ok(AgentEvent::HistoryReplaced(_)) => {} // Handle informational events
+                | Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
                     tracing::error!("Error receiving message from subagent: {}", e);
                     break;

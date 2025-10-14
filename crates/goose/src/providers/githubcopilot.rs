@@ -19,7 +19,7 @@ use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, I
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
@@ -115,10 +115,8 @@ pub struct GithubCopilotProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GithubCopilotProvider);
-
 impl GithubCopilotProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;

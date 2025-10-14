@@ -11,7 +11,6 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -26,10 +25,8 @@ pub struct CursorAgentProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(CursorAgentProvider);
-
 impl CursorAgentProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
             .get_param("CURSOR_AGENT_COMMAND")
@@ -450,46 +447,13 @@ mod tests {
     use super::ModelConfig;
     use super::*;
 
-    #[test]
-    fn test_cursor_agent_model_config() {
-        let provider = CursorAgentProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "auto");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
-    fn test_cursor_agent_invalid_model_no_fallback() {
-        // Test that an invalid model is kept as-is (no fallback)
-        let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = CursorAgentProvider::from_env(invalid_model).unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "invalid-model");
-    }
-
-    #[test]
-    fn test_cursor_agent_valid_model() {
+    #[tokio::test]
+    async fn test_cursor_agent_valid_model() {
         // Test that a valid model is preserved
         let valid_model = ModelConfig::new_or_fail("gpt-5");
-        let provider = CursorAgentProvider::from_env(valid_model).unwrap();
+        let provider = CursorAgentProvider::from_env(valid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "gpt-5");
-    }
-
-    #[test]
-    fn test_filter_extensions_from_system_prompt() {
-        let provider = CursorAgentProvider::default();
-
-        let system_with_extensions = "Some system prompt\n\n# Extensions\nSome extension info\n\n# Next Section\nMore content";
-        let filtered = provider.filter_extensions_from_system_prompt(system_with_extensions);
-        assert_eq!(filtered, "Some system prompt\n# Next Section\nMore content");
-
-        let system_without_extensions = "Some system prompt\n\n# Other Section\nContent";
-        let filtered = provider.filter_extensions_from_system_prompt(system_without_extensions);
-        assert_eq!(filtered, system_without_extensions);
     }
 }

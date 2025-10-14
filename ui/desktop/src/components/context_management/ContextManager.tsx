@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Message } from '../../types/message';
-import { manageContextFromBackend, convertApiMessageToFrontendMessage } from './index';
+import { manageContextFromBackend } from './index';
+import { Message } from '../../api';
 
 // Define the context management interface
 interface ContextManagerState {
@@ -53,21 +53,14 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           sessionId: sessionId,
         });
 
-        // Convert API messages to frontend messages
-        // The server now handles all visibility - we just display what we receive
-        const convertedMessages = summaryResponse.messages.map((apiMessage) =>
-          convertApiMessageToFrontendMessage(apiMessage)
-        );
-
-        // Replace messages with the server-provided messages
-        setMessages(convertedMessages);
+        setMessages(summaryResponse.messages);
 
         // Only automatically submit the continuation message for auto-compaction (context limit reached)
         // Manual compaction should just compact without continuing the conversation
         if (!isManual) {
           // Automatically submit the continuation message to continue the conversation
           // This should be the third message (index 2) which contains the "I ran into a context length exceeded error..." text
-          const continuationMessage = convertedMessages[2];
+          const continuationMessage = summaryResponse.messages[2];
           if (continuationMessage) {
             setTimeout(() => {
               append(continuationMessage);

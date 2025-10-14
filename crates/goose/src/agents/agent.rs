@@ -963,40 +963,29 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Handle auto-compaction before processing
-        let (conversation, compaction_msg, _summarization_usage) = match self
+        let compaction_result = self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
-            .await?
-        {
-            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
-            None => {
-                let context = self
-                    .prepare_reply_context(unfixed_conversation, &session)
-                    .await?;
-                (context.conversation, None, None)
-            }
-        };
+            .await?;
 
-        // If we compacted, yield the compaction message and history replacement event
-        if let Some(compaction_msg) = compaction_msg {
-            return Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
+        if let Some((conversation, compaction_message, _summarization_usage)) = compaction_result {
+            Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(
+                    Message::assistant().with_summarization_requested(compaction_message)
+                );
                 yield AgentEvent::HistoryReplaced(conversation.messages().clone());
                 if let Some(session_to_store) = &session {
                     SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                 }
 
-                // Continue with normal reply processing using compacted messages
                 let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
-            }));
+            }))
+        } else {
+            self.reply_internal(unfixed_conversation, session, cancel_token)
+                .await
         }
-
-        // No compaction needed, proceed with normal processing
-        self.reply_internal(conversation, session, cancel_token)
-            .await
     }
 
     /// Main reply method that handles the actual agent processing
