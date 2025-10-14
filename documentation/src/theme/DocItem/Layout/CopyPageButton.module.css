@@ -40,6 +40,20 @@
   transform: none;
 }
 
+.copyButtonError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--ifm-color-danger-contrast-background);
+  border: none;
+  border-radius: 6px;
+  color: var(--ifm-color-danger-contrast-foreground);
+  font-size: 14px;
+  font-family: var(--ifm-font-family-base);
+  line-height: 1;
+}
+
 .copyIcon {
   flex-shrink: 0;
 }

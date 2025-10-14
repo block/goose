@@ -165,27 +165,24 @@ function CopyPageButton(): ReactNode {
     }
   };
 
-  // Don't render anything until we're on the client side
-  if (!isClient) {
-    return null;
-  }
-
   // Display error message if there's an error
   if (error) {
     return (
-      <div className={styles.copyButton} style={{ backgroundColor: 'var(--ifm-color-danger-contrast-background)' }}>
+      <div className={styles.copyButtonError}>
         <span>{error}</span>
       </div>
     );
   }
 
+  // Render button with consistent structure to avoid hydration issues
+  // The button will be disabled until client-side JS loads
   return (
     <button
       onClick={handleCopy}
       className={styles.copyButton}
       aria-label={copied ? 'Page copied to clipboard' : 'Copy page to clipboard'}
       type="button"
-      disabled={isLoading}
+      disabled={!isClient || isLoading}
     >
       {/* Copy/Check icon using Lucide React */}
       {copied ? (
@@ -214,13 +211,10 @@ function useShouldShowCopyButton(): boolean {
   // A content page should have a source file (.md file)
   const hasSource = metadata?.source && metadata.source.includes('.md');
   
-  // Don't show on generated index pages
-  const isNotGeneratedIndex = !metadata?.isGeneratedIndex;
-  
   // Don't show on category pages (they typically have /category/ in the permalink)
   const isNotCategoryPage = !metadata?.permalink?.includes('/category/');
   
-  return hasSource && isNotGeneratedIndex && isNotCategoryPage;
+  return hasSource && isNotCategoryPage;
 }
 
 /**
