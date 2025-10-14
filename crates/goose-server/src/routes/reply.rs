@@ -144,11 +144,7 @@ enum MessageEvent {
     Ping,
 }
 
-async fn stream_event(
-    event: MessageEvent,
-    tx: &mpsc::Sender<String>,
-    cancel_token: &CancellationToken,
-) {
+async fn stream_event(event: MessageEvent, tx: &mpsc::Sender<String>) -> bool {
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
@@ -156,9 +152,13 @@ async fn stream_event(
         )
     });
     if tx.send(format!("data: {}\n\n", json)).await.is_err() {
-        tracing::info!("client hung up");
-        cancel_token.cancel();
+        tracing::info!("client hung up - continuing agent task");
+        // Don't cancel the agent task when client disconnects
+        // Agent should continue running and the session will remain in_use=true
+        // so that when the client reconnects via the session stream, they can see progress
+        return false;
     }
+    true
 }
 
 #[allow(clippy::too_many_lines)]
@@ -224,7 +224,6 @@ pub async fn reply(
                         error: format!("Failed to get session agent: {}", e),
                     },
                     &task_tx,
-                    &task_cancel,
                 )
                 .await;
                 return;
@@ -240,7 +239,6 @@ pub async fn reply(
                         error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
-                    &cancel_token,
                 )
                 .await;
                 return;
@@ -272,7 +270,6 @@ pub async fn reply(
                         error: e.to_string(),
                     },
                     &task_tx,
-                    &cancel_token,
                 )
                 .await;
                 return;
@@ -282,6 +279,7 @@ pub async fn reply(
         let mut all_messages = messages.clone();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
+        let mut client_connected = true;
         loop {
             tokio::select! {
                 _ = task_cancel.cancelled() => {
@@ -289,7 +287,9 @@ pub async fn reply(
                     break;
                 }
                 _ = heartbeat_interval.tick() => {
-                    stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
+                    if client_connected {
+                        client_connected = stream_event(MessageEvent::Ping, &tx).await;
+                    }
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
@@ -300,9 +300,9 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            // Only send message to client if it's user_visible
-                            if message.is_user_visible() {
-                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                            // Only send message to client if it's user_visible and client is still connected
+                            if message.is_user_visible() && client_connected {
+                                client_connected = stream_event(MessageEvent::Message { message }, &tx).await;
                             }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
@@ -312,24 +312,29 @@ pub async fn reply(
                             // The client will see the compaction notification message that was sent before this event
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
+                            if client_connected {
+                                client_connected = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await;
+                            }
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                            stream_event(MessageEvent::Notification{
-                                request_id: request_id.clone(),
-                                message: n,
-                            }, &tx, &cancel_token).await;
+                            if client_connected {
+                                client_connected = stream_event(MessageEvent::Notification{
+                                    request_id: request_id.clone(),
+                                    message: n,
+                                }, &tx).await;
+                            }
                         }
 
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
-                            stream_event(
-                                MessageEvent::Error {
-                                    error: e.to_string(),
-                                },
-                                &tx,
-                                &cancel_token,
-                            ).await;
+                            if client_connected {
+                                stream_event(
+                                    MessageEvent::Error {
+                                        error: e.to_string(),
+                                    },
+                                    &tx,
+                                ).await;
+                            }
                             break;
                         }
                         Ok(None) => {
@@ -401,7 +406,6 @@ pub async fn reply(
                 reason: "stop".to_string(),
             },
             &task_tx,
-            &cancel_token,
         )
         .await;
     }));

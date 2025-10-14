@@ -77,17 +77,29 @@ function BaseChatContent({
   // });
 
   // Keep session streaming active for multi-window sync, but track initial load
-  const [sessionLoadComplete, setSessionLoadComplete] = useState(!resumeSessionId);
-  const sessionIdToStream = resumeSessionId || chat.sessionId;
+  const [sessionLoadComplete, setSessionLoadComplete] = useState(false);
+  const [messages, setMessages] = useState(chat.messages || []);
+  const sessionId = resumeSessionId || chat.sessionId;
+
+  // Track the last resumeSessionId to detect when it changes
+  const prevResumeSessionIdRef = useRef(resumeSessionId);
+
+  // Reset state when resumeSessionId changes
+  useEffect(() => {
+    if (resumeSessionId && resumeSessionId !== prevResumeSessionIdRef.current) {
+      // Reset all state for the new session
+      setSessionLoadComplete(false);
+      setMessages([]);
+      lastStreamedMessageCountRef.current = 0;
+      prevResumeSessionIdRef.current = resumeSessionId;
+    }
+  }, [resumeSessionId]);
 
   const {
     session: streamedSession,
-    isLoading: sessionLoading,
     error: sessionStreamError,
     // isConnected: sessionStreamConnected, // maybe we show an indicator somewhere?
-  } = useSessionStream(sessionIdToStream || undefined);
-
-  const [messages, setMessages] = useState(chat.messages || []);
+  } = useSessionStream(sessionId || undefined);
   const isStreamingRef = useRef(false);
   const lastStreamedMessageCountRef = useRef(0);
   const [isSessionInUse, setIsSessionInUse] = useState(false);
@@ -97,22 +109,21 @@ function BaseChatContent({
     if (streamedSession) {
       const conversation = streamedSession.conversation || [];
 
-      // Mark initial load as complete if we're resuming
-      if (resumeSessionId && !sessionLoadComplete) {
-        setSessionLoadComplete(true);
-      }
+      // Mark initial load as complete if we're resuming and have data
+      const isInitialLoad = resumeSessionId && !sessionLoadComplete;
 
       // Always update in_use state for multi-window coordination
       setIsSessionInUse(streamedSession.in_use || false);
 
       // Only update messages if:
-      // 1. We're resuming a session (initial load), OR
-      // 2. We're not actively streaming locally AND message count changed
+      // 1. We're on initial load (resuming a session), OR
+      // 2. Message count changed from the stream
+      // Note: We continue updating even if locally streaming or session is in_use elsewhere
+      // This ensures all windows see real-time updates
       const shouldUpdateMessages =
-        resumeSessionId ||
-        (!isStreamingRef.current && conversation.length !== lastStreamedMessageCountRef.current);
+        isInitialLoad || conversation.length !== lastStreamedMessageCountRef.current;
 
-      if (shouldUpdateMessages && !isStreamingRef.current) {
+      if (shouldUpdateMessages) {
         lastStreamedMessageCountRef.current = conversation.length;
 
         const loadedChat: ChatType = {
@@ -125,6 +136,11 @@ function BaseChatContent({
         };
         setChat(loadedChat);
         setMessages(conversation);
+
+        // Mark load complete AFTER we've updated the messages
+        if (isInitialLoad) {
+          setSessionLoadComplete(true);
+        }
 
         // Log for debugging
         window.electron.logInfo(
@@ -274,6 +290,9 @@ function BaseChatContent({
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
+  // Determine if we're truly loading: we have a resumeSessionId but haven't loaded messages yet
+  const isLoadingSession = resumeSessionId && messages.length === 0 && !sessionLoadComplete;
+
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -405,24 +424,20 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {((sessionLoading && !sessionLoadComplete) ||
-            (messages.length === 0 && !resumeSessionId) ||
-            isCompacting) &&
-            !sessionStreamError && (
-              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-                <LoadingGoose
-                  message={
-                    (sessionLoading && !sessionLoadComplete) ||
-                    (messages.length === 0 && !resumeSessionId)
-                      ? 'loading conversation...'
-                      : isCompacting
-                        ? 'goose is compacting the conversation...'
-                        : undefined
-                  }
-                  chatState={chatState}
-                />
-              </div>
-            )}
+          {(isLoadingSession || isCompacting) && !sessionStreamError && (
+            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+              <LoadingGoose
+                message={
+                  isLoadingSession
+                    ? 'loading conversation...'
+                    : isCompacting
+                      ? 'goose is compacting the conversation...'
+                      : undefined
+                }
+                chatState={chatState}
+              />
+            </div>
+          )}
 
           {/* Fixed session in progress notice at bottom left */}
           {isSessionInUse && !isStreamingRef.current && (

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -23,6 +25,19 @@ export default function Pair({
   setIsGoosehintsModalOpen,
   resumeSessionId,
 }: PairProps & PairRouteState) {
+  const [_searchParams, setSearchParams] = useSearchParams();
+
+  // Update URL with sessionId to persist across refreshes
+  // Only update if resumeSessionId is not already set (to avoid overwriting it on mount)
+  useEffect(() => {
+    if (chat.sessionId && !resumeSessionId) {
+      setSearchParams((prev) => {
+        prev.set('resumeSessionId', chat.sessionId);
+        return prev;
+      });
+    }
+  }, [chat.sessionId, resumeSessionId, setSearchParams]);
+
   return (
     <BaseChat2
       chat={chat}

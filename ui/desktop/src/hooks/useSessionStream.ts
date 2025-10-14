@@ -53,9 +53,31 @@ export function useSessionStream(
       return;
     }
 
+    // DEBUG LOGGING
+    if (typeof window !== 'undefined' && window.electron?.logInfo) {
+      window.electron.logInfo(
+        JSON.stringify({
+          hook: 'useSessionStream',
+          event: 'registerStream',
+          sessionId,
+          enabled,
+        })
+      );
+    }
+
     registerStream(sessionId);
 
     return () => {
+      // DEBUG LOGGING
+      if (typeof window !== 'undefined' && window.electron?.logInfo) {
+        window.electron.logInfo(
+          JSON.stringify({
+            hook: 'useSessionStream',
+            event: 'unregisterStream',
+            sessionId,
+          })
+        );
+      }
       unregisterStream(sessionId);
     };
   }, [sessionId, enabled, registerStream, unregisterStream]);

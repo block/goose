@@ -104,10 +104,30 @@ export function SessionStreamProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(
     async (sessionId: string) => {
       try {
+        // DEBUG LOGGING
+        window.electron.logInfo(
+          JSON.stringify({
+            context: 'SessionStreamContext',
+            event: 'connect_start',
+            sessionId,
+          })
+        );
+
         // Clean up existing connection
         const existingController = abortControllersRef.current.get(sessionId);
         if (existingController) {
+          console.log(
+            `[SessionStreamContext] Aborting existing connection for session ${sessionId}`
+          );
+          window.electron.logInfo(
+            JSON.stringify({
+              context: 'SessionStreamContext',
+              event: 'aborting_existing_connection',
+              sessionId,
+            })
+          );
           existingController.abort();
+          abortControllersRef.current.delete(sessionId);
         }
 
         const secretKey = await window.electron.getSecretKey();
@@ -123,9 +143,12 @@ export function SessionStreamProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const initialSession: Session = await response.json();
             updateSessionState(sessionId, { session: initialSession, isLoading: false });
+          } else {
+            updateSessionState(sessionId, { isLoading: false });
           }
         } catch (err) {
           console.warn('Failed to fetch initial session data:', err);
+          updateSessionState(sessionId, { isLoading: false });
         }
 
         // Create new abort controller for this stream

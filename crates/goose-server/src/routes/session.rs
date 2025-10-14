@@ -341,9 +341,18 @@ async fn stream_session(
     State(_state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
 ) -> Result<SessionSseResponse, StatusCode> {
+    tracing::info!("[session.rs] Starting stream for session {}", session_id);
+
     let session_stream = SessionManager::stream_updates(session_id.clone())
         .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+        .map_err(|e| {
+            tracing::error!(
+                "[session.rs] Failed to create stream for {}: {}",
+                session_id,
+                e
+            );
+            StatusCode::NOT_FOUND
+        })?;
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
@@ -357,6 +366,13 @@ async fn stream_session(
         while let Some(result) = session_stream.next().await {
             match result {
                 Ok(session) => {
+                    tracing::info!(
+                        "[session.rs] Streaming session {} update: in_use={}, message_count={}",
+                        session_id,
+                        session.in_use,
+                        session.message_count
+                    );
+
                     if !stream_session_event(
                         SessionEvent::Session {
                             session: Box::new(session),
@@ -365,12 +381,19 @@ async fn stream_session(
                     )
                     .await
                     {
-                        tracing::info!("Session stream client disconnected");
+                        tracing::info!(
+                            "[session.rs] Session stream client disconnected for {}",
+                            session_id
+                        );
                         break;
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Error in session stream: {}", e);
+                    tracing::error!(
+                        "[session.rs] Error in session stream for {}: {}",
+                        session_id,
+                        e
+                    );
                     let _ = stream_session_event(
                         SessionEvent::Error {
                             error: format!("Failed to fetch session: {}", e),
@@ -382,7 +405,7 @@ async fn stream_session(
                 }
             }
         }
-        tracing::info!("Session stream completed for {}", session_id);
+        tracing::info!("[session.rs] Session stream completed for {}", session_id);
     });
 
     Ok(SessionSseResponse::new(stream))

@@ -64,7 +64,7 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, ToolRequest};
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::SessionManager;
+use crate::session::session_manager::{SessionManager, STALE_LOCK_MINUTES};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -995,9 +995,7 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Check if session is already in use (with 10 minute stale threshold)
-        const STALE_LOCK_MINUTES: u64 = 10;
-
+        // Check if session is already in use (with stale threshold from STALE_LOCK_MINUTES)
         if let Some(ref session_config) = session {
             let is_in_use =
                 SessionManager::is_session_in_use(&session_config.id, STALE_LOCK_MINUTES).await?;

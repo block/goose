@@ -23,6 +23,8 @@ use utoipa::ToSchema;
 
 const CURRENT_SCHEMA_VERSION: i32 = 3;
 
+pub const STALE_LOCK_MINUTES: u64 = 10;
+
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -268,23 +270,51 @@ impl SessionManager {
         let initial_session = Self::get_session(&session_id, true).await?;
 
         let stream = async_stream::stream! {
-            yield Ok(initial_session.clone());
+            // Check if session is stale using STALE_LOCK_MINUTES threshold
+            let is_actually_in_use = Self::is_session_in_use(&session_id, STALE_LOCK_MINUTES).await.unwrap_or(false);
 
-            // If session is not in use, close the stream immediately
-            if !initial_session.in_use {
+            // If session is marked in_use but is stale, clear the flag
+            let mut session_to_yield = initial_session.clone();
+            if initial_session.in_use && !is_actually_in_use {
+                // Session is stale, clear the in_use flag
+                warn!("[stream_updates] Session {} is stale, clearing in_use flag", session_id);
+                if let Err(e) = Self::mark_in_use(&session_id, false).await {
+                    warn!("Failed to clear stale in_use flag: {}", e);
+                }
+                session_to_yield.in_use = false;
+            }
+
+            yield Ok(session_to_yield.clone());
+
+            // If session is not in use (or was stale), close the stream immediately
+            if !session_to_yield.in_use {
+                info!("[stream_updates] Session {} not in use, closing stream immediately", session_id);
                 return;
             }
 
+            info!("[stream_updates] Session {} is in use, starting polling loop", session_id);
+
             // Session is in use, continue streaming until it's no longer in use
             let mut interval = tokio::time::interval(Duration::from_secs(1));
-            let mut last_message_count: Option<usize> = Some(initial_session.message_count);
-            let mut last_updated_at: Option<String> = Some(initial_session.updated_at.to_rfc3339());
+            let mut last_message_count: Option<usize> = Some(session_to_yield.message_count);
+            let mut last_updated_at: Option<String> = Some(session_to_yield.updated_at.to_rfc3339());
 
             loop {
                 interval.tick().await;
 
                 match Self::get_session(&session_id, true).await {
-                    Ok(session) => {
+                    Ok(mut session) => {
+                        // Check if session is stale
+                        let is_actually_in_use = Self::is_session_in_use(&session_id, STALE_LOCK_MINUTES).await.unwrap_or(false);
+
+                        // If session is marked in_use but is stale, clear the flag
+                        if session.in_use && !is_actually_in_use {
+                            if let Err(e) = Self::mark_in_use(&session_id, false).await {
+                                warn!("Failed to clear stale in_use flag: {}", e);
+                            }
+                            session.in_use = false;
+                        }
+
                         let updated_at_str = session.updated_at.to_rfc3339();
                         let has_updates = last_message_count != Some(session.message_count)
                             || last_updated_at.as_ref() != Some(&updated_at_str);
