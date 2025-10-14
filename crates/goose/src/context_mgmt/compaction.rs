@@ -1,12 +1,12 @@
+use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageMetadata};
 use crate::conversation::Conversation;
+use crate::prompt_template::render_global_file;
 use anyhow::Ok;
 use rmcp::model::Role;
 use serde::Serialize;
 use std::sync::Arc;
-
-use super::super::agents::Agent;
-use crate::prompt_template::render_global_file;
+use tracing::info;
 
 #[derive(Serialize)]
 struct SummarizeContext {
@@ -16,7 +16,7 @@ struct SummarizeContext {
 use crate::providers::base::{Provider, ProviderUsage};
 
 /// Summarization function that uses the detailed prompt from the markdown template
-async fn do_compact_messages(
+async fn get_summary_from_provider(
     provider: Arc<dyn Provider>,
     messages: &[Message],
 ) -> anyhow::Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
@@ -67,10 +67,25 @@ impl Agent {
         &self,
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
-        let provider = self.provider().await?;
-        let summary_result = do_compact_messages(provider.clone(), messages).await?;
+        info!("Performing message compaction");
 
-        let (summary_message, summarization_usage) = match summary_result {
+        // Check if the most recent message is a user message
+        let (messages_to_compact, preserved_user_message) =
+            if let Some(last_message) = messages.last() {
+                if matches!(last_message.role, rmcp::model::Role::User) {
+                    // Remove the last user message before compaction
+                    (&messages[..messages.len() - 1], Some(last_message.clone()))
+                } else {
+                    (messages, None)
+                }
+            } else {
+                (messages, None)
+            };
+
+        let provider = self.provider().await?;
+        let summary = get_summary_from_provider(provider.clone(), messages).await?;
+
+        let (summary_message, summarization_usage) = match summary {
             Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
             None => {
                 // No summary was generated (empty input)
@@ -126,6 +141,11 @@ Just continue the conversation naturally based on the summarized context"
         let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
         final_messages.push(assistant_message);
         final_token_counts.push(assistant_message_tokens);
+
+        // Add back the preserved user message if it exists
+        if let Some(user_message) = preserved_user_message {
+            final_messages.push(user_message);
+        }
 
         Ok((
             Conversation::new_unvalidated(final_messages),
