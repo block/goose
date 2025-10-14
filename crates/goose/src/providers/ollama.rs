@@ -30,9 +30,13 @@ use url::Url;
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600; // seconds
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
-pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
+pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 // Ollama can run many models, we only provide the default
-pub const OLLAMA_KNOWN_MODELS: &[&str] = &[OLLAMA_DEFAULT_MODEL];
+pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
+    OLLAMA_DEFAULT_MODEL,
+    "qwen3-coder:30b",
+    "qwen3-coder:480b-cloud",
+];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 
 #[derive(serde::Serialize)]
