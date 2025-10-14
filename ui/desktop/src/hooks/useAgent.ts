@@ -133,7 +133,6 @@ export function useAgent(): UseAgentReturn {
           }
           setSessionId(agentSession.id);
 
-          // TODO Lifei scheduledJobId only make sure the prompt is auto send for schedule jobs!
           if (!initContext.recipe && agentSession.recipe && scheduledJobIdFromConfig.current) {
             agentSession.recipe = {
               ...agentSession.recipe,
@@ -159,7 +158,6 @@ export function useAgent(): UseAgentReturn {
 
           agentWaitingMessage('Extensions are loading');
 
-          // TODO Lifei. do we still set initContext.recipe somewhere? seems like it is not set anywhere.
           const recipeForInit = initContext.recipe || agentSession.recipe || undefined;
           await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
@@ -195,11 +193,14 @@ export function useAgent(): UseAgentReturn {
 
           return initChat;
         } catch (error) {
-          if ((error + '').includes('Failed to create provider')) {
+          if (
+            (error + '').includes('Failed to create provider') ||
+            error instanceof NoProviderOrModelError
+          ) {
             setAgentState(AgentState.NO_PROVIDER);
-          } else {
-            setAgentState(AgentState.ERROR);
+            throw error;
           }
+          setAgentState(AgentState.ERROR);
           if (typeof error === 'object' && error !== null && 'message' in error) {
             let error_message = error.message as string;
             throw new Error(error_message);
