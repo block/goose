@@ -1,6 +1,6 @@
 ---
 title: Firecrawl Extension
-description: Add Firecrawl MCP Server as a Goose Extension
+description: Add Firecrawl MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 <!-- YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TBA" /--> 
 
 
-This tutorial will get you started with the [Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) as a Goose extension to enable powerful web scraping, crawling, and search capabilities for AI agents.
+This tutorial will get you started with the [Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) as a goose extension to enable powerful web scraping, crawling, and search capabilities for AI agents.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -78,13 +78,13 @@ The Firecrawl MCP server provides comprehensive web scraping and crawling capabi
 - **Site Crawling**: Crawl entire websites or specific sections with customizable depth
 - **Search Integration**: Search across crawled content with advanced filtering
 
-### Goose Prompt
+### goose Prompt
 
 ```
-Hey Goose, I'm building a multiplayer game and trying to decide between Photon and Unity Netcode. Can you scrape their official documentation and recent comparison articles to help me understand the pros and cons of each platform, including performance, pricing, ease of use, and scalability?
+I'm building a multiplayer game and trying to decide between Photon and Unity Netcode. Can you scrape their official documentation and recent comparison articles to help me understand the pros and cons of each platform, including performance, pricing, ease of use, and scalability?
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll help you research Photon and Unity Netcode by scraping their official documentation and finding recent comparison articles. Let me start by gathering information from both platforms' official sites and then look for comparison articles.
