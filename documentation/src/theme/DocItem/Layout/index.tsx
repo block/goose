@@ -81,6 +81,89 @@ function CopyPageButton(): ReactNode {
         bulletListMarker: '-',     // Use - for bullet lists
       });
 
+      // Add custom rule for video embeds (iframes and video tags)
+      turndownService.addRule('videoEmbeds', {
+        filter: function (node) {
+          if (node.nodeName === 'IFRAME') {
+            const src = (node as HTMLElement).getAttribute('src') || '';
+            // Check if it's a video embed (YouTube, Vimeo, etc.)
+            return src.includes('youtube.com') || src.includes('vimeo.com') || src.includes('youtu.be');
+          }
+          if (node.nodeName === 'VIDEO') {
+            return true;
+          }
+          return false;
+        },
+        replacement: function (content, node) {
+          const element = node as HTMLElement;
+          const title = element.getAttribute('title') || 'Video';
+          const src = element.getAttribute('src') || '';
+          
+          // For YouTube embeds, convert to a watch URL
+          let videoUrl = src;
+          if (src.includes('youtube.com/embed/')) {
+            const videoId = src.match(/youtube\.com\/embed\/([^?]+)/)?.[1];
+            if (videoId) {
+              videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            }
+          }
+          
+          return `\n\n**🎥 [${title}](${videoUrl})**\n\n`;
+        }
+      });
+
+      // Add custom rule for VideoCarousel component
+      turndownService.addRule('videoCarousel', {
+        filter: function (node) {
+          if (node.nodeName !== 'DIV') return false;
+          const element = node as HTMLElement;
+          // Check if this is a carousel container
+          return element.classList.contains('carousel-container');
+        },
+        replacement: function (content, node) {
+          const carouselElement = node as HTMLElement;
+          let markdown = '\n\n';
+          
+          // Find all video slides
+          const slides = carouselElement.querySelectorAll('.swiper-slide');
+          
+          slides.forEach((slide, index) => {
+            const iframe = slide.querySelector('iframe');
+            const video = slide.querySelector('video');
+            const descElement = slide.querySelector('div[style*="marginTop"]');
+            
+            if (iframe || video) {
+              const element = (iframe || video) as HTMLElement;
+              const title = element.getAttribute('title') || `Video ${index + 1}`;
+              const src = element.getAttribute('src') || '';
+              
+              // Convert YouTube embed URLs to watch URLs
+              let videoUrl = src;
+              if (src.includes('youtube.com/embed/')) {
+                const videoId = src.match(/youtube\.com\/embed\/([^?]+)/)?.[1];
+                if (videoId) {
+                  videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                }
+              }
+              
+              markdown += `- **🎥 [${title}](${videoUrl})**`;
+              
+              // Add description if available
+              if (descElement) {
+                const description = descElement.textContent?.trim();
+                if (description) {
+                  markdown += `\n  ${description}`;
+                }
+              }
+              
+              markdown += '\n';
+            }
+          });
+          
+          return markdown + '\n';
+        }
+      });
+
       // Add custom rule for category sections with card grids
       turndownService.addRule('categorySections', {
         filter: function (node) {
