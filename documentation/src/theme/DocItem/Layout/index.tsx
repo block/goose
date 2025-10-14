@@ -81,6 +81,79 @@ function CopyPageButton(): ReactNode {
         bulletListMarker: '-',     // Use - for bullet lists
       });
 
+      // Add custom rule for category sections with card grids
+      turndownService.addRule('categorySections', {
+        filter: function (node) {
+          if (node.nodeName !== 'DIV') return false;
+          const element = node as HTMLElement;
+          const classList = Array.from(element.classList);
+          return classList.some(className => className.includes('categorySection'));
+        },
+        replacement: function (content, node) {
+          const sectionElement = node as HTMLElement;
+          let markdown = '\n\n';
+          
+          // Get the section title (h2 with emoji)
+          const titleElement = sectionElement.querySelector('h2');
+          if (titleElement) {
+            markdown += `## ${titleElement.textContent?.trim()}\n\n`;
+          }
+          
+          // Find all card links in the grid
+          const cardLinks = sectionElement.querySelectorAll('a');
+          cardLinks.forEach(cardLink => {
+            const href = cardLink.getAttribute('href') || '';
+            const titleEl = cardLink.querySelector('h3');
+            const descEl = cardLink.querySelector('p');
+            
+            const title = titleEl?.textContent?.trim() || '';
+            const description = descEl?.textContent?.trim() || '';
+            
+            if (title) {
+              markdown += `- **[${title}](${href})**`;
+              if (description) {
+                markdown += `: ${description}`;
+              }
+              markdown += '\n';
+            }
+          });
+          
+          return markdown + '\n';
+        }
+      });
+
+      // Add custom rule for Card components to convert them to cleaner markdown
+      turndownService.addRule('cardComponents', {
+        filter: function (node) {
+          if (node.nodeName !== 'A') return false;
+          const element = node as HTMLElement;
+          // Check if this is a card by looking for card-related classes
+          const classList = Array.from(element.classList);
+          return classList.some(className => className.includes('card'));
+        },
+        replacement: function (content, node) {
+          const cardElement = node as HTMLElement;
+          const href = cardElement.getAttribute('href') || '';
+          
+          // Try to find title and description elements by looking for h3 and p tags
+          const titleElement = cardElement.querySelector('h3');
+          const descElement = cardElement.querySelector('p');
+          
+          const title = titleElement?.textContent?.trim() || '';
+          const description = descElement?.textContent?.trim() || '';
+          
+          // Format as a cleaner markdown structure
+          let markdown = '\n';
+          if (title) {
+            markdown += `**[${title}](${href})**\n`;
+          }
+          if (description) {
+            markdown += `${description}\n`;
+          }
+          return markdown;
+        }
+      });
+
       // Add custom rule for tabs to convert them to sections
       turndownService.addRule('tabsToSections', {
         filter: function (node) {
