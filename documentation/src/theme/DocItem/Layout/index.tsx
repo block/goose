@@ -15,7 +15,6 @@ import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
 import {Copy, Check} from 'lucide-react';
-import styles from './CopyPageButton.module.css';
 import layoutStyles from './styles.module.css';
 import TurndownService from 'turndown';
 
@@ -323,7 +322,7 @@ function CopyPageButton(): ReactNode {
   // Display error message if there's an error
   if (error) {
     return (
-      <div className={styles.copyButtonError}>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-300 text-sm">
         <span>{error}</span>
       </div>
     );
@@ -334,7 +333,7 @@ function CopyPageButton(): ReactNode {
   return (
     <button
       onClick={handleCopy}
-      className={styles.copyButton}
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:opacity-90 hover:-translate-y-px focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:ring-offset-2 active:translate-y-px disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:opacity-60 disabled:hover:translate-y-0"
       aria-label={copied ? 'Page copied to clipboard' : 'Copy page to clipboard'}
       type="button"
       disabled={!isClient || isLoading}
@@ -342,13 +341,13 @@ function CopyPageButton(): ReactNode {
       {/* Copy/Check icon using Lucide React */}
       {copied ? (
         <Check 
-          className={styles.copyIcon}
+          className="flex-shrink-0"
           size={16}
           aria-hidden="true"
         />
       ) : (
         <Copy 
-          className={styles.copyIcon}
+          className="flex-shrink-0"
           size={16}
           aria-hidden="true"
         />
@@ -408,13 +407,13 @@ function CustomDocItemContent({children}: {children: ReactNode}): ReactNode {
   return (
     <div className={clsx(ThemeClassNames.docs.docMarkdown, 'markdown')}>
       {syntheticTitle && (
-        <header className={styles.headerWithButton}>
-          <Heading as="h1" className={styles.headerTitle}>{syntheticTitle}</Heading>
+        <header className="flex justify-between items-start mb-4 flex-col md:flex-row gap-2 md:gap-0">
+          <Heading as="h1" className="m-0 flex-1">{syntheticTitle}</Heading>
           {shouldShowCopyButton && <CopyPageButton />}
         </header>
       )}
       {!syntheticTitle && shouldShowCopyButton && (
-        <div className={styles.buttonContainer}>
+        <div className="flex justify-end mb-4">
           <CopyPageButton />
         </div>
       )}
