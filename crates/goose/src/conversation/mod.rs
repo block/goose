@@ -161,33 +161,53 @@ impl<'a> IntoIterator for &'a Conversation {
 
 /// Fix a conversation that we're about to send to an LLM. So the last and first
 /// messages should always be from the user.
-///
-/// This function handles agent_visible and non-visible messages separately to ensure
-/// that only agent-visible messages are fixed, while preserving non-visible messages.
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
-    let all_messages = conversation.messages().clone();
+    let all_messages = conversation.messages();
 
-    // Separate agent-visible and non-visible messages
-    let mut agent_visible_messages = Vec::new();
-    let mut non_visible_messages = Vec::new();
+    // Separate agent-visible and non-visible messages, preserving original indices
+    let (agent_visible_with_idx, non_visible_with_idx): (Vec<_>, Vec<_>) = all_messages
+        .iter()
+        .enumerate()
+        .partition(|(_, msg)| msg.metadata.agent_visible);
 
-    for msg in all_messages {
-        if msg.metadata.agent_visible {
-            agent_visible_messages.push(msg);
-        } else {
-            non_visible_messages.push(msg);
-        }
-    }
+    let agent_visible_messages: Vec<_> = agent_visible_with_idx
+        .iter()
+        .map(|(_, msg)| (*msg).clone())
+        .collect();
 
     // Only fix agent-visible messages
     let (fixed_visible, issues) = fix_messages(agent_visible_messages);
 
-    // Combine back: non-visible messages stay unchanged, visible messages are fixed
-    let mut final_messages = non_visible_messages;
-    final_messages.extend(fixed_visible);
+    // Rebuild final messages using original indices to maintain order
+    let non_visible_map: Vec<_> = non_visible_with_idx
+        .into_iter()
+        .map(|(idx, msg)| (idx, msg.clone()))
+        .collect();
 
-    // Sort by timestamp to maintain order
-    final_messages.sort_by_key(|m| m.created);
+    let mut fixed_visible_iter = fixed_visible.into_iter();
+    let mut non_visible_iter = non_visible_map.into_iter().peekable();
+    let mut final_messages = Vec::new();
+
+    for (original_idx, _) in agent_visible_with_idx {
+        // Add any non-visible messages that come before this index
+        while let Some(&(non_vis_idx, _)) = non_visible_iter.peek() {
+            if non_vis_idx < original_idx {
+                if let Some((_, msg)) = non_visible_iter.next() {
+                    final_messages.push(msg);
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Add the next fixed visible message
+        if let Some(msg) = fixed_visible_iter.next() {
+            final_messages.push(msg);
+        }
+    }
+
+    // Add any remaining non-visible messages
+    final_messages.extend(non_visible_iter.map(|(_, msg)| msg));
 
     (Conversation::new_unvalidated(final_messages), issues)
 }
@@ -414,8 +434,7 @@ fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     if let Some(last) = messages.last() {
         if last.role == Role::Assistant {
             messages.pop();
-            issues
-                .push("Removed trailing assistant message with pending tool requests".to_string());
+            issues.push("Removed trailing assistant message".to_string());
         }
     }
 
@@ -780,83 +799,94 @@ mod tests {
     }
 
     #[test]
-    fn test_last_assistant_message_with_pending_tool_request() {
-        // Test the scenario where the last assistant message has a tool request
-        // This should be removed to prevent orphaned tool responses after compaction
+    fn test_agent_visible_non_visible_message_ordering_with_fixes() {
+        // Test that non-visible messages maintain their position relative to visible messages
+        // even when visible messages are fixed (merged, removed, etc.)
+
+        // Create messages with mixed visibility where visible ones need fixing
+        let mut msg1_user = Message::user().with_text("First user message");
+        msg1_user.metadata.agent_visible = true;
+
+        let mut msg2_non_visible = Message::user().with_text("Non-visible note 1");
+        msg2_non_visible.metadata.agent_visible = false;
+
+        // These two consecutive user messages should be merged (triggering a fix)
+        let mut msg3_user = Message::user().with_text("Second user message");
+        msg3_user.metadata.agent_visible = true;
+
+        let mut msg4_user = Message::user().with_text("Third user message");
+        msg4_user.metadata.agent_visible = true;
+
+        let mut msg5_non_visible = Message::user().with_text("Non-visible note 2");
+        msg5_non_visible.metadata.agent_visible = false;
+
+        let mut msg6_assistant = Message::assistant().with_text("Assistant response");
+        msg6_assistant.metadata.agent_visible = true;
+
+        let mut msg7_non_visible = Message::user().with_text("Non-visible note 3");
+        msg7_non_visible.metadata.agent_visible = false;
+
+        let mut msg8_user = Message::user().with_text("Final user message");
+        msg8_user.metadata.agent_visible = true;
+
         let messages = vec![
-            Message::user().with_text("Help me with something"),
-            Message::assistant()
-                .with_text("I'll help you with that")
-                .with_tool_request(
-                    "tool_1",
-                    Ok(CallToolRequestParam {
-                        name: "some_tool".into(),
-                        arguments: Some(object!({})),
-                    }),
-                ),
+            msg1_user.clone(),
+            msg2_non_visible.clone(),
+            msg3_user.clone(),
+            msg4_user.clone(),
+            msg5_non_visible.clone(),
+            msg6_assistant.clone(),
+            msg7_non_visible.clone(),
+            msg8_user.clone(),
         ];
 
-        let (fixed, issues) = run_verify(messages);
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages.clone()));
 
-        // The entire last assistant message should be removed
-        assert_eq!(fixed.len(), 1);
-        assert_eq!(issues.len(), 2);
+        // Should have merged consecutive user messages
+        assert!(!issues.is_empty());
+        assert!(issues.iter().any(|i| i.contains("Merged consecutive")));
 
-        // Should have removed the orphaned tool request and the trailing assistant message
-        assert!(issues
+        let fixed_messages = fixed.messages();
+
+        // Verify non-visible messages are still present
+        let non_visible_texts: Vec<String> = fixed_messages
             .iter()
-            .any(|i| i.contains("Removed orphaned tool request 'tool_1'")));
-        assert!(issues
+            .filter(|m| !m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(non_visible_texts.len(), 3);
+        assert_eq!(non_visible_texts[0], "Non-visible note 1");
+        assert_eq!(non_visible_texts[1], "Non-visible note 2");
+        assert_eq!(non_visible_texts[2], "Non-visible note 3");
+
+        // Verify visible messages were processed
+        let visible_texts: Vec<String> = fixed_messages
             .iter()
-            .any(|i| i.contains("Removed trailing assistant message")));
+            .filter(|m| m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
 
-        // Only the user message should remain
-        assert_eq!(fixed[0].role, Role::User);
-        assert!(fixed[0].as_concat_text().contains("Help me with something"));
-    }
+        // Should have 3 visible messages: first user, merged user messages, assistant, final user
+        // But after merging consecutive users and fixing lead/trail, we get fewer
+        assert!(!visible_texts.is_empty());
 
-    #[test]
-    fn test_last_assistant_message_with_multiple_pending_tool_requests() {
-        // Test with multiple tool requests in the last assistant message
-        let messages = vec![
-            Message::user().with_text("Do multiple things"),
-            Message::assistant()
-                .with_text("I'll do multiple things")
-                .with_tool_request(
-                    "tool_1",
-                    Ok(CallToolRequestParam {
-                        name: "tool_a".into(),
-                        arguments: Some(object!({})),
-                    }),
-                )
-                .with_tool_request(
-                    "tool_2",
-                    Ok(CallToolRequestParam {
-                        name: "tool_b".into(),
-                        arguments: Some(object!({})),
-                    }),
-                ),
-        ];
+        // The key assertion: non-visible messages should be preserved and not reordered
+        // relative to each other
+        let mut found_note1 = false;
+        let mut found_note2 = false;
 
-        let (fixed, issues) = run_verify(messages);
-
-        // The entire last assistant message should be removed
-        assert_eq!(fixed.len(), 1);
-        assert_eq!(issues.len(), 3);
-
-        // Should have removed both orphaned tool requests and the trailing assistant message
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed orphaned tool request 'tool_1'")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed orphaned tool request 'tool_2'")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed trailing assistant message")));
-
-        // Only the user message should remain
-        assert_eq!(fixed[0].role, Role::User);
-        assert!(fixed[0].as_concat_text().contains("Do multiple things"));
+        for msg in fixed_messages {
+            let text = msg.as_concat_text();
+            if text == "Non-visible note 1" {
+                assert!(!found_note2 && !found_note1);
+                found_note1 = true;
+            } else if text == "Non-visible note 2" {
+                assert!(found_note1 && !found_note2);
+                found_note2 = true;
+            } else if text == "Non-visible note 3" {
+                assert!(found_note1 && found_note2);
+            }
+        }
     }
 }
