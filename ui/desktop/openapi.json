@@ -2386,10 +2386,10 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "message"
         ],
         "properties": {
-          "error": {
+          "message": {
             "type": "string"
           }
         }

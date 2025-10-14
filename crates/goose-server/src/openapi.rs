@@ -480,7 +480,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::agent::ErrorResponse,
         super::routes::setup::SetupResponse,
     ))
 )]

@@ -114,13 +114,11 @@ pub async fn get_recipe_file_path_by_id(
     })
 }
 
-pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, StatusCode> {
-    let path = get_recipe_file_path_by_id(state, id)
-        .await
-        .map_err(|err| err.status)?;
+pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, ErrorResponse> {
+    let path = get_recipe_file_path_by_id(state, id).await?;
 
-    Recipe::from_file_path(&path).map_err(|err| {
-        error!("Failed to load recipe from {}: {}", path.display(), err);
-        StatusCode::INTERNAL_SERVER_ERROR
+    Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
+        message: format!("Failed to load recipe: {}", err),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
     })
 }

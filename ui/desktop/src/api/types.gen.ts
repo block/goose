@@ -171,7 +171,7 @@ export type Envs = {
 };
 
 export type ErrorResponse = {
-    error: string;
+    message: string;
 };
 
 export type ExtendPromptRequest = {

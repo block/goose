@@ -1,4 +1,5 @@
 use crate::routes::recipe_utils::{load_recipe_by_id, validate_recipe};
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
@@ -86,11 +87,6 @@ pub struct ResumeAgentRequest {
     session_id: String,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct ErrorResponse {
-    error: String,
-}
-
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -105,7 +101,7 @@ pub struct ErrorResponse {
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
-) -> Result<Json<Session>, StatusCode> {
+) -> Result<Json<Session>, ErrorResponse> {
     let StartAgentRequest {
         working_dir,
         recipe,
@@ -118,13 +114,16 @@ async fn start_agent(
             Ok(recipe) => Some(recipe),
             Err(err) => {
                 error!("Failed to decode recipe deeplink: {}", err);
-                return Err(StatusCode::BAD_REQUEST);
+                return Err(ErrorResponse {
+                    message: err.to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                });
             }
         }
     } else if let Some(id) = recipe_id {
         match load_recipe_by_id(state.as_ref(), &id).await {
             Ok(recipe) => Some(recipe),
-            Err(status) => return Err(status),
+            Err(err) => return Err(err),
         }
     } else {
         recipe
@@ -132,7 +131,10 @@ async fn start_agent(
 
     if let Some(ref recipe) = resolved_recipe {
         if let Err(err) = validate_recipe(recipe) {
-            return Err(err.status);
+            return Err(ErrorResponse {
+                message: err.message,
+                status: err.status,
+            });
         }
     }
 
@@ -141,18 +143,36 @@ async fn start_agent(
 
     let mut session = SessionManager::create_session(PathBuf::from(&working_dir), description)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|err| {
+            error!("Failed to create session: {}", err);
+            ErrorResponse {
+                message: format!("Failed to create session: {}", err),
+                status: StatusCode::BAD_REQUEST,
+            }
+        })?;
 
     if let Some(recipe) = resolved_recipe {
         SessionManager::update_session(&session.id)
             .recipe(Some(recipe))
             .apply()
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| {
+                error!("Failed to update session with recipe: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to update session with recipe: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
 
         session = SessionManager::get_session(&session.id, false)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| {
+                error!("Failed to get updated session: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to get updated session: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
     }
 
     Ok(Json(session))
@@ -171,10 +191,16 @@ async fn start_agent(
 )]
 async fn resume_agent(
     Json(payload): Json<ResumeAgentRequest>,
-) -> Result<Json<Session>, StatusCode> {
+) -> Result<Json<Session>, ErrorResponse> {
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+        .map_err(|err| {
+            error!("Failed to resume session {}: {}", payload.session_id, err);
+            ErrorResponse {
+                message: format!("Failed to resume session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
 
     Ok(Json(session))
 }

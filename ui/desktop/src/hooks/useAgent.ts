@@ -200,6 +200,10 @@ export function useAgent(): UseAgentReturn {
           } else {
             setAgentState(AgentState.ERROR);
           }
+          if (typeof error === 'object' && error !== null && 'message' in error) {
+            let error_message = error.message as string;
+            throw new Error(error_message);
+          }
           throw error;
         } finally {
           agentWaitingMessage(null);
@@ -247,11 +251,11 @@ const handleConfigRecovery = async () => {
   }
 };
 
-function buildRecipeInput(
+const buildRecipeInput = (
   recipeOverride?: Recipe,
   recipeId?: string | null,
   recipeDeeplink?: string | null
-) {
+) => {
   if (recipeId) {
     return { recipe_id: recipeId };
   }
@@ -265,4 +269,4 @@ function buildRecipeInput(
   }
 
   return {};
-}
+};
