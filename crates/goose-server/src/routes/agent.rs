@@ -93,9 +93,9 @@ pub struct ResumeAgentRequest {
     request_body = StartAgentRequest,
     responses(
         (status = 200, description = "Agent started successfully", body = Session),
-        (status = 400, description = "Bad request - invalid working directory"),
+        (status = 400, description = "Bad request", body = ErrorResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 500, description = "Internal server error")
+        (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
 async fn start_agent(

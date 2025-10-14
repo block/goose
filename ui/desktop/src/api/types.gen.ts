@@ -1019,9 +1019,9 @@ export type StartAgentData = {
 
 export type StartAgentErrors = {
     /**
-     * Bad request - invalid working directory
+     * Bad request
      */
-    400: unknown;
+    400: ErrorResponse;
     /**
      * Unauthorized - invalid secret key
      */
@@ -1029,8 +1029,10 @@ export type StartAgentErrors = {
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type StartAgentError = StartAgentErrors[keyof StartAgentErrors];
 
 export type StartAgentResponses = {
     /**
@@ -1793,9 +1795,13 @@ export type SaveRecipeData = {
 
 export type SaveRecipeErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
+     * Unauthorized
      */
-    401: unknown;
+    401: ErrorResponse;
+    /**
+     * Not found
+     */
+    404: ErrorResponse;
     /**
      * Internal server error
      */

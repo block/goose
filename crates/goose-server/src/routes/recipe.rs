@@ -332,6 +332,8 @@ async fn delete_recipe(
     responses(
         (status = 204, description = "Recipe saved to file successfully"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "Not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     ),
     tag = "Recipe Management"
