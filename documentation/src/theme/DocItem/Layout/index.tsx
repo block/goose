@@ -82,6 +82,41 @@ function CopyPageButton(): ReactNode {
         bulletListMarker: '-',     // Use - for bullet lists
       });
 
+      // Add custom rule for tabs to convert them to sections
+      turndownService.addRule('tabsToSections', {
+        filter: function (node) {
+          return (
+            node.nodeName === 'DIV' &&
+            (node as HTMLElement).classList.contains('tabs-container')
+          );
+        },
+        replacement: function (content, node) {
+          const tabsContainer = node as HTMLElement;
+          let markdown = '\n\n';
+          
+          // Find all tab panels
+          const tabPanels = tabsContainer.querySelectorAll('[role="tabpanel"]');
+          
+          tabPanels.forEach((panel) => {
+            const panelElement = panel as HTMLElement;
+            
+            // Get the tab label from the corresponding tab button
+            const tabId = panelElement.getAttribute('id');
+            const tabButton = tabsContainer.querySelector(`[aria-controls="${tabId}"]`);
+            const tabLabel = tabButton?.textContent?.trim() || 'Section';
+            
+            // Add the tab label as a heading
+            markdown += `## ${tabLabel}\n\n`;
+            
+            // Convert the panel content to markdown
+            const panelContent = turndownService.turndown(panelElement.innerHTML);
+            markdown += panelContent + '\n\n';
+          });
+          
+          return markdown;
+        }
+      });
+
       // Add custom rule for code blocks to preserve language
       turndownService.addRule('fencedCodeBlock', {
         filter: function (node) {
