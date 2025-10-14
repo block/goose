@@ -9,7 +9,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VBtFinHieHA" /> 
+<!-- YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TBA" /--> 
 
 
 This tutorial will get you started with the [Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) as a Goose extension to enable powerful web scraping, crawling, and search capabilities for AI agents.
