@@ -1,5 +1,4 @@
 import React, {type ReactNode, useState, useEffect} from 'react';
-import Layout from '@theme-original/DocItem/Layout';
 import type LayoutType from '@theme/DocItem/Layout';
 import type {WrapperProps} from '@docusaurus/types';
 import {useDoc} from '@docusaurus/plugin-content-docs/client';
@@ -17,6 +16,7 @@ import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
 import {Copy, Check} from 'lucide-react';
 import styles from './CopyPageButton.module.css';
+import layoutStyles from './styles.module.css';
 import TurndownService from 'turndown';
 
 type Props = WrapperProps<typeof LayoutType>;
@@ -30,7 +30,6 @@ function CopyPageButton(): ReactNode {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const {metadata} = useDoc();
   
   // Ensure we're on the client side to avoid hydration issues
   useEffect(() => {
@@ -278,7 +277,7 @@ function CustomDocItemLayout({children}: {children: ReactNode}): ReactNode {
       <div className={clsx('col', !docTOC.hidden && 'col--9')}>
         <ContentVisibility metadata={metadata} />
         <DocVersionBanner />
-        <div className="docItemContainer_Djhp">
+        <div className={layoutStyles.docItemContainer}>
           <article>
             <DocBreadcrumbs />
             <DocVersionBadge />
