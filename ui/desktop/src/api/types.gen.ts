@@ -749,6 +749,8 @@ export type SetupResponse = {
 
 export type StartAgentRequest = {
     recipe?: Recipe | null;
+    recipe_deeplink?: string | null;
+    recipe_id?: string | null;
     working_dir: string;
 };
 

@@ -4175,6 +4175,14 @@
             ],
             "nullable": true
           },
+          "recipe_deeplink": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_id": {
+            "type": "string",
+            "nullable": true
+          },
           "working_dir": {
             "type": "string"
           }

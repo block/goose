@@ -66,13 +66,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       }
       return;
     }
-
-    // If we have a recipe from app config (deeplink), persist it
-    // But only if the chat context doesn't explicitly have null (which indicates it was cleared)
-    const appRecipe = window.appConfig.get('recipe') as Recipe | null;
-    if (appRecipe && chatContext.chat.recipe === undefined) {
-      chatContext.setRecipe(appRecipe);
-    }
   }, [chatContext, recipe]);
 
   useEffect(() => {

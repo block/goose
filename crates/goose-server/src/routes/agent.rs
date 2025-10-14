@@ -1,3 +1,4 @@
+use crate::routes::recipe_utils::{load_recipe_by_id, validate_recipe};
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
@@ -10,6 +11,7 @@ use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
+use goose::recipe_deeplink;
 use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -20,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
@@ -70,7 +73,12 @@ pub struct UpdateRouterToolSelectorRequest {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     working_dir: String,
+    #[serde(default)]
     recipe: Option<Recipe>,
+    #[serde(default)]
+    recipe_id: Option<String>,
+    #[serde(default)]
+    recipe_deeplink: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -98,15 +106,44 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, StatusCode> {
+    let StartAgentRequest {
+        working_dir,
+        recipe,
+        recipe_id,
+        recipe_deeplink,
+    } = payload;
+
+    let resolved_recipe = if let Some(deeplink) = recipe_deeplink {
+        match recipe_deeplink::decode(&deeplink) {
+            Ok(recipe) => Some(recipe),
+            Err(err) => {
+                error!("Failed to decode recipe deeplink: {}", err);
+                return Err(StatusCode::BAD_REQUEST);
+            }
+        }
+    } else if let Some(id) = recipe_id {
+        match load_recipe_by_id(state.as_ref(), &id).await {
+            Ok(recipe) => Some(recipe),
+            Err(status) => return Err(status),
+        }
+    } else {
+        recipe
+    };
+
+    if let Some(ref recipe) = resolved_recipe {
+        if let Err(err) = validate_recipe(recipe) {
+            return Err(err.status);
+        }
+    }
+
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let description = format!("New session {}", counter);
 
-    let mut session =
-        SessionManager::create_session(PathBuf::from(&payload.working_dir), description)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut session = SessionManager::create_session(PathBuf::from(&working_dir), description)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Some(recipe) = payload.recipe {
+    if let Some(recipe) = resolved_recipe {
         SessionManager::update_session(&session.id)
             .recipe(Some(recipe))
             .apply()

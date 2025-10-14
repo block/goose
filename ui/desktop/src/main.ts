@@ -50,24 +50,8 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { decodeRecipe } from './api';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-
-async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
-  try {
-    return (
-      await decodeRecipe({
-        client,
-        throwOnError: true,
-        body: { deeplink },
-      })
-    ).data.recipe;
-  } catch (e) {
-    console.error('Failed to decode recipe:', e);
-  }
-  return null;
-}
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -542,12 +526,6 @@ const createChat = async (
   }
 
   // Create window config with loading state for recipe deeplinks
-  let isLoadingRecipe = false;
-  if (!recipe && recipeDeeplink) {
-    isLoadingRecipe = true;
-    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
-  }
-
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940, // large enough to show the sidebar on launch
@@ -582,8 +560,9 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
-          recipe: recipe,
           recipeId: recipeId,
+          recipeDeeplink: recipeDeeplink,
+          scheduledJobId: scheduledJobId,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -695,7 +674,10 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipe !== undefined || recipeDeeplink !== undefined)) {
+  if (
+    appPath === '/' &&
+    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined)
+  ) {
     appPath = '/pair';
   }
 
@@ -744,37 +726,6 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
-
-  // Handle recipe decoding in the background after window is created
-  if (isLoadingRecipe && recipeDeeplink) {
-    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
-
-    // Decode recipe asynchronously after window is created
-    decodeRecipeMain(goosedClient, recipeDeeplink)
-      .then((decodedRecipe) => {
-        if (decodedRecipe) {
-          console.log('[Main] Recipe decoded successfully, updating window config');
-
-          // Handle scheduled job parameters if present
-          if (scheduledJobId) {
-            decodedRecipe.scheduledJobId = scheduledJobId;
-            decodedRecipe.isScheduledExecution = true;
-          }
-
-          // Send the decoded recipe to the renderer process
-          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-        } else {
-          console.error('[Main] Failed to decode recipe from deeplink');
-          // Send error to renderer
-          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
-        }
-      })
-      .catch((error) => {
-        console.error('[Main] Error decoding recipe:', error);
-        // Send error to renderer
-        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
-      });
-  }
 
   // Handle window closure
   mainWindow.on('closed', () => {
