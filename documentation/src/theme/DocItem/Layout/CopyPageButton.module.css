@@ -4,10 +4,10 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background-color: var(--ifm-color-emphasis-200);
-  border: 1px solid var(--ifm-color-emphasis-300);
+  background-color: var(--button-primary-background);
+  border: none;
   border-radius: 6px;
-  color: var(--ifm-color-content);
+  color: var(--text-inverse);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -16,7 +16,8 @@
 }
 
 .copyButton:hover {
-  background-color: var(--ifm-color-emphasis-300);
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .copyButton:focus {
@@ -34,14 +35,35 @@
 }
 
 .copyButton:disabled:hover {
-  background-color: var(--ifm-color-emphasis-200);
+  background-color: var(--button-primary-background);
+  opacity: 0.6;
   transform: none;
 }
 
 .copyIcon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  box-sizing: border-box !important;
+  display: inline-block !important;
+}
+
+/* Additional specificity to ensure our styles are applied */
+.copyButton svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  display: inline-block !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
 }
 
 /* Header layout styles */
@@ -87,12 +109,13 @@
   }
 }
 
-/* Dark mode adjustments */
+/* Dark mode adjustments - use the same primary button styling */
 [data-theme='dark'] .copyButton {
-  background-color: var(--ifm-color-emphasis-200);
-  border-color: var(--ifm-color-emphasis-300);
+  background-color: var(--button-primary-background);
+  color: var(--text-inverse);
 }
 
 [data-theme='dark'] .copyButton:hover {
-  background-color: var(--ifm-color-emphasis-300);
+  opacity: 0.9;
+  transform: translateY(-1px);
 }

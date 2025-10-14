@@ -1,4 +1,4 @@
-import React, {type ReactNode, useState} from 'react';
+import React, {type ReactNode, useState, useEffect} from 'react';
 import Layout from '@theme-original/DocItem/Layout';
 import type LayoutType from '@theme/DocItem/Layout';
 import type {WrapperProps} from '@docusaurus/types';
@@ -15,7 +15,9 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
+import {Copy, Check} from 'lucide-react';
 import styles from './CopyPageButton.module.css';
+import TurndownService from 'turndown';
 
 type Props = WrapperProps<typeof LayoutType>;
 
@@ -27,10 +29,17 @@ function CopyPageButton(): ReactNode {
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const {metadata} = useDoc();
+  
+  // Ensure we're on the client side to avoid hydration issues
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const handleCopy = async () => {
-    // Check if clipboard API is available
-    if (!navigator.clipboard) {
+    // Ensure we're on client side and clipboard API is available
+    if (!isClient || typeof window === 'undefined' || !navigator.clipboard) {
       setError('Clipboard not supported in this browser');
       setTimeout(() => setError(null), COPY_FEEDBACK_DURATION);
       return;
@@ -40,11 +49,70 @@ function CopyPageButton(): ReactNode {
     setError(null);
     
     try {
-      // For now, just copy a placeholder text
-      // In Phase 2, we'll copy the actual markdown content
-      const textToCopy = `# Copy Page Feature\n\nThis is a placeholder for the copy page functionality.\nIn Phase 2, this will copy the actual markdown source.`;
+      // Find the article element that contains the main content
+      const articleElement = document.querySelector('article');
       
-      await navigator.clipboard.writeText(textToCopy);
+      if (!articleElement) {
+        throw new Error('Could not find article content');
+      }
+
+      // Clone the article to avoid modifying the actual DOM
+      const clonedArticle = articleElement.cloneNode(true) as HTMLElement;
+      
+      // Remove elements we don't want in the markdown
+      const elementsToRemove = [
+        '.breadcrumbs',           // Breadcrumb navigation
+        '.theme-doc-version-badge', // Version badge
+        '.theme-doc-version-banner', // Version banner
+        '.pagination-nav',        // Previous/Next navigation
+        '.theme-doc-footer',      // Footer
+        '.theme-doc-toc-mobile',  // Mobile TOC
+        'button',                 // All buttons (including copy buttons)
+        '.hash-link',             // Hash links on headings
+      ];
+      
+      elementsToRemove.forEach(selector => {
+        clonedArticle.querySelectorAll(selector).forEach(el => el.remove());
+      });
+
+      // Initialize Turndown service
+      const turndownService = new TurndownService({
+        headingStyle: 'atx',      // Use # for headings
+        codeBlockStyle: 'fenced',  // Use ``` for code blocks
+        bulletListMarker: '-',     // Use - for bullet lists
+      });
+
+      // Add custom rule for code blocks to preserve language
+      turndownService.addRule('fencedCodeBlock', {
+        filter: function (node) {
+          return (
+            node.nodeName === 'PRE' &&
+            node.firstChild &&
+            node.firstChild.nodeName === 'CODE'
+          );
+        },
+        replacement: function (content, node) {
+          const codeElement = node.firstChild as HTMLElement;
+          const className = codeElement.className || '';
+          const language = className.match(/language-(\w+)/)?.[1] || '';
+          
+          // Get the actual code content
+          const code = codeElement.textContent || '';
+          
+          return '\n\n```' + language + '\n' + code + '\n```\n\n';
+        }
+      });
+
+      // Convert HTML to markdown
+      let markdown = turndownService.turndown(clonedArticle);
+      
+      // Clean up the markdown
+      markdown = markdown
+        .replace(/\n{3,}/g, '\n\n')  // Remove excessive newlines
+        .trim();                      // Remove leading/trailing whitespace
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(markdown);
       setCopied(true);
       
       // Reset the "Copied" state after timeout
@@ -59,6 +127,11 @@ function CopyPageButton(): ReactNode {
       setIsLoading(false);
     }
   };
+
+  // Don't render anything until we're on the client side
+  if (!isClient) {
+    return null;
+  }
 
   // Display error message if there's an error
   if (error) {
@@ -77,20 +150,20 @@ function CopyPageButton(): ReactNode {
       type="button"
       disabled={isLoading}
     >
-      {/* Copy icon - simple SVG */}
-      <svg
-        className={styles.copyIcon}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
-      </svg>
+      {/* Copy/Check icon using Lucide React */}
+      {copied ? (
+        <Check 
+          className={styles.copyIcon}
+          size={16}
+          aria-hidden="true"
+        />
+      ) : (
+        <Copy 
+          className={styles.copyIcon}
+          size={16}
+          aria-hidden="true"
+        />
+      )}
       {isLoading ? 'Copying...' : copied ? 'Copied' : 'Copy page'}
     </button>
   );
