@@ -41,29 +41,7 @@
 }
 
 .copyIcon {
-  width: 16px !important;
-  height: 16px !important;
-  flex-shrink: 0 !important;
-  min-width: 16px !important;
-  min-height: 16px !important;
-  max-width: 16px !important;
-  max-height: 16px !important;
-  box-sizing: border-box !important;
-  display: inline-block !important;
-}
-
-/* Additional specificity to ensure our styles are applied */
-.copyButton svg {
-  width: 16px !important;
-  height: 16px !important;
-  flex-shrink: 0 !important;
-  min-width: 16px !important;
-  min-height: 16px !important;
-  max-width: 16px !important;
-  max-height: 16px !important;
-  display: inline-block !important;
-  font-size: 16px !important;
-  line-height: 1 !important;
+  flex-shrink: 0;
 }
 
 /* Header layout styles */
@@ -91,11 +69,6 @@
     font-size: 12px;
     padding: 4px 8px;
     gap: 4px;
-  }
-  
-  .copyIcon {
-    width: 14px;
-    height: 14px;
   }
   
   .headerWithButton {
