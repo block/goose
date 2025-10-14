@@ -76,56 +76,27 @@ function BaseChatContent({
   //   session: sessionMetadata,
   // });
 
-  // Keep session streaming active for multi-window sync, but track initial load
-  const [sessionLoadComplete, setSessionLoadComplete] = useState(false);
   const [messages, setMessages] = useState(chat.messages || []);
   const sessionId = resumeSessionId || chat.sessionId;
+  const [sessionLoaded, setSessionLoaded] = useState(!resumeSessionId);
 
-  // Track the last resumeSessionId to detect when it changes
-  const prevResumeSessionIdRef = useRef(resumeSessionId);
-
-  // Reset state when resumeSessionId changes
-  useEffect(() => {
-    if (resumeSessionId && resumeSessionId !== prevResumeSessionIdRef.current) {
-      // Reset all state for the new session
-      setSessionLoadComplete(false);
-      setMessages([]);
-      lastStreamedMessageCountRef.current = 0;
-      prevResumeSessionIdRef.current = resumeSessionId;
-    }
-  }, [resumeSessionId]);
-
-  const {
-    session: streamedSession,
-    error: sessionStreamError,
-    // isConnected: sessionStreamConnected, // maybe we show an indicator somewhere?
-  } = useSessionStream(sessionId || undefined);
+  const { session: streamedSession, error: sessionStreamError } = useSessionStream(
+    sessionId || undefined
+  );
   const isStreamingRef = useRef(false);
-  const lastStreamedMessageCountRef = useRef(0);
   const [isSessionInUse, setIsSessionInUse] = useState(false);
 
   // Update chat when streamed session data arrives
   useEffect(() => {
     if (streamedSession) {
       const conversation = streamedSession.conversation || [];
-
-      // Mark initial load as complete if we're resuming and have data
-      const isInitialLoad = resumeSessionId && !sessionLoadComplete;
+      setSessionLoaded(true);
 
       // Always update in_use state for multi-window coordination
       setIsSessionInUse(streamedSession.in_use || false);
 
-      // Only update messages if:
-      // 1. We're on initial load (resuming a session), OR
-      // 2. Message count changed from the stream
-      // Note: We continue updating even if locally streaming or session is in_use elsewhere
-      // This ensures all windows see real-time updates
-      const shouldUpdateMessages =
-        isInitialLoad || conversation.length !== lastStreamedMessageCountRef.current;
-
-      if (shouldUpdateMessages) {
-        lastStreamedMessageCountRef.current = conversation.length;
-
+      // Update messages from the stream (unless we're actively streaming locally)
+      if (!isStreamingRef.current) {
         const loadedChat: ChatType = {
           sessionId: streamedSession.id,
           title: streamedSession.description || 'Untitled Chat',
@@ -136,31 +107,9 @@ function BaseChatContent({
         };
         setChat(loadedChat);
         setMessages(conversation);
-
-        // Mark load complete AFTER we've updated the messages
-        if (isInitialLoad) {
-          setSessionLoadComplete(true);
-        }
-
-        // Log for debugging
-        window.electron.logInfo(
-          `Session updated from stream: ${streamedSession.id}, messages: ${conversation.length}, in_use: ${streamedSession.in_use}`
-        );
       }
     }
-  }, [streamedSession, resumeSessionId, sessionLoadComplete, setChat, isStreamingRef]);
-
-  // Update messages when chat.sessionId changes (switching sessions)
-  // but NOT when just chat.messages changes (to avoid conflicts with streaming)
-  const prevSessionIdRef = useRef(chat.sessionId);
-  useEffect(() => {
-    if (chat.sessionId !== prevSessionIdRef.current) {
-      prevSessionIdRef.current = chat.sessionId;
-      if (chat.messages && !isStreamingRef.current) {
-        setMessages(chat.messages);
-      }
-    }
-  }, [chat.sessionId, chat.messages]);
+  }, [streamedSession, setChat]);
 
   // Use chat.sessionId as the source of truth - it gets updated by the effect above
   // when streamedSession arrives
@@ -286,12 +235,12 @@ function BaseChatContent({
     </>
   );
 
-  const showPopularTopics = messages.length === 0 && !resumeSessionId;
+  const showPopularTopics = messages.length === 0 && sessionLoaded;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
-  // Determine if we're truly loading: we have a resumeSessionId but haven't loaded messages yet
-  const isLoadingSession = resumeSessionId && messages.length === 0 && !sessionLoadComplete;
+  // Determine if we're loading: we have a valid resumeSessionId but haven't received the session yet
+  const isLoadingSession = resumeSessionId && resumeSessionId.trim() !== '' && !sessionLoaded;
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
   return (
