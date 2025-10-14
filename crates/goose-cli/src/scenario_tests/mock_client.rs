@@ -3,11 +3,13 @@
 
 use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
+    handler::server::wrapper::Parameters,
     model::{
         CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
         ListResourcesResult, ListToolsResult, ReadResourceResult, ServerNotification, Tool,
     },
-    object,
+    schemars::JsonSchema,
+    tool,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -17,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
 
 pub struct MockClient {
-    tools: HashMap<String, Tool>,
+    pub tools: HashMap<String, Tool>,
     handlers: HashMap<String, Handler>,
 }
 
@@ -137,22 +139,15 @@ impl McpClientTrait for MockClient {
 pub const WEATHER_TYPE: &str = "cloudy";
 
 pub fn weather_client() -> MockClient {
-    let weather_tool = Tool::new(
-        "get_weather",
-        "Get the weather for a location",
-        object!({
-            "type": "object",
-            "required": ["location"],
-            "properties": {
-                "location": {
-                    "type": "string",
-                    "description": "The city and state, e.g. San Francisco, CA"
-                }
-            }
-        }),
-    );
+    #[derive(JsonSchema)]
+    struct WeatherParams {
+        location: String,
+    }
 
-    let mock_client = MockClient::new().add_tool(weather_tool, |args| {
+    #[tool(name = "get_weather", description = "Get the weather for a location")]
+    async fn weather_tool(param: Parameters<WeatherParams>) {}
+
+    let mock_client = MockClient::new().add_tool(weather_tool_tool_attr(), |args| {
         let location = args
             .get("location")
             .and_then(|v| v.as_str())

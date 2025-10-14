@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod tests {
     use crate::scenario_tests::message_generator::{image, text};
-    use crate::scenario_tests::mock_client::WEATHER_TYPE;
+    use crate::scenario_tests::mock_client::{weather_client, WEATHER_TYPE};
     use crate::scenario_tests::scenario_runner::run_scenario;
     use anyhow::Result;
     use goose::conversation::message::Message;
@@ -101,5 +101,12 @@ mod tests {
             },
         )
         .await
+    }
+
+    #[tokio::test]
+    async fn test_weather_tool_schema() -> Result<()> {
+        let client = weather_client();
+        eprintln!("{:?}", client.tools);
+        Ok(())
     }
 }

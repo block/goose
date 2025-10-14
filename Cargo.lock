@@ -2710,6 +2710,7 @@ dependencies = [
  "regex",
  "rmcp",
  "rustyline",
+ "schemars",
  "serde",
  "serde_json",
  "serde_yaml",
