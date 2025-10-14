@@ -1,81 +1,95 @@
 version: 1.0.0
 title: Test Coverage Analyzer
-description: Analyze test coverage gaps in your codebase and get actionable recommendations on where to add tests for maximum impact
+description: Run test coverage analysis and summarize existing coverage reports to identify gaps and provide actionable testing recommendations
 author:
   contact: ARYPROGRAMMER
 
 activities:
-  - Run test coverage analysis on codebase
-  - Identify critical untested code paths
-  - Prioritize files and functions needing tests
-  - Generate specific test case recommendations
-  - Track coverage improvements over time
+  - Run test coverage analysis using project's test framework
+  - Parse and summarize coverage reports (HTML, JSON, XML, terminal output)
+  - Identify critical untested code paths from coverage data
+  - Prioritize files and functions needing tests based on coverage metrics
+  - Generate actionable test case recommendations
+  - Create markdown summary of coverage gaps
 
 prompt: |
-  Analyze test coverage for {{ target_path }} with {{ coverage_tool }} and provide actionable recommendations.
+  Analyze test coverage for {{ target_path }} with {{ coverage_tool }} by running tests with coverage enabled and summarizing the results.
   
   Focus on:
-  - Critical business logic without tests
-  - High-complexity functions with low coverage
-  - Recent changes that lack test coverage
-  - Edge cases and error handling paths
+  - Running tests with coverage reporting enabled
+  - Parsing existing coverage report files (HTML, JSON, XML, lcov)
+  - Identifying critical business logic without tests
+  - High-complexity functions with low coverage from the report
+  - Edge cases and error handling paths that lack coverage
   
-  Generate a prioritized list of files to test based on criticality and complexity.
+  Generate a clear, actionable summary of coverage gaps based on the coverage report data.
 
 instructions: |
-  Perform comprehensive test coverage analysis and generate actionable testing recommendations.
+  Perform test coverage analysis by running tests with coverage enabled, then summarize the coverage report to provide actionable testing recommendations.
   
   Your workflow:
   
-  1. **Check Memory for Previous Coverage Data**
-     - Retrieve baseline coverage metrics if available
-     - Load previously identified critical gaps
-     - This helps track improvements and avoid redundant analysis
+  1. **Check for Previous Coverage Baseline (Optional)**
+     - Retrieve the last stored coverage percentage from memory (key: "last_coverage_run")
+     - If found, note it for comparison (e.g., "75%")
+     - If not found, this is the first run
+     - This is minimal data - just a single percentage value
   
   2. **Detect Test Framework and Coverage Tool**
      - Scan project for test configuration (package.json, pytest.ini, Cargo.toml, go.mod)
      - Identify test framework: Jest, Pytest, Go test, Cargo test, etc.
      - Identify coverage tool based on {{ coverage_tool }} parameter or auto-detect
+     - Locate existing coverage reports if available
   
   3. **Run Coverage Analysis**
-     - Execute coverage command for the detected framework
+     - Execute coverage command for the detected framework with coverage reporting enabled
      - Examples:
-       * Jest: `npm test -- --coverage`
-       * Pytest: `pytest --cov={{ target_path }} --cov-report=term --cov-report=json`
-       * Go: `go test -coverprofile=coverage.out {{ target_path }}`
-       * Rust: `cargo tarpaulin --out Json`
-     - Parse coverage report (JSON/XML/terminal output)
+       * Jest: `npm test -- --coverage --json --outputFile=coverage-summary.json`
+       * Pytest: `pytest --cov={{ target_path }} --cov-report=term --cov-report=json --cov-report=html`
+       * Go: `go test -coverprofile=coverage.out {{ target_path }} && go tool cover -html=coverage.out -o coverage.html`
+       * Rust: `cargo tarpaulin --out Json --out Html`
+     - Note where coverage reports are generated (usually coverage/, htmlcov/, target/coverage/, etc.)
   
-  4. **Analyze Coverage Gaps**
-     - Identify files with <{{ min_coverage }}% coverage
-     - Find untested functions in critical business logic paths
-     - Detect high-complexity functions (cyclomatic complexity >10) with low coverage
-     - Highlight error handling and edge cases without tests
-     - Calculate coverage by module/package
+  4. **Parse Coverage Report**
+     - Read the generated coverage report files:
+       * JSON format (preferred): coverage-summary.json, coverage.json, coverage-final.json
+       * HTML format: coverage/index.html, htmlcov/index.html
+       * XML format: coverage.xml, cobertura.xml
+       * LCOV format: lcov.info
+       * Text output from terminal if no file available
+     - Extract key metrics: overall coverage %, lines covered/uncovered, branches, functions
+     - Parse file-by-file coverage data
+  
+  5. **Analyze Coverage Gaps from Report**
+     - Identify files with <{{ min_coverage }}% coverage from the report data
+     - Find functions/methods with 0% coverage
+     - Highlight uncovered lines and branches from the report
+     - Note any critical paths marked as uncovered
      - Exclude patterns: {{ exclude_patterns }}
+     - DO NOT manually analyze code complexity - rely on coverage report data only
   
-  5. **Prioritize Testing Recommendations**
-     Create a prioritized list based on:
-     - **Critical Priority**: Files with 0% coverage in core business logic
-     - **High Priority**: Functions with complexity >10 and coverage <50%
-     - **Medium Priority**: Recently modified files (last 7 days) with <80% coverage
-     - **Low Priority**: Utility functions with <90% coverage
+  6. **Prioritize Testing Recommendations**
+     Create a prioritized list based on coverage report data:
+     - **Critical Priority**: Files with 0% coverage in core application code (not test files)
+     - **High Priority**: Files with <50% coverage in src/lib/core directories
+     - **Medium Priority**: Files with <{{ min_coverage }}% coverage
+     - **Low Priority**: Files with <90% coverage
      
      For each priority item, include:
-     * File path and line numbers
+     * File path from coverage report
      * Current coverage percentage
-     * Complexity score
-     * Specific test scenarios to implement
+     * Number of uncovered lines
+     * Specific uncovered line ranges from report
   
-  6. **Generate Test Case Suggestions**
-     For top 5 priority items, provide:
-     - Concrete test case descriptions
+  7. **Generate Test Case Suggestions**
+     For top 5 priority items from coverage report, provide:
+     - Which functions/methods are uncovered (from report)
+     - What lines need coverage (from report)
+     - Suggested test scenarios for uncovered code paths
      - Example test structure in the project's test framework
-     - Mock/fixture requirements
-     - Edge cases to cover
   
-  7. **Create Coverage Summary Report**
-     Generate `test-coverage-report.md` in the current working directory with:
+  8. **Create Coverage Summary Report**
+     Generate `test-coverage-report.md` in {{ target_path }} directory with:
      
      ```markdown
      # Test Coverage Analysis Report
@@ -85,48 +99,60 @@ instructions: |
      - Lines Covered: X/Y
      - Branches Covered: X/Y
      - Functions Covered: X/Y
+     - Report Generated: [timestamp]
+     
+     ## Coverage Trend
+     - Previous Run: [retrieve from memory if available, e.g., "75%"]
+     - Current Run: X%
+     - Change: ["+5%" or "-2%" or "First run"]
      
      ## Coverage by Module
-     | Module | Coverage | Priority |
-     |--------|----------|----------|
-     | ... | ... | ... |
+     | Module | Coverage | Lines | Uncovered Lines |
+     |--------|----------|-------|-----------------|
+     | ... | ... | ... | ... |
      
      ## Critical Gaps (Priority: Critical)
      ### File: path/to/file.ext (0% coverage)
-     - **Function**: `functionName` (Lines X-Y)
-     - **Complexity**: High (score: N)
-     - **Why Critical**: Core business logic for payment processing
+     - **Lines Covered**: 0/N
+     - **Uncovered Line Ranges**: Lines X-Y, A-B
      - **Recommended Tests**:
-       1. Test happy path with valid inputs
-       2. Test error handling for invalid data
-       3. Test boundary conditions
+       1. Test main function logic
+       2. Test error handling paths
+       3. Test edge cases
      
      ## High Priority Gaps
-     ...
+     [Files with <50% coverage]
      
-     ## Improvement Tracking
-     - Previous Coverage: [Retrieved from memory if available]
-     - Current Coverage: X%
-     - Change: +/- Y%
+     ## Medium Priority Gaps
+     [Files with <{{ min_coverage }}% coverage]
+     
+     ## Quick Wins
+     [Small files or functions with 0% coverage that are easy to test]
+     
+     ## Coverage Report Location
+     - Full HTML Report: [path to coverage HTML]
+     - JSON Report: [path to coverage JSON]
      ```
-  
-  8. **Store Summary Metrics in Memory**
-     Save ONLY these lightweight metrics for future comparison:
-     - Current overall coverage percentage (key: "coverage_percentage")
-     - Date of analysis (key: "coverage_date")
-     - Top 3 critical files still needing tests (key: "critical_files")
-     
-     DO NOT store full reports or detailed coverage data in memory.
-     All detailed data should be in the markdown file only.
   
   9. **Present Findings**
      Display:
-     - Quick summary with overall coverage
-     - Top 5 priority files to test
-     - Path to full report file (test-coverage-report.md in current directory)
-     - Quick win suggestions (easiest high-impact tests to add)
+     - Quick summary with overall coverage percentage
+     - Top 5 priority files to test (from coverage report)
+     - Location of full HTML coverage report (for interactive browsing)
+     - Path to markdown summary (test-coverage-report.md)
+     - Quick win suggestions (small uncovered files that are easy to test)
      
-     **IMPORTANT**: Confirm the report file was created and show its full path
+     **IMPORTANT**: 
+     - Confirm the report file was created and show its full path
+     - Inform user they can open the HTML coverage report for interactive line-by-line view
+     - The HTML report is already generated by the test framework and is more detailed than what we can create
+  
+  10. **Store Minimal Coverage Metric in Memory (Optional)**
+     - Store ONLY the overall coverage percentage as a single value: "Project coverage: X%"
+     - Use key: "last_coverage_run"
+     - DO NOT store file names, gaps, priorities, or any detailed data
+     - This allows future runs to show simple improvement: "Coverage improved from X% to Y%"
+     - Keep memory footprint minimal (< 50 characters total)
 
 parameters:
   - key: target_path
@@ -159,11 +185,11 @@ extensions:
     display_name: Developer
     timeout: 300
     bundled: true
-    description: For running tests, analyzing code complexity, and generating reports
+    description: For running tests with coverage, parsing coverage reports, and generating summary reports
   
   - type: builtin
     name: memory
     display_name: Memory
     timeout: 300
     bundled: true
-    description: For storing lightweight coverage baselines and tracking improvements over time
+    description: For storing only high-level coverage percentage (single number) to track improvement between runs
