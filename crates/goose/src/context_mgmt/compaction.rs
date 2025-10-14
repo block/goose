@@ -70,7 +70,7 @@ impl Agent {
         info!("Performing message compaction");
 
         // Check if the most recent message is a user message
-        let (messages_to_compact, preserved_user_message) =
+        let (_messages_to_compact, preserved_user_message) =
             if let Some(last_message) = messages.last() {
                 if matches!(last_message.role, rmcp::model::Role::User) {
                     // Remove the last user message before compaction
