@@ -164,50 +164,37 @@ impl<'a> IntoIterator for &'a Conversation {
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
     let all_messages = conversation.messages();
 
-    // Separate agent-visible and non-visible messages, preserving original indices
-    let (agent_visible_with_idx, non_visible_with_idx): (Vec<_>, Vec<_>) = all_messages
-        .iter()
-        .enumerate()
-        .partition(|(_, msg)| msg.metadata.agent_visible);
-
-    let agent_visible_messages: Vec<_> = agent_visible_with_idx
-        .iter()
-        .map(|(_, msg)| (*msg).clone())
-        .collect();
-
-    // Only fix agent-visible messages
-    let (fixed_visible, issues) = fix_messages(agent_visible_messages);
-
-    // Rebuild final messages using original indices to maintain order
-    let non_visible_map: Vec<_> = non_visible_with_idx
-        .into_iter()
-        .map(|(idx, msg)| (idx, msg.clone()))
-        .collect();
-
-    let mut fixed_visible_iter = fixed_visible.into_iter();
-    let mut non_visible_iter = non_visible_map.into_iter().peekable();
-    let mut final_messages = Vec::new();
-
-    for (original_idx, _) in agent_visible_with_idx {
-        // Add any non-visible messages that come before this index
-        while let Some(&(non_vis_idx, _)) = non_visible_iter.peek() {
-            if non_vis_idx < original_idx {
-                if let Some((_, msg)) = non_visible_iter.next() {
-                    final_messages.push(msg);
-                }
-            } else {
-                break;
-            }
-        }
-
-        // Add the next fixed visible message
-        if let Some(msg) = fixed_visible_iter.next() {
-            final_messages.push(msg);
-        }
+    // Create a shadow map: track each message as either Visible or NonVisible with its index
+    enum MessageSlot {
+        Visible(usize),      // Index into agent_visible_messages
+        NonVisible(Message), // Non-visible messages pass through unchanged
     }
 
-    // Add any remaining non-visible messages
-    final_messages.extend(non_visible_iter.map(|(_, msg)| msg));
+    let mut agent_visible_messages = Vec::new();
+    let shadow_map: Vec<MessageSlot> = all_messages
+        .iter()
+        .map(|msg| {
+            if msg.metadata.agent_visible {
+                let idx = agent_visible_messages.len();
+                agent_visible_messages.push(msg.clone());
+                MessageSlot::Visible(idx)
+            } else {
+                MessageSlot::NonVisible(msg.clone())
+            }
+        })
+        .collect();
+
+    // Fix only the agent-visible messages
+    let (fixed_visible, issues) = fix_messages(agent_visible_messages);
+
+    // Reconstruct using shadow map: replace Visible slots with fixed messages
+    let final_messages: Vec<Message> = shadow_map
+        .into_iter()
+        .filter_map(|slot| match slot {
+            MessageSlot::Visible(idx) => fixed_visible.get(idx).cloned(),
+            MessageSlot::NonVisible(msg) => Some(msg),
+        })
+        .collect();
 
     (Conversation::new_unvalidated(final_messages), issues)
 }
@@ -888,5 +875,235 @@ mod tests {
                 assert!(found_note1 && found_note2);
             }
         }
+    }
+
+    #[test]
+    fn test_shadow_map_with_multiple_consecutive_merges() {
+        // Test the shadow map handles multiple consecutive visible messages that all merge
+        let mut msg1 = Message::user().with_text("User 1");
+        msg1.metadata.agent_visible = true;
+
+        let mut msg2_non_vis = Message::user().with_text("Non-visible A");
+        msg2_non_vis.metadata.agent_visible = false;
+
+        let mut msg3 = Message::user().with_text("User 2");
+        msg3.metadata.agent_visible = true;
+
+        let mut msg4 = Message::user().with_text("User 3");
+        msg4.metadata.agent_visible = true;
+
+        let mut msg5 = Message::user().with_text("User 4");
+        msg5.metadata.agent_visible = true;
+
+        let mut msg6_non_vis = Message::user().with_text("Non-visible B");
+        msg6_non_vis.metadata.agent_visible = false;
+
+        let messages = vec![
+            msg1,
+            msg2_non_vis.clone(),
+            msg3,
+            msg4,
+            msg5,
+            msg6_non_vis.clone(),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        // Should have merged the consecutive user messages
+        assert!(issues.iter().any(|i| i.contains("Merged consecutive")));
+
+        let fixed_messages = fixed.messages();
+
+        // Non-visible messages should still be present and in order
+        let non_visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| !m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(non_visible.len(), 2);
+        assert_eq!(non_visible[0], "Non-visible A");
+        assert_eq!(non_visible[1], "Non-visible B");
+
+        // The merged message should contain all the user texts
+        let visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(visible.len(), 1);
+        assert!(visible[0].contains("User 1"));
+        assert!(visible[0].contains("User 2"));
+        assert!(visible[0].contains("User 3"));
+        assert!(visible[0].contains("User 4"));
+    }
+
+    #[test]
+    fn test_shadow_map_with_leading_trailing_removal() {
+        // Test that shadow map handles removal of leading/trailing assistant messages
+        let mut msg1_assistant = Message::assistant().with_text("Leading assistant");
+        msg1_assistant.metadata.agent_visible = true;
+
+        let mut msg2_non_vis = Message::user().with_text("Non-visible note");
+        msg2_non_vis.metadata.agent_visible = false;
+
+        let mut msg3_user = Message::user().with_text("User message");
+        msg3_user.metadata.agent_visible = true;
+
+        let mut msg4_assistant = Message::assistant().with_text("Assistant response");
+        msg4_assistant.metadata.agent_visible = true;
+
+        let mut msg5_assistant = Message::assistant().with_text("Trailing assistant");
+        msg5_assistant.metadata.agent_visible = true;
+
+        let messages = vec![
+            msg1_assistant,
+            msg2_non_vis.clone(),
+            msg3_user,
+            msg4_assistant,
+            msg5_assistant,
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        // Should have merged consecutive assistants, removed leading, and removed trailing
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Merged consecutive assistant")));
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed leading assistant")));
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed trailing assistant")));
+
+        let fixed_messages = fixed.messages();
+
+        // Non-visible message should still be present
+        let non_visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| !m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(non_visible.len(), 1);
+        assert_eq!(non_visible[0], "Non-visible note");
+
+        // The two consecutive assistant messages get merged, then the merged message
+        // is removed as trailing, leaving only the user message
+        let visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0], "User message");
+    }
+
+    #[test]
+    fn test_shadow_map_all_visible_messages_removed() {
+        // Edge case: all visible messages are removed, only non-visible remain
+        let mut msg1_assistant = Message::assistant().with_text("Only assistant");
+        msg1_assistant.metadata.agent_visible = true;
+
+        let mut msg2_non_vis = Message::user().with_text("Non-visible note 1");
+        msg2_non_vis.metadata.agent_visible = false;
+
+        let mut msg3_non_vis = Message::user().with_text("Non-visible note 2");
+        msg3_non_vis.metadata.agent_visible = false;
+
+        let messages = vec![msg1_assistant, msg2_non_vis, msg3_non_vis];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        // Should have removed the assistant and added placeholder
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Removed leading assistant")));
+        assert!(issues.iter().any(|i| i.contains("Added placeholder")));
+
+        let fixed_messages = fixed.messages();
+
+        // Non-visible messages should still be present
+        let non_visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| !m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(non_visible.len(), 2);
+        assert_eq!(non_visible[0], "Non-visible note 1");
+        assert_eq!(non_visible[1], "Non-visible note 2");
+
+        // Should have placeholder user message
+        let visible: Vec<String> = fixed_messages
+            .iter()
+            .filter(|m| m.metadata.agent_visible)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0], "Hello");
+    }
+
+    #[test]
+    fn test_shadow_map_preserves_interleaving_pattern() {
+        // Test that complex interleaving patterns are preserved
+        let mut msg1_user = Message::user().with_text("User 1");
+        msg1_user.metadata.agent_visible = true;
+
+        let mut msg2_non_vis = Message::user().with_text("Non-vis A");
+        msg2_non_vis.metadata.agent_visible = false;
+
+        let mut msg3_assistant = Message::assistant().with_text("Assistant 1");
+        msg3_assistant.metadata.agent_visible = true;
+
+        let mut msg4_non_vis = Message::user().with_text("Non-vis B");
+        msg4_non_vis.metadata.agent_visible = false;
+
+        let mut msg5_user = Message::user().with_text("User 2");
+        msg5_user.metadata.agent_visible = true;
+
+        let mut msg6_non_vis = Message::user().with_text("Non-vis C");
+        msg6_non_vis.metadata.agent_visible = false;
+
+        let messages = vec![
+            msg1_user,
+            msg2_non_vis,
+            msg3_assistant,
+            msg4_non_vis,
+            msg5_user,
+            msg6_non_vis,
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        // Should have no issues for this valid conversation
+        assert!(issues.is_empty());
+
+        let fixed_messages = fixed.messages();
+
+        // Verify the interleaving pattern is preserved
+        assert_eq!(fixed_messages.len(), 6);
+
+        assert_eq!(fixed_messages[0].as_concat_text(), "User 1");
+        assert!(fixed_messages[0].metadata.agent_visible);
+
+        assert_eq!(fixed_messages[1].as_concat_text(), "Non-vis A");
+        assert!(!fixed_messages[1].metadata.agent_visible);
+
+        assert_eq!(fixed_messages[2].as_concat_text(), "Assistant 1");
+        assert!(fixed_messages[2].metadata.agent_visible);
+
+        assert_eq!(fixed_messages[3].as_concat_text(), "Non-vis B");
+        assert!(!fixed_messages[3].metadata.agent_visible);
+
+        assert_eq!(fixed_messages[4].as_concat_text(), "User 2");
+        assert!(fixed_messages[4].metadata.agent_visible);
+
+        assert_eq!(fixed_messages[5].as_concat_text(), "Non-vis C");
+        assert!(!fixed_messages[5].metadata.agent_visible);
     }
 }
