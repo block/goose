@@ -136,13 +136,17 @@ pub async fn check_compaction_needed(
 /// * `session_metadata` - Optional session metadata containing actual token counts
 ///
 /// # Returns
-/// * `AutoCompactResult` containing the potentially compacted messages and metadata
+/// * A tuple containing:
+///   - `bool`: Whether compaction was performed
+///   - `Conversation`: The potentially compacted messages
+///   - `Vec<usize>`: Indices of removed messages (empty if no compaction)
+///   - `Option<ProviderUsage>`: Provider usage from summarization (if compaction occurred)
 pub async fn check_and_compact_messages(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
-) -> std::result::Result<(Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
+) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
     // First check if compaction is needed
     let check_result =
         check_compaction_needed(agent, messages, threshold_override, session_metadata).await?;
@@ -155,6 +159,7 @@ pub async fn check_and_compact_messages(
             check_result.percentage_until_compaction
         );
         return Ok((
+            false,
             Conversation::new_unvalidated(messages.to_vec()),
             Vec::new(),
             None,
@@ -166,7 +171,8 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    agent.compact_messages(messages).await
+    let (conversation, removed_indices, usage) = agent.compact_messages(messages).await?;
+    Ok((true, conversation, removed_indices, usage))
 }
 
 #[cfg(test)]

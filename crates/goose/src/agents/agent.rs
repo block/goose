@@ -902,8 +902,6 @@ impl Agent {
         }
     }
 
-
-
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -919,18 +917,16 @@ impl Agent {
             None
         };
 
-        let (compacted_conversation, _removed_indices, _summarization_usage) = auto_compact::check_and_compact_messages(
-            self,
-            unfixed_conversation.messages(),
-            None,
-            session_metadata.as_ref(),
-        )
-        .await?;
+        let (did_compact, compacted_conversation, _removed_indices, _summarization_usage) =
+            auto_compact::check_and_compact_messages(
+                self,
+                unfixed_conversation.messages(),
+                None,
+                session_metadata.as_ref(),
+            )
+            .await?;
 
-        // Check if compaction actually occurred
-        let compaction_occurred = compacted_conversation.len() != unfixed_conversation.len();
-
-        if compaction_occurred {
+        if did_compact {
             // Get threshold from config to include in message
             let config = crate::config::Config::global();
             let threshold = config
@@ -952,13 +948,13 @@ impl Agent {
                     SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
                 }
 
-                let mut reply_stream = self.reply_internal(compacted_conversation, session).await?;
+                let mut reply_stream = self.reply_internal(compacted_conversation, session, None).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
             }))
         } else {
-            self.reply_internal(unfixed_conversation, session)
+            self.reply_internal(unfixed_conversation, session, None)
                 .await
         }
     }
