@@ -191,13 +191,27 @@
             }
           },
           "400": {
-            "description": "Bad request - invalid working directory"
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1235,10 +1249,34 @@
         },
         "responses": {
           "204": {
-            "description": "Recipe saved to file successfully"
+            "description": "Recipe saved to file successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeResponse"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized - Invalid or missing API key"
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error",
@@ -2213,30 +2251,14 @@
           }
         ]
       },
-      "ContextLengthExceeded": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
-        }
-      },
       "ContextManageRequest": {
         "type": "object",
         "description": "Request payload for context management operations",
         "required": [
           "messages",
-          "manageAction",
           "sessionId"
         ],
         "properties": {
-          "manageAction": {
-            "type": "string",
-            "description": "Operation to perform: \"truncation\" or \"summarize\""
-          },
           "messages": {
             "type": "array",
             "items": {
@@ -2279,6 +2301,17 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "ConversationCompacted": {
+        "type": "object",
+        "required": [
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -2485,10 +2518,10 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "message"
         ],
         "properties": {
-          "error": {
+          "message": {
             "type": "string"
           }
         }
@@ -3098,7 +3131,9 @@
         "description": "A message to or from an LLM",
         "required": [
           "role",
-          "content"
+          "created",
+          "content",
+          "metadata"
         ],
         "properties": {
           "content": {
@@ -3296,7 +3331,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ContextLengthExceeded"
+                "$ref": "#/components/schemas/ConversationCompacted"
               },
               {
                 "type": "object",
@@ -3307,28 +3342,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "contextLengthExceeded"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SummarizationRequested"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "summarizationRequested"
+                      "conversationCompacted"
                     ]
                   }
                 }
@@ -3344,6 +3358,10 @@
       "MessageMetadata": {
         "type": "object",
         "description": "Metadata for message visibility",
+        "required": [
+          "userVisible",
+          "agentVisible"
+        ],
         "properties": {
           "agentVisible": {
             "type": "boolean",
@@ -3978,6 +3996,17 @@
           }
         }
       },
+      "SaveRecipeResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "ScanRecipeRequest": {
         "type": "object",
         "required": [
@@ -4313,6 +4342,14 @@
             ],
             "nullable": true
           },
+          "recipe_deeplink": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_id": {
+            "type": "string",
+            "nullable": true
+          },
           "working_dir": {
             "type": "string"
           }
@@ -4373,17 +4410,6 @@
         "description": "A single success check to validate recipe completion",
         "discriminator": {
           "propertyName": "type"
-        }
-      },
-      "SummarizationRequested": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
         }
       },
       "TextContent": {
