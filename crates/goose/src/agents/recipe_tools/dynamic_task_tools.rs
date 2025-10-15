@@ -21,7 +21,7 @@ pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
 pub fn create_dynamic_task_tool() -> Tool {
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks: req instructions|prompt. Ext: omit=all []=none [names]=only. return_last_only→summary. Opt: title/desc/settings/retry/response/context/activities. Multi→array.".to_string(),
         object!({
             "type": "object",
             "properties": {

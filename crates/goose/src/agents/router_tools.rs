@@ -2,7 +2,6 @@ use super::platform_tools::{
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
-use indoc::indoc;
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 
@@ -11,18 +10,7 @@ pub const ROUTER_LLM_SEARCH_TOOL_NAME: &str = "router__llm_search";
 pub fn llm_search_tool() -> Tool {
     Tool::new(
         ROUTER_LLM_SEARCH_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Searches for relevant tools based on the user's messages.
-            Format a query to search for the most relevant tools based on the user's messages.
-            Pay attention to the keywords in the user's messages, especially the last message and potential tools they are asking for.
-            This tool should be invoked when the user's messages suggest they are asking for a tool to be run.
-            Use the extension_name parameter to filter tools by the appropriate extension.
-            For example, if the user is asking to list the files in the current directory, you filter for the "developer" extension.
-            Example: {"User": "list the files in the current directory", "Query": "list files in current directory", "Extension Name": "developer", "k": 5}
-            Extension name is not optional, it is required.
-            The returned result will be a list of tool names, descriptions, and schemas from which you, the agent can select the most relevant tool to invoke.
-        "#}
-        .to_string(),
+        "Search tools by user intent. Focus on keywords, especially last message. Required: extension_name to filter (e.g., \"developer\" for file ops). Returns tool names/descriptions/schemas for selection.".to_string(),
         object!({
             "type": "object",
             "required": ["query", "extension_name"],
