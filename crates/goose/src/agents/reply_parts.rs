@@ -34,16 +34,14 @@ async fn toolshim_postprocess(
 impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Determine the current mode from config
-        let config = crate::config::Config::global();
-        let mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        let is_autonomous = mode == "auto";
-
         // Get router enabled status
         let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
         // Get tools from extension manager
         let mut tools = self.list_tools_for_router().await;
+
+        let config = crate::config::Config::global();
+        let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
 
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {
