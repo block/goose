@@ -102,6 +102,8 @@ unicode-normalization = "0.1"
 
 oauth2 = "5.0.0"
 sysinfo = "0.37.2"
+zip = "6.0.0"
+which = "8.0.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

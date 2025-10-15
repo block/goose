@@ -15,6 +15,7 @@ use futures::TryStreamExt;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::io;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
@@ -196,18 +197,162 @@ fn detect_platform_defaults() -> PlatformDefaults {
     }
 }
 
+const LLAMA_CPP_VERSION: &str = "b6765";
+
+/// Downloads and extracts llama-server to cache directory, returns path to binary
+async fn ensure_llama_server_binary() -> Result<PathBuf> {
+    let cache_dir = dirs::cache_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
+        .join("goose")
+        .join("llama-server");
+
+    let platform = detect_llama_platform()?;
+    let install_dir = cache_dir.join(LLAMA_CPP_VERSION).join(&platform);
+    let binary_name = if cfg!(windows) {
+        "llama-server.exe"
+    } else {
+        "llama-server"
+    };
+    let binary_path = install_dir.join("build").join("bin").join(binary_name);
+
+    // If cached binary exists, use it
+    if binary_path.exists() {
+        tracing::debug!("Using cached llama-server: {:?}", binary_path);
+        return Ok(binary_path);
+    }
+
+    // Download and extract
+    tracing::info!(
+        "Downloading llama-server {} for {} (one-time setup, ~50MB)...",
+        LLAMA_CPP_VERSION,
+        platform
+    );
+    download_and_extract_llama_server(&cache_dir, LLAMA_CPP_VERSION, &platform).await?;
+
+    if !binary_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Failed to extract llama-server binary after download"
+        ));
+    }
+
+    // Make executable (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&binary_path, std::fs::Permissions::from_mode(0o755))?;
+
+        // Also make the dylibs/so files in the same directory executable if needed
+        let bin_dir = binary_path.parent().unwrap();
+        for entry in std::fs::read_dir(bin_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if ext == "dylib" || ext == "so" {
+                        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!("llama-server ready at: {:?}", binary_path);
+    Ok(binary_path)
+}
+
+fn detect_llama_platform() -> Result<String> {
+    let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => "macos-arm64",
+        ("macos", "x86_64") => "macos-x64",
+        ("linux", "x86_64") => "ubuntu-x64",
+        ("windows", "x86_64") => "win-cpu-x64",
+        (os, arch) => {
+            return Err(anyhow::anyhow!(
+                "Unsupported platform: {}-{}. llama-server binaries are not available for this platform.",
+                os, arch
+            ))
+        }
+    };
+    Ok(platform.to_string())
+}
+
+async fn download_and_extract_llama_server(
+    cache_dir: &Path,
+    version: &str,
+    platform: &str,
+) -> Result<()> {
+    let url = format!(
+        "https://github.com/ggerganov/llama.cpp/releases/download/{}/llama-{}-bin-{}.zip",
+        version, version, platform
+    );
+
+    let install_dir = cache_dir.join(version).join(platform);
+    std::fs::create_dir_all(&install_dir)?;
+
+    // Download
+    tracing::debug!("Downloading from: {}", url);
+    let response = reqwest::get(&url).await?;
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to download llama-server: HTTP {}. URL: {}",
+            response.status(),
+            url
+        ));
+    }
+
+    let bytes = response.bytes().await?;
+    tracing::debug!("Downloaded {} bytes", bytes.len());
+
+    // Extract ZIP
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor)?;
+
+    tracing::debug!("Extracting {} files...", archive.len());
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let outpath = install_dir.join(file.name());
+
+        if file.is_dir() {
+            std::fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(parent) = outpath.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut outfile = std::fs::File::create(&outpath)?;
+            std::io::copy(&mut file, &mut outfile)?;
+
+            // Preserve permissions on Unix
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Some(mode) = file.unix_mode() {
+                    std::fs::set_permissions(&outpath, std::fs::Permissions::from_mode(mode))?;
+                }
+            }
+        }
+    }
+
+    tracing::debug!("Extraction complete");
+    Ok(())
+}
+
 /// Manages a local llama-server process
 struct ServerProcess {
     child: Option<Child>,
     port: u16,
+    binary_path: Option<PathBuf>,
 }
 
 impl ServerProcess {
     fn new(port: u16) -> Self {
-        Self { child: None, port }
+        Self {
+            child: None,
+            port,
+            binary_path: None,
+        }
     }
 
-    fn start(
+    async fn start(
         &mut self,
         model_path: &str,
         host: &str,
@@ -220,6 +365,13 @@ impl ServerProcess {
             return Ok(()); // Already running
         }
 
+        // Ensure we have the binary (download if needed)
+        if self.binary_path.is_none() {
+            self.binary_path = Some(ensure_llama_server_binary().await?);
+        }
+
+        let binary_path = self.binary_path.as_ref().unwrap();
+
         tracing::info!(
             "Starting llama-server with model: {} on {}:{}",
             model_path,
@@ -227,7 +379,7 @@ impl ServerProcess {
             self.port
         );
 
-        let child = Command::new("llama-server")
+        let child = Command::new(binary_path)
             .arg("--model")
             .arg(model_path)
             .arg("--host")
@@ -412,14 +564,16 @@ impl EmbeddedProvider {
         let mut process = self.server_process.lock().await;
 
         if !process.is_running() {
-            process.start(
-                &self.model_path,
-                &self.host,
-                self.ctx_size,
-                self.gpu_layers,
-                self.batch_size,
-                self.threads,
-            )?;
+            process
+                .start(
+                    &self.model_path,
+                    &self.host,
+                    self.ctx_size,
+                    self.gpu_layers,
+                    self.batch_size,
+                    self.threads,
+                )
+                .await?;
 
             // Wait for server to be ready
             drop(process); // Release lock while waiting
@@ -548,7 +702,7 @@ impl EmbeddedProvider {
         let force_emulation = config
             .get_param::<bool>("EMBEDDED_FORCE_TOOL_EMULATION")
             .unwrap_or(false);
-        
+
         if force_emulation {
             tracing::info!("Tool emulation forced via EMBEDDED_FORCE_TOOL_EMULATION");
             return false;
@@ -877,10 +1031,10 @@ impl Provider for EmbeddedProvider {
         let config = crate::config::Config::global();
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
-        
+
         // Check if we should use emulation mode
         let use_emulation = !filtered_tools.is_empty() && !self.get_tool_support().await;
-        
+
         // Determine what to send based on emulation mode
         let (final_system, final_messages, final_tools) = if use_emulation {
             tracing::info!("Using tool emulation mode in streaming");
@@ -915,13 +1069,13 @@ impl Provider for EmbeddedProvider {
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
-            
+
             let mut collected_text = String::new();
             let mut last_usage = None;
-            
+
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                
+
                 if use_emulation {
                     // In emulation mode, collect text for tool execution later
                     if let Some(ref msg) = message {
@@ -937,7 +1091,7 @@ impl Provider for EmbeddedProvider {
                     yield (message, usage);
                 }
             }
-            
+
             // If in emulation mode, execute tools and yield augmented message
             if use_emulation && !collected_text.is_empty() {
                 let augmented_text = ToolExecutor::execute_tool_calls(&collected_text).await;
