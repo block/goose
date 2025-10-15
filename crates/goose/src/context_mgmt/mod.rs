@@ -3,7 +3,7 @@ use crate::conversation::message::MessageMetadata;
 use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::{agents::Agent, config::Config, token_counter::create_async_token_counter};
+use crate::{agents::Agent, config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use rmcp::model::Role;
 use serde::Serialize;
@@ -225,7 +225,7 @@ async fn check_compaction_needed(
     let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
-            let token_counter = create_async_token_counter()
+            let token_counter = create_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
