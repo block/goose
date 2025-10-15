@@ -3,9 +3,6 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
-use goose::agents::extension_manager_extension::{
-    LIST_RESOURCES_TOOL_NAME, READ_RESOURCE_TOOL_NAME,
-};
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};

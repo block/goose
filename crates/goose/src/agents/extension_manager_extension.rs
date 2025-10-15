@@ -39,7 +39,6 @@ pub enum ExtensionManagerToolError {
     OperationFailed { message: String },
 }
 
-// Tool name constants
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str = "search_available_extensions";
