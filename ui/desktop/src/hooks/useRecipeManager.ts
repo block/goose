@@ -17,7 +17,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   const [hasSecurityWarnings, setHasSecurityWarnings] = useState(false);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
   const [recipeError, setRecipeError] = useState<string | null>(null);
-  const recipeParameters = chat.recipeParameterValues;
+  const recipeParameterValues = chat.recipeParameterValues;
 
   const chatContext = useChatContext();
   const messages = chat.messages;
@@ -115,16 +115,16 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       return true; // No parameters required, so all are "filled"
     }
 
-    if (!recipeParameters) {
+    if (!recipeParameterValues) {
       return false; // Parameters required but none provided
     }
 
     // Check if all filtered parameters have values
     return filteredParameters.every((param) => {
-      const value = recipeParameters[param.key];
+      const value = recipeParameterValues[param.key];
       return value !== undefined && value !== null && value.trim() !== '';
     });
-  }, [filteredParameters, recipeParameters, requiresParameters]);
+  }, [filteredParameters, recipeParameterValues, requiresParameters]);
 
   const hasMessages = messages.length > 0;
   useEffect(() => {
@@ -163,12 +163,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       return '';
     }
 
-    if (requiresParameters && recipeParameters) {
-      return substituteParameters(finalRecipe.prompt, recipeParameters);
+    if (requiresParameters && recipeParameterValues) {
+      return substituteParameters(finalRecipe.prompt, recipeParameterValues);
     }
 
     return finalRecipe.prompt;
-  }, [finalRecipe, recipeParameters, recipeAccepted, requiresParameters]);
+  }, [finalRecipe, recipeParameterValues, recipeAccepted, requiresParameters]);
 
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
     // Update chat state with parameters
@@ -225,14 +225,14 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     if (
       finalRecipe?.isScheduledExecution &&
       finalRecipe?.prompt &&
-      (!requiresParameters || recipeParameters) &&
+      (!requiresParameters || recipeParameterValues) &&
       messages.length === 0 &&
       !isLoading &&
       readyForAutoUserPrompt &&
       recipeAccepted
     ) {
-      const finalPrompt = recipeParameters
-        ? substituteParameters(finalRecipe.prompt, recipeParameters)
+      const finalPrompt = recipeParameterValues
+        ? substituteParameters(finalRecipe.prompt, recipeParameterValues)
         : finalRecipe.prompt;
 
       const userMessage = createUserMessage(finalPrompt);
@@ -274,7 +274,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   return {
     recipe: finalRecipe,
     recipeId,
-    recipeParameters,
+    recipeParameterValues,
     filteredParameters,
     initialPrompt,
     isParameterModalOpen,
