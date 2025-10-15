@@ -141,7 +141,7 @@ fn get_agent_messages(
         };
 
         let mut stream = agent
-            .reply(conversation.clone(), Some(session_config))
+            .reply(conversation.clone(), Some(session_config), None)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {

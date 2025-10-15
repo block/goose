@@ -163,7 +163,9 @@ impl CliSession {
         agent: &Agent,
         message_suffix: &str,
     ) -> Result<()> {
-        let (summarized_messages, _, _) = agent.compact_messages(messages.messages()).await?;
+        let (_, summarized_messages, _, _) =
+            goose::context_mgmt::check_and_compact_messages(agent, messages.messages(), None, None)
+                .await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
         *messages = summarized_messages;
@@ -674,10 +676,22 @@ impl CliSession {
                         // Get the provider for summarization
                         let _provider = self.agent.provider().await?;
 
+                        // Get session metadata if available
+                        let session_metadata_for_compact =
+                            if let Some(ref session_id) = self.session_id {
+                                SessionManager::get_session(session_id, false).await.ok()
+                            } else {
+                                None
+                            };
+
                         // Call the summarize_context method
-                        let (summarized_messages, _token_counts, summarization_usage) = self
-                            .agent
-                            .compact_messages(self.messages.messages())
+                        let (_, summarized_messages, _token_counts, summarization_usage) =
+                            goose::context_mgmt::check_and_compact_messages(
+                                &self.agent,
+                                self.messages.messages(),
+                                None,
+                                session_metadata_for_compact.as_ref(),
+                            )
                             .await?;
 
                         // Update the session messages with the summarized ones
@@ -1182,8 +1196,8 @@ impl CliSession {
                                 );
 
                                 // Try auto-compaction first - keep the stream alive!
-                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::do_compaction(&self.agent, self.messages.messages()).await {
-                                    self.messages = compact_result.messages;
+                                if let Ok((_compacted, compacted_messages, _indices, _usage)) = goose::context_mgmt::check_and_compact_messages(&self.agent, self.messages.messages(), None, None).await {
+                                    self.messages = compacted_messages;
                                     if let Some(session_id) = &self.session_id {
                                         SessionManager::replace_conversation(session_id, &self.messages).await?;
                                     }

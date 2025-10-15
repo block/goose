@@ -33,7 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
-use crate::context_mgmt::auto_compact;
+use crate::context_mgmt::check_and_compact_messages;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -907,6 +907,7 @@ impl Agent {
         &self,
         unfixed_conversation: Conversation,
         session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = &session {
@@ -918,7 +919,7 @@ impl Agent {
         };
 
         let (did_compact, compacted_conversation, _removed_indices, _summarization_usage) =
-            auto_compact::check_and_compact_messages(
+            check_and_compact_messages(
                 self,
                 unfixed_conversation.messages(),
                 None,
@@ -948,13 +949,13 @@ impl Agent {
                     SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
                 }
 
-                let mut reply_stream = self.reply_internal(compacted_conversation, session, None).await?;
+                let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
             }))
         } else {
-            self.reply_internal(unfixed_conversation, session, None)
+            self.reply_internal(unfixed_conversation, session, cancel_token)
                 .await
         }
     }
@@ -1280,8 +1281,15 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            match self.compact_messages(conversation.messages()).await {
-                                Ok((compacted_conversation, _removed_indices, _usage)) => {
+                            // Get session metadata if available
+                            let session_metadata_for_compact = if let Some(ref session_config) = session {
+                                SessionManager::get_session(&session_config.id, false).await.ok()
+                            } else {
+                                None
+                            };
+
+                            match check_and_compact_messages(self, conversation.messages(), None, session_metadata_for_compact.as_ref()).await {
+                                Ok((_did_compact, compacted_conversation, _removed_indices, _usage)) => {
                                     conversation = compacted_conversation;
 
                                     yield AgentEvent::Message(

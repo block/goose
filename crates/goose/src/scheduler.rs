@@ -1213,7 +1213,7 @@ async fn run_scheduled_job_internal(
         };
 
         match agent
-            .reply(conversation.clone(), Some(session_config.clone()))
+            .reply(conversation.clone(), Some(session_config.clone()), None)
             .await
         {
             Ok(mut stream) => {

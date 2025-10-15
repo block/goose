@@ -582,8 +582,14 @@ async fn process_message_streaming(
                                         ))
                                         .await;
 
-                                    let (summarized_messages, _, _) =
-                                        agent.compact_messages(messages.messages()).await?;
+                                    let (_, summarized_messages, _, _) =
+                                        goose::context_mgmt::check_and_compact_messages(
+                                            &agent,
+                                            messages.messages(),
+                                            None,
+                                            None,
+                                        )
+                                        .await?;
                                     SessionManager::replace_conversation(
                                         &session_id,
                                         &summarized_messages,
