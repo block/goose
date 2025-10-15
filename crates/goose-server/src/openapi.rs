@@ -346,6 +346,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::update_session_config,
         super::routes::reply::confirm_permission,
         super::routes::reply::reply,
+        super::routes::reply::subscribe,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
         super::routes::session::get_session,

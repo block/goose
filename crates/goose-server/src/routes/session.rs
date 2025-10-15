@@ -87,6 +87,7 @@ async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, St
 
     Ok(Json(session))
 }
+
 #[utoipa::path(
     get,
     path = "/sessions/insights",

@@ -2431,6 +2431,36 @@ export type StatusResponses = {
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
 
+export type SubscribeData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/subscribe/{session_id}';
+};
+
+export type SubscribeErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SubscribeResponses = {
+    /**
+     * Subscription stream initiated
+     */
+    200: unknown;
+};
+
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };

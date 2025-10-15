@@ -1933,6 +1933,36 @@
           }
         }
       }
+    },
+    "/subscribe/{session_id}": {
+      "get": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "subscribe",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription stream initiated"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "components": {

@@ -1,18 +1,49 @@
 use axum::http::StatusCode;
+use goose::conversation::message::Message;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
+use goose::session::Session;
+use rmcp::model::ServerNotification;
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum MessageEvent {
+    Message {
+        message: Message,
+    },
+    Error {
+        error: String,
+    },
+    Finish {
+        reason: String,
+    },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
+    Notification {
+        request_id: String,
+        message: ServerNotification,
+    },
+    Ping,
+    SessionSnapshot {
+        session: Session,
+    },
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
-    /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
+    session_streams: Arc<Mutex<HashMap<String, broadcast::Sender<MessageEvent>>>>,
 }
 
 impl AppState {
@@ -23,6 +54,7 @@ impl AppState {
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
+            session_streams: Arc::new(Mutex::new(HashMap::new())),
         }))
     }
 
@@ -49,7 +81,6 @@ impl AppState {
         self.agent_manager.get_or_create_agent(session_id).await
     }
 
-    /// Get agent for route handlers - always uses Interactive mode and converts any error to 500
     pub async fn get_agent_for_route(
         &self,
         session_id: String,
@@ -58,5 +89,29 @@ impl AppState {
             tracing::error!("Failed to get agent: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })
+    }
+
+    pub async fn get_or_create_session_stream(
+        &self,
+        session_id: &str,
+    ) -> broadcast::Sender<MessageEvent> {
+        let mut streams = self.session_streams.lock().await;
+        streams
+            .entry(session_id.to_string())
+            .or_insert_with(|| broadcast::channel(100).0)
+            .clone()
+    }
+
+    pub async fn get_session_stream(
+        &self,
+        session_id: &str,
+    ) -> Option<broadcast::Sender<MessageEvent>> {
+        let streams = self.session_streams.lock().await;
+        streams.get(session_id).cloned()
+    }
+
+    pub async fn remove_session_stream(&self, session_id: &str) {
+        let mut streams = self.session_streams.lock().await;
+        streams.remove(session_id);
     }
 }

@@ -1,4 +1,6 @@
-use crate::state::AppState;
+use crate::state::{AppState, MessageEvent};
+use axum::extract::Path;
+use axum::routing::get;
 use axum::{
     extract::{DefaultBodyLimit, State},
     http::{self, StatusCode},
@@ -16,7 +18,6 @@ use goose::{
     agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
 };
-use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -121,34 +122,14 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "type")]
-enum MessageEvent {
-    Message {
-        message: Message,
-    },
-    Error {
-        error: String,
-    },
-    Finish {
-        reason: String,
-    },
-    ModelChange {
-        model: String,
-        mode: String,
-    },
-    Notification {
-        request_id: String,
-        message: ServerNotification,
-    },
-    Ping,
-}
-
 async fn stream_event(
     event: MessageEvent,
     tx: &mpsc::Sender<String>,
+    broadcast_tx: &tokio::sync::broadcast::Sender<MessageEvent>,
     cancel_token: &CancellationToken,
 ) {
+    let _ = broadcast_tx.send(event.clone());
+
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
@@ -205,6 +186,8 @@ pub async fn reply(
         }
     }
 
+    let broadcast_tx = state.get_or_create_session_stream(&session_id).await;
+
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
@@ -213,6 +196,9 @@ pub async fn reply(
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
+    let task_broadcast_tx = broadcast_tx.clone();
+    let cleanup_state = state.clone();
+    let cleanup_session_id = session_id.clone();
 
     drop(tokio::spawn(async move {
         let agent = match state.get_agent(session_id.clone()).await {
@@ -224,9 +210,13 @@ pub async fn reply(
                         error: format!("Failed to get session agent: {}", e),
                     },
                     &task_tx,
+                    &task_broadcast_tx,
                     &task_cancel,
                 )
                 .await;
+                cleanup_state
+                    .remove_session_stream(&cleanup_session_id)
+                    .await;
                 return;
             }
         };
@@ -240,9 +230,13 @@ pub async fn reply(
                         error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
+                    &task_broadcast_tx,
                     &cancel_token,
                 )
                 .await;
+                cleanup_state
+                    .remove_session_stream(&cleanup_session_id)
+                    .await;
                 return;
             }
         };
@@ -272,9 +266,13 @@ pub async fn reply(
                         error: e.to_string(),
                     },
                     &task_tx,
+                    &task_broadcast_tx,
                     &cancel_token,
                 )
                 .await;
+                cleanup_state
+                    .remove_session_stream(&cleanup_session_id)
+                    .await;
                 return;
             }
         };
@@ -289,7 +287,7 @@ pub async fn reply(
                     break;
                 }
                 _ = heartbeat_interval.tick() => {
-                    stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
+                    stream_event(MessageEvent::Ping, &tx, &task_broadcast_tx, &cancel_token).await;
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
@@ -302,23 +300,23 @@ pub async fn reply(
 
                             // Only send message to client if it's user_visible
                             if message.is_user_visible() {
-                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                                stream_event(MessageEvent::Message { message }, &tx, &task_broadcast_tx, &cancel_token).await;
                             }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
-                            // Replace the message history with the compacted messages
+                             // Replace the message history with the compacted messages
                             all_messages = Conversation::new_unvalidated(new_messages);
                             // Note: We don't send this as a stream event since it's an internal operation
                             // The client will see the compaction notification message that was sent before this event
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
+                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &task_broadcast_tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             stream_event(MessageEvent::Notification{
                                 request_id: request_id.clone(),
                                 message: n,
-                            }, &tx, &cancel_token).await;
+                            }, &tx, &task_broadcast_tx, &cancel_token).await;
                         }
 
                         Ok(Some(Err(e))) => {
@@ -328,6 +326,7 @@ pub async fn reply(
                                     error: e.to_string(),
                                 },
                                 &tx,
+                                &task_broadcast_tx,
                                 &cancel_token,
                             ).await;
                             break;
@@ -401,9 +400,14 @@ pub async fn reply(
                 reason: "stop".to_string(),
             },
             &task_tx,
+            &task_broadcast_tx,
             &cancel_token,
         )
         .await;
+
+        cleanup_state
+            .remove_session_stream(&cleanup_session_id)
+            .await;
     }));
     Ok(SseResponse::new(stream))
 }
@@ -455,6 +459,65 @@ pub async fn confirm_permission(
     Ok(Json(Value::Object(serde_json::Map::new())))
 }
 
+#[utoipa::path(
+    get,
+    path = "/subscribe/{session_id}",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Subscription stream initiated", content_type = "text/event-stream"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn subscribe(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<SseResponse, StatusCode> {
+    let session = SessionManager::get_session(&session_id, true)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let (tx, rx) = mpsc::channel(100);
+    let stream = ReceiverStream::new(rx);
+
+    let broadcast_rx = state.get_session_stream(&session_id).await;
+
+    tokio::spawn(async move {
+        let initial_event = MessageEvent::SessionSnapshot { session };
+
+        if let Ok(json) = serde_json::to_string(&initial_event) {
+            let _ = tx.send(format!("data: {}\n\n", json)).await;
+        }
+
+        if let Some(broadcast_tx) = broadcast_rx {
+            let mut rx = broadcast_tx.subscribe();
+
+            while let Ok(event) = rx.recv().await {
+                if let Ok(json) = serde_json::to_string(&event) {
+                    if tx.send(format!("data: {}\n\n", json)).await.is_err() {
+                        break;
+                    }
+                }
+
+                if matches!(event, MessageEvent::Finish { .. }) {
+                    break;
+                }
+            }
+        } else {
+            let finish_event = MessageEvent::Finish {
+                reason: "no_active_stream".to_string(),
+            };
+            if let Ok(json) = serde_json::to_string(&finish_event) {
+                let _ = tx.send(format!("data: {}\n\n", json)).await;
+            }
+        }
+    });
+
+    Ok(SseResponse::new(stream))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route(
@@ -462,6 +525,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
         .route("/confirm", post(confirm_permission))
+        .route("/subscribe/{session_id}", get(subscribe))
         .with_state(state)
 }
 
