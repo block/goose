@@ -3,7 +3,7 @@ import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
-import { ProviderDetails } from '../../../api';
+import { ProviderDetails, detectProvider } from '../../../api';
 import { toastService } from '../../../toasts';
 
 interface ProviderSettingsProps {
@@ -16,12 +16,12 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
+  const [testApiKey, setTestApiKey] = useState('');
+  const [detectedProvider, setDetectedProvider] = useState('');
 
-  // Create a function to load providers that can be called multiple times
   const loadProviders = useCallback(async () => {
     setLoading(true);
     try {
-      // Only force refresh when explicitly requested, not on initial load
       const result = await getProviders(!initialLoadDone.current);
       if (result) {
         setProviders(result);
@@ -34,13 +34,10 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
     }
   }, [getProviders]);
 
-  // Load providers only once when component mounts
   useEffect(() => {
     loadProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Intentionally not including loadProviders in deps to prevent reloading
+  }, [loadProviders]);
 
-  // This function will be passed to ProviderGrid for manual refreshes after config changes
   const refreshProviders = useCallback(() => {
     if (initialLoadDone.current) {
       getProviders(true).then((result) => {
@@ -49,19 +46,15 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
     }
   }, [getProviders]);
 
-  // Handler for when a provider is launched if this component is used as part of onboarding page
   const handleProviderLaunch = useCallback(
     async (provider: ProviderDetails) => {
       const provider_name = provider.name;
       const model = provider.metadata.default_model;
 
       try {
-        // update the config
-        // set GOOSE_PROVIDER in the config file
         upsert('GOOSE_PROVIDER', provider_name, false).then((_) =>
           console.log('Setting GOOSE_PROVIDER to', provider_name)
         );
-        // set GOOSE_MODEL in the config file
         upsert('GOOSE_MODEL', model, false).then((_) =>
           console.log('Setting GOOSE_MODEL to', model)
         );
@@ -76,7 +69,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
 
-        // Show error toast
         toastService.configure({ silent: false });
         toastService.error({
           title: 'Initialization Failed',
@@ -88,11 +80,22 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
     [onClose, upsert]
   );
 
+  const handleDetectProvider = async () => {
+    try {
+      const response = await detectProvider({ body: { api_key: testApiKey }, throwOnError: true });
+      if (response.data) {
+        setDetectedProvider(response.data.provider_name);
+      }
+    } catch (error) {
+      console.error('Detection failed:', error);
+      setDetectedProvider('Error');
+    }
+  };
+
   return (
     <div className="h-screen w-full flex flex-col bg-background-default text-text-default">
       <ScrollArea className="flex-1 w-full">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-12 pb-4">
-          {/* Consistent header pattern with back button */}
           <div className="flex flex-col pb-8 border-b border-border-default">
             <div className="flex items-center pt-2 mb-1 no-drag">
               <BackButton onClick={onClose} />
@@ -110,8 +113,26 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
           </div>
         </div>
 
+        <div className="p-5 bg-background-default border-2 border-border-default m-5 rounded">
+          <input
+            type="text"
+            value={testApiKey}
+            onChange={(e) => setTestApiKey(e.target.value)}
+            placeholder="Enter API key"
+            className="mr-3 p-2 w-80 border border-border-default bg-background-default text-text-default rounded"
+          />
+          <button
+            onClick={handleDetectProvider}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90"
+          >
+            Detect
+          </button>
+          {detectedProvider && (
+            <div className="mt-3 text-text-default font-bold">Detected: {detectedProvider}</div>
+          )}
+        </div>
+
         <div className="py-8 pt-[20px]">
-          {/* Content Area */}
           <div className="w-full max-w-6xl mx-auto pt-4 px-4 sm:px-6 md:px-8">
             <div className="relative z-10">
               {loading ? (
