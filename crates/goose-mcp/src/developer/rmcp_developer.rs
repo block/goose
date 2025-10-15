@@ -900,14 +900,7 @@ impl DeveloperServer {
         params: Parameters<ShellParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
-        // Check if in read-only mode
-        if self.readonly {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "shell is not allowed in read-only mode".to_string(),
-                None,
-            ));
-        }
+        self.require_write_access("shell")?;
 
         let params = params.0;
         let command = &params.command;
@@ -1189,14 +1182,7 @@ impl DeveloperServer {
         &self,
         params: Parameters<ImageProcessorParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        // Check if in read-only mode
-        if self.readonly {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "image_processor is not allowed in read-only mode".to_string(),
-                None,
-            ));
-        }
+        self.require_write_access("image_processor")?;
 
         let params = params.0;
         let path_str = &params.path;
