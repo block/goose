@@ -275,11 +275,11 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
+    use crate::conversation::message::Message;
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
-    use crate::conversation::message::Message;
+    use async_trait::async_trait;
     use rmcp::object;
 
     #[derive(Clone)]
@@ -312,7 +312,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prepare_tools_sorts_when_router_disabled_and_includes_frontend_and_list_tools() -> anyhow::Result<()> {
+    async fn prepare_tools_sorts_when_router_disabled_and_includes_frontend_and_list_tools(
+    ) -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
         let model_config = ModelConfig::new("test-model").unwrap();
@@ -351,10 +352,7 @@ mod tests {
         let (tools, _toolshim_tools, _system_prompt) = agent.prepare_tools_and_prompt().await?;
 
         // Ensure both platform and frontend tools are present
-        let names: Vec<String> = tools
-            .iter()
-            .map(|t| t.name.clone().into_owned())
-            .collect();
+        let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();
         assert!(names.iter().any(|n| n.starts_with("platform__")));
         assert!(names.iter().any(|n| n == "frontend__a_tool"));
         assert!(names.iter().any(|n| n == "frontend__z_tool"));
