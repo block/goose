@@ -968,11 +968,6 @@ impl Agent {
                 yield AgentEvent::Message(Message::assistant().with_text(
                     format!("Ran into this error trying to auto-compact: {error}.\n\nSkipping compaction and continuing with the original conversation.")
                 ));
-
-                let mut reply_stream = self.reply_internal(unfixed_conversation, session, cancel_token).await?;
-                while let Some(event) = reply_stream.next().await {
-                    yield event?;
-                }
             }))
         } else {
             self.reply_internal(unfixed_conversation, session, cancel_token)
