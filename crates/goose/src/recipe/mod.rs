@@ -15,7 +15,9 @@ use utoipa::ToSchema;
 pub mod build_recipe;
 pub mod local_recipes;
 pub mod read_recipe_file_content;
+mod recipe_extension_adapter;
 pub mod template_recipe;
+pub mod validate_recipe;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
@@ -42,7 +44,11 @@ pub struct Recipe {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>, // the prompt to start the session with
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "recipe_extension_adapter::deserialize_recipe_extensions"
+    )]
     pub extensions: Option<Vec<ExtensionConfig>>, // a list of extensions to enable
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,34 +259,19 @@ impl Recipe {
     }
 
     pub fn from_content(content: &str) -> Result<Self> {
-        // Parse using YAML parser (since JSON is a subset of YAML, this handles both)
-        let mut value: serde_yaml::Value = serde_yaml::from_str(content)
-            .map_err(|e| anyhow::anyhow!("Failed to parse recipe content as YAML/JSON: {}", e))?;
-
-        // Handle nested legacy recipe format
-        if let Some(nested_recipe) = value.get("recipe") {
-            value = nested_recipe.clone();
-        }
-
-        if let Some(extensions) = value
-            .get_mut("extensions")
-            .and_then(|v| v.as_sequence_mut())
-        {
-            for ext in extensions.iter_mut() {
-                if let Some(obj) = ext.as_mapping_mut() {
-                    if let Some(desc) = obj.get("description") {
-                        if desc.is_null() || desc.as_str().is_some_and(|s| s.is_empty()) {
-                            if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                                obj.insert("description".into(), name.into());
-                            }
-                        }
-                    }
+        let recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
+            Ok(yaml_value) => {
+                if let Some(nested_recipe) = yaml_value.get("recipe") {
+                    serde_yaml::from_value(nested_recipe.clone())
+                        .map_err(|e| anyhow::anyhow!("Failed to parse nested recipe: {}", e))?
+                } else {
+                    serde_yaml::from_str(content)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?
                 }
             }
-        }
-
-        let recipe: Recipe = serde_yaml::from_value(value)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize recipe: {}", e))?;
+            Err(_) => serde_yaml::from_str(content)
+                .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+        };
 
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
@@ -778,7 +769,7 @@ isGlobal: true"#;
         } = &extensions[0]
         {
             assert_eq!(name, "test_extension");
-            assert_eq!(description, "test_extension");
+            assert_eq!(description, "");
         } else {
             panic!("Expected Stdio extension");
         }

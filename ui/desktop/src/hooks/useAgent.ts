@@ -6,7 +6,6 @@ import { initializeCostDatabase } from '../utils/costDatabase';
 import {
   backupConfig,
   initConfig,
-  Message as ApiMessage,
   readAllConfig,
   Recipe,
   recoverConfig,
@@ -15,7 +14,6 @@ import {
   validateConfig,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
-import { convertApiMessageToFrontendMessage } from '../components/context_management';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -52,7 +50,6 @@ export function useAgent(): UseAgentReturn {
   const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
     (window.appConfig.get('recipe') as Recipe) || null
   );
-
   const { getExtensions, addExtension, read } = useConfig();
 
   const resetChat = useCallback(() => {
@@ -78,9 +75,7 @@ export function useAgent(): UseAgentReturn {
           sessionId: agentSession.id,
           title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
-          messages: messages?.map((message: ApiMessage) =>
-            convertApiMessageToFrontendMessage(message)
-          ),
+          messages,
           recipe: agentSession.recipe,
           recipeParameters: agentSession.user_recipe_values || null,
         };
@@ -160,13 +155,7 @@ export function useAgent(): UseAgentReturn {
           const conversation = agentSession.conversation || [];
           // If we're loading a recipe from initContext (new recipe load), start with empty messages
           // Otherwise, use the messages from the session
-          const messages =
-            initContext.recipe && !initContext.resumeSessionId
-              ? []
-              : conversation.map((message: ApiMessage) =>
-                  convertApiMessageToFrontendMessage(message)
-                );
-
+          const messages = initContext.recipe && !initContext.resumeSessionId ? [] : conversation;
           let initChat: ChatType = {
             sessionId: agentSession.id,
             title: agentSession.recipe?.title || agentSession.description,

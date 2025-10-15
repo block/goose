@@ -37,7 +37,7 @@ if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
 fi
 
 # Check for required extraction tools based on detected OS
-if [ "$OS" = "windows" ]; then
+if [ "${OS:-}" = "windows" ]; then
   # Windows uses PowerShell's built-in Expand-Archive - check if PowerShell is available
   if ! command -v powershell.exe >/dev/null 2>&1 && ! command -v pwsh >/dev/null 2>&1; then
     echo "Warning: PowerShell is recommended to extract Windows packages but was not found."
@@ -45,7 +45,7 @@ if [ "$OS" = "windows" ]; then
   fi
 else
   if ! command -v tar >/dev/null 2>&1; then
-    echo "Error: 'tar' is required to extract packages for $OS. Please install tar and try again."
+    echo "Error: 'tar' is required to extract packages for ${OS:-unknown}. Please install tar and try again."
     exit 1
   fi
 fi

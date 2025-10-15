@@ -11,7 +11,7 @@ use super::retry::ProviderRetry;
 use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -40,10 +40,8 @@ pub struct SnowflakeProvider {
     image_format: ImageFormat,
 }
 
-impl_provider_default!(SnowflakeProvider);
-
 impl SnowflakeProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {

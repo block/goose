@@ -1,19 +1,21 @@
 use super::base::{Provider, ProviderMetadata};
 use crate::model::ModelConfig;
 use anyhow::Result;
+use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-type ProviderConstructor = Box<dyn Fn(ModelConfig) -> Result<Arc<dyn Provider>> + Send + Sync>;
+type ProviderConstructor =
+    Arc<dyn Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
 
-struct ProviderEntry {
+pub struct ProviderEntry {
     metadata: ProviderMetadata,
-    constructor: ProviderConstructor,
+    pub(crate) constructor: ProviderConstructor,
 }
 
 #[derive(Default)]
 pub struct ProviderRegistry {
-    entries: HashMap<String, ProviderEntry>,
+    pub(crate) entries: HashMap<String, ProviderEntry>,
 }
 
 impl ProviderRegistry {
@@ -26,7 +28,7 @@ impl ProviderRegistry {
     pub fn register<P, F>(&mut self, constructor: F)
     where
         P: Provider + 'static,
-        F: Fn(ModelConfig) -> Result<P> + Send + Sync + 'static,
+        F: Fn(ModelConfig) -> BoxFuture<'static, Result<P>> + Send + Sync + 'static,
     {
         let metadata = P::metadata();
         let name = metadata.name.clone();
@@ -35,12 +37,17 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Box::new(move |model| Ok(Arc::new(constructor(model)?))),
+                constructor: Arc::new(move |model| {
+                    let fut = constructor(model);
+                    Box::pin(async move {
+                        let provider = fut.await?;
+                        Ok(Arc::new(provider) as Arc<dyn Provider>)
+                    })
+                }),
             },
         );
     }
 
-    /// create provider with custom name
     pub fn register_with_name<P, F>(
         &mut self,
         custom_name: String,
@@ -68,7 +75,13 @@ impl ProviderRegistry {
             custom_name,
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Box::new(move |model| Ok(Arc::new(constructor(model)?))),
+                constructor: Arc::new(move |model| {
+                    let result = constructor(model);
+                    Box::pin(async move {
+                        let provider = result?;
+                        Ok(Arc::new(provider) as Arc<dyn Provider>)
+                    })
+                }),
             },
         );
     }
@@ -81,15 +94,13 @@ impl ProviderRegistry {
         self
     }
 
-    pub fn create(&self, name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
-        let _available_providers: Vec<_> = self.entries.keys().collect();
-
+    pub async fn create(&self, name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
         let entry = self
             .entries
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?;
 
-        (entry.constructor)(model)
+        (entry.constructor)(model).await
     }
 
     pub fn all_metadata(&self) -> Vec<ProviderMetadata> {
