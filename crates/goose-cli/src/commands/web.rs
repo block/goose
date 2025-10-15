@@ -21,7 +21,7 @@ use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{error};
+use tracing::error;
 use webbrowser;
 
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
