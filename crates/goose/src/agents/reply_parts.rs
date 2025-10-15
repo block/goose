@@ -40,9 +40,20 @@ impl Agent {
         // Get tools from extension manager
         let mut tools = self.list_tools_for_router().await;
 
+        let config = crate::config::Config::global();
+        let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
+
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {
+            // Get all tools but filter out subagent tools if not in autonomous mode
             tools = self.list_tools(None).await;
+            if !is_autonomous {
+                // Filter out subagent-related tools
+                tools.retain(|tool| {
+                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
+                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
+                });
+            }
         }
 
         // Add frontend tools
