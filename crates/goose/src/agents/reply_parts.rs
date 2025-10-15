@@ -133,22 +133,7 @@ impl Agent {
             debug!("WAITING_LLM_END");
 
             match complete_result {
-                Ok((message, mut usage)) => {
-                    // Ensure we have token counts for non-streaming case
-                    if let Err(e) = usage
-                        .ensure_tokens(
-                            system_prompt.as_str(),
-                            messages_for_provider.messages(),
-                            &message,
-                            &tools,
-                        )
-                        .await
-                    {
-                        Err(e)
-                    } else {
-                        Ok(stream_from_single_message(message, usage))
-                    }
-                }
+                Ok((message, usage)) => Ok(stream_from_single_message(message, usage)),
                 Err(e) => Err(e),
             }
         };
