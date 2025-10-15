@@ -18,6 +18,7 @@ use std::io;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
+use sysinfo::System;
 use tokio::pin;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -28,13 +29,136 @@ use url::Url;
 pub const EMBEDDED_HOST: &str = "127.0.0.1";
 pub const EMBEDDED_DEFAULT_PORT: u16 = 8080;
 pub const EMBEDDED_DEFAULT_CTX_SIZE: u32 = 8192;
-pub const EMBEDDED_DEFAULT_GPU_LAYERS: u32 = 60;
-pub const EMBEDDED_DEFAULT_BATCH_SIZE: u32 = 512;
-pub const EMBEDDED_DEFAULT_THREADS: u32 = 8;
 pub const EMBEDDED_TIMEOUT: u64 = 600; // seconds
 pub const EMBEDDED_STARTUP_TIMEOUT: u64 = 30; // seconds to wait for server to start
 pub const EMBEDDED_DOC_URL: &str =
     "https://github.com/ggerganov/llama.cpp/blob/master/examples/server/README.md";
+
+/// Platform-specific defaults
+#[derive(Debug, Clone)]
+struct PlatformDefaults {
+    gpu_layers: u32,
+    batch_size: u32,
+    threads: u32,
+}
+
+/// Detect platform and return intelligent defaults
+fn detect_platform_defaults() -> PlatformDefaults {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    let cpu_count = sys.cpus().len() as u32;
+    let total_memory_gb = sys.total_memory() / (1024 * 1024 * 1024);
+
+    // Detect platform
+    let os = std::env::consts::OS;
+
+    tracing::debug!(
+        "Platform detection: OS={}, CPUs={}, Memory={}GB",
+        os,
+        cpu_count,
+        total_memory_gb
+    );
+
+    match os {
+        "macos" => {
+            // Check if Apple Silicon (M1/M2/M3) by checking for arm64
+            let is_apple_silicon = std::env::consts::ARCH == "aarch64";
+
+            if is_apple_silicon {
+                // Apple Silicon with unified memory - can use more GPU layers
+                // Estimate based on available memory
+                let gpu_layers = if total_memory_gb >= 64 {
+                    80 // High memory system
+                } else if total_memory_gb >= 32 {
+                    60 // Medium memory system
+                } else {
+                    40 // Lower memory system
+                };
+
+                tracing::info!(
+                    "Detected Apple Silicon with {}GB RAM, using {} GPU layers",
+                    total_memory_gb,
+                    gpu_layers
+                );
+
+                PlatformDefaults {
+                    gpu_layers,
+                    batch_size: 512,
+                    threads: cpu_count,
+                }
+            } else {
+                // Intel Mac - likely CPU only
+                tracing::info!("Detected Intel Mac, using CPU-only mode");
+                PlatformDefaults {
+                    gpu_layers: 0,
+                    batch_size: 256,
+                    threads: cpu_count,
+                }
+            }
+        }
+        "linux" => {
+            // Try to detect NVIDIA GPU by checking if nvidia-smi exists
+            let has_nvidia = std::process::Command::new("nvidia-smi").output().is_ok();
+
+            if has_nvidia {
+                // Assume modern NVIDIA GPU with 8-24GB VRAM
+                // Conservative estimate: 1 layer ≈ 200-300MB for a 7B model
+                let gpu_layers = 60; // Good for 12-16GB VRAM
+
+                tracing::info!(
+                    "Detected Linux with NVIDIA GPU, using {} GPU layers",
+                    gpu_layers
+                );
+
+                PlatformDefaults {
+                    gpu_layers,
+                    batch_size: 512,
+                    threads: cpu_count,
+                }
+            } else {
+                // CPU-only Linux
+                tracing::info!("Detected Linux without NVIDIA GPU, using CPU-only mode");
+                PlatformDefaults {
+                    gpu_layers: 0,
+                    batch_size: 256,
+                    threads: cpu_count,
+                }
+            }
+        }
+        "windows" => {
+            // Windows - check for NVIDIA
+            let has_nvidia = std::process::Command::new("nvidia-smi.exe")
+                .output()
+                .is_ok();
+
+            if has_nvidia {
+                tracing::info!("Detected Windows with NVIDIA GPU, using 60 GPU layers");
+                PlatformDefaults {
+                    gpu_layers: 60,
+                    batch_size: 512, // Slightly more conservative on Windows
+                    threads: cpu_count,
+                }
+            } else {
+                tracing::info!("Detected Windows without NVIDIA GPU, using CPU-only mode");
+                PlatformDefaults {
+                    gpu_layers: 0,
+                    batch_size: 256,
+                    threads: cpu_count,
+                }
+            }
+        }
+        _ => {
+            // Unknown platform - conservative defaults
+            tracing::warn!("Unknown platform, using conservative CPU-only defaults");
+            PlatformDefaults {
+                gpu_layers: 0,
+                batch_size: 256,
+                threads: cpu_count.min(8),
+            }
+        }
+    }
+}
 
 /// Manages a local llama-server process
 struct ServerProcess {
@@ -180,6 +304,9 @@ impl EmbeddedProvider {
             model_file.to_string_lossy().to_string()
         };
 
+        // Detect platform-specific defaults
+        let platform_defaults = detect_platform_defaults();
+
         let host: String = config
             .get_param("EMBEDDED_HOST")
             .unwrap_or_else(|_| EMBEDDED_HOST.to_string());
@@ -191,17 +318,25 @@ impl EmbeddedProvider {
             .unwrap_or(EMBEDDED_DEFAULT_CTX_SIZE);
         let gpu_layers: u32 = config
             .get_param("EMBEDDED_GPU_LAYERS")
-            .unwrap_or(EMBEDDED_DEFAULT_GPU_LAYERS);
+            .unwrap_or(platform_defaults.gpu_layers);
         let batch_size: u32 = config
             .get_param("EMBEDDED_BATCH_SIZE")
-            .unwrap_or(EMBEDDED_DEFAULT_BATCH_SIZE);
+            .unwrap_or(platform_defaults.batch_size);
         let threads: u32 = config
             .get_param("EMBEDDED_THREADS")
-            .unwrap_or(EMBEDDED_DEFAULT_THREADS);
+            .unwrap_or(platform_defaults.threads);
         let timeout: Duration = Duration::from_secs(
             config
                 .get_param("EMBEDDED_TIMEOUT")
                 .unwrap_or(EMBEDDED_TIMEOUT),
+        );
+
+        tracing::info!(
+            "Embedded provider configuration: gpu_layers={}, batch_size={}, threads={}, ctx_size={}",
+            gpu_layers,
+            batch_size,
+            threads,
+            ctx_size
         );
 
         let base_url = format!("http://{}:{}", host, port);
@@ -347,7 +482,7 @@ impl Provider for EmbeddedProvider {
         ProviderMetadata::new(
             "embedded",
             "Embedded",
-            "Local GGUF models via llama-server (looks in ~/.models by default)",
+            "Local GGUF models via llama-server (auto-detects platform, looks in ~/.models)",
             "embedded",
             vec!["embedded"],
             EMBEDDED_DOC_URL,
@@ -370,19 +505,19 @@ impl Provider for EmbeddedProvider {
                     "EMBEDDED_GPU_LAYERS",
                     false,
                     false,
-                    Some(&EMBEDDED_DEFAULT_GPU_LAYERS.to_string()),
+                    Some("auto-detected"),
                 ),
                 ConfigKey::new(
                     "EMBEDDED_BATCH_SIZE",
                     false,
                     false,
-                    Some(&EMBEDDED_DEFAULT_BATCH_SIZE.to_string()),
+                    Some("auto-detected"),
                 ),
                 ConfigKey::new(
                     "EMBEDDED_THREADS",
                     false,
                     false,
-                    Some(&EMBEDDED_DEFAULT_THREADS.to_string()),
+                    Some("auto-detected"),
                 ),
                 ConfigKey::new(
                     "EMBEDDED_TIMEOUT",
