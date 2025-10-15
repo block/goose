@@ -549,20 +549,14 @@ impl EmbeddedProvider {
             .get_param::<bool>("EMBEDDED_FORCE_TOOL_EMULATION")
             .unwrap_or(false);
         
-        eprintln!("🔍 get_tool_support: EMBEDDED_FORCE_TOOL_EMULATION = {}", force_emulation);
-        
         if force_emulation {
-            eprintln!("✅ FORCING EMULATION MODE");
             tracing::info!("Tool emulation forced via EMBEDDED_FORCE_TOOL_EMULATION");
             return false;
         }
 
         let mut support = self.tool_calling_support.lock().await;
 
-        eprintln!("🔍 get_tool_support: cached value = {:?}", *support);
-
         if let Some(cached) = *support {
-            eprintln!("🔍 get_tool_support: returning cached = {}", cached);
             return cached;
         }
 
@@ -572,10 +566,8 @@ impl EmbeddedProvider {
 
         if detected {
             tracing::info!("Model supports native tool calling");
-            println!("REMOVE ME: model supports native tool calling");
         } else {
             tracing::info!("Model does not support native tool calling, will use emulation mode");
-            println!("REMOVE ME: model does not support native tool calling");
         }
 
         *support = Some(detected);
@@ -589,7 +581,6 @@ struct ToolExecutor;
 impl ToolExecutor {
     /// Parse and execute JSON tool calls from the response text
     async fn execute_tool_calls(text: &str) -> String {
-        println!("REMOVE ME, doing a emulated tool call...");
         let mut result = String::new();
         let mut remaining = text;
 
@@ -796,16 +787,10 @@ impl Provider for EmbeddedProvider {
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
 
-        eprintln!("🔍 DIAGNOSTIC: tools.len()={}, filtered_tools.len()={}, goose_mode={}", 
-                  tools.len(), filtered_tools.len(), goose_mode);
-
         // Check if we should use emulation mode
         let use_emulation = !filtered_tools.is_empty() && !self.get_tool_support().await;
 
-        eprintln!("🔍 DIAGNOSTIC: use_emulation={}", use_emulation);
-
         if use_emulation {
-            eprintln!("✅ USING EMULATION MODE");
             tracing::info!("Using tool emulation mode");
 
             // Use emulation prompt as system parameter (not user message) to avoid Jinja issues
@@ -846,7 +831,6 @@ impl Provider for EmbeddedProvider {
             super::utils::emit_debug_trace(model_config, &emulation_payload, &response, &usage);
             Ok((augmented_message, ProviderUsage::new(response_model, usage)))
         } else {
-            eprintln!("❌ USING NATIVE TOOL CALLING (not emulation)");
             // Use native tool calling (current path)
             let payload = create_request(
                 &self.model,
@@ -886,8 +870,6 @@ impl Provider for EmbeddedProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        eprintln!("🔍 STREAM: tools.len()={}", tools.len());
-        
         self.ensure_server_running()
             .await
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to start server: {}", e)))?;
@@ -899,15 +881,12 @@ impl Provider for EmbeddedProvider {
         // Check if we should use emulation mode
         let use_emulation = !filtered_tools.is_empty() && !self.get_tool_support().await;
         
-        eprintln!("🔍 STREAM: use_emulation={}", use_emulation);
-        
         // Determine what to send based on emulation mode
         let (final_system, final_messages, final_tools) = if use_emulation {
-            eprintln!("✅ STREAM: USING EMULATION MODE");
+            tracing::info!("Using tool emulation mode in streaming");
             // Use emulation prompt as system parameter to avoid Jinja template issues
             (EMULATION_SYSTEM_PROMPT, messages.to_vec(), vec![])
         } else {
-            eprintln!("❌ STREAM: USING NATIVE TOOL CALLING");
             (system, messages.to_vec(), filtered_tools.to_vec())
         };
 
@@ -961,7 +940,6 @@ impl Provider for EmbeddedProvider {
             
             // If in emulation mode, execute tools and yield augmented message
             if use_emulation && !collected_text.is_empty() {
-                eprintln!("🔧 EXECUTING TOOL CALLS IN EMULATION MODE");
                 let augmented_text = ToolExecutor::execute_tool_calls(&collected_text).await;
                 let augmented_message = Message::new(
                     Role::Assistant,
