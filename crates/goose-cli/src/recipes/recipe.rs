@@ -7,13 +7,13 @@ use crate::recipes::secret_discovery::{discover_recipe_secrets, SecretRequiremen
 use anyhow::Result;
 use goose::config::Config;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters, RecipeError,
+    apply_values_to_parameters, build_recipe_from_template, RecipeError,
 };
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::recipe::template_recipe::render_recipe_for_preview;
+use goose::recipe::validate_recipe::validate_recipe_parameters;
 use goose::recipe::Recipe;
 use serde_json::Value;
-use std::collections::HashMap;
 
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
@@ -131,29 +131,11 @@ pub fn render_recipe_as_yaml(recipe_name: &str, params: Vec<(String, String)>) -
     }
 }
 
-pub fn load_recipe_for_validation(recipe_name: &str) -> Result<Recipe> {
-    let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
-    let recipe_file_content = &recipe_file.content;
-    validate_recipe_parameters(recipe_file_content, &recipe_dir_str)?;
-    let recipe = render_recipe_for_preview(
-        recipe_file_content,
-        recipe_dir_str.to_string(),
-        &HashMap::new(),
-    )?;
-
-    if let Some(response) = &recipe.response {
-        if let Some(json_schema) = &response.json_schema {
-            validate_json_schema(json_schema)?;
-        }
-    }
-
-    Ok(recipe)
-}
-
 pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {
     let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
     let recipe_file_content = &recipe_file.content;
-    let recipe_parameters = validate_recipe_parameters(recipe_file_content, &recipe_dir_str)?;
+    let recipe_parameters =
+        validate_recipe_parameters(recipe_file_content, Some(recipe_dir_str.clone()))?;
 
     let (params_for_template, missing_params) = apply_values_to_parameters(
         &params,
@@ -163,20 +145,13 @@ pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Resul
     )?;
     let recipe = render_recipe_for_preview(
         recipe_file_content,
-        recipe_dir_str.to_string(),
+        Some(recipe_dir_str.clone()),
         &params_for_template,
     )?;
     print_recipe_explanation(&recipe);
     print_required_parameters_for_template(params_for_template, missing_params);
 
     Ok(())
-}
-
-fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
-    match jsonschema::validator_for(schema) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(anyhow::anyhow!("JSON schema validation failed: {}", err)),
-    }
 }
 
 #[cfg(test)]

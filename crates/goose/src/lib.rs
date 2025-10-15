@@ -26,5 +26,3 @@ pub mod utils;
 
 #[cfg(test)]
 mod cron_test;
-#[macro_use]
-mod macros;

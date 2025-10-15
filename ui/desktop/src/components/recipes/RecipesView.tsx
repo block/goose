@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipeStorage';
+import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import { FileText, Edit, Trash2, Play, Calendar, AlertCircle, Link } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
@@ -65,7 +65,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleLoadRecipe = async (recipe: Recipe) => {
+  const handleLoadRecipe = async (recipe: Recipe, recipeId: string) => {
     try {
       // onLoadRecipe is not working for loading recipes. It looks correct
       // but the instructions are not flowing through to the server.
@@ -82,7 +82,8 @@ export default function RecipesView() {
         undefined, // version
         undefined, // resumeSessionId
         recipe, // recipe config
-        undefined // view type
+        undefined, // view type,
+        recipeId // recipe id
       );
       // }
     } catch (err) {
@@ -98,7 +99,7 @@ export default function RecipesView() {
       buttons: ['Cancel', 'Delete'],
       defaultId: 0,
       title: 'Delete Recipe',
-      message: `Are you sure you want to delete "${recipeManifest.name}"?`,
+      message: `Are you sure you want to delete "${recipeManifest.recipe.title}"?`,
       detail: 'Recipe file will be deleted.',
     });
 
@@ -110,7 +111,7 @@ export default function RecipesView() {
       await deleteRecipe({ body: { id: recipeManifest.id } });
       await loadSavedRecipes();
       toastSuccess({
-        title: recipeManifest.name,
+        title: recipeManifest.recipe.title,
         msg: 'Recipe deleted successfully',
       });
     } catch (err) {
@@ -174,7 +175,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(recipe);
+              handleLoadRecipe(recipe, recipeManifestResponse.id);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -339,7 +340,7 @@ export default function RecipesView() {
           isOpen={showEditor}
           onClose={handleEditorClose}
           recipe={selectedRecipe.recipe}
-          recipeName={selectedRecipe.name}
+          recipeId={selectedRecipe.id}
         />
       )}
 

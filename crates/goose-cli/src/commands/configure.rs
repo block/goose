@@ -258,7 +258,7 @@ async fn handle_oauth_configuration(
 
     // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?;
-    match create(provider_name, temp_model) {
+    match create(provider_name, temp_model).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
                 let _ = cliclack::log::success("OAuth authentication completed successfully!");
@@ -420,7 +420,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let config = Config::global();
 
     // Get all available providers and their metadata
-    let available_providers = providers();
+    let available_providers = providers().await;
 
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
@@ -550,7 +550,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     spin.start("Attempting to fetch supported models...");
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
-        let temp_provider = create(provider_name, temp_model_config)?;
+        let temp_provider = create(provider_name, temp_model_config).await?;
         temp_provider.fetch_supported_models().await
     };
     spin.stop(style("Model fetch complete").green());
@@ -586,7 +586,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
 
-    let provider = create(provider_name, model_config)?;
+    let provider = create(provider_name, model_config).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
@@ -1419,7 +1419,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Create the agent
     let agent = Agent::new();
-    let new_provider = create(&provider_name, model_config)?;
+    let new_provider = create(&provider_name, model_config).await?;
     agent.update_provider(new_provider).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
@@ -1688,7 +1688,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                 }
             };
 
-            match create("openrouter", model_config) {
+            match create("openrouter", model_config).await {
                 Ok(provider) => {
                     // Simple test request
                     let test_result = provider
@@ -1787,7 +1787,7 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                 }
             };
 
-            match create("tetrate", model_config) {
+            match create("tetrate", model_config).await {
                 Ok(provider) => {
                     // Simple test request
                     let test_result = provider

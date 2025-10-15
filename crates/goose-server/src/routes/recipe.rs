@@ -1,16 +1,41 @@
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::extract::rejection::JsonRejection;
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
+use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::SessionManager;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_path_to_error::deserialize as deserialize_with_path;
 use utoipa::ToSchema;
+
+fn format_json_rejection_message(rejection: &JsonRejection) -> String {
+    match rejection {
+        JsonRejection::JsonDataError(err) => {
+            format!("Request body validation failed: {}", clean_data_error(err))
+        }
+        JsonRejection::JsonSyntaxError(err) => format!("Invalid JSON payload: {}", err.body_text()),
+        JsonRejection::MissingJsonContentType(err) => err.body_text(),
+        JsonRejection::BytesRejection(err) => err.body_text(),
+        _ => rejection.body_text(),
+    }
+}
+
+fn clean_data_error(err: &axum::extract::rejection::JsonDataError) -> String {
+    let message = err.body_text();
+    message
+        .strip_prefix("Failed to deserialize the JSON body into the target type: ")
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| message.to_string())
+}
 
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::get_all_recipes_manifests;
@@ -19,7 +44,6 @@ use crate::state::AppState;
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRecipeRequest {
     session_id: String,
-    // Optional fields
     #[serde(default)]
     author: Option<AuthorRequest>,
 }
@@ -72,7 +96,6 @@ pub struct ScanRecipeResponse {
 pub struct SaveRecipeRequest {
     recipe: Recipe,
     id: Option<String>,
-    is_global: Option<bool>,
 }
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ParseRecipeRequest {
@@ -86,7 +109,6 @@ pub struct ParseRecipeResponse {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeManifestResponse {
-    name: String,
     recipe: Recipe,
     #[serde(rename = "lastModified")]
     last_modified: String,
@@ -115,7 +137,6 @@ pub struct ListRecipeResponse {
     ),
     tag = "Recipe Management"
 )]
-/// Create a Recipe configuration from the current session
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
@@ -125,7 +146,6 @@ async fn create_recipe(
         request.session_id
     );
 
-    // Load messages from session
     let session = match SessionManager::get_session(&request.session_id, true).await {
         Ok(session) => session,
         Err(e) => {
@@ -148,7 +168,6 @@ async fn create_recipe(
 
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    // Create base recipe from agent state and messages
     let recipe_result = agent.create_recipe(conversation).await;
 
     match recipe_result {
@@ -261,7 +280,6 @@ async fn list_recipes(
             let file_path = recipe_manifest_with_path.file_path.clone();
             recipe_file_hash_map.insert(id.clone(), file_path);
             RecipeManifestResponse {
-                name: recipe_manifest_with_path.name.clone(),
                 recipe: recipe_manifest_with_path.recipe.clone(),
                 id: id.clone(),
                 last_modified: recipe_manifest_with_path.last_modified.clone(),
@@ -291,10 +309,9 @@ async fn delete_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<DeleteRecipeRequest>,
 ) -> StatusCode {
-    let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
-    let file_path = match recipe_file_hash_map.get(&request.id) {
-        Some(path) => path,
-        None => return StatusCode::NOT_FOUND,
+    let file_path = match get_recipe_file_path_by_id(state.clone(), &request.id).await {
+        Ok(path) => path,
+        Err(err) => return err.status,
     };
 
     if fs::remove_file(file_path).is_err() {
@@ -317,20 +334,103 @@ async fn delete_recipe(
 )]
 async fn save_recipe(
     State(state): State<Arc<AppState>>,
-    Json(request): Json<SaveRecipeRequest>,
+    payload: Result<Json<Value>, JsonRejection>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let file_path = match request.id {
-        Some(id) => state.recipe_file_hash_map.lock().await.get(&id).cloned(),
+    let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
+    let request = deserialize_save_recipe_request(raw_json)?;
+    validate_recipe(&request.recipe)?;
+
+    let file_path = match request.id.as_ref() {
+        Some(id) => Some(get_recipe_file_path_by_id(state.clone(), id).await?),
         None => None,
     };
 
-    match local_recipes::save_recipe_to_file(request.recipe, request.is_global, file_path) {
+    match local_recipes::save_recipe_to_file(request.recipe, file_path) {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         }),
     }
+}
+
+fn json_rejection_to_error_response(rejection: JsonRejection) -> ErrorResponse {
+    ErrorResponse {
+        message: format_json_rejection_message(&rejection),
+        status: StatusCode::BAD_REQUEST,
+    }
+}
+
+fn validate_recipe(recipe: &Recipe) -> Result<(), ErrorResponse> {
+    let recipe_json = serde_json::to_string(recipe).map_err(|err| ErrorResponse {
+        message: err.to_string(),
+        status: StatusCode::BAD_REQUEST,
+    })?;
+
+    validate_recipe_template_from_content(&recipe_json, None).map_err(|err| ErrorResponse {
+        message: err.to_string(),
+        status: StatusCode::BAD_REQUEST,
+    })?;
+
+    Ok(())
+}
+
+fn deserialize_save_recipe_request(value: Value) -> Result<SaveRecipeRequest, ErrorResponse> {
+    let payload = value.to_string();
+    let mut deserializer = serde_json::Deserializer::from_str(&payload);
+    let result: Result<SaveRecipeRequest, _> = deserialize_with_path(&mut deserializer);
+    result.map_err(|err| {
+        let path = err.path().to_string();
+        let inner = err.into_inner();
+        let message = if path.is_empty() {
+            format!("Save recipe validation failed: {}", inner)
+        } else {
+            format!(
+                "save recipe validation failed at {}: {}",
+                path.trim_start_matches('.'),
+                inner
+            )
+        };
+        ErrorResponse {
+            message,
+            status: StatusCode::BAD_REQUEST,
+        }
+    })
+}
+
+async fn get_recipe_file_path_by_id(
+    state: Arc<AppState>,
+    id: &str,
+) -> Result<PathBuf, ErrorResponse> {
+    let cached_path = {
+        let map = state.recipe_file_hash_map.lock().await;
+        map.get(id).cloned()
+    };
+
+    if let Some(path) = cached_path {
+        return Ok(path);
+    }
+
+    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap_or_default();
+    let mut recipe_file_hash_map = HashMap::new();
+    let mut resolved_path: Option<PathBuf> = None;
+
+    for recipe_manifest_with_path in &recipe_manifest_with_paths {
+        if recipe_manifest_with_path.id == id {
+            resolved_path = Some(recipe_manifest_with_path.file_path.clone());
+        }
+        recipe_file_hash_map.insert(
+            recipe_manifest_with_path.id.clone(),
+            recipe_manifest_with_path.file_path.clone(),
+        );
+    }
+
+    state.set_recipe_file_hash_map(recipe_file_hash_map).await;
+
+    resolved_path.ok_or_else(|| ErrorResponse {
+        message: format!("Recipe not found: {}", id),
+        status: StatusCode::NOT_FOUND,
+    })
 }
 
 #[utoipa::path(
@@ -347,9 +447,11 @@ async fn save_recipe(
 async fn parse_recipe(
     Json(request): Json<ParseRecipeRequest>,
 ) -> Result<Json<ParseRecipeResponse>, ErrorResponse> {
-    let recipe = Recipe::from_content(&request.content).map_err(|e| ErrorResponse {
-        message: format!("Invalid recipe format: {}", e),
-        status: StatusCode::BAD_REQUEST,
+    let recipe = validate_recipe_template_from_content(&request.content, None).map_err(|e| {
+        ErrorResponse {
+            message: format!("Invalid recipe format: {}", e),
+            status: StatusCode::BAD_REQUEST,
+        }
     })?;
 
     Ok(Json(ParseRecipeResponse { recipe }))

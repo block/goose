@@ -24,15 +24,20 @@ jobs:
           set -e
           echo "🔍 Checking if recipe files were added or modified in merged PR..."
           
-          # Get the current commit (merge commit) and the previous commit on the base branch
-          CURRENT_COMMIT=$(git rev-parse HEAD)
-          PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+          # Get the PR merge information
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          echo "Merge commit: $MERGE_COMMIT"
           
-          echo "Current commit: $CURRENT_COMMIT"
-          echo "Previous commit: $PREVIOUS_COMMIT"
+          # For merged PRs, compare the PR's changes against the base branch
+          # Use the PR information from the event to get the actual changes
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           
-          # Get the list of files that were added or modified in this merge (not deleted)
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $PREVIOUS_COMMIT..$CURRENT_COMMIT)
+          echo "PR base SHA: $BASE_SHA"
+          echo "PR head SHA: $HEAD_SHA"
+          
+          # Get the list of files that were added or modified in the PR (not deleted)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_SHA..$HEAD_SHA)
           
           echo "Files added/modified in merged PR:"
           echo "$CHANGED_FILES"

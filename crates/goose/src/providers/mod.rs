@@ -37,4 +37,4 @@ pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{create, providers, refresh_custom_providers};
+pub use factory::{create, create_with_named_model, providers, refresh_custom_providers};

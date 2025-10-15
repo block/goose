@@ -88,7 +88,7 @@ impl AgentManager {
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
             match ModelConfig::new(&model_name) {
-                Ok(model_config) => match create(&provider_name, model_config) {
+                Ok(model_config) => match create(&provider_name, model_config).await {
                     Ok(provider) => {
                         self.set_default_provider(provider).await;
                         info!(
