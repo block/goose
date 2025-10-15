@@ -28,6 +28,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
+  const hasCheckedRecipeRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -56,6 +57,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setRecipeAccepted(false);
         setIsParameterModalOpen(false);
         setIsRecipeWarningModalOpen(false);
+        hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
         chatContext.setChat({
           ...chatContext.chat,
@@ -70,7 +72,14 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
+      // Only check once per recipe load
+      if (hasCheckedRecipeRef.current) {
+        return;
+      }
+
       if (finalRecipe) {
+        hasCheckedRecipeRef.current = true;
+
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);
 
@@ -93,7 +102,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     };
 
     checkRecipeAcceptance();
-  }, [finalRecipe, recipe]);
+  }, [finalRecipe, recipe, chat.messages.length]);
 
   // Filter parameters to only show valid ones that are actually used in the recipe
   const filteredParameters = useMemo(() => {

@@ -110,11 +110,13 @@ impl Agent {
         final_token_counts.push(summary_tokens);
 
         // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
-        let assistant_message = Message::assistant().with_text("
-            The previous message contains a summary that was prepared because a context limit was reached.
-            Do not mention that you read a summary or that conversation summarization occurred
-            Just continue the conversation naturally based on the summarized context
-        ").with_metadata(MessageMetadata::agent_only());
+        let assistant_message = Message::assistant()
+            .with_text(
+                "The previous message contains a summary that was prepared because a context limit was reached.
+Do not mention that you read a summary or that conversation summarization occurred
+Just continue the conversation naturally based on the summarized context"
+            )
+            .with_metadata(MessageMetadata::agent_only());
         let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
         final_messages.push(assistant_message);
         final_token_counts.push(assistant_message_tokens);

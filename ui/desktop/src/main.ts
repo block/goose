@@ -330,6 +330,7 @@ app.on('open-url', async (_event, url) => {
         recipeDeeplink || undefined,
         scheduledJobId || undefined
       );
+      windowDeeplinkURL = null;
       return; // Skip the rest of the handler
     }
 
@@ -350,6 +351,7 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
+    pendingDeepLink = null;
   }
 });
 
