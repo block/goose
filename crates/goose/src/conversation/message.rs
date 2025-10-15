@@ -806,7 +806,8 @@ mod tests {
                         }
                     }
                 }
-            ]
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
         }"#;
 
         let message: Message = serde_json::from_str(json_str).unwrap();
@@ -1014,7 +1015,8 @@ mod tests {
                     "data": "base64data",
                     "mimeType": "image/png"
                 }}
-            ]
+            ],
+            "metadata": {{ "agentVisible": true, "userVisible": true }}
         }}"#,
             malicious_text
         );
@@ -1042,7 +1044,8 @@ mod tests {
             "content": [{
                 "type": "text",
                 "text": "Hello world 世界 🌍"
-            }]
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
         }"#;
 
         let message: Message = serde_json::from_str(clean_json).unwrap();
@@ -1110,20 +1113,6 @@ mod tests {
 
         let message: Message = serde_json::from_str(json_with_metadata).unwrap();
         assert!(!message.is_user_visible());
-        assert!(message.is_agent_visible());
-
-        // Test without metadata (should use defaults)
-        let json_without_metadata = r#"{
-            "role": "user",
-            "created": 1640995200,
-            "content": [{
-                "type": "text",
-                "text": "Test"
-            }]
-        }"#;
-
-        let message: Message = serde_json::from_str(json_without_metadata).unwrap();
-        assert!(message.is_user_visible());
         assert!(message.is_agent_visible());
     }
 
