@@ -105,7 +105,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
-            goose-*.zip
+            goose*.zip
             *.deb
             *.rpm
             download_cli.sh
@@ -122,7 +122,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
-            goose-*.zip
+            goose*.zip
             *.deb
             *.rpm
             download_cli.sh
