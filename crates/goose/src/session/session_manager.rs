@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
@@ -67,6 +67,31 @@ pub struct SessionInsights {
     total_sessions: usize,
     /// Total tokens used across all sessions
     total_tokens: i64,
+}
+
+pub type SessionId = String;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatRecallResult {
+    pub session_id: String,
+    pub session_description: String,
+    pub session_working_dir: String,
+    pub last_activity: DateTime<Utc>,
+    pub total_messages_in_session: usize,
+    pub messages: Vec<ChatRecallMessage>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatRecallMessage {
+    pub role: String,
+    pub content: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChatRecallResults {
+    pub results: Vec<ChatRecallResult>,
+    pub total_matches: usize,
 }
 
 impl SessionUpdateBuilder {
@@ -240,6 +265,19 @@ impl SessionManager {
         } else {
             Ok(())
         }
+    }
+
+    pub async fn search_chat_history(
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<DateTime<Utc>>,
+        before_date: Option<DateTime<Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<ChatRecallResults> {
+        Self::instance()
+            .await?
+            .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
+            .await
     }
 }
 
@@ -937,6 +975,224 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn search_chat_history(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<DateTime<Utc>>,
+        before_date: Option<DateTime<Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<ChatRecallResults> {
+        let limit = limit.unwrap_or(10);
+
+        // Split query into keywords for OR matching (lite-semantic search)
+        let keywords: Vec<String> = query
+            .split_whitespace()
+            .map(|word| format!("%{}%", word.to_lowercase()))
+            .collect();
+
+        if keywords.is_empty() {
+            return Ok(ChatRecallResults {
+                results: vec![],
+                total_matches: 0,
+            });
+        }
+
+        // Build the SQL query with OR conditions for each keyword
+        // This allows "lite-semantic" search by matching ANY of the provided terms
+        let mut sql = String::from(
+            r#"
+            SELECT 
+                s.id as session_id,
+                s.description as session_description,
+                s.working_dir as session_working_dir,
+                s.created_at as session_created_at,
+                m.role,
+                m.content_json,
+                m.timestamp
+            FROM messages m
+            INNER JOIN sessions s ON m.session_id = s.id
+            WHERE EXISTS (
+                SELECT 1 FROM json_each(m.content_json) 
+                WHERE json_extract(value, '$.type') = 'text' 
+                AND (
+        "#,
+        );
+
+        // Add LIKE conditions for each keyword with OR
+        for (i, _) in keywords.iter().enumerate() {
+            if i > 0 {
+                sql.push_str(" OR ");
+            }
+            sql.push_str("LOWER(json_extract(value, '$.text')) LIKE ?");
+        }
+
+        sql.push_str(
+            r#"
+                )
+            )
+        "#,
+        );
+
+        // Exclude current session to avoid self-referential results
+        if exclude_session_id.is_some() {
+            sql.push_str(" AND s.id != ?");
+        }
+
+        if after_date.is_some() {
+            sql.push_str(" AND m.timestamp >= ?");
+        }
+        if before_date.is_some() {
+            sql.push_str(" AND m.timestamp <= ?");
+        }
+
+        // Order by most recent first
+        sql.push_str(" ORDER BY m.timestamp DESC LIMIT ?");
+
+        let mut query_builder = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                String,
+                DateTime<Utc>,
+                String,
+                String,
+                DateTime<Utc>,
+            ),
+        >(&sql);
+
+        // Bind all keyword patterns first
+        for keyword in &keywords {
+            query_builder = query_builder.bind(keyword);
+        }
+
+        // Bind exclude_session_id (after keywords)
+        if let Some(exclude_id) = exclude_session_id {
+            query_builder = query_builder.bind(exclude_id);
+        }
+
+        if let Some(after) = after_date {
+            query_builder = query_builder.bind(after);
+        }
+        if let Some(before) = before_date {
+            query_builder = query_builder.bind(before);
+        }
+
+        query_builder = query_builder.bind(limit as i64);
+
+        let rows = query_builder.fetch_all(&self.pool).await?;
+
+        // Group messages by session
+        use std::collections::HashMap;
+        // Type alias to simplify the complex HashMap type
+        type SessionMessageGroup = (
+            String,
+            String,
+            DateTime<Utc>,
+            Vec<(String, String, DateTime<Utc>)>,
+        );
+        let mut session_messages: HashMap<String, SessionMessageGroup> = HashMap::new();
+
+        for (
+            session_id,
+            session_description,
+            session_working_dir,
+            session_created_at,
+            role,
+            content_json,
+            timestamp,
+        ) in rows
+        {
+            // Parse the JSON content and extract text
+            if let Ok(content_vec) = serde_json::from_str::<Vec<MessageContent>>(&content_json) {
+                let mut text_parts = Vec::new();
+
+                for content in content_vec {
+                    let text = match content {
+                        MessageContent::Text(ref tc) => tc.text.clone(),
+                        MessageContent::ToolRequest(ref tr) => {
+                            format!("[Tool: {}]", tr.to_readable_string())
+                        }
+                        MessageContent::ToolResponse(_) => "[Tool Response]".to_string(),
+                        MessageContent::Thinking(ref t) => format!("[Thinking: {}]", t.thinking),
+                        _ => continue,
+                    };
+                    text_parts.push(text);
+                }
+
+                if !text_parts.is_empty() {
+                    let entry = session_messages.entry(session_id.clone()).or_insert((
+                        session_description.clone(),
+                        session_working_dir.clone(),
+                        session_created_at,
+                        Vec::new(),
+                    ));
+                    entry
+                        .3
+                        .push((role.clone(), text_parts.join("\n"), timestamp));
+                }
+            }
+        }
+
+        // Get total message count per session for context
+        let mut session_totals: HashMap<String, usize> = HashMap::new();
+        for session_id in session_messages.keys() {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE session_id = ?")
+                    .bind(session_id)
+                    .fetch_one(&self.pool)
+                    .await
+                    .unwrap_or(0);
+            session_totals.insert(session_id.clone(), count as usize);
+        }
+
+        // Convert grouped messages to results
+        let mut results: Vec<ChatRecallResult> = session_messages
+            .into_iter()
+            .map(
+                |(session_id, (description, working_dir, _created_at, messages))| {
+                    let message_vec: Vec<ChatRecallMessage> = messages
+                        .into_iter()
+                        .map(|(role, content, timestamp)| ChatRecallMessage {
+                            role,
+                            content,
+                            timestamp,
+                        })
+                        .collect();
+
+                    // Calculate last activity from most recent message
+                    let last_activity = message_vec
+                        .iter()
+                        .map(|m| m.timestamp)
+                        .max()
+                        .unwrap_or_else(chrono::Utc::now);
+
+                    let total_messages_in_session =
+                        session_totals.get(&session_id).copied().unwrap_or(0);
+
+                    ChatRecallResult {
+                        session_id,
+                        session_description: description,
+                        session_working_dir: working_dir,
+                        last_activity,
+                        total_messages_in_session,
+                        messages: message_vec,
+                    }
+                },
+            )
+            .collect();
+
+        // Sort results by most recent message timestamp (last_activity)
+        results.sort_by(|a, b| b.last_activity.cmp(&a.last_activity));
+
+        let total_matches = results.iter().map(|r| r.messages.len()).sum();
+        Ok(ChatRecallResults {
+            results,
+            total_matches,
+        })
     }
 }
 

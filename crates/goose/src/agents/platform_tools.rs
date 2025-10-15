@@ -8,6 +8,7 @@ pub const PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str =
     "platform__search_available_extensions";
 pub const PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME: &str = "platform__manage_extensions";
 pub const PLATFORM_MANAGE_SCHEDULE_TOOL_NAME: &str = "platform__manage_schedule";
+pub const PLATFORM_CHAT_RECALL_TOOL_NAME: &str = "platform__chat_recall";
 
 pub fn read_resource_tool() -> Tool {
     Tool::new(
@@ -151,6 +152,70 @@ pub fn manage_schedule_tool() -> Tool {
         read_only_hint: Some(false),
         destructive_hint: Some(true), // Can kill jobs
         idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
+}
+
+pub fn chat_recall_tool() -> Tool {
+    Tool::new(
+        PLATFORM_CHAT_RECALL_TOOL_NAME.to_string(),
+        indoc! {r#"
+            Recall previous conversations by searching through past chat history.
+            
+            TWO MODES:
+            
+            1. SEARCH MODE (default): Provide a 'query' to search across all conversations
+               - Use keyword matching with MULTIPLE related terms, synonyms, similar concepts, or metaphors
+               - Examples:
+                 * Instead of "database", use: "database postgres sql schema table structure"
+                 * Instead of "chat", use: "chat conversation discussion talk message"
+                 * Instead of "error", use: "error bug issue problem failure exception"
+               - Returns matching messages grouped by session
+               - Results ordered by most recent activity
+               - Can filter by date ranges
+            
+            2. LOAD MODE: Provide a 'session_id' to get session summary (first and last few messages)
+               - Use this when you find a relevant session via search and need more context
+               - Returns first 3 and last 3 messages to show how session started and ended
+               - Useful for understanding the arc of a previous discussion without overloading context
+            
+            Use this when users ask about:
+            - "What did we discuss about...?" (SEARCH)
+            - "Do you remember when we talked about...?" (SEARCH)
+            - "Show me the full conversation about X" (SEARCH then LOAD)
+            - "Earlier you mentioned..." (SEARCH)
+        "#}
+        .to_string(),
+        object!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search keywords for SEARCH MODE. Provide multiple related terms, synonyms, similar concepts, or metaphors separated by spaces to improve matching (e.g., 'database postgres sql schema' or 'meeting discussion conversation'). Mutually exclusive with session_id."
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID for LOAD MODE. Retrieves first and last few messages from this session to show the arc. Use session IDs from previous search results. Mutually exclusive with query."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return in SEARCH MODE (default: 10, max recommended: 50). Ignored in LOAD MODE."
+                },
+                "after_date": {
+                    "type": "string",
+                    "description": "ISO 8601 date string (e.g., '2025-10-01T00:00:00Z') - only search messages after this date in SEARCH MODE. Use when user mentions 'last week', 'since Monday', etc."
+                },
+                "before_date": {
+                    "type": "string",
+                    "description": "ISO 8601 date string (e.g., '2025-10-15T23:59:59Z') - only search messages before this date in SEARCH MODE. Use when user mentions 'before yesterday', 'until Friday', etc."
+                }
+            }
+        }),
+    ).annotate(ToolAnnotations {
+        title: Some("Recall past conversations".to_string()),
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(true),
         open_world_hint: Some(false),
     })
 }
