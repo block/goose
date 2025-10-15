@@ -1182,8 +1182,9 @@ impl CliSession {
                                 );
 
                                 // Try auto-compaction first - keep the stream alive!
-                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::do_compaction(&self.agent, self.messages.messages()).await {
-                                    self.messages = compact_result.messages;
+                                let (did_compact, compacted_messages, _, _) = goose::context_mgmt::auto_compact::check_and_compact_messages(&self.agent, self.messages.messages(), None, None).await?;
+                                if did_compact {
+                                    self.messages = compacted_messages;
                                     if let Some(session_id) = &self.session_id {
                                         SessionManager::replace_conversation(session_id, &self.messages).await?;
                                     }
