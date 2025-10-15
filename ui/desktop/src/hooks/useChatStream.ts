@@ -84,6 +84,7 @@ export function useChatStream({
           body: JSON.stringify({
             session_id: sessionIdRef.current,
             messages: currentMessages,
+            background_mode: true,
           }),
           signal: abortControllerRef.current.signal,
         });

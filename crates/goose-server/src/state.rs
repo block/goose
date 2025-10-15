@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
+
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
@@ -13,6 +15,8 @@ pub struct AppState {
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
+    /// Tracks cancellation tokens for active sessions
+    pub(crate) session_cancellation_tokens: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
 
 impl AppState {
@@ -23,6 +27,7 @@ impl AppState {
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
+            session_cancellation_tokens: Arc::new(Mutex::new(HashMap::new())),
         }))
     }
 

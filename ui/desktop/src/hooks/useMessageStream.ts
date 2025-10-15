@@ -408,6 +408,7 @@ export function useMessageStream({
           },
           body: JSON.stringify({
             messages: requestMessages,
+            background_mode: true,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,

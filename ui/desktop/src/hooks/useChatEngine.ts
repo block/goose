@@ -282,6 +282,22 @@ export const useChatEngine = ({
     setLastInteractionTime(Date.now());
     stopPowerSaveBlocker();
 
+    // In ALPHA mode, when user explicitly stops, we need to cancel the agent task
+    // This is different from a page refresh where we want the agent to continue
+    if (process.env.ALPHA === 'true' && chat.sessionId) {
+      fetch(getApiUrl('/cancel'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: chat.sessionId,
+        }),
+      }).catch((error) => {
+        console.error('Failed to cancel agent task:', error);
+      });
+    }
+
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
 
@@ -361,7 +377,7 @@ export const useChatEngine = ({
         setMessages([...messages, responseMessage]);
       }
     }
-  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker]);
+  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker, chat.sessionId]);
 
   // Since server now handles all filtering, we just use messages directly
   const filteredMessages = useMemo(() => {

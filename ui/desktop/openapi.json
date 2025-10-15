@@ -2052,6 +2052,9 @@
           "session_id"
         ],
         "properties": {
+          "background_mode": {
+            "type": "boolean"
+          },
           "messages": {
             "type": "array",
             "items": {

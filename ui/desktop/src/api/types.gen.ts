@@ -26,6 +26,7 @@ export type AuthorRequest = {
 };
 
 export type ChatRequest = {
+    background_mode?: boolean;
     messages: Array<Message>;
     recipe_name?: string | null;
     recipe_version?: string | null;
