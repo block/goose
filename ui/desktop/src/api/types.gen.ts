@@ -110,15 +110,6 @@ export type ContextManageResponse = {
 
 export type Conversation = Array<Message>;
 
-export type CreateCustomProviderRequest = {
-    api_key: string;
-    api_url: string;
-    display_name: string;
-    models: Array<string>;
-    provider_type: string;
-    supports_streaming?: boolean | null;
-};
-
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -134,6 +125,21 @@ export type CreateScheduleRequest = {
     execution_mode?: string | null;
     id: string;
     recipe_source: string;
+};
+
+export type DeclarativeProviderConfig = {
+    api_key_env: string;
+    base_url: string;
+    description?: string | null;
+    display_name: string;
+    engine: ProviderEngine;
+    headers?: {
+        [key: string]: string;
+    } | null;
+    models: Array<ModelInfo>;
+    name: string;
+    supports_streaming?: boolean | null;
+    timeout_seconds?: number | null;
 };
 
 export type DecodeRecipeRequest = {
@@ -367,6 +373,11 @@ export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
 
+export type LoadedProvider = {
+    config: DeclarativeProviderConfig;
+    is_editable: boolean;
+};
+
 /**
  * A message to or from an LLM
  */
@@ -473,7 +484,10 @@ export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
     name: string;
+    provider_type: ProviderType;
 };
+
+export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
 
 /**
  * Metadata about a provider's configuration requirements and capabilities
@@ -497,7 +511,6 @@ export type ProviderMetadata = {
     display_name: string;
     /**
      * A list of currently known models with their capabilities
-     * TODO: eventually query the apis directly
      */
     known_models: Array<ModelInfo>;
     /**
@@ -509,6 +522,8 @@ export type ProviderMetadata = {
      */
     name: string;
 };
+
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
@@ -852,6 +867,15 @@ export type ToolResponse = {
     };
 };
 
+export type UpdateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    engine: string;
+    models: Array<string>;
+    supports_streaming?: boolean | null;
+};
+
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
@@ -1183,7 +1207,7 @@ export type BackupConfigResponses = {
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
 export type CreateCustomProviderData = {
-    body: CreateCustomProviderRequest;
+    body: UpdateCustomProviderRequest;
     path?: never;
     query?: never;
     url: '/config/custom-providers';
@@ -1237,6 +1261,64 @@ export type RemoveCustomProviderResponses = {
 };
 
 export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
+
+export type GetCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type GetCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetCustomProviderResponses = {
+    /**
+     * Custom provider retrieved successfully
+     */
+    200: LoadedProvider;
+};
+
+export type GetCustomProviderResponse = GetCustomProviderResponses[keyof GetCustomProviderResponses];
+
+export type UpdateCustomProviderData = {
+    body: UpdateCustomProviderRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type UpdateCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateCustomProviderResponses = {
+    /**
+     * Custom provider updated successfully
+     */
+    200: string;
+};
+
+export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
