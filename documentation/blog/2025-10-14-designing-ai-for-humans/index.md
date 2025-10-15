@@ -16,7 +16,7 @@ My mom was doing her usual Sunday ritual she had her pen, paper, calculator, and
 Last month, halfway through crunching numbers, she sighed and said,  
 > “I just wish I could see where my money’s going.”  
 
-So I opened [**goose**](http://localhost:3000/goose/docs/quickstart), added her notes, and turned on [**Auto Visualiser**](https://block.github.io/goose/docs/mcp/autovisualiser-mcp). In seconds, her budget became this colorful, interactive chart. She hovered over each slice, analyzing where her money was going.  
+So I opened [**goose**](http://block.github.io/goose/docs/quickstart), added her notes, and turned on [**Auto Visualiser**](https://block.github.io/goose/docs/mcp/autovisualiser-mcp). In seconds, her budget became this colorful, interactive chart. She hovered over each slice, analyzing where her money was going.  
 
 Now, I'm not saying this is some groundbreaking use case. There are plenty of apps that do this. What stood out to me was how simple it felt. My mom didn’t need to learn anything new or adapt to someone else’s design. The visualization just appeared, and she got it immediately.  
 
@@ -24,7 +24,7 @@ It wasn’t about the tech working. It was about AI finally showing up in a way 
 
 ### **When AI Starts Showing, Not Just Talking**
 
-We’ve made huge progress with agentic AI. Agents can plan, reason, and act, but they often still communicate like terminals with walls of text, and no real interaction. That’s where the [**Model Context Protocol – User Interface (MCP-UI)**](https://mcpui.dev/guide/getting-started) changes everything.  
+We’ve made huge progress with agentic AI. Agents can plan, reason, and act, but they often still communicate like terminals with walls of text, and no real interaction. That’s where [**MCP-UI**](https://mcpui.dev/guide/getting-started) changes everything.  
 
 MCP-UI gives agents a visual language *and* a way for users to interact directly within the chat window. Before this, conversations with AI consisted of a chain of prompts and responses. Now, users can actually engage with their agent through the interface itself. A button can launch a new prompt without the user typing anything. A dropdown can run a tool call in the background. A link can open a page or resource for them instantly. Even notifications can be exchanged between this embedded UI and the host application to keep everything in sync.  
 
@@ -59,7 +59,7 @@ I have a feeling that next month, when my mom sits down to balance her bills, sh
 <head>
   <meta property="og:title" content="Designing AI for Users, Not Just LLMs" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/10/08/recipe-cookbook-generator" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/10/14/designing-ai-for-humans" />
   <meta property="og:description" content="Building intent-based AI experiences with MCP-UI." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/design-ai-de5d0af69d8d21111dd271624ac7cab3.png" />
   <meta name="twitter:card" content="summary_large_image" />
