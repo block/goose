@@ -1172,4 +1172,59 @@ mod tests {
         assert_eq!(conversation.messages()[0].role, Role::User);
         assert_eq!(conversation.messages()[1].role, Role::Assistant);
     }
+
+    #[tokio::test]
+    async fn test_import_session_with_description_field() {
+        const OLD_FORMAT_JSON: &str = r#"{
+            "id": "20240101_1",
+            "description": "Old format session",
+            "user_set_name": true,
+            "working_dir": "/tmp/test",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "extension_data": {},
+            "message_count": 0
+        }"#;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_import.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let imported = storage.import_session(OLD_FORMAT_JSON).await.unwrap();
+
+        assert_eq!(imported.name, "Old format session");
+        assert_eq!(imported.user_set_name, true);
+        assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_user_set_name_flag() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_user_name.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let user_session = storage
+            .create_session(PathBuf::from("/tmp"), Some("My Custom Name".to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(user_session.name, "My Custom Name");
+        assert_eq!(user_session.user_set_name, true);
+
+        let auto_session = storage
+            .create_session(PathBuf::from("/tmp"), None)
+            .await
+            .unwrap();
+
+        assert_eq!(auto_session.name, "CLI Session");
+        assert_eq!(auto_session.user_set_name, false);
+
+        storage.apply_update(
+            SessionUpdateBuilder::new(user_session.id.clone())
+                .total_tokens(Some(100))
+        ).await.unwrap();
+
+        let updated = storage.get_session(&user_session.id, false).await.unwrap();
+        assert_eq!(updated.user_set_name, true);
+    }
 }
