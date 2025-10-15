@@ -390,6 +390,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
