@@ -289,12 +289,15 @@ class ErrorProxy:
             # Count mode
             if self.error_count > 0:
                 self.error_count -= 1
+                # If this was the last error, switch back to NO_ERROR
+                if self.error_count == 0:
+                    self.error_mode = ErrorMode.NO_ERROR
                 return True
             elif self.error_count == 0 and self.error_percentage == 0.0:
                 # Count reached zero, switch back to NO_ERROR
                 self.error_mode = ErrorMode.NO_ERROR
                 return False
-            
+
             return False
             
     def get_error_mode(self) -> ErrorMode:
@@ -372,28 +375,56 @@ class ErrorProxy:
             
         return url
         
+    def _format_status_line(self) -> str:
+        """Format a one-line status indicator."""
+        mode, count, percentage = self.get_error_config()
+        mode_symbols = {
+            ErrorMode.NO_ERROR: "✅",
+            ErrorMode.CONTEXT_LENGTH: "📏",
+            ErrorMode.RATE_LIMIT: "⏱️",
+            ErrorMode.SERVER_ERROR: "💥"
+        }
+
+        symbol = mode_symbols.get(mode, "❓")
+        mode_name = mode.name.replace('_', ' ').title()
+
+        if mode == ErrorMode.NO_ERROR:
+            return f"{symbol} {mode_name}"
+        elif percentage > 0.0:
+            return f"{symbol} {mode_name} ({percentage*100:.0f}%)"
+        elif count > 0:
+            return f"{symbol} {mode_name} ({count} remaining)"
+        else:
+            return f"{symbol} {mode_name}"
+
     async def handle_request(self, request: Request) -> Response:
         """
         Handle an incoming HTTP request.
-        
+
         Args:
             request: The incoming HTTP request
-            
+
         Returns:
             HTTP response (either proxied or error)
         """
         self.request_count += 1
         provider = self.detect_provider(request)
-        
+
         logger.info(f"📨 Request #{self.request_count}: {request.method} {request.path} -> {provider}")
-        
+
+        # Capture status before checking if we should inject error (since that modifies state)
+        status_before = self._format_status_line()
+
         # Check if we should inject an error
-        if self.should_inject_error():
+        should_error = self.should_inject_error()
+        if should_error:
             mode = self.get_error_mode()
             error_config = ERROR_CONFIGS.get(provider, ERROR_CONFIGS['openai']).get(
                 mode, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
             )
             logger.warning(f"💥 Injecting {mode.name} error (status {error_config['status']}) for {provider}")
+            # Show status after the injection to reflect the updated state
+            logger.info(f"Status: {self._format_status_line()}")
             return web.json_response(
                 error_config['body'],
                 status=error_config['status']
@@ -440,7 +471,7 @@ class ErrorProxy:
                         headers=response_headers
                     )
                     await response.prepare(request)
-                    
+
                     # Stream chunks from provider to client
                     try:
                         async for chunk in resp.content.iter_any():
@@ -448,12 +479,14 @@ class ErrorProxy:
                         await response.write_eof()
                     except Exception as stream_error:
                         logger.warning(f"Stream write error (client may have disconnected): {stream_error}")
+                    logger.info(f"Status: {self._format_status_line()}")
                     return response
                 else:
                     # Non-streaming response - read entire body
                     response_body = await resp.read()
                     logger.info(f"✅ Proxied response: {resp.status}")
-                    
+                    logger.info(f"Status: {self._format_status_line()}")
+
                     return Response(
                         body=response_body,
                         status=resp.status,
