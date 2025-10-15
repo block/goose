@@ -117,7 +117,7 @@ async fn run_truncate_test(
     agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
-    let mut conversation = Conversation::new(vec![
+    let conversation = Conversation::new(vec![
         Message::user().with_text("hi there. what is 2 + 2?"),
         Message::assistant().with_text("hey! I think it's 4."),
         Message::user().with_text(&large_message_content),
@@ -143,8 +143,8 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-            Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                conversation = updated_conversation;
+            Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                // Should update the conversation here, but we're not reading it
             }
             Err(e) => {
                 println!("Error: {:?}", e);
@@ -1087,7 +1087,7 @@ mod max_turns_tests {
         let provider = Arc::new(MockToolProvider::new());
         agent.update_provider(provider).await?;
         // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
-        let mut conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
+        let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
         let reply_stream = agent.reply(conversation, None, None).await?;
         tokio::pin!(reply_stream);
@@ -1111,8 +1111,8 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
-                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                    conversation = updated_conversation
+                Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                    // We should update the conversation here, but we're not reading it
                 }
                 Err(e) => {
                     return Err(e);

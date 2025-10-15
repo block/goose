@@ -59,7 +59,7 @@ async fn manage_context(
     // TODO(Douwe): store into db
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages.messages().iter().cloned().collect(),
+        messages: processed_messages.messages().to_vec(),
         token_counts,
     }))
 }
