@@ -922,6 +922,7 @@ impl Agent {
             check_and_compact_messages(
                 self,
                 unfixed_conversation.messages(),
+                false,
                 None,
                 session_metadata.as_ref(),
             )
@@ -1289,7 +1290,7 @@ impl Agent {
                                 None
                             };
 
-                            match check_and_compact_messages(self, conversation.messages(), None, session_metadata_for_compact.as_ref()).await {
+                            match check_and_compact_messages(self, conversation.messages(), true, None, session_metadata_for_compact.as_ref()).await {
                                 Ok((_did_compact, compacted_conversation, _removed_indices, _usage)) => {
                                     conversation = compacted_conversation;
 

@@ -55,6 +55,7 @@ struct SummarizeContext {
 /// # Arguments
 /// * `agent` - The agent to use for context management
 /// * `messages` - The current message history
+/// * `force_compact` - If true, skip the threshold check and force compaction
 /// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
 /// * `session_metadata` - Optional session metadata containing actual token counts
 ///
@@ -67,37 +68,42 @@ struct SummarizeContext {
 pub async fn check_and_compact_messages(
     agent: &Agent,
     messages_with_user_message: &[Message],
+    force_compact: bool,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
-    // First check if compaction is needed
-    let check_result = check_compaction_needed(
-        agent,
-        messages_with_user_message,
-        threshold_override,
-        session_metadata,
-    )
-    .await?;
+    // Check if compaction is needed (unless forced)
+    if !force_compact {
+        let check_result = check_compaction_needed(
+            agent,
+            messages_with_user_message,
+            threshold_override,
+            session_metadata,
+        )
+        .await?;
 
-    // If no compaction is needed, return early
-    if !check_result.needs_compaction {
-        debug!(
-            "No compaction needed (usage: {:.1}% <= {:.1}% threshold)",
-            check_result.usage_ratio * 100.0,
-            check_result.percentage_until_compaction
+        // If no compaction is needed, return early
+        if !check_result.needs_compaction {
+            debug!(
+                "No compaction needed (usage: {:.1}% <= {:.1}% threshold)",
+                check_result.usage_ratio * 100.0,
+                check_result.percentage_until_compaction
+            );
+            return Ok((
+                false,
+                Conversation::new_unvalidated(messages_with_user_message.to_vec()),
+                Vec::new(),
+                None,
+            ));
+        }
+
+        info!(
+            "Performing message compaction (usage: {:.1}%)",
+            check_result.usage_ratio * 100.0
         );
-        return Ok((
-            false,
-            Conversation::new_unvalidated(messages_with_user_message.to_vec()),
-            Vec::new(),
-            None,
-        ));
+    } else {
+        info!("Forcing message compaction due to context limit exceeded");
     }
-
-    info!(
-        "Performing message compaction (usage: {:.1}%)",
-        check_result.usage_ratio * 100.0
-    );
 
     // Perform the actual compaction
     // Check if the most recent message is a user message
