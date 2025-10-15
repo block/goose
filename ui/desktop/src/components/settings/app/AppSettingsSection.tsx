@@ -39,6 +39,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
+  // Check if platform supports Tailscale tunnel (macOS or Linux)
+  const supportsTunnel =
+    window.electron.platform === 'darwin' || window.electron.platform === 'linux';
+
   // Detect theme changes
   useEffect(() => {
     const updateTheme = () => {
@@ -396,8 +400,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      {/* Experimental Features - only show on macOS */}
-      {isMacOS && (
+      {/* Experimental Features - only show on macOS and Linux */}
+      {supportsTunnel && (
         <Card className="rounded-lg">
           <CardHeader className="pb-0">
             <button

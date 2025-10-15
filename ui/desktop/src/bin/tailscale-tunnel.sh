@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Tailscale Tunnel Setup Script
+# Supports: macOS (via Homebrew bottles) and Linux (via pkgs.tailscale.com)
+# This script starts goosed and creates a Tailscale tunnel for remote access
+
 # Usage information
 usage() {
     echo "Usage: $0 <path_to_goosed> <port> <secret> <output_json_file>" >&2
@@ -38,18 +42,173 @@ fi
 
 # Check if tailscale is available, install if not
 if ! command -v tailscale &> /dev/null; then
-    echo "Tailscale not found, installing via Homebrew..."
-    if command -v brew &> /dev/null; then
-        brew install tailscale >/dev/null 2>&1
-        if ! command -v tailscale &> /dev/null; then
-            echo "Error: Failed to install tailscale"
+    echo "Tailscale not found, installing..."
+    
+    # Determine architecture and OS
+    OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    ARCH="$(uname -m)"
+    
+    # Set up installation directory
+    INSTALL_DIR="$HOME/.local/share/goose/bin"
+    mkdir -p "$INSTALL_DIR"
+    
+    TEMP_DIR=$(mktemp -d)
+    
+    if [ "$OS" = "darwin" ]; then
+        # macOS - fetch from Homebrew bottles
+        echo "Detected macOS, fetching from Homebrew bottles..."
+        
+        # Detect macOS version and architecture for bottle selection
+        MACOS_VERSION=$(sw_vers -productVersion | cut -d. -f1)
+        
+        # Determine bottle key based on arch and OS version
+        if [ "$ARCH" = "arm64" ]; then
+            if [ "$MACOS_VERSION" -ge 15 ]; then
+                BOTTLE_KEY="arm64_sequoia"
+            elif [ "$MACOS_VERSION" -ge 14 ]; then
+                BOTTLE_KEY="arm64_sonoma"
+            else
+                BOTTLE_KEY="arm64_monterey"
+            fi
+        else
+            # Intel Mac
+            if [ "$MACOS_VERSION" -ge 14 ]; then
+                BOTTLE_KEY="sonoma"
+            else
+                BOTTLE_KEY="monterey"
+            fi
+        fi
+        
+        echo "Fetching Tailscale bottle info for ${BOTTLE_KEY}..."
+        
+        # Get bottle URL from Homebrew API
+        BOTTLE_JSON=$(curl -sL "https://formulae.brew.sh/api/formula/tailscale.json")
+        BOTTLE_URL=$(echo "$BOTTLE_JSON" | jq -r ".bottle.stable.files.${BOTTLE_KEY}.url // .bottle.stable.files.arm64_sonoma.url // .bottle.stable.files.sonoma.url")
+        
+        if [ -z "$BOTTLE_URL" ] || [ "$BOTTLE_URL" = "null" ]; then
+            echo "Error: Failed to get bottle URL for ${BOTTLE_KEY}"
+            rm -rf "$TEMP_DIR"
             exit 1
         fi
-        echo "✓ Tailscale installed successfully"
+        
+        echo "Downloading Tailscale from ${BOTTLE_URL}..."
+        
+        # Get token for ghcr.io
+        TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:homebrew/core/tailscale:pull" | jq -r .token)
+        
+        if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Error: Failed to get authentication token from ghcr.io"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        # Download bottle with token
+        if ! curl -fsSL -H "Authorization: Bearer $TOKEN" "$BOTTLE_URL" -o "$TEMP_DIR/tailscale.tar.gz"; then
+            echo "Error: Failed to download Tailscale bottle"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        # Extract binaries from bottle
+        echo "Extracting Tailscale binaries from bottle..."
+        if ! tar -xzf "$TEMP_DIR/tailscale.tar.gz" -C "$TEMP_DIR"; then
+            echo "Error: Failed to extract Tailscale bottle"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        # Find binaries in bottle structure (tailscale/VERSION/bin/)
+        BIN_DIR=$(find "$TEMP_DIR" -type d -path "*/tailscale/*/bin" | head -1)
+        if [ -z "$BIN_DIR" ]; then
+            echo "Error: Could not find bin directory in bottle"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        cp "$BIN_DIR/tailscale" "$INSTALL_DIR/"
+        cp "$BIN_DIR/tailscaled" "$INSTALL_DIR/"
+        
     else
-        echo "Error: Homebrew not found and tailscale is not installed. Please install Homebrew first: https://brew.sh"
+        # Linux - fetch from Tailscale's package repository
+        echo "Detected Linux, fetching from pkgs.tailscale.com..."
+        
+        # Map architecture names
+        case "$ARCH" in
+            x86_64)
+                TS_ARCH="amd64"
+                ;;
+            aarch64)
+                TS_ARCH="arm64"
+                ;;
+            armv7l|armv6l)
+                TS_ARCH="arm"
+                ;;
+            i386|i686)
+                TS_ARCH="386"
+                ;;
+            *)
+                echo "Error: Unsupported architecture: $ARCH"
+                rm -rf "$TEMP_DIR"
+                exit 1
+                ;;
+        esac
+        
+        # Get latest version
+        echo "Fetching latest Tailscale version..."
+        LATEST_VERSION=$(curl -sL https://pkgs.tailscale.com/stable/ | grep -oE "tailscale_[0-9]+\.[0-9]+\.[0-9]+_${TS_ARCH}\.tgz" | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+        
+        if [ -z "$LATEST_VERSION" ]; then
+            echo "Error: Failed to fetch latest Tailscale version"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        echo "Downloading Tailscale ${LATEST_VERSION} for ${TS_ARCH}..."
+        DOWNLOAD_URL="https://pkgs.tailscale.com/stable/tailscale_${LATEST_VERSION}_${TS_ARCH}.tgz"
+        
+        if ! curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/tailscale.tgz"; then
+            echo "Error: Failed to download Tailscale"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        # Extract binaries
+        echo "Extracting Tailscale binaries..."
+        if ! tar -xzf "$TEMP_DIR/tailscale.tgz" -C "$TEMP_DIR"; then
+            echo "Error: Failed to extract Tailscale"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        # Find and copy binaries
+        TS_DIR=$(find "$TEMP_DIR" -type d -name "tailscale_*" | head -1)
+        if [ -z "$TS_DIR" ]; then
+            echo "Error: Could not find extracted Tailscale directory"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        
+        cp "$TS_DIR/tailscale" "$INSTALL_DIR/"
+        cp "$TS_DIR/tailscaled" "$INSTALL_DIR/"
+    fi
+    
+    # Make binaries executable
+    chmod +x "$INSTALL_DIR/tailscale" "$INSTALL_DIR/tailscaled"
+    
+    # Clean up
+    rm -rf "$TEMP_DIR"
+    
+    # Add to PATH for this session
+    export PATH="$INSTALL_DIR:$PATH"
+    
+    # Verify installation
+    if ! command -v tailscale &> /dev/null; then
+        echo "Error: Tailscale installation failed"
         exit 1
     fi
+    
+    echo "✓ Tailscale installed successfully to $INSTALL_DIR"
+    echo "Note: Add $INSTALL_DIR to your PATH to use Tailscale in other sessions"
 fi
 
 # Cleanup function
@@ -140,7 +299,14 @@ tailscale --socket "$TS_SOCK" up 2>&1 | {
         if [[ "$AUTH_OPENED" == false ]] && echo "$line" | grep -q "https://login.tailscale.com/"; then
             URL=$(echo "$line" | grep -o "https://login.tailscale.com/[^\s]*")
             echo "🌐 Opening authentication URL in browser..."
-            open "$URL"
+            # Platform-aware browser opening
+            if [ "$OS" = "darwin" ]; then
+                open "$URL" 2>/dev/null || echo "Please open this URL manually: $URL"
+            elif command -v xdg-open &> /dev/null; then
+                xdg-open "$URL" 2>/dev/null || echo "Please open this URL manually: $URL"
+            else
+                echo "Please open this URL manually: $URL"
+            fi
             AUTH_OPENED=true
         fi
     done
