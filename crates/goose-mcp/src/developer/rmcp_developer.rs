@@ -167,9 +167,17 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
     prompts
 }
 
+/// Check if developer extension is in read-only mode
+fn is_readonly_mode() -> bool {
+    std::env::var("DEVELOPER_READONLY")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+}
+
 /// Developer MCP Server using official RMCP SDK
 #[derive(Clone)]
 pub struct DeveloperServer {
+    readonly: bool,
     tool_router: ToolRouter<Self>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Gitignore,
@@ -558,7 +566,11 @@ impl DeveloperServer {
         // Initialize editor model for AI-powered code editing
         let editor_model = create_editor_model();
 
+        // Check if read-only mode is enabled
+        let readonly = is_readonly_mode();
+
         Self {
+            readonly,
             tool_router: Self::tool_router(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns,
@@ -577,6 +589,15 @@ impl DeveloperServer {
         description = "List all available window titles that can be used with screen_capture. Returns a list of window titles that can be used with the window_title parameter of the screen_capture tool."
     )]
     pub async fn list_windows(&self) -> Result<CallToolResult, ErrorData> {
+        // Check if in read-only mode
+        if self.readonly {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "list_windows is not allowed in read-only mode".to_string(),
+                None,
+            ));
+        }
+
         let windows = Window::all().map_err(|_| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -612,6 +633,15 @@ impl DeveloperServer {
         &self,
         params: Parameters<ScreenCaptureParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        // Check if in read-only mode
+        if self.readonly {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "screen_capture is not allowed in read-only mode".to_string(),
+                None,
+            ));
+        }
+
         let params = params.0;
 
         let mut image = if let Some(window_title) = &params.window_title {
@@ -754,6 +784,14 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "write" => {
+                // Check if in read-only mode
+                if self.readonly {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Command 'write' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
+                        None,
+                    ));
+                }
                 let file_text = params.file_text.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
@@ -765,6 +803,14 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "str_replace" => {
+                // Check if in read-only mode
+                if self.readonly {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Command 'str_replace' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
+                        None,
+                    ));
+                }
                 // Check if diff parameter is provided
                 if let Some(ref diff) = params.diff {
                     // When diff is provided, old_str and new_str are not required
@@ -807,6 +853,14 @@ impl DeveloperServer {
                 }
             }
             "insert" => {
+                // Check if in read-only mode
+                if self.readonly {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Command 'insert' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
+                        None,
+                    ));
+                }
                 let insert_line = params.insert_line.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
@@ -827,6 +881,14 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "undo_edit" => {
+                // Check if in read-only mode
+                if self.readonly {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Command 'undo_edit' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
+                        None,
+                    ));
+                }
                 let content = text_editor_undo(&path, &self.file_history).await?;
                 Ok(CallToolResult::success(content))
             }
@@ -856,6 +918,15 @@ impl DeveloperServer {
         params: Parameters<ShellParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
+        // Check if in read-only mode
+        if self.readonly {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "shell is not allowed in read-only mode".to_string(),
+                None,
+            ));
+        }
+
         let params = params.0;
         let command = &params.command;
         let peer = context.peer;
@@ -1136,6 +1207,15 @@ impl DeveloperServer {
         &self,
         params: Parameters<ImageProcessorParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        // Check if in read-only mode
+        if self.readonly {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "image_processor is not allowed in read-only mode".to_string(),
+                None,
+            ));
+        }
+
         let params = params.0;
         let path_str = &params.path;
 
@@ -3862,5 +3942,360 @@ Additional instructions here.
 
             cleanup_test_service(running_service, peer);
         });
+    }
+
+    // Read-only mode tests
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_initialization() {
+        // Test without environment variable
+        let server = create_test_server();
+        assert!(
+            !server.readonly,
+            "Should not be in read-only mode by default"
+        );
+
+        // Test with environment variable set to "true"
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+        assert!(
+            server.readonly,
+            "Should be in read-only mode when env var is 'true'"
+        );
+        std::env::remove_var("DEVELOPER_READONLY");
+
+        // Test with environment variable set to "1"
+        std::env::set_var("DEVELOPER_READONLY", "1");
+        let server = DeveloperServer::new();
+        assert!(
+            server.readonly,
+            "Should be in read-only mode when env var is '1'"
+        );
+        std::env::remove_var("DEVELOPER_READONLY");
+
+        // Test with environment variable set to "false"
+        std::env::set_var("DEVELOPER_READONLY", "false");
+        let server = DeveloperServer::new();
+        assert!(
+            !server.readonly,
+            "Should not be in read-only mode when env var is 'false'"
+        );
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_text_editor_view_allowed() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, "test content").unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // View should be allowed
+        let view_params = Parameters(TextEditorParams {
+            path: file_path.to_str().unwrap().to_string(),
+            command: "view".to_string(),
+            view_range: None,
+            file_text: None,
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(view_params).await;
+        assert!(
+            result.is_ok(),
+            "View command should be allowed in read-only mode"
+        );
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_text_editor_write_blocked() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // Write should be blocked
+        let write_params = Parameters(TextEditorParams {
+            path: "test.txt".to_string(),
+            command: "write".to_string(),
+            view_range: None,
+            file_text: Some("new content".to_string()),
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(write_params).await;
+        assert!(
+            result.is_err(),
+            "Write command should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_text_editor_str_replace_blocked() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, "original content").unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // str_replace should be blocked
+        let replace_params = Parameters(TextEditorParams {
+            path: file_path.to_str().unwrap().to_string(),
+            command: "str_replace".to_string(),
+            view_range: None,
+            file_text: None,
+            old_str: Some("original".to_string()),
+            new_str: Some("modified".to_string()),
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(replace_params).await;
+        assert!(
+            result.is_err(),
+            "str_replace command should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_text_editor_insert_blocked() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, "line 1\nline 2").unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // insert should be blocked
+        let insert_params = Parameters(TextEditorParams {
+            path: file_path.to_str().unwrap().to_string(),
+            command: "insert".to_string(),
+            view_range: None,
+            file_text: None,
+            old_str: None,
+            new_str: Some("new line".to_string()),
+            insert_line: Some(1),
+            diff: None,
+        });
+
+        let result = server.text_editor(insert_params).await;
+        assert!(
+            result.is_err(),
+            "insert command should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_text_editor_undo_blocked() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, "content").unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // undo_edit should be blocked
+        let undo_params = Parameters(TextEditorParams {
+            path: file_path.to_str().unwrap().to_string(),
+            command: "undo_edit".to_string(),
+            view_range: None,
+            file_text: None,
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(undo_params).await;
+        assert!(
+            result.is_err(),
+            "undo_edit command should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[test]
+    #[serial]
+    fn test_readonly_mode_shell_blocked() {
+        run_shell_test(|| async {
+            // Enable read-only mode
+            std::env::set_var("DEVELOPER_READONLY", "true");
+            let server = DeveloperServer::new();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let result = server
+                .shell(
+                    Parameters(ShellParams {
+                        command: "echo 'test'".to_string(),
+                    }),
+                    RequestContext {
+                        ct: Default::default(),
+                        id: NumberOrString::Number(1),
+                        meta: Default::default(),
+                        extensions: Default::default(),
+                        peer: peer.clone(),
+                    },
+                )
+                .await;
+
+            assert!(
+                result.is_err(),
+                "Shell command should be blocked in read-only mode"
+            );
+            let err = result.err().unwrap();
+            assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+            assert!(err.message.contains("not allowed in read-only mode"));
+
+            cleanup_test_service(running_service, peer);
+            std::env::remove_var("DEVELOPER_READONLY");
+        });
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_screen_capture_blocked() {
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        let params = Parameters(ScreenCaptureParams {
+            display: Some(0),
+            window_title: None,
+        });
+
+        let result = server.screen_capture(params).await;
+        assert!(
+            result.is_err(),
+            "screen_capture should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_list_windows_blocked() {
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        let result = server.list_windows().await;
+        assert!(
+            result.is_err(),
+            "list_windows should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_image_processor_blocked() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let image_path = temp_dir.path().join("test.png");
+        // Create a dummy image file
+        std::fs::write(&image_path, vec![0u8; 100]).unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        let params = Parameters(ImageProcessorParams {
+            path: image_path.to_str().unwrap().to_string(),
+        });
+
+        let result = server.image_processor(params).await;
+        assert!(
+            result.is_err(),
+            "image_processor should be blocked in read-only mode"
+        );
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not allowed in read-only mode"));
+
+        std::env::remove_var("DEVELOPER_READONLY");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_readonly_mode_analyze_allowed() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.py");
+        std::fs::write(&file_path, "def main():\n    pass").unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Enable read-only mode
+        std::env::set_var("DEVELOPER_READONLY", "true");
+        let server = DeveloperServer::new();
+
+        // analyze should be allowed (it's read-only)
+        let params = Parameters(AnalyzeParams {
+            path: file_path.to_str().unwrap().to_string(),
+            max_depth: 1,
+            follow_depth: 1,
+            focus: None,
+            force: false,
+            ast_recursion_limit: None,
+        });
+
+        let result = server.analyze(params).await;
+        assert!(
+            result.is_ok(),
+            "analyze command should be allowed in read-only mode"
+        );
+
+        std::env::remove_var("DEVELOPER_READONLY");
     }
 }
