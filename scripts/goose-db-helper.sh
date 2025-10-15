@@ -13,6 +13,7 @@ NC='\033[0m'
 
 DRY_RUN=false
 SKIP_CONFIRM=false
+CLEAN_GENERATE=false
 
 MIGRATIONS_DIR="${HOME}/.local/share/goose/migrations"
 RUST_SESSION_MANAGER="crates/goose/src/session/session_manager.rs"
@@ -506,11 +507,7 @@ generate_rollback_sql() {
     echo ""
 
     local statements=()
-    while IFS= read -r line; do
-        if [[ -n "$line" && "$line" != ";" ]]; then
-            statements+=("$line")
-        fi
-    done < <(echo "$up_sql" | sed 's/;$//' | awk 'BEGIN{RS=";"} {gsub(/^[ \t\n]+|[ \t\n]+$/, ""); if (length($0) > 0) print $0}')
+    mapfile -d $'\0' -t statements < <(echo "$up_sql" | awk 'BEGIN{RS=";"} {gsub(/^[ \t\n]+|[ \t\n]+$/, ""); if (length($0) > 0) {print $0; printf "%c", 0}}')
 
     local rollback_stmts=()
     local has_unsupported=false
@@ -585,6 +582,21 @@ generate_migrations() {
     echo "Reading migrations from: ${RUST_SESSION_MANAGER}"
     echo "Output directory: ${MIGRATIONS_DIR}"
     echo ""
+
+    if [[ "${CLEAN_GENERATE}" == "true" ]]; then
+        if [[ -d "${MIGRATIONS_DIR}" ]]; then
+            local migration_count=$(find "${MIGRATIONS_DIR}" -mindepth 1 -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | wc -l)
+            if [[ ${migration_count} -gt 0 ]]; then
+                echo -e "${YELLOW}⚠ Clean mode: This will remove all ${migration_count} existing migration(s)${NC}"
+                if ! confirm_action "remove all existing migrations and regenerate from source"; then
+                    echo -e "${YELLOW}Generation cancelled${NC}"
+                    return 2
+                fi
+                echo "Removing existing migrations..."
+                rm -rf "${MIGRATIONS_DIR}"
+            fi
+        fi
+    fi
 
     mkdir -p "${MIGRATIONS_DIR}"
 
@@ -676,7 +688,12 @@ show_help() {
     echo ""
     echo -e "    ${GREEN}--yes, -y${NC}"
     echo "        Skip confirmation prompts (useful for automation)"
-    echo "        Works with: migrate-to, restore"
+    echo "        Works with: migrate-to, restore, generate-migrations --clean"
+    echo ""
+    echo -e "    ${GREEN}--clean${NC}"
+    echo "        Remove all existing migrations before regenerating"
+    echo "        Works with: generate-migrations"
+    echo "        Useful when switching between branches with different migrations"
     echo ""
     echo -e "${CYAN}Commands:${NC}"
     echo -e "    ${GREEN}status${NC}"
@@ -727,6 +744,12 @@ show_help() {
     echo "    # Create a backup"
     echo "    $0 backup"
     echo ""
+    echo "    # Clean regenerate migrations (useful when switching branches)"
+    echo "    $0 generate-migrations --clean"
+    echo ""
+    echo "    # Clean regenerate without confirmation"
+    echo "    $0 generate-migrations --clean --yes"
+    echo ""
     echo -e "${CYAN}Adding New Migrations:${NC}"
     echo "    After adding a migration to session_manager.rs, run:"
     echo ""
@@ -737,6 +760,17 @@ show_help() {
     echo ""
     echo -e "    ${YELLOW}Note:${NC} Review generated down.sql files, as some rollbacks"
     echo -e "    may require manual implementation."
+    echo ""
+    echo -e "${CYAN}Switching Branches:${NC}"
+    echo "    When switching between branches with different migrations:"
+    echo ""
+    echo "    # Clean and regenerate to match current branch"
+    echo "    git checkout main"
+    echo "    $0 generate-migrations --clean"
+    echo ""
+    echo "    # Or manually remove specific migrations"
+    echo "    rm -rf ~/.local/share/goose/migrations/004_*"
+    echo "    $0 generate-migrations"
     echo ""
     echo -e "${CYAN}Configuration:${NC}"
     echo "    Database:   ${DB_PATH}"
@@ -758,6 +792,10 @@ main() {
                 ;;
             --yes|-y)
                 SKIP_CONFIRM=true
+                shift
+                ;;
+            --clean)
+                CLEAN_GENERATE=true
                 shift
                 ;;
             --help|-h)
