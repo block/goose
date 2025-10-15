@@ -13,7 +13,6 @@ use super::{
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
-    groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
     ollama::OllamaProvider,
@@ -26,8 +25,9 @@ use super::{
     venice::VeniceProvider,
     xai::XaiProvider,
 };
-use crate::config::custom_providers::{custom_providers_dir, register_custom_providers};
+use crate::config::declarative_providers::register_declarative_providers;
 use crate::model::ModelConfig;
+use crate::providers::base::ProviderType;
 use anyhow::Result;
 use tokio::sync::OnceCell;
 
@@ -39,29 +39,45 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
-        registry.register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)));
-        registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)));
-        registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)));
-        registry.register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)));
-        registry.register::<CursorAgentProvider, _>(|m| Box::pin(CursorAgentProvider::from_env(m)));
-        registry.register::<DatabricksProvider, _>(|m| Box::pin(DatabricksProvider::from_env(m)));
-        registry.register::<EmbeddedProvider, _>(|m| Box::pin(EmbeddedProvider::from_env(m)));
-        registry.register::<GcpVertexAIProvider, _>(|m| Box::pin(GcpVertexAIProvider::from_env(m)));
-        registry.register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)));
         registry
-            .register::<GithubCopilotProvider, _>(|m| Box::pin(GithubCopilotProvider::from_env(m)));
-        registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)));
-        registry.register::<GroqProvider, _>(|m| Box::pin(GroqProvider::from_env(m)));
-        registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)));
-        registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)));
-        registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)));
-        registry.register::<OpenRouterProvider, _>(|m| Box::pin(OpenRouterProvider::from_env(m)));
+            .register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)), true);
+        registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)), false);
+        registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
         registry
-            .register::<SageMakerTgiProvider, _>(|m| Box::pin(SageMakerTgiProvider::from_env(m)));
-        registry.register::<SnowflakeProvider, _>(|m| Box::pin(SnowflakeProvider::from_env(m)));
-        registry.register::<TetrateProvider, _>(|m| Box::pin(TetrateProvider::from_env(m)));
-        registry.register::<VeniceProvider, _>(|m| Box::pin(VeniceProvider::from_env(m)));
-        registry.register::<XaiProvider, _>(|m| Box::pin(XaiProvider::from_env(m)));
+            .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
+        registry.register::<CursorAgentProvider, _>(
+            |m| Box::pin(CursorAgentProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<DatabricksProvider, _>(|m| Box::pin(DatabricksProvider::from_env(m)), true);
+        registry.register::<GcpVertexAIProvider, _>(
+            |m| Box::pin(GcpVertexAIProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<EmbeddedProvider, _>(|m| Box::pin(EmbeddedProvider::from_env(m)));
+        registry
+            .register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)), false);
+        registry.register::<GithubCopilotProvider, _>(
+            |m| Box::pin(GithubCopilotProvider::from_env(m)),
+            false,
+        );
+        registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
+        registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
+        registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);
+        registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)), true);
+        registry
+            .register::<OpenRouterProvider, _>(|m| Box::pin(OpenRouterProvider::from_env(m)), true);
+        registry.register::<SageMakerTgiProvider, _>(
+            |m| Box::pin(SageMakerTgiProvider::from_env(m)),
+            false,
+        );
+        registry
+            .register::<SnowflakeProvider, _>(|m| Box::pin(SnowflakeProvider::from_env(m)), false);
+        registry.register::<TetrateProvider, _>(|m| Box::pin(TetrateProvider::from_env(m)), true);
+        registry.register::<VeniceProvider, _>(|m| Box::pin(VeniceProvider::from_env(m)), false);
+        registry.register::<XaiProvider, _>(|m| Box::pin(XaiProvider::from_env(m)), false);
     });
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);
@@ -70,16 +86,19 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
 }
 
 fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Result<()> {
-    let config_dir = custom_providers_dir();
-    register_custom_providers(registry, &config_dir)
+    register_declarative_providers(registry)
 }
 
 async fn get_registry() -> &'static RwLock<ProviderRegistry> {
     REGISTRY.get_or_init(init_registry).await
 }
 
-pub async fn providers() -> Vec<ProviderMetadata> {
-    get_registry().await.read().unwrap().all_metadata()
+pub async fn providers() -> Vec<(ProviderMetadata, ProviderType)> {
+    get_registry()
+        .await
+        .read()
+        .unwrap()
+        .all_metadata_with_types()
 }
 
 pub async fn refresh_custom_providers() -> Result<()> {

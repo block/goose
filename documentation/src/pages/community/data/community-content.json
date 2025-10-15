@@ -30,6 +30,19 @@
       "submittedDate": "2025-10-04",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Getting started with Goose on Windows",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/getting-started-with-goose-on-windows-30bh",
+      "thumbnail": "https://i.imgur.com/WEZXcBD.png",
+      "submittedDate": "2025-10-14",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
