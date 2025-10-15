@@ -1154,12 +1154,15 @@ mod extension_manager_tests {
     async fn setup_agent_with_extension_manager() -> Agent {
         let agent = Agent::new();
 
-        agent.extension_manager.set_context(PlatformExtensionContext {
-            session_id: Some("test_session".to_string()),
-            extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-            tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
-        }).await;
-        
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some("test_session".to_string()),
+                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+            })
+            .await;
+
         // Now add the extension manager platform extension
         let ext_config = ExtensionConfig::Platform {
             name: EXTENSION_MANAGER_NAME.to_string(),
@@ -1168,8 +1171,11 @@ mod extension_manager_tests {
             bundled: Some(true),
             available_tools: vec![],
         };
-        
-        agent.add_extension(ext_config).await.expect("Failed to add extension manager");
+
+        agent
+            .add_extension(ext_config)
+            .await
+            .expect("Failed to add extension manager");
         agent
     }
 
@@ -1180,9 +1186,7 @@ mod extension_manager_tests {
 
         let search_tool = tools.iter().find(|tool| {
             tool.name
-                == format!(
-                    "{EXTENSION_MANAGER_NAME}__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}"
-                )
+                == format!("{EXTENSION_MANAGER_NAME}__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}")
         });
         assert!(
             search_tool.is_some(),
@@ -1209,12 +1213,7 @@ mod extension_manager_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(
-                tool_call,
-                "request_1".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(tool_call, "request_1".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "search_available_extensions should succeed");
@@ -1226,7 +1225,7 @@ mod extension_manager_tests {
 
         let content = call_result.unwrap();
         assert!(!content.is_empty(), "Should return some content");
-        
+
         // Verify the content contains expected text
         let text = content.first().unwrap().as_text().unwrap();
         assert!(
@@ -1247,12 +1246,7 @@ mod extension_manager_tests {
             })),
         };
         let (_, result) = agent
-            .dispatch_tool_call(
-                enable_call,
-                "request_3a".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(enable_call, "request_3a".to_string(), None, None)
             .await;
         assert!(result.is_ok());
         let call_result = result.unwrap().result.await;
@@ -1279,12 +1273,7 @@ mod extension_manager_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(
-                disable_call,
-                "request_3b".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(disable_call, "request_3b".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "manage_extensions disable should succeed");
@@ -1296,7 +1285,7 @@ mod extension_manager_tests {
 
         let content = call_result.unwrap();
         assert!(!content.is_empty(), "Should return confirmation message");
-        
+
         // Verify the message indicates success
         let text = content.first().unwrap().as_text().unwrap();
         assert!(
@@ -1319,12 +1308,7 @@ mod extension_manager_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(
-                tool_call,
-                "request_4".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(tool_call, "request_4".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "Tool call should return a result");
@@ -1355,12 +1339,7 @@ mod extension_manager_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(
-                tool_call,
-                "request_6".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(tool_call, "request_6".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "Tool call should return a result");
@@ -1373,7 +1352,8 @@ mod extension_manager_tests {
         let content = call_result.unwrap();
         let text = content.first().unwrap().as_text().unwrap();
         assert!(
-            text.text.contains("Invalid action") || text.text.contains("enable")
+            text.text.contains("Invalid action")
+                || text.text.contains("enable")
                 || text.text.contains("disable"),
             "Error should mention invalid action, got: {}",
             text.text
@@ -1394,12 +1374,7 @@ mod extension_manager_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(
-                tool_call,
-                "request_7".to_string(),
-                None,
-                None,
-            )
+            .dispatch_tool_call(tool_call, "request_7".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "Tool call should return a result");
