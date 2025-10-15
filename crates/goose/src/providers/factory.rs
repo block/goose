@@ -55,7 +55,8 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             |m| Box::pin(GcpVertexAIProvider::from_env(m)),
             false,
         );
-        registry.register::<EmbeddedProvider, _>(|m| Box::pin(EmbeddedProvider::from_env(m)), false);
+        registry
+            .register::<EmbeddedProvider, _>(|m| Box::pin(EmbeddedProvider::from_env(m)), false);
         registry
             .register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)), false);
         registry.register::<GithubCopilotProvider, _>(
