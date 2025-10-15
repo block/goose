@@ -1,5 +1,7 @@
 mod agent;
 mod context;
+pub(crate) mod context_extension;
+pub(crate) mod context_hints;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;

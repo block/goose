@@ -1,3 +1,4 @@
+use crate::agents::context_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -34,8 +35,8 @@ impl ProcessExit {
     }
 }
 
-pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> =
-    Lazy::new(|| {
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
+    || {
         let mut map = HashMap::new();
 
         map.insert(
@@ -49,8 +50,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            context_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: context_extension::EXTENSION_NAME,
+                description: "Loads project context files (.goosehints, AGENTS.md) to provide additional instructions",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(context_extension::ContextClient::new(ctx).unwrap()),
+            },
+        );
+
         map
-    });
+    },
+);
 
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionContext {

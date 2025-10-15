@@ -33,7 +33,6 @@ use tokio_util::sync::CancellationToken;
 
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
-use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
 use super::shell::{
     configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
 };
@@ -246,17 +245,6 @@ impl ServerHandler for DeveloperServer {
             }
         };
 
-        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), GOOSE_HINTS_FILENAME.to_string()]);
-
-        // Build ignore patterns for file reference processing
-        let ignore_patterns = Self::build_ignore_patterns(&cwd);
-
-        // Load hints using the centralized function
-        let hints = load_hint_files(&cwd, &hints_filenames, &ignore_patterns);
-
         // Check if editor model exists and augment with custom llm editor tool description
         let editor_description = if let Some(ref editor) = self.editor_model {
             formatdoc! {r#"
@@ -373,12 +361,8 @@ impl ServerHandler for DeveloperServer {
             _ => format!("{}{}", common_shell_instructions, unix_specific),
         };
 
-        // Return base instructions directly when no hints are found
-        let instructions = if hints.is_empty() {
-            format!("{base_instructions}{editor_description}\n{shell_tool_desc}")
-        } else {
-            format!("{base_instructions}\n{editor_description}\n{shell_tool_desc}\n{hints}")
-        };
+        // Combine all instructions
+        let instructions = format!("{base_instructions}{editor_description}\n{shell_tool_desc}");
 
         ServerInfo {
             server_info: Implementation {
