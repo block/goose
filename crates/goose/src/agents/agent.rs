@@ -918,8 +918,8 @@ impl Agent {
             None
         };
 
-        let (did_compact, compacted_conversation, _removed_indices, _summarization_usage) =
-            check_and_compact_messages(
+        let (did_compact, compacted_conversation, compaction_error) =
+            match check_and_compact_messages(
                 self,
                 unfixed_conversation.messages(),
                 false,
@@ -927,7 +927,13 @@ impl Agent {
                 None,
                 session_metadata.as_ref(),
             )
-            .await?;
+            .await
+            {
+                Ok((did_compact, conversation, _removed_indices, _summarization_usage)) => {
+                    (did_compact, conversation, None)
+                }
+                Err(e) => (false, unfixed_conversation.clone(), Some(e)),
+            };
 
         if did_compact {
             // Get threshold from config to include in message
@@ -953,6 +959,17 @@ impl Agent {
                 }
 
                 let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
+                while let Some(event) = reply_stream.next().await {
+                    yield event?;
+                }
+            }))
+        } else if let Some(error) = compaction_error {
+            Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(
+                    format!("Ran into this error trying to auto-compact: {error}.\n\nSkipping compaction and continuing with the original conversation.")
+                ));
+
+                let mut reply_stream = self.reply_internal(unfixed_conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
