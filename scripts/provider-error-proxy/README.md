@@ -29,10 +29,10 @@ export DATABRICKS_HOST=http://localhost:8888
 goose session start "tell me a joke"
 
 # 4. In the proxy terminal, use interactive commands:
-#    1 - No error (pass through)
-#    2 - Context length exceeded error
-#    3 - Rate limit error
-#    4 - Unknown server error (500)
+#    n - No error (pass through) - permanent
+#    c - Context length exceeded error
+#    r - Rate limit error
+#    u - Unknown server error (500)
 #    q - Quit
 ```
 
@@ -65,11 +65,16 @@ uv run proxy.py --port 9000
 
 Once the proxy is running, you can control error injection interactively:
 
-- **`1`** - No error (pass through all requests normally)
-- **`2`** - Inject context length exceeded error on next request
-- **`3`** - Inject rate limit error on next request
-- **`4`** - Inject server error (500) on next request
+- **`n`** - No error (pass through all requests normally) - **permanent mode**
+- **`c`** - Context length exceeded error (1 time by default)
+  - `c 4` - Inject error 4 times in a row
+  - `c 0.3` or `c 30%` - Inject error on 30% of requests
+  - `c *` - Inject error on 100% of requests (all requests fail)
+- **`r`** - Rate limit error (1 time by default, same modifiers as `c`)
+- **`u`** - Unknown server error (500) (1 time by default, same modifiers as `c`)
 - **`q`** - Quit the proxy
+
+**Note:** Whitespace is flexible - `c 100%`, `c100%`, `c *`, and `c*` all work the same way.
 
 The proxy will display the current mode and request count after each command.
 
@@ -109,7 +114,7 @@ This means streaming completions from providers like OpenAI, Anthropic, and Data
 
 The proxy returns realistic error responses for each provider:
 
-### Context Length Exceeded (Command: `2`)
+### Context Length Exceeded (Command: `c`)
 - **OpenAI**: 400 with `context_length_exceeded` error
 - **Anthropic**: 400 with "prompt is too long" message
 - **Google**: 400 with `INVALID_ARGUMENT` status
@@ -117,7 +122,7 @@ The proxy returns realistic error responses for each provider:
 - **Tetrate**: 400 with context length error
 - **Databricks**: 400 with `INVALID_PARAMETER_VALUE` error
 
-### Rate Limit (Command: `3`)
+### Rate Limit (Command: `r`)
 - **OpenAI**: 429 with `rate_limit_exceeded` error
 - **Anthropic**: 429 with `rate_limit_error` type
 - **Google**: 429 with `RESOURCE_EXHAUSTED` status
@@ -125,7 +130,7 @@ The proxy returns realistic error responses for each provider:
 - **Tetrate**: 429 with rate limit error
 - **Databricks**: 429 with `RATE_LIMIT_EXCEEDED` error
 
-### Server Error (Command: `4`)
+### Server Error (Command: `u`)
 - **OpenAI**: 500 with `internal_server_error` error
 - **Anthropic**: 529 with `overloaded_error` type
 - **Google**: 503 with `UNAVAILABLE` status
@@ -154,22 +159,26 @@ Requests handled: 0
 ============================================================
 
 Commands:
-  1 - No error (pass through)
-  2 - Context length exceeded error
-  3 - Rate limit error
-  4 - Unknown server error (500)
-  q - Quit
+  n      - No error (pass through) - permanent
+  c      - Context length exceeded (1 time)
+  c 4    - Context length exceeded (4 times)
+  c 0.3  - Context length exceeded (30% of requests)
+  c 30%  - Context length exceeded (30% of requests)
+  c *    - Context length exceeded (100% of requests)
+  r      - Rate limit error (1 time)
+  u      - Unknown server error (1 time)
+  q      - Quit
 
-Enter command: 3
+Enter command: r
 ============================================================
-Current mode: ⏱️  Rate limit exceeded
+Current mode: ⏱️  Rate limit exceeded (1 remaining)
 Requests handled: 0
 ============================================================
 ...
 2025-10-09 14:30:15 - __main__ - INFO - 📨 Request #1: POST /v1/chat/completions -> openai
 2025-10-09 14:30:15 - __main__ - WARNING - 💥 Injecting RATE_LIMIT error (status 429) for openai
 
-Enter command: 1
+Enter command: n
 ============================================================
 Current mode: ✅ No error (pass through)
 Requests handled: 1

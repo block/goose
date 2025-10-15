@@ -9,12 +9,13 @@ Usage:
     uv run python proxy.py [--port PORT]
 
 Interactive commands:
-    1 - No error (pass through)
-    2 - Context length exceeded error (1 error)
-    2 4 - Context length exceeded error (4 errors in a row)
-    2 0.3 - Context length exceeded error (30% of requests)
-    3 - Rate limit error
-    4 - Unknown server error (500)
+    n - No error (pass through) - permanent mode
+    c - Context length exceeded error (1 error by default)
+    c 4 - Context length exceeded error (4 errors in a row)
+    c 0.3 or c 30% - Context length exceeded error (30% of requests)
+    c * - Context length exceeded error (100% of requests)
+    r - Rate limit error
+    u - Unknown server error (500)
     q - Quit
 
 To use with Goose, set the provider host environment variables:
@@ -488,13 +489,15 @@ def print_status(proxy: ErrorProxy):
     print(f"Requests handled: {proxy.request_count}")
     print("=" * 60)
     print("\nCommands:")
-    print("  1 - No error (pass through)")
-    print("  2 - Context length exceeded error (1 time)")
-    print("  2 4 - Context length exceeded error (4 times)")
-    print("  2 0.3 - Context length exceeded error (30% of requests)")
-    print("  3 - Rate limit error")
-    print("  4 - Unknown server error (500)")
-    print("  q - Quit")
+    print("  n      - No error (pass through) - permanent")
+    print("  c      - Context length exceeded (1 time)")
+    print("  c 4    - Context length exceeded (4 times)")
+    print("  c 0.3  - Context length exceeded (30% of requests)")
+    print("  c 30%  - Context length exceeded (30% of requests)")
+    print("  c *    - Context length exceeded (100% of requests)")
+    print("  r      - Rate limit error (1 time)")
+    print("  u      - Unknown server error (1 time)")
+    print("  q      - Quit")
     print()
 
 
@@ -512,58 +515,67 @@ def stdin_reader(proxy: ErrorProxy, loop):
                 asyncio.run_coroutine_threadsafe(shutdown_server(loop), loop)
                 break
             
-            # Parse command
-            parts = command.split()
-            if not parts:
+            # Parse command - remove all whitespace and parse
+            command_no_space = command.replace(" ", "")
+            if not command_no_space:
                 continue
+            
+            # Get the first character (error type letter)
+            error_letter = command_no_space[0].lower()
+            
+            # Map letter to ErrorMode
+            mode_map = {
+                'n': ErrorMode.NO_ERROR,
+                'c': ErrorMode.CONTEXT_LENGTH,
+                'r': ErrorMode.RATE_LIMIT,
+                'u': ErrorMode.SERVER_ERROR
+            }
+            
+            if error_letter not in mode_map:
+                print(f"❌ Invalid command: '{error_letter}'. Use n, c, r, u, or q")
+                continue
+            
+            mode = mode_map[error_letter]
+            
+            # Parse the rest as count or percentage
+            count = 1
+            percentage = 0.0
+            
+            if len(command_no_space) > 1:
+                value_str = command_no_space[1:]
                 
-            try:
-                error_type = int(parts[0])
-                
-                # Validate error type
-                if error_type < 1 or error_type > 4:
-                    print(f"❌ Invalid error type: {error_type}. Must be 1-4")
+                try:
+                    # Check for * (100%)
+                    if value_str == '*':
+                        percentage = 1.0
+                        count = 0  # Percentage mode
+                    # Check for percentage with % sign (e.g., "30%")
+                    elif value_str.endswith('%'):
+                        percentage = float(value_str[:-1]) / 100.0
+                        if percentage < 0.0 or percentage > 1.0:
+                            print(f"❌ Invalid percentage: {percentage*100:.0f}%. Must be between 0% and 100%")
+                            continue
+                        count = 0  # Percentage mode
+                    # Check if it's a decimal (percentage as 0.0-1.0)
+                    elif '.' in value_str:
+                        percentage = float(value_str)
+                        if percentage < 0.0 or percentage > 1.0:
+                            print(f"❌ Invalid percentage: {percentage}. Must be between 0.0 and 1.0")
+                            continue
+                        count = 0  # Percentage mode
+                    else:
+                        # It's an integer count
+                        count = int(value_str)
+                        if count < 0:
+                            print(f"❌ Invalid count: {count}. Must be >= 0")
+                            continue
+                except ValueError:
+                    print(f"❌ Invalid value: '{value_str}'. Must be an integer, decimal, percentage (30%), or * (100%)")
                     continue
-                
-                # Map to ErrorMode
-                mode_map = {
-                    1: ErrorMode.NO_ERROR,
-                    2: ErrorMode.CONTEXT_LENGTH,
-                    3: ErrorMode.RATE_LIMIT,
-                    4: ErrorMode.SERVER_ERROR
-                }
-                mode = mode_map[error_type]
-                
-                # Parse count or percentage
-                count = 1
-                percentage = 0.0
-                
-                if len(parts) > 1:
-                    value_str = parts[1]
-                    try:
-                        # Check if it's a decimal (percentage)
-                        if '.' in value_str:
-                            percentage = float(value_str)
-                            if percentage < 0.0 or percentage > 1.0:
-                                print(f"❌ Invalid percentage: {percentage}. Must be between 0.0 and 1.0")
-                                continue
-                            count = 0  # Percentage mode
-                        else:
-                            # It's an integer count
-                            count = int(value_str)
-                            if count < 0:
-                                print(f"❌ Invalid count: {count}. Must be >= 0")
-                                continue
-                    except ValueError:
-                        print(f"❌ Invalid value: '{value_str}'. Must be an integer or decimal")
-                        continue
-                
-                # Set the error mode
-                proxy.set_error_mode(mode, count, percentage)
-                print_status(proxy)
-                
-            except ValueError:
-                print(f"❌ Invalid input: '{command}'. Please enter a number 1-4, optionally followed by count or percentage")
+            
+            # Set the error mode
+            proxy.set_error_mode(mode, count, percentage)
+            print_status(proxy)
                 
         except EOFError:
             # Handle Ctrl+D
