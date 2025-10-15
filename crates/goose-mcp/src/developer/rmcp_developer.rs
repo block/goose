@@ -581,6 +581,30 @@ impl DeveloperServer {
         }
     }
 
+    /// Helper function to check if an operation is allowed in read-only mode
+    /// Returns an error if in read-only mode and the operation requires write access
+    fn require_write_access(&self, operation: &str) -> Result<(), ErrorData> {
+        if self.readonly {
+            // Special message for text_editor commands
+            if operation.starts_with("Command '") {
+                return Err(ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!(
+                        "{} is not allowed in read-only mode. Only 'view' is permitted.",
+                        operation
+                    ),
+                    None,
+                ));
+            }
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("{} is not allowed in read-only mode", operation),
+                None,
+            ));
+        }
+        Ok(())
+    }
+
     /// List all available windows that can be used with screen_capture.
     /// Returns a list of window titles that can be used with the window_title parameter
     /// of the screen_capture tool.
@@ -589,14 +613,7 @@ impl DeveloperServer {
         description = "List all available window titles that can be used with screen_capture. Returns a list of window titles that can be used with the window_title parameter of the screen_capture tool."
     )]
     pub async fn list_windows(&self) -> Result<CallToolResult, ErrorData> {
-        // Check if in read-only mode
-        if self.readonly {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "list_windows is not allowed in read-only mode".to_string(),
-                None,
-            ));
-        }
+        self.require_write_access("list_windows")?;
 
         let windows = Window::all().map_err(|_| {
             ErrorData::new(
@@ -633,14 +650,7 @@ impl DeveloperServer {
         &self,
         params: Parameters<ScreenCaptureParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        // Check if in read-only mode
-        if self.readonly {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "screen_capture is not allowed in read-only mode".to_string(),
-                None,
-            ));
-        }
+        self.require_write_access("screen_capture")?;
 
         let params = params.0;
 
@@ -784,14 +794,7 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "write" => {
-                // Check if in read-only mode
-                if self.readonly {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Command 'write' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
-                        None,
-                    ));
-                }
+                self.require_write_access("Command 'write'")?;
                 let file_text = params.file_text.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
@@ -803,14 +806,7 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "str_replace" => {
-                // Check if in read-only mode
-                if self.readonly {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Command 'str_replace' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
-                        None,
-                    ));
-                }
+                self.require_write_access("Command 'str_replace'")?;
                 // Check if diff parameter is provided
                 if let Some(ref diff) = params.diff {
                     // When diff is provided, old_str and new_str are not required
@@ -853,14 +849,7 @@ impl DeveloperServer {
                 }
             }
             "insert" => {
-                // Check if in read-only mode
-                if self.readonly {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Command 'insert' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
-                        None,
-                    ));
-                }
+                self.require_write_access("Command 'insert'")?;
                 let insert_line = params.insert_line.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
@@ -881,14 +870,7 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "undo_edit" => {
-                // Check if in read-only mode
-                if self.readonly {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Command 'undo_edit' is not allowed in read-only mode. Only 'view' is permitted.".to_string(),
-                        None,
-                    ));
-                }
+                self.require_write_access("Command 'undo_edit'")?;
                 let content = text_editor_undo(&path, &self.file_history).await?;
                 Ok(CallToolResult::success(content))
             }
