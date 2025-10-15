@@ -12,9 +12,9 @@ use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult,
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::{
-    PLATFORM_CHAT_RECALL_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
-    PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME, PLATFORM_MANAGE_SCHEDULE_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::recipe_tools::dynamic_task_tools::{
@@ -585,176 +585,6 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(self.extension_manager.search_available_extensions().await)
-        } else if tool_call.name == PLATFORM_CHAT_RECALL_TOOL_NAME {
-            let arguments = tool_call.arguments.clone().unwrap_or_default();
-            let session_id = arguments
-                .get("session_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            // Check if this is LOAD MODE (session_id provided) or SEARCH MODE (query provided)
-            if let Some(sid) = session_id {
-                // LOAD MODE: Get session summary (first and last few messages)
-                match SessionManager::get_session(&sid, true).await {
-                    Ok(loaded_session) => {
-                        let conversation = loaded_session.conversation.as_ref();
-
-                        if conversation.is_none() {
-                            ToolCallResult::from(Ok(vec![Content::text(format!(
-                                "Session {} has no conversation.",
-                                sid
-                            ))]))
-                        } else {
-                            let msgs = conversation.unwrap().messages();
-                            let total = msgs.len();
-
-                            if total == 0 {
-                                ToolCallResult::from(Ok(vec![Content::text(format!(
-                                    "Session {} has no messages.",
-                                    sid
-                                ))]))
-                            } else {
-                                let mut output = format!(
-                                    "Session: {} (ID: {})\nWorking Dir: {}\nTotal Messages: {}\n\n",
-                                    loaded_session.description,
-                                    sid,
-                                    loaded_session.working_dir.display(),
-                                    total
-                                );
-
-                                // Show first 3 messages
-                                let first_count = std::cmp::min(3, total);
-                                output.push_str("--- First Few Messages ---\n\n");
-                                for (idx, msg) in msgs.iter().take(first_count).enumerate() {
-                                    output.push_str(&format!("{}. [{:?}] ", idx + 1, msg.role));
-                                    // Extract text content only
-                                    for content in &msg.content {
-                                        if let Some(text) = content.as_text() {
-                                            output.push_str(text);
-                                            output.push_str("\n");
-                                        }
-                                    }
-                                    output.push_str("\n");
-                                }
-
-                                // Show last 3 messages (if more than 6 total)
-                                if total > 6 {
-                                    let last_count = std::cmp::min(3, total);
-                                    output.push_str(&format!(
-                                        "\n... ({} messages omitted) ...\n\n",
-                                        total - first_count - last_count
-                                    ));
-                                    output.push_str("--- Last Few Messages ---\n\n");
-                                    for (idx, msg) in
-                                        msgs.iter().skip(total - last_count).enumerate()
-                                    {
-                                        output.push_str(&format!(
-                                            "{}. [{:?}] ",
-                                            total - last_count + idx + 1,
-                                            msg.role
-                                        ));
-                                        for content in &msg.content {
-                                            if let Some(text) = content.as_text() {
-                                                output.push_str(text);
-                                                output.push_str("\n");
-                                            }
-                                        }
-                                        output.push_str("\n");
-                                    }
-                                }
-
-                                ToolCallResult::from(Ok(vec![Content::text(output)]))
-                            }
-                        }
-                    }
-                    Err(e) => ToolCallResult::from(Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to load session: {}", e),
-                        None,
-                    ))),
-                }
-            } else {
-                // SEARCH MODE: Search across all sessions
-                let query = arguments
-                    .get("query")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let limit = arguments
-                    .get("limit")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as usize);
-                let after_date = arguments
-                    .get("after_date")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-                    .map(|dt| dt.with_timezone(&chrono::Utc));
-                let before_date = arguments
-                    .get("before_date")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-                    .map(|dt| dt.with_timezone(&chrono::Utc));
-
-                // Exclude current session from results to avoid self-referential loops
-                let exclude_session_id = session.as_ref().map(|s| s.id.clone());
-
-                match SessionManager::search_chat_history(
-                    &query,
-                    limit,
-                    after_date,
-                    before_date,
-                    exclude_session_id,
-                )
-                .await
-                {
-                    Ok(results) => {
-                        let formatted_results = if results.total_matches == 0 {
-                            format!("No results found for query: '{}'", query)
-                        } else {
-                            let mut output = format!(
-                                "Found {} matching message(s) across {} session(s) for query: '{}'\n\n",
-                                results.total_matches,
-                                results.results.len(),
-                                query
-                            );
-                            for (idx, result) in results.results.iter().enumerate() {
-                                output.push_str(&format!(
-                                    "{}. Session: {} (ID: {})\n   Working Dir: {}\n   Last Activity: {}\n   Showing {} of {} total message(s) in session:\n\n",
-                                    idx + 1,
-                                    result.session_description,
-                                    result.session_id,
-                                    result.session_working_dir,
-                                    result.last_activity.format("%Y-%m-%d"),
-                                    result.messages.len(),
-                                    result.total_messages_in_session
-                                ));
-
-                                for (msg_idx, message) in result.messages.iter().enumerate() {
-                                    output.push_str(&format!(
-                                        "   {}.{} [{}]\n   {}\n\n",
-                                        idx + 1,
-                                        msg_idx + 1,
-                                        message.role,
-                                        message
-                                            .content
-                                            .lines()
-                                            .map(|line| format!("   {}", line))
-                                            .collect::<Vec<_>>()
-                                            .join("\n")
-                                    ));
-                                }
-                            }
-                            output
-                        };
-                        ToolCallResult::from(Ok(vec![Content::text(formatted_results)]))
-                    }
-                    Err(e) => ToolCallResult::from(Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Chat recall failed: {}", e),
-                        None,
-                    ))),
-                }
-            }
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -998,7 +828,6 @@ impl Agent {
                 platform_tools::search_available_extensions_tool(),
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
-                platform_tools::chat_recall_tool(),
             ]);
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());

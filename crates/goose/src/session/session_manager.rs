@@ -977,6 +977,7 @@ impl SessionStorage {
         self.get_session(&session.id, true).await
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn search_chat_history(
         &self,
         query: &str,

@@ -8,7 +8,6 @@ pub const PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str =
     "platform__search_available_extensions";
 pub const PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME: &str = "platform__manage_extensions";
 pub const PLATFORM_MANAGE_SCHEDULE_TOOL_NAME: &str = "platform__manage_schedule";
-pub const PLATFORM_CHAT_RECALL_TOOL_NAME: &str = "platform__chat_recall";
 
 pub fn read_resource_tool() -> Tool {
     Tool::new(
@@ -152,50 +151,6 @@ pub fn manage_schedule_tool() -> Tool {
         read_only_hint: Some(false),
         destructive_hint: Some(true), // Can kill jobs
         idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
-}
-
-pub fn chat_recall_tool() -> Tool {
-    Tool::new(
-        PLATFORM_CHAT_RECALL_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Search past chat or load session summaries. Use when it is clear user expects some memory or context.
-
-            search mode (query): Use multiple keywords/synonyms. Returns messages grouped by session, ordered by recency. Supports date filters.
-            load mode (session_id): Returns first/last 3 messages of a session.
-        "#}
-        .to_string(),
-        object!({
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search keywords. Use multiple related terms/synonyms (e.g., 'database postgres sql'). Mutually exclusive with session_id."
-                },
-                "session_id": {
-                    "type": "string",
-                    "description": "Session ID to load. Returns first/last 3 messages. Mutually exclusive with query."
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max results (default: 10, max: 50). Search mode only."
-                },
-                "after_date": {
-                    "type": "string",
-                    "description": "ISO 8601 date (e.g., '2025-10-01T00:00:00Z'). Search mode only."
-                },
-                "before_date": {
-                    "type": "string",
-                    "description": "ISO 8601 date (e.g., '2025-10-15T23:59:59Z'). Search mode only."
-                }
-            }
-        }),
-    ).annotate(ToolAnnotations {
-        title: Some("Recall past conversations".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(true),
         open_world_hint: Some(false),
     })
 }
