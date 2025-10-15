@@ -134,17 +134,10 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     // 3. Not all required parameters have been filled in yet
     // 4. Parameter modal is not already open (prevent multiple opens)
     // 5. No messages in chat yet (don't show after conversation has started)
-    if (
-      requiresParameters &&
-      recipeAccepted &&
-      !hasAllRequiredParameters &&
-      !isParameterModalOpen &&
-      !hasMessages
-    ) {
+    if (recipeAccepted && !hasAllRequiredParameters && !isParameterModalOpen && !hasMessages) {
       setIsParameterModalOpen(true);
     }
   }, [
-    requiresParameters,
     hasAllRequiredParameters,
     recipeAccepted,
     filteredParameters,
