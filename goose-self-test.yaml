@@ -169,23 +169,33 @@ prompt: |
   4. Verify extension isolation between enabled extensions
 
   ### Developer Extension Read-Only Mode Testing
-  Test the DEVELOPER_READONLY environment variable feature by spawning a child goose process:
+  Test the DEVELOPER_READONLY environment variable feature by spawning child goose processes.
 
   1. Create test file: {{ workspace_dir }}/readonly_test.txt with "original content"
-  2. Run read-only test via shell:
-     ```bash
-     DEVELOPER_READONLY=true goose run --text "Try to modify the file at {{ workspace_dir }}/readonly_test.txt by replacing 'original' with 'modified'. Then try to view the file. Report if the modification was blocked as expected." --no-session --quiet
-     ```
-  3. Verify file remains unchanged (still contains "original content")
-  4. Test that view operations work:
-     ```bash
-     DEVELOPER_READONLY=true goose run --text "View the file at {{ workspace_dir }}/readonly_test.txt and report its contents." --no-session --quiet
-     ```
-  5. Document results: readonly mode should block write/modify but allow view
 
-  Why this approach: Read-only mode is a startup configuration controlled by environment variable.
-  Since it's read at server initialization, we test it by spawning a child goose process with the env var set.
-  This provides true end-to-end validation without requiring extension reload gymnastics.
+  2. Run read-only mode tests using:
+     ```bash
+     DEVELOPER_READONLY=true goose run --text "<TEST>" --no-session --quiet
+     ```
+
+     Test each of these (expecting blocking):
+     - `"Try to modify {{ workspace_dir }}/readonly_test.txt by replacing 'original' with 'modified'"` → str_replace blocked
+     - `"Try to write 'new content' to {{ workspace_dir }}/new_file.txt"` → write blocked
+     - `"Try to insert 'new line' after line 1 in {{ workspace_dir }}/readonly_test.txt"` → insert blocked
+     - `"Try to use undo_edit on {{ workspace_dir }}/readonly_test.txt"` → undo_edit blocked
+     - `"Try to run shell command: echo test"` → shell blocked
+
+     Test these (expecting success):
+     - `"View {{ workspace_dir }}/readonly_test.txt"` → Shows "original content"
+     - `"Analyze {{ workspace_dir }}/readonly_test.txt"` → Successfully analyzes
+
+  3. Control test - verify modifications work WITHOUT read-only mode:
+     - `goose run --text "Modify {{ workspace_dir }}/readonly_test.txt by replacing 'original' with 'modified', then view it" --no-session --quiet`
+     - `goose run --text "Replace 'modified' with 'original' in {{ workspace_dir }}/readonly_test.txt" --no-session --quiet`
+
+  Expected behavior:
+  - ✅ Allow: view, analyze (read-only operations)
+  - ❌ Block: write, str_replace, insert, undo_edit, shell (modification operations)
 
   Log results to: {{ workspace_dir }}/phase2_extensions.md
   {% endif %}
