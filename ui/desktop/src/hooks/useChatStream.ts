@@ -1,15 +1,22 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatState } from '../types/chatState';
-import { Message } from '../api';
+import { Message, Session } from '../api';
 import { getApiUrl } from '../config';
 
 const TextDecoder = globalThis.TextDecoder;
 
 interface UseChatStreamProps {
   sessionId: string;
+  onStreamFinish: () => void;
+}
+
+interface UseChatStreamReturn {
+  session?: Session;
   messages: Message[];
-  setMessages: (messages: Message[]) => void;
-  onStreamFinish?: () => void;
+  chatState: ChatState;
+  handleSubmit: (userMessage: string) => Promise<void>;
+  stopStreaming: () => void;
+  sessionLoadError?: string;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -34,14 +41,126 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
   }
 }
 
+async function streamFromResponse(
+  response: Response,
+  initialMessages: Message[],
+  onMessage: (messages: Message[]) => void,
+  onStateChange: (state: ChatState) => void,
+  onSession: (session: Session) => void,
+  onFinish: (error?: string) => void
+): Promise<void> {
+  try {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error('No response body');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let currentMessages = initialMessages;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const event = JSON.parse(data);
+
+          if (event.type === 'SessionSnapshot') {
+            const session = event.session;
+            console.log('>>got session', session.description, session.conversation?.length);
+            onMessage(session.conversation || []);
+            session.conversation = [];
+            onSession(session);
+          }
+
+          if (event.type === 'Message' || event.message) {
+            const msg = (event.message || event.message) as Message;
+            currentMessages = pushMessage(currentMessages, msg);
+            onMessage(currentMessages);
+            onStateChange(ChatState.Streaming);
+          }
+
+          if (event.type === 'Error' || event.error) {
+            onFinish('Stream error: ' + event.error);
+            return;
+          }
+
+          if (event.type === 'Finish' || event.finish) {
+            onFinish();
+            return;
+          }
+        } catch (e) {
+          onFinish('Failed to parse SSE:' + e);
+        }
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      onFinish('Stream error:' + error);
+    }
+  }
+}
+
 export function useChatStream({
   sessionId,
-  messages,
-  setMessages,
   onStreamFinish,
-}: UseChatStreamProps) {
+}: UseChatStreamProps): UseChatStreamReturn {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
+  const [session, setSession] = useState<Session>();
+  const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const subscriptionActiveRef = useRef(false);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const onFinish = useCallback(
+    (error?: string): void => {
+      setSessionLoadError(error);
+      setChatState(ChatState.Idle);
+      onStreamFinish();
+    },
+    [onStreamFinish]
+  );
+
+  useEffect(() => {
+    console.log('useEffect running', {
+      sessionId,
+      active: subscriptionActiveRef.current,
+    });
+    if (!sessionId || subscriptionActiveRef.current) return;
+
+    subscriptionActiveRef.current = true;
+    const abortController = new AbortController();
+
+    (async () => {
+      const response = await fetch(getApiUrl(`/subscribe/${sessionId}`), {
+        headers: {
+          'X-Secret-Key': await window.electron.getSecretKey(),
+        },
+        signal: abortController.signal,
+      });
+
+      await streamFromResponse(response, [], setMessages, setChatState, setSession, onFinish);
+    })();
+
+    return () => {
+      console.log('Subscribe effect cleanup');
+      abortController.abort();
+      subscriptionActiveRef.current = false;
+    };
+  }, [sessionId, onFinish]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
@@ -51,80 +170,35 @@ export function useChatStream({
         created: Date.now(),
       };
 
-      let currentMessages = [...messages, newMessage];
+      const currentMessages = [...messagesRef.current, newMessage];
       setMessages(currentMessages);
       setChatState(ChatState.Streaming);
 
       abortControllerRef.current = new AbortController();
 
-      try {
-        // TODO(Douwe): this side steps our API. heyapi does support streaming though which should make
-        // this all nice & typed
-        const response = await fetch(getApiUrl('/reply'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
-          },
-          body: JSON.stringify({
-            session_id: sessionId,
-            messages: currentMessages,
-          }),
-          signal: abortControllerRef.current.signal,
-        });
+      const response = await fetch(getApiUrl('/reply'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': await window.electron.getSecretKey(),
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          messages: currentMessages,
+        }),
+        signal: abortControllerRef.current.signal,
+      });
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        if (!response.body) throw new Error('No response body');
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const event = JSON.parse(data);
-
-              if (event.message) {
-                const msg = event.message as Message;
-                currentMessages = pushMessage(currentMessages, msg);
-                setMessages(currentMessages);
-              }
-
-              if (event.error) {
-                console.error('Stream error:', event.error);
-                setChatState(ChatState.Idle);
-                return;
-              }
-
-              if (event.finish) {
-                setChatState(ChatState.Idle);
-                onStreamFinish?.();
-                return;
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE:', e);
-            }
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Stream error:', error);
-        }
-        setChatState(ChatState.Idle);
-      }
+      await streamFromResponse(
+        response,
+        currentMessages,
+        setMessages,
+        setChatState,
+        setSession,
+        onFinish
+      );
     },
-    [sessionId, messages, setMessages, onStreamFinish]
+    [sessionId, onFinish]
   );
 
   const stopStreaming = useCallback(() => {
@@ -133,6 +207,9 @@ export function useChatStream({
   }, []);
 
   return {
+    sessionLoadError,
+    messages,
+    session,
     chatState,
     handleSubmit,
     stopStreaming,

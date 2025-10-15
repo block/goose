@@ -96,9 +96,7 @@ const PairRouteWrapper = ({
 
   return process.env.ALPHA ? (
     <Pair2
-      chat={chat}
       setChat={setChat}
-      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}

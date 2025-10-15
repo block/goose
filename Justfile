@@ -176,7 +176,7 @@ debug-ui:
 	export GOOSE_EXTERNAL_BACKEND=true && \
 	export GOOSE_EXTERNAL_PORT=3000 && \
 	npm install && \
-	npm run start-gui
+	npm run start-alpha-gui
 
 # Run UI with main process debugging enabled
 # To debug main process:

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { manageContextFromBackend } from './index';
 import { Message } from '../../api';
 
@@ -121,16 +121,25 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     return message.content.some((content) => content.type === 'summarizationRequested');
   }, []);
 
-  const value = {
-    // State
-    isCompacting,
-    compactionError,
+  const value = useMemo(
+    () => ({
+      // State
+      isCompacting,
+      compactionError,
 
-    // Actions
-    handleAutoCompaction,
-    handleManualCompaction,
-    hasCompactionMarker,
-  };
+      // Actions
+      handleAutoCompaction,
+      handleManualCompaction,
+      hasCompactionMarker,
+    }),
+    [
+      isCompacting,
+      compactionError,
+      handleAutoCompaction,
+      handleManualCompaction,
+      hasCompactionMarker,
+    ]
+  );
 
   return <ContextManagerContext.Provider value={value}>{children}</ContextManagerContext.Provider>;
 };
