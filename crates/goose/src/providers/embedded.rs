@@ -258,18 +258,60 @@ impl EmbeddedProvider {
         let start = std::time::Instant::now();
         let timeout = Duration::from_secs(EMBEDDED_STARTUP_TIMEOUT);
 
+        tracing::info!(
+            "Waiting for llama-server to load model on port {}...",
+            self.port
+        );
+
         loop {
             if start.elapsed() > timeout {
-                return Err(anyhow::anyhow!("Timeout waiting for llama-server to start"));
+                return Err(anyhow::anyhow!(
+                    "Timeout waiting for llama-server to start and load model"
+                ));
             }
 
-            // Try to connect to the health endpoint
-            match self.api_client.response_get("health").await {
-                Ok(_) => {
-                    tracing::info!("llama-server is ready on port {}", self.port);
-                    return Ok(());
+            // Try to make a small test request to verify the model is loaded
+            // The health endpoint might return OK before the model is ready
+            let test_payload = json!({
+                "model": "embedded",
+                "messages": [{"role": "user", "content": "test"}],
+                "max_tokens": 1,
+                "temperature": 0.0
+            });
+
+            match self
+                .api_client
+                .response_post("v1/chat/completions", &test_payload)
+                .await
+            {
+                Ok(response) => {
+                    // Check if we got a valid response (not a 503 loading error)
+                    match handle_response_openai_compat(response).await {
+                        Ok(_) => {
+                            tracing::info!(
+                                "llama-server is ready and model loaded on port {}",
+                                self.port
+                            );
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            let error_msg = format!("{:?}", e);
+                            if error_msg.contains("503") || error_msg.contains("Loading model") {
+                                tracing::debug!("Model still loading, waiting...");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                            } else {
+                                // Some other error - might indicate server issues
+                                tracing::debug!(
+                                    "Server error during readiness check: {}, retrying...",
+                                    e
+                                );
+                                tokio::time::sleep(Duration::from_millis(500)).await;
+                            }
+                        }
+                    }
                 }
                 Err(_) => {
+                    // Server not responding yet
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 }
             }
