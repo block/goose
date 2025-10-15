@@ -37,6 +37,7 @@ interface BaseChatProps {
   suppressEmptyState?: boolean;
   autoSubmit?: boolean;
   resumeSessionId?: string; // Optional session ID to resume on mount
+  initialMessage?: string; // Initial message to send on load
 }
 
 function BaseChatContent({
@@ -51,6 +52,8 @@ function BaseChatContent({
   customMainLayoutProps = {},
   disableSearch = false,
   resumeSessionId,
+  initialMessage,
+  autoSubmit = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -230,7 +233,9 @@ function BaseChatContent({
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
-  const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
+  const initialPrompt =
+    initialMessage || (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
+  const shouldAutoSubmit = autoSubmit || !!initialMessage;
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -414,7 +419,7 @@ function BaseChatContent({
             //toolCount={toolCount || 0}
             toolCount={0}
             //autoSubmit={autoSubmit}
-            autoSubmit={false}
+            autoSubmit={shouldAutoSubmit}
             //append={append}
             {...customChatInputProps}
           />
