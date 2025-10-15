@@ -142,10 +142,10 @@ External subagents let you bring in AI agents from other providers and platforms
 ```yaml
 subagent:
   args:
-  - mcp
+  - mcp-server
   bundled: true
   cmd: codex
-  description: OpenAI Codex CLI Sub-agent
+  description: OpenAI Codex CLI Subagent
   enabled: true
   env_keys:
   - OPENAI_API_KEY
