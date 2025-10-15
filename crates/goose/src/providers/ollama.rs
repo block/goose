@@ -3,7 +3,7 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, Provider
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
-use crate::config::custom_providers::CustomProviderConfig;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 
@@ -93,7 +93,10 @@ impl OllamaProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
         // Parse and normalize the custom URL
