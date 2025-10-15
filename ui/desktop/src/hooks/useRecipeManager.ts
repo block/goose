@@ -71,16 +71,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
       if (finalRecipe) {
-        // If the recipe comes from session metadata (not from navigation state),
-        // it means it was already accepted in a previous session, so auto-accept it
-        const isFromSessionMetadata = !recipe && finalRecipe;
-
-        if (isFromSessionMetadata) {
-          // Recipe loaded from session metadata should be automatically accepted
-          setRecipeAccepted(true);
-          return;
-        }
-
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);
 
