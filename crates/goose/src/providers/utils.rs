@@ -80,6 +80,14 @@ pub fn map_http_error_to_provider_error(
             );
             ProviderError::Authentication(message)
         }
+        StatusCode::PAYLOAD_TOO_LARGE => {
+            let payload_str = if let Some(payload) = &payload {
+                payload.to_string()
+            } else {
+                "Payload is too large.".to_string()
+            };
+            ProviderError::ContextLengthExceeded(payload_str)
+        }
         StatusCode::BAD_REQUEST => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {
@@ -929,12 +937,12 @@ mod tests {
                     "The model 'gpt-5' does not exist (code: model_not_found, type: invalid_request_error) (status 404)".to_string(),
                 )),
             ),
-            // Non-JSON body error (tests parse failure path)
+            // Non-JSON body error (tests 413 PAYLOAD_TOO_LARGE -> ContextLengthExceeded)
             (
                 413,
                 Some(Value::String("Payload Too Large".to_string())),
-                Err(ProviderError::RequestFailed(
-                    "Request failed with status: 413 Payload Too Large".to_string(),
+                Err(ProviderError::ContextLengthExceeded(
+                    "Payload is too large.".to_string(),
                 )),
             ),
         ];

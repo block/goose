@@ -20,7 +20,7 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
     ImageFormat,
 };
-use crate::config::custom_providers::CustomProviderConfig;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -110,7 +110,10 @@ impl OpenAiProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)
