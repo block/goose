@@ -3,11 +3,7 @@ import { Recipe, scanRecipe } from '../recipe';
 import { createUserMessage } from '../types/message';
 import { Message } from '../api';
 
-import {
-  updateSystemPromptWithParameters,
-  substituteParameters,
-  filterValidUsedParameters,
-} from '../utils/providerUtils';
+import { updateSystemPromptWithParameters, substituteParameters } from '../utils/providerUtils';
 import { updateSessionUserRecipeValues } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
@@ -21,7 +17,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   const [hasSecurityWarnings, setHasSecurityWarnings] = useState(false);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
   const [recipeError, setRecipeError] = useState<string | null>(null);
-  const recipeParameters = chat.recipeParameters;
+  const recipeParameters = chat.recipeParameterValues;
 
   const chatContext = useChatContext();
   const messages = chat.messages;
@@ -62,7 +58,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         chatContext.setChat({
           ...chatContext.chat,
           recipe: recipe,
-          recipeParameters: null,
+          recipeParameterValues: null,
           messages: [],
         });
       }
@@ -104,16 +100,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     checkRecipeAcceptance();
   }, [finalRecipe, recipe, chat.messages.length]);
 
-  // Filter parameters to only show valid ones that are actually used in the recipe
   const filteredParameters = useMemo(() => {
-    if (!finalRecipe?.parameters) {
-      return [];
-    }
-    return filterValidUsedParameters(finalRecipe.parameters, {
-      prompt: finalRecipe.prompt || undefined,
-      instructions: finalRecipe.instructions || undefined,
-      activities: finalRecipe.activities || undefined,
-    });
+    return finalRecipe?.parameters ?? [];
   }, [finalRecipe]);
 
   // Check if template variables are actually used in the recipe content
@@ -187,7 +175,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     if (chatContext) {
       chatContext.setChat({
         ...chatContext.chat,
-        recipeParameters: inputValues,
+        recipeParameterValues: inputValues,
       });
     }
     setIsParameterModalOpen(false);

@@ -76,59 +76,6 @@ const isValidParameterName = (variable: string): boolean => {
   return validVarRegex.test(variable);
 };
 
-// Helper function to filter recipe parameters to only show valid ones that are actually used
-export const filterValidUsedParameters = (
-  parameters: RecipeParameter[] | undefined,
-  recipeContent: { prompt?: string; instructions?: string; activities?: string[] }
-): RecipeParameter[] => {
-  if (!parameters) {
-    return [];
-  }
-
-  // Extract all template variables used in the recipe content
-  const promptVariables = recipeContent.prompt
-    ? extractTemplateVariables(recipeContent.prompt)
-    : [];
-  const instructionVariables = recipeContent.instructions
-    ? extractTemplateVariables(recipeContent.instructions)
-    : [];
-
-  // Extract variables from activities using flatMap
-  const activityVariables = recipeContent.activities?.flatMap(extractTemplateVariables) ?? [];
-
-  const allUsedVariables = [
-    ...new Set([...promptVariables, ...instructionVariables, ...activityVariables]),
-  ];
-
-  // Filter parameters to only include:
-  // 1. Parameters with valid names (no spaces, dots, pipes, etc.)
-  // 2. Parameters that are actually used in the recipe content
-  // 3. Remove duplicates (keep first occurrence)
-  const seenKeys = new Set<string>();
-
-  return parameters.filter((param) => {
-    // Check if parameter key is valid (no spaces, special characters)
-    const isValid = isValidParameterName(param.key);
-    if (!isValid) {
-      return false;
-    }
-
-    // Check if parameter is actually used in the recipe content
-    const isUsed = allUsedVariables.includes(param.key);
-    if (!isUsed) {
-      return false;
-    }
-
-    // Remove duplicates (keep first occurrence)
-    if (seenKeys.has(param.key)) {
-      return false;
-    }
-
-    seenKeys.add(param.key);
-    return true;
-  });
-};
-
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
@@ -224,7 +171,6 @@ export const initializeSystem = async (
       console.log('This will not end well');
     }
 
-    // Get recipe - prefer from options (session metadata) over app config
     const recipe = options?.recipe;
     const recipe_instructions = (recipe as { instructions?: string })?.instructions;
     const responseConfig = (recipe as { response?: { json_schema?: unknown } })?.response;
