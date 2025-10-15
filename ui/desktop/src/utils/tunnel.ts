@@ -69,11 +69,27 @@ async function waitForOutputFile(
       if (fs.existsSync(filePath)) {
         try {
           const data = fs.readFileSync(filePath, 'utf8');
+          // Check if file has content and is not empty
+          if (!data || data.trim().length === 0) {
+            setTimeout(checkFile, pollInterval);
+            return;
+          }
           const tunnelInfo: TunnelInfo = JSON.parse(data);
-          resolve(tunnelInfo);
+          // Verify we got a valid tunnel info object with required fields
+          if (tunnelInfo.url && tunnelInfo.secret && tunnelInfo.port) {
+            resolve(tunnelInfo);
+          } else {
+            // File exists but content is incomplete, retry
+            setTimeout(checkFile, pollInterval);
+          }
         } catch (error) {
-          log.error('Error parsing tunnel output file:', error);
-          reject(error);
+          // If JSON parse fails, file might still be being written, retry
+          if (error instanceof SyntaxError) {
+            setTimeout(checkFile, pollInterval);
+          } else {
+            log.error('Error parsing tunnel output file:', error);
+            reject(error);
+          }
         }
       } else {
         setTimeout(checkFile, pollInterval);

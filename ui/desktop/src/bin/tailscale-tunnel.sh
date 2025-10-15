@@ -125,6 +125,8 @@ if ! command -v tailscale &> /dev/null; then
             exit 1
         fi
         
+        # Remove old files if they exist (they might be read-only)
+        rm -f "$INSTALL_DIR/tailscale" "$INSTALL_DIR/tailscaled"
         cp "$BIN_DIR/tailscale" "$INSTALL_DIR/"
         cp "$BIN_DIR/tailscaled" "$INSTALL_DIR/"
         
@@ -188,6 +190,8 @@ if ! command -v tailscale &> /dev/null; then
             exit 1
         fi
         
+        # Remove old files if they exist (they might be read-only)
+        rm -f "$INSTALL_DIR/tailscale" "$INSTALL_DIR/tailscaled"
         cp "$TS_DIR/tailscale" "$INSTALL_DIR/"
         cp "$TS_DIR/tailscaled" "$INSTALL_DIR/"
     fi
@@ -218,13 +222,20 @@ cleanup() {
     if [ ! -z "$GOOSED_PID" ]; then
         echo "Stopping goosed (PID: $GOOSED_PID)"
         kill $GOOSED_PID 2>/dev/null || true
+        wait $GOOSED_PID 2>/dev/null || true
     fi
     if [ ! -z "$TAILSCALE_SERVE_PID" ]; then
         echo "Stopping Tailscale serve (PID: $TAILSCALE_SERVE_PID)"
         kill $TAILSCALE_SERVE_PID 2>/dev/null || true
+        wait $TAILSCALE_SERVE_PID 2>/dev/null || true
     fi
     # Reset tailscale serve
-    tailscale serve reset >/dev/null 2>&1 || true
+    if [ ! -z "$TS_SOCK" ]; then
+        tailscale --socket "$TS_SOCK" serve reset >/dev/null 2>&1 || true
+        tailscale --socket "$TS_SOCK" down >/dev/null 2>&1 || true
+    fi
+    # Kill any leftover tailscaled processes we started
+    pkill -f "tailscaled --tun=userspace-networking --statedir $HOME/.local/share/tailscale" 2>/dev/null || true
     exit 0
 }
 
