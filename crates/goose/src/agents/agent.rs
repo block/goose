@@ -966,7 +966,7 @@ impl Agent {
         } else if let Some(error) = compaction_error {
             Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_text(
-                    format!("Ran into this error trying to auto-compact: {error}.\n\nSkipping compaction and continuing with the original conversation.")
+                    format!("Ran into this error trying to auto-compact: {error}.\n\nPlease try again or create a new session")
                 ));
             }))
         } else {
