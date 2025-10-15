@@ -412,17 +412,17 @@ class ErrorProxy:
 
         logger.info(f"📨 Request #{self.request_count}: {request.method} {request.path} -> {provider}")
 
-        # Capture status before checking if we should inject error (since that modifies state)
-        status_before = self._format_status_line()
+        # Capture the error mode BEFORE checking if we should inject (since that modifies state)
+        mode_before_check = self.get_error_mode()
 
         # Check if we should inject an error
         should_error = self.should_inject_error()
         if should_error:
-            mode = self.get_error_mode()
+            # Use the mode captured before the check, since should_inject_error may have changed it
             error_config = ERROR_CONFIGS.get(provider, ERROR_CONFIGS['openai']).get(
-                mode, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
+                mode_before_check, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
             )
-            logger.warning(f"💥 Injecting {mode.name} error (status {error_config['status']}) for {provider}")
+            logger.warning(f"💥 Injecting {mode_before_check.name} error (status {error_config['status']}) for {provider}")
             # Show status after the injection to reflect the updated state
             logger.info(f"Status: {self._format_status_line()}")
             return web.json_response(
