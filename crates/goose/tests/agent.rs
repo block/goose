@@ -10,8 +10,8 @@ use goose::providers::base::Provider;
 use goose::providers::{
     anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
     databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
-    groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider, xai::XaiProvider,
+    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    xai::XaiProvider,
 };
 
 #[derive(Debug, PartialEq)]
@@ -24,7 +24,6 @@ enum ProviderType {
     Databricks,
     GcpVertexAI,
     Google,
-    Groq,
     Ollama,
     OpenRouter,
     Xai,
@@ -43,7 +42,6 @@ impl ProviderType {
             ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
-            ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
             ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
@@ -80,7 +78,6 @@ impl ProviderType {
                 Arc::new(GcpVertexAIProvider::from_env(model_config).await?)
             }
             ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config).await?),
-            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config).await?),
             ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config).await?),
             ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config).await?),
             ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config).await?),
@@ -293,16 +290,6 @@ mod tests {
             provider_type: ProviderType::Google,
             model: "gemini-2.0-flash-exp",
             context_window: 1_200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_agent_with_groq() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Groq,
-            model: "gemma2-9b-it",
-            context_window: 9_000,
         })
         .await
     }

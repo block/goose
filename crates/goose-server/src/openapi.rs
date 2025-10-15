@@ -5,7 +5,7 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
@@ -14,6 +14,9 @@ use rmcp::model::{
 };
 use utoipa::{OpenApi, ToSchema};
 
+use goose::config::declarative_providers::{
+    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
+};
 use goose::conversation::message::{
     ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
     RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
@@ -335,6 +338,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::get_provider_models,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
+        super::routes::config_management::get_custom_provider,
+        super::routes::config_management::update_custom_provider,
         super::routes::config_management::remove_custom_provider,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
@@ -386,7 +391,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
-        super::routes::config_management::CreateCustomProviderRequest,
+        super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::reply::ChatRequest,
         super::routes::context::ContextManageRequest,
@@ -419,6 +424,10 @@ derive_utoipa!(Icon as IconSchema);
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
+        ProviderType,
+        LoadedProvider,
+        ProviderEngine,
+        DeclarativeProviderConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,

@@ -382,7 +382,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateCustomProviderRequest"
+                "$ref": "#/components/schemas/UpdateCustomProviderRequest"
               }
             }
           },
@@ -409,6 +409,84 @@
       }
     },
     "/config/custom-providers/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom provider retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadedProvider"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "update_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom provider updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "super::routes::config_management"
@@ -2198,40 +2276,6 @@
           }
         }
       },
-      "CreateCustomProviderRequest": {
-        "type": "object",
-        "required": [
-          "provider_type",
-          "display_name",
-          "api_url",
-          "api_key",
-          "models"
-        ],
-        "properties": {
-          "api_key": {
-            "type": "string"
-          },
-          "api_url": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider_type": {
-            "type": "string"
-          },
-          "supports_streaming": {
-            "type": "boolean",
-            "nullable": true
-          }
-        }
-      },
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
@@ -2288,6 +2332,61 @@
           },
           "recipe_source": {
             "type": "string"
+          }
+        }
+      },
+      "DeclarativeProviderConfig": {
+        "type": "object",
+        "required": [
+          "name",
+          "engine",
+          "display_name",
+          "api_key_env",
+          "base_url",
+          "models"
+        ],
+        "properties": {
+          "api_key_env": {
+            "type": "string"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
           }
         }
       },
@@ -2974,6 +3073,21 @@
           }
         }
       },
+      "LoadedProvider": {
+        "type": "object",
+        "required": [
+          "config",
+          "is_editable"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/DeclarativeProviderConfig"
+          },
+          "is_editable": {
+            "type": "boolean"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "A message to or from an LLM",
@@ -3327,7 +3441,8 @@
         "required": [
           "name",
           "metadata",
-          "is_configured"
+          "is_configured",
+          "provider_type"
         ],
         "properties": {
           "is_configured": {
@@ -3338,8 +3453,19 @@
           },
           "name": {
             "type": "string"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
           }
         }
+      },
+      "ProviderEngine": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "ollama",
+          "anthropic"
+        ]
       },
       "ProviderMetadata": {
         "type": "object",
@@ -3378,7 +3504,7 @@
             "items": {
               "$ref": "#/components/schemas/ModelInfo"
             },
-            "description": "A list of currently known models with their capabilities\nTODO: eventually query the apis directly"
+            "description": "A list of currently known models with their capabilities"
           },
           "model_doc_link": {
             "type": "string",
@@ -3389,6 +3515,15 @@
             "description": "The unique identifier for this provider"
           }
         }
+      },
+      "ProviderType": {
+        "type": "string",
+        "enum": [
+          "Preferred",
+          "Builtin",
+          "Declarative",
+          "Custom"
+        ]
       },
       "ProvidersResponse": {
         "type": "object",
@@ -4415,6 +4550,40 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateCustomProviderRequest": {
+        "type": "object",
+        "required": [
+          "engine",
+          "display_name",
+          "api_url",
+          "api_key",
+          "models"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
