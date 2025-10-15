@@ -47,7 +47,7 @@ async fn manage_context(
     let agent = state.get_agent_for_route(request.session_id).await?;
 
     let (_, processed_messages, token_counts, _) =
-        goose::context_mgmt::check_and_compact_messages(&agent, &request.messages, true, None, None)
+        goose::context_mgmt::check_and_compact_messages(&agent, &request.messages, true, false, None, None)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     // TODO(Douwe): store into db

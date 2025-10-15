@@ -923,6 +923,7 @@ impl Agent {
                 self,
                 unfixed_conversation.messages(),
                 false,
+                false,
                 None,
                 session_metadata.as_ref(),
             )
@@ -1087,6 +1088,7 @@ impl Agent {
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
+                let mut did_recovery_compact_this_iteration = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) {
@@ -1290,9 +1292,10 @@ impl Agent {
                                 None
                             };
 
-                            match check_and_compact_messages(self, conversation.messages(), true, None, session_metadata_for_compact.as_ref()).await {
+                            match check_and_compact_messages(self, conversation.messages(), true, true, None, session_metadata_for_compact.as_ref()).await {
                                 Ok((_did_compact, compacted_conversation, _removed_indices, _usage)) => {
                                     conversation = compacted_conversation;
+                                    did_recovery_compact_this_iteration = true;
 
                                     yield AgentEvent::Message(
                                         Message::assistant().with_conversation_compacted(
@@ -1340,6 +1343,8 @@ impl Agent {
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
+                    } else if did_recovery_compact_this_iteration {
+                        // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
                         match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
                             Ok(should_retry) => {

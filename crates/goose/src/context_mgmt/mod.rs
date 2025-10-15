@@ -56,6 +56,7 @@ struct SummarizeContext {
 /// * `agent` - The agent to use for context management
 /// * `messages` - The current message history
 /// * `force_compact` - If true, skip the threshold check and force compaction
+/// * `preserve_last_user_message` - If true and last message is not a user message, copy the most recent user message to the end
 /// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
 /// * `session_metadata` - Optional session metadata containing actual token counts
 ///
@@ -69,6 +70,7 @@ pub async fn check_and_compact_messages(
     agent: &Agent,
     messages_with_user_message: &[Message],
     force_compact: bool,
+    preserve_last_user_message: bool,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
@@ -115,6 +117,15 @@ pub async fn check_and_compact_messages(
                     &messages_with_user_message[..messages_with_user_message.len() - 1],
                     Some(last_message.clone()),
                 )
+            } else if preserve_last_user_message {
+                // Last message is not a user message, but we want to preserve the most recent user message
+                // Find the most recent user message and copy it (don't remove from history)
+                let most_recent_user_message = messages_with_user_message
+                    .iter()
+                    .rev()
+                    .find(|msg| matches!(msg.role, rmcp::model::Role::User))
+                    .cloned();
+                (messages_with_user_message, most_recent_user_message)
             } else {
                 (messages_with_user_message, None)
             }

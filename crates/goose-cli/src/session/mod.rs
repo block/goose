@@ -675,7 +675,8 @@ impl CliSession {
                             goose::context_mgmt::check_and_compact_messages(
                                 &self.agent,
                                 self.messages.messages(),
-                                true, // Force compact for user-initiated summarization
+                                true,
+                                false,
                                 None,
                                 session_metadata_for_compact.as_ref(),
                             )
