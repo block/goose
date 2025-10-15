@@ -36,6 +36,8 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
+| `security_prompt_enabled` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
+| `security_prompt_threshold` | Sensitivity threshold for [prompt injection detection](/docs/guides/security/prompt-injection-detection) (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
 
 :::info Automatic Multi-Model Configuration
 The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
@@ -58,7 +60,7 @@ Here's a basic example of a config.yaml file:
 ```yaml
 # Model Configuration
 GOOSE_PROVIDER: "anthropic"
-GOOSE_MODEL: "claude-3.5-sonnet"
+GOOSE_MODEL: "claude-4.5-sonnet"
 GOOSE_TEMPERATURE: 0.7
 
 # Planning Configuration
@@ -73,8 +75,8 @@ GOOSE_CLI_MIN_PRIORITY: 0.2
 # Recipe Configuration
 GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
 
-# Experimental Features
-ALPHA_FEATURES: true
+# Security Configuration
+security_prompt_enabled: true
 
 # Extensions Configuration
 extensions:
