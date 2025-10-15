@@ -68,13 +68,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       }
       return;
     }
-
-    // If we have a recipe from app config (deeplink), persist it
-    // But only if the chat context doesn't explicitly have null (which indicates it was cleared)
-    const appRecipe = window.appConfig.get('recipe') as Recipe | null;
-    if (appRecipe && chatContext.chat.recipe === undefined) {
-      chatContext.setRecipe(appRecipe);
-    }
   }, [chatContext, recipe]);
 
   useEffect(() => {
@@ -86,18 +79,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
       if (finalRecipe) {
         hasCheckedRecipeRef.current = true;
-
-        // If the recipe comes from session metadata (not from navigation state),
-        // it means it was already accepted in a previous session, so auto-accept it
-        const hasMessages = chat.messages.length > 0;
-        const isFromSessionMetadata = !recipe && finalRecipe && hasMessages;
-
-        if (isFromSessionMetadata) {
-          // Recipe loaded from session metadata should be automatically accepted
-          setRecipeAccepted(true);
-          setIsRecipeWarningModalOpen(false);
-          return;
-        }
 
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);

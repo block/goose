@@ -191,13 +191,27 @@
             }
           },
           "400": {
-            "description": "Bad request - invalid working directory"
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1235,10 +1249,34 @@
         },
         "responses": {
           "204": {
-            "description": "Recipe saved to file successfully"
+            "description": "Recipe saved to file successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeResponse"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized - Invalid or missing API key"
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error",
@@ -2485,10 +2523,10 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "message"
         ],
         "properties": {
-          "error": {
+          "message": {
             "type": "string"
           }
         }
@@ -3978,6 +4016,17 @@
           }
         }
       },
+      "SaveRecipeResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "ScanRecipeRequest": {
         "type": "object",
         "required": [
@@ -4308,6 +4357,14 @@
                 "$ref": "#/components/schemas/Recipe"
               }
             ],
+            "nullable": true
+          },
+          "recipe_deeplink": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_id": {
+            "type": "string",
             "nullable": true
           },
           "working_dir": {

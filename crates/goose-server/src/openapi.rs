@@ -466,6 +466,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
+        super::routes::recipe::SaveRecipeResponse,
         super::routes::errors::ErrorResponse,
         super::routes::recipe::ParseRecipeRequest,
         super::routes::recipe::ParseRecipeResponse,
@@ -489,7 +490,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::agent::ErrorResponse,
         super::routes::setup::SetupResponse,
     ))
 )]

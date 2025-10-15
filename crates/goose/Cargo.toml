@@ -104,6 +104,7 @@ oauth2 = "5.0.0"
 sysinfo = "0.37.2"
 zip = "6.0.0"
 which = "8.0.0"
+schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

@@ -177,7 +177,7 @@ export type Envs = {
 };
 
 export type ErrorResponse = {
-    error: string;
+    message: string;
 };
 
 export type ExtendPromptRequest = {
@@ -667,6 +667,10 @@ export type SaveRecipeRequest = {
     recipe: Recipe;
 };
 
+export type SaveRecipeResponse = {
+    id: string;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -764,6 +768,8 @@ export type SetupResponse = {
 
 export type StartAgentRequest = {
     recipe?: Recipe | null;
+    recipe_deeplink?: string | null;
+    recipe_id?: string | null;
     working_dir: string;
 };
 
@@ -1041,9 +1047,9 @@ export type StartAgentData = {
 
 export type StartAgentErrors = {
     /**
-     * Bad request - invalid working directory
+     * Bad request
      */
-    400: unknown;
+    400: ErrorResponse;
     /**
      * Unauthorized - invalid secret key
      */
@@ -1051,8 +1057,10 @@ export type StartAgentErrors = {
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type StartAgentError = StartAgentErrors[keyof StartAgentErrors];
 
 export type StartAgentResponses = {
     /**
@@ -1873,9 +1881,13 @@ export type SaveRecipeData = {
 
 export type SaveRecipeErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
+     * Unauthorized
      */
-    401: unknown;
+    401: ErrorResponse;
+    /**
+     * Not found
+     */
+    404: ErrorResponse;
     /**
      * Internal server error
      */
@@ -1888,10 +1900,10 @@ export type SaveRecipeResponses = {
     /**
      * Recipe saved to file successfully
      */
-    204: void;
+    204: SaveRecipeResponse;
 };
 
-export type SaveRecipeResponse = SaveRecipeResponses[keyof SaveRecipeResponses];
+export type SaveRecipeResponse2 = SaveRecipeResponses[keyof SaveRecipeResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;
