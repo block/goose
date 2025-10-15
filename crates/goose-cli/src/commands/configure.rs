@@ -420,7 +420,10 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let config = Config::global();
 
     // Get all available providers and their metadata
-    let available_providers = providers().await;
+    let mut available_providers = providers().await;
+
+    // Sort providers alphabetically by display name
+    available_providers.sort_by(|a, b| a.display_name.cmp(&b.display_name));
 
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
