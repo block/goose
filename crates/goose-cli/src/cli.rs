@@ -970,6 +970,17 @@ pub async fn cli() -> Result<()> {
             provider,
             model,
         }) => {
+            // Capture recipe name before the match moves the recipe variable
+            let recipe_display_name = recipe
+                .as_ref()
+                .map(|r| {
+                    std::path::Path::new(r)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(r)
+                })
+                .map(|s| s.to_string());
+
             let (input_config, recipe_info) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
@@ -1108,7 +1119,31 @@ pub async fn cli() -> Result<()> {
                     "Headless session started"
                 );
 
+                // Get session ID for span tracking
+                let session_id = session
+                    .session_id()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "no-session".to_string());
+
+                // Create root span for recipe/run execution
+                let execution_span = if let Some(ref _info) = recipe_info {
+                    let recipe_name = recipe_display_name.unwrap_or_else(|| "unknown".to_string());
+
+                    tracing::info_span!(
+                        "recipe.execute",
+                        session.id = %session_id,
+                        recipe.name = %recipe_name
+                    )
+                } else {
+                    tracing::info_span!(
+                        "run.execute",
+                        session.id = %session_id
+                    )
+                };
+
+                let _enter = execution_span.enter();
                 let result = session.headless(contents).await;
+                drop(_enter);
 
                 let session_duration = session_start.elapsed();
                 let exit_type = if result.is_ok() { "normal" } else { "error" };

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use opentelemetry::{global, propagation::Injector};
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Certificate, Client, Identity, Response, StatusCode,
@@ -9,6 +10,8 @@ use std::fmt;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::time::Duration;
+use tracing::Span;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub struct ApiClient {
     client: Client,
@@ -197,6 +200,21 @@ pub struct ApiRequestBuilder<'a> {
     headers: HeaderMap,
 }
 
+/// A header injector for OpenTelemetry trace propagation
+struct HeaderInjector<'a> {
+    headers: &'a mut HeaderMap,
+}
+
+impl<'a> Injector for HeaderInjector<'a> {
+    fn set(&mut self, key: &str, value: String) {
+        if let Ok(header_name) = HeaderName::from_bytes(key.as_bytes()) {
+            if let Ok(header_value) = HeaderValue::from_str(&value) {
+                self.headers.insert(header_name, header_value);
+            }
+        }
+    }
+}
+
 impl ApiClient {
     pub fn new(host: String, auth: AuthMethod) -> Result<Self> {
         Self::with_timeout(host, auth, Duration::from_secs(600))
@@ -367,6 +385,19 @@ impl<'a> ApiRequestBuilder<'a> {
     {
         let url = self.client.build_url(self.path)?;
         let mut request = request_builder(url, &self.client.client);
+
+        // Inject OpenTelemetry trace context headers
+        let mut trace_headers = HeaderMap::new();
+        let cx = Span::current().context();
+        global::get_text_map_propagator(|propagator| {
+            let mut injector = HeaderInjector {
+                headers: &mut trace_headers,
+            };
+            propagator.inject_context(&cx, &mut injector);
+        });
+
+        // Add trace headers first, then request headers (allowing overrides)
+        request = request.headers(trace_headers);
         request = request.headers(self.headers.clone());
 
         request = match &self.client.auth {
@@ -396,5 +427,140 @@ impl fmt::Debug for ApiClient {
             .field("timeout", &self.timeout)
             .field("default_headers", &self.default_headers)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry::{trace::TracerProvider, KeyValue};
+    use opentelemetry_sdk::{
+        trace::{RandomIdGenerator, Sampler, TracerProvider as SdkTracerProvider},
+        Resource,
+    };
+    use tracing::instrument;
+    use tracing_subscriber::{layer::SubscriberExt, Registry};
+
+    #[test]
+    fn test_header_injector_implements_injector() {
+        let mut headers = HeaderMap::new();
+        let mut injector = HeaderInjector {
+            headers: &mut headers,
+        };
+
+        // Test injecting trace context headers
+        injector.set("traceparent", "00-trace-id-span-id-01".to_string());
+        injector.set("tracestate", "test=value".to_string());
+
+        assert_eq!(
+            headers.get("traceparent").unwrap().to_str().unwrap(),
+            "00-trace-id-span-id-01"
+        );
+        assert_eq!(
+            headers.get("tracestate").unwrap().to_str().unwrap(),
+            "test=value"
+        );
+    }
+
+    #[test]
+    fn test_header_injector_handles_invalid_headers() {
+        let mut headers = HeaderMap::new();
+        let mut injector = HeaderInjector {
+            headers: &mut headers,
+        };
+
+        // Test injecting headers with invalid characters (should be skipped)
+        injector.set("invalid\nheader", "value".to_string());
+
+        // Invalid header names should not be added
+        assert!(headers.get("invalid\nheader").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_send_request_injects_trace_context() {
+        // Set up OpenTelemetry tracer
+        let resource = Resource::new(vec![KeyValue::new("service.name", "test")]);
+        let provider = SdkTracerProvider::builder()
+            .with_resource(resource)
+            .with_id_generator(RandomIdGenerator::default())
+            .with_sampler(Sampler::AlwaysOn)
+            .build();
+        let tracer = provider.tracer("test");
+
+        // Set up tracing subscriber with OpenTelemetry layer
+        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = Registry::default().with(telemetry_layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        // Set W3C TraceContext propagator
+        crate::tracing::init_otel_propagation();
+
+        // Create API client
+        let client = ApiClient::new(
+            "http://localhost:8080".to_string(),
+            AuthMethod::BearerToken("test-token".to_string()),
+        )
+        .unwrap();
+
+        // Create a test function with a span
+        #[instrument]
+        async fn make_request_with_span(client: &ApiClient) -> Result<HeaderMap> {
+            // Build a request
+            let builder = client.request("/test");
+            let request = builder.send_request(|url, client| client.get(url)).await?;
+
+            // Extract headers from the request
+            let headers = request.build().unwrap().headers().clone();
+            Ok(headers)
+        }
+
+        // Call within a span
+        let headers = make_request_with_span(&client).await.unwrap();
+
+        // Verify trace context headers were injected
+        assert!(
+            headers.contains_key("traceparent"),
+            "traceparent header should be present"
+        );
+
+        // Verify the traceparent format (00-<trace-id>-<span-id>-<flags>)
+        let traceparent = headers.get("traceparent").unwrap().to_str().unwrap();
+        assert!(
+            traceparent.starts_with("00-"),
+            "traceparent should start with version 00"
+        );
+        let parts: Vec<&str> = traceparent.split('-').collect();
+        assert_eq!(parts.len(), 4, "traceparent should have 4 parts");
+        assert_eq!(parts[0], "00", "version should be 00");
+        assert_eq!(parts[1].len(), 32, "trace-id should be 32 hex chars");
+        assert_eq!(parts[2].len(), 16, "span-id should be 16 hex chars");
+        assert_eq!(parts[3].len(), 2, "flags should be 2 hex chars");
+    }
+
+    #[tokio::test]
+    async fn test_send_request_without_span() {
+        // Create API client without setting up tracing
+        let client = ApiClient::new(
+            "http://localhost:8080".to_string(),
+            AuthMethod::BearerToken("test-token".to_string()),
+        )
+        .unwrap();
+
+        // Build a request without an active span
+        let builder = client.request("/test");
+        let request = builder
+            .send_request(|url, client| client.get(url))
+            .await
+            .unwrap();
+
+        // Extract headers from the request
+        let built_request = request.build().unwrap();
+        let headers = built_request.headers();
+
+        // Verify that authorization header is still present
+        assert!(headers.contains_key("authorization"));
+
+        // Note: Without an active span, traceparent may or may not be present
+        // depending on if there's a default/empty context
     }
 }

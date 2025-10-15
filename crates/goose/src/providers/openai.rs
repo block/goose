@@ -205,10 +205,6 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn complete_with_model(
         &self,
         model_config: &ModelConfig,
@@ -216,8 +212,29 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        // Create span following OpenTelemetry GenAI semantic conventions
+        // Span name format: "{operation} {model}" per https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+        let span = tracing::info_span!(
+            "chat",
+            otel.name = format!("chat {}", model_config.model_name),
+            gen_ai.request.model = %model_config.model_name,
+            gen_ai.system = "openai",
+            gen_ai.operation.name = "chat"
+        );
 
+        // Diagnostic: Check if we're creating a span without a parent context
+        let current_span = tracing::Span::current();
+        if current_span.id().is_none() {
+            tracing::warn!(
+                "LLM call without parent span context - this span will be unrooted!\nCall site: {}\nBacktrace:\n{:?}",
+                std::panic::Location::caller(),
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
+
+        let _enter = span.enter();
+
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
         let json_response = self.post(&payload).await?;
 
         let message = response_to_message(&json_response)?;
@@ -276,6 +293,26 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        // Create span following OpenTelemetry GenAI semantic conventions
+        // Span name format: "{operation} {model}" per https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+        let span = tracing::info_span!(
+            "chat",
+            otel.name = format!("chat {}", self.model.model_name),
+            gen_ai.request.model = %self.model.model_name,
+            gen_ai.system = "openai",
+            gen_ai.operation.name = "chat"
+        );
+
+        // Diagnostic: Check if we're creating a span without a parent context
+        let current_span = tracing::Span::current();
+        if current_span.id().is_none() {
+            tracing::warn!(
+                "LLM call without parent span context - this span will be unrooted!\nCall site: {}\nBacktrace:\n{:?}",
+                std::panic::Location::caller(),
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
+
         let mut payload =
             create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
         payload["stream"] = serde_json::Value::Bool(true);
@@ -283,17 +320,26 @@ impl Provider for OpenAiProvider {
             "include_usage": true,
         });
 
-        let response = self
-            .api_client
-            .response_post(&self.base_path, &payload)
-            .await?;
-        let response = handle_status_openai_compat(response).await?;
+        // Enter the span BEFORE making the HTTP request so trace context propagates correctly
+        let response = {
+            let _enter = span.enter();
+            let response = self
+                .api_client
+                .response_post(&self.base_path, &payload)
+                .await?;
+            handle_status_openai_compat(response).await?
+            // Span exits here after HTTP request completes
+        };
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
         let model_config = self.model.clone();
 
+        // Capture span to keep it alive during stream consumption
+        // Enter the span for each item yielded from the stream
         Ok(Box::pin(try_stream! {
+            let _span_guard = span.enter();
+
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 
@@ -304,6 +350,7 @@ impl Provider for OpenAiProvider {
                 emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
             }
+            // Span ends when _span_guard is dropped after stream is fully consumed
         }))
     }
 }
@@ -319,6 +366,149 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
         .collect()
 }
 
+#[cfg(test)]
+mod tests {
+    use opentelemetry::trace::TracerProvider as _;
+    use opentelemetry_sdk::{
+        export::trace::{SpanData, SpanExporter},
+        trace::{RandomIdGenerator, Sampler, TracerProvider},
+        Resource,
+    };
+    use std::sync::{Arc, Mutex};
+    use tracing_subscriber::{layer::SubscriberExt, Registry};
+
+    /// Custom span exporter that captures spans for testing
+    #[derive(Clone, Debug)]
+    struct TestSpanExporter {
+        spans: Arc<Mutex<Vec<SpanData>>>,
+    }
+
+    impl TestSpanExporter {
+        fn new(spans: Arc<Mutex<Vec<SpanData>>>) -> Self {
+            Self { spans }
+        }
+    }
+
+    impl SpanExporter for TestSpanExporter {
+        fn export(
+            &mut self,
+            batch: Vec<SpanData>,
+        ) -> futures::future::BoxFuture<'static, opentelemetry_sdk::export::trace::ExportResult>
+        {
+            let spans = self.spans.clone();
+            Box::pin(async move {
+                spans.lock().unwrap().extend(batch);
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stream_span_lifecycle() {
+        // This test verifies that streaming operations keep the span active
+        // during the entire stream consumption, not just during the HTTP request.
+        // This prevents the bug where client spans finish before server spans.
+
+        use async_stream::stream;
+        use tokio_stream::StreamExt;
+
+        // Set up OpenTelemetry with test exporter
+        let exported_spans = Arc::new(Mutex::new(Vec::new()));
+        let test_exporter = TestSpanExporter::new(exported_spans.clone());
+
+        let tracer_provider = TracerProvider::builder()
+            .with_simple_exporter(test_exporter)
+            .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
+                "service.name",
+                "test",
+            )]))
+            .with_id_generator(RandomIdGenerator::default())
+            .with_sampler(Sampler::AlwaysOn)
+            .build();
+
+        let _ = opentelemetry::global::set_tracer_provider(tracer_provider.clone());
+
+        let tracer = tracer_provider.tracer("test");
+        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = Registry::default().with(telemetry_layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        // Create a parent span to simulate agent.reply
+        let parent_span = tracing::info_span!("parent");
+        let _parent_enter = parent_span.enter();
+
+        // Simulate a streaming operation with artificial delay
+        let span = tracing::info_span!("simulated_stream");
+
+        let mock_stream = Box::pin(stream! {
+            let _span_guard = span.enter();
+
+            // Simulate stream items with delays
+            for i in 0..3 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                yield i;
+            }
+            // Span should stay active until here
+        });
+
+        // Record when we start consuming the stream
+        let start = std::time::Instant::now();
+
+        // Consume the stream (this simulates what agent.rs does)
+        let mut count = 0;
+        tokio::pin!(mock_stream);
+        while let Some(_) = mock_stream.next().await {
+            count += 1;
+        }
+
+        let duration = start.elapsed();
+
+        drop(_parent_enter);
+        drop(parent_span);
+
+        // Force flush
+        tracer_provider.force_flush();
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Verify spans were exported
+        let spans = exported_spans.lock().unwrap();
+        assert_eq!(count, 3, "Should have consumed 3 stream items");
+
+        // Find the simulated_stream span
+        let stream_span = spans
+            .iter()
+            .find(|s| s.name == "simulated_stream")
+            .expect("Should have simulated_stream span");
+
+        // Calculate actual span duration
+        let span_duration = stream_span
+            .end_time
+            .duration_since(stream_span.start_time)
+            .expect("End time should be after start time");
+
+        // Key assertion: Span duration should be >= stream consumption time
+        // This proves the span stayed active during stream consumption
+        assert!(
+            span_duration.as_millis() >= 150, // 3 items × 50ms each
+            "Span duration ({:?}) should be at least 150ms (stream consumption time), got {:?}ms",
+            span_duration,
+            span_duration.as_millis()
+        );
+
+        // Also verify span duration is roughly equal to actual stream consumption
+        // (with some tolerance for test timing variability)
+        assert!(
+            span_duration.as_millis() <= duration.as_millis() + 50,
+            "Span duration should not exceed actual consumption time by more than 50ms"
+        );
+
+        println!(
+            "✓ Span lifecycle correct: span duration {:?} ≈ stream consumption {:?}",
+            span_duration, duration
+        );
+    }
+}
+
 #[async_trait]
 impl EmbeddingCapable for OpenAiProvider {
     async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
@@ -328,6 +518,18 @@ impl EmbeddingCapable for OpenAiProvider {
 
         let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
             .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+
+        // Create span following OpenTelemetry GenAI semantic conventions
+        // Span name format: "{operation} {model}" per https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+        let span = tracing::info_span!(
+            "embedding",
+            otel.name = format!("embedding {}", embedding_model),
+            gen_ai.request.model = %embedding_model,
+            gen_ai.system = "openai",
+            gen_ai.operation.name = "embedding"
+        );
+
+        let _enter = span.enter();
 
         let request = EmbeddingRequest {
             input: texts,

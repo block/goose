@@ -4,12 +4,12 @@ use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
         CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
-        InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
-        ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
-        LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
-        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
-        ReadResourceResult, RequestId, ServerNotification, ServerResult,
+        ClientRequest, Extensions, GetPromptRequest, GetPromptRequestParam, GetPromptResult,
+        Implementation, InitializeResult, ListPromptsRequest, ListPromptsResult,
+        ListResourcesRequest, ListResourcesResult, ListToolsRequest, ListToolsResult,
+        LoggingMessageNotification, LoggingMessageNotificationMethod, PaginatedRequestParam,
+        ProgressNotification, ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest,
+        ReadResourceRequestParam, ReadResourceResult, RequestId, ServerNotification, ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestHandle, RunningService, ServiceRole,
@@ -192,6 +192,14 @@ impl McpClient {
     }
 }
 
+/// Helper function to create Extensions with injected trace context
+fn create_extensions_with_trace() -> Extensions {
+    let mut extensions = Extensions::new();
+    let meta = crate::tracing::inject_trace_context();
+    extensions.insert(meta);
+    extensions
+}
+
 async fn await_response(
     handle: RequestHandle<RoleClient>,
     timeout: Duration,
@@ -224,7 +232,7 @@ async fn send_cancel_message(
         CancelledNotification {
             params: CancelledNotificationParam { request_id, reason },
             method: CancelledNotificationMethod,
-            extensions: Default::default(),
+            extensions: create_extensions_with_trace(),
         }
         .into(),
     )
@@ -247,7 +255,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListResourcesRequest(ListResourcesRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -271,7 +279,7 @@ impl McpClientTrait for McpClient {
                         uri: uri.to_string(),
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -293,7 +301,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListToolsRequest(ListToolsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -319,7 +327,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -341,7 +349,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListPromptsRequest(ListPromptsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -371,7 +379,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: create_extensions_with_trace(),
                 }),
                 cancel_token,
             )
@@ -387,5 +395,134 @@ impl McpClientTrait for McpClient {
         let (tx, rx) = mpsc::channel(16);
         self.notification_subscribers.lock().await.push(tx);
         rx
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry::{trace::TracerProvider, KeyValue};
+    use opentelemetry_sdk::{
+        trace::{RandomIdGenerator, Sampler, TracerProvider as SdkTracerProvider},
+        Resource,
+    };
+    use rmcp::model::Meta;
+    use tracing::instrument;
+    use tracing_subscriber::{layer::SubscriberExt, Registry};
+
+    #[test]
+    fn test_create_extensions_with_trace_has_meta() {
+        // Set up OpenTelemetry tracer
+        let resource = Resource::new(vec![KeyValue::new("service.name", "test")]);
+        let provider = SdkTracerProvider::builder()
+            .with_resource(resource)
+            .with_id_generator(RandomIdGenerator::default())
+            .with_sampler(Sampler::AlwaysOn)
+            .build();
+        let tracer = provider.tracer("test");
+
+        // Set up tracing subscriber with OpenTelemetry layer
+        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = Registry::default().with(telemetry_layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        // Set W3C TraceContext propagator
+        crate::tracing::init_otel_propagation();
+
+        // Create a test function with a span
+        #[instrument]
+        fn create_extensions_in_span() -> Extensions {
+            create_extensions_with_trace()
+        }
+
+        // Call within a span
+        let extensions = create_extensions_in_span();
+
+        // Verify that Meta was inserted into extensions
+        let meta = extensions.get::<Meta>();
+        assert!(meta.is_some(), "Extensions should contain Meta");
+
+        // Verify Meta contains trace context fields
+        let meta = meta.unwrap();
+        assert!(
+            !meta.0.is_empty(),
+            "Meta should contain trace context fields"
+        );
+
+        // If there's a traceparent field, verify it has the correct format
+        if let Some(traceparent_value) = meta.0.get("traceparent") {
+            if let Some(traceparent) = traceparent_value.as_str() {
+                assert!(
+                    traceparent.starts_with("00-"),
+                    "traceparent should start with version 00"
+                );
+                let parts: Vec<&str> = traceparent.split('-').collect();
+                assert_eq!(parts.len(), 4, "traceparent should have 4 parts");
+                assert_eq!(parts[0], "00", "version should be 00");
+                assert_eq!(parts[1].len(), 32, "trace-id should be 32 hex chars");
+                assert_eq!(parts[2].len(), 16, "span-id should be 16 hex chars");
+                assert_eq!(parts[3].len(), 2, "flags should be 2 hex chars");
+            }
+        }
+    }
+
+    #[test]
+    fn test_create_extensions_with_trace_without_span() {
+        // Call without an active span
+        let extensions = create_extensions_with_trace();
+
+        // Extensions should still be created, even if Meta is empty
+        let meta = extensions.get::<Meta>();
+        assert!(
+            meta.is_some(),
+            "Extensions should contain Meta even without span"
+        );
+    }
+
+    #[test]
+    fn test_create_extensions_with_trace_returns_unique_extensions() {
+        // Set up OpenTelemetry tracer
+        let resource = Resource::new(vec![KeyValue::new("service.name", "test")]);
+        let provider = SdkTracerProvider::builder()
+            .with_resource(resource)
+            .with_id_generator(RandomIdGenerator::default())
+            .with_sampler(Sampler::AlwaysOn)
+            .build();
+        let tracer = provider.tracer("test");
+
+        // Set up tracing subscriber with OpenTelemetry layer
+        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = Registry::default().with(telemetry_layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        // Set W3C TraceContext propagator
+        crate::tracing::init_otel_propagation();
+
+        // Create a test function with a span
+        #[instrument]
+        fn create_two_extensions_in_span() -> (Extensions, Extensions) {
+            let ext1 = create_extensions_with_trace();
+            let ext2 = create_extensions_with_trace();
+            (ext1, ext2)
+        }
+
+        // Call within a span
+        let (ext1, ext2) = create_two_extensions_in_span();
+
+        // Both should have Meta
+        assert!(ext1.get::<Meta>().is_some());
+        assert!(ext2.get::<Meta>().is_some());
+
+        // Both should have the same trace context (same span)
+        let meta1 = ext1.get::<Meta>().unwrap();
+        let meta2 = ext2.get::<Meta>().unwrap();
+
+        if let (Some(tp1), Some(tp2)) = (meta1.0.get("traceparent"), meta2.0.get("traceparent")) {
+            // Both should have traceparent
+            assert_eq!(
+                tp1, tp2,
+                "Both extensions should have the same traceparent within the same span"
+            );
+        }
     }
 }

@@ -74,6 +74,9 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         console_layer.with_filter(LevelFilter::INFO).boxed(),
     ];
 
+    // Initialize OpenTelemetry propagation for distributed tracing
+    otlp_layer::init_otel_propagation();
+
     if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
         layers.push(
             otlp_tracing_layer
