@@ -963,27 +963,39 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Extract session ID for task-local propagation
+        let session_id = session.as_ref().map(|s| s.id.clone());
+
         let compaction_result = self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?;
 
         if let Some((conversation, compaction_message, _summarization_usage)) = compaction_result {
-            Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(
-                    Message::assistant().with_summarization_requested(compaction_message)
-                );
-                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
-                if let Some(session_to_store) = &session {
-                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
-                }
+            crate::session_context::SESSION_ID
+                .scope(session_id, async {
+                    let result: Result<BoxStream<'_, Result<AgentEvent>>> = Ok(Box::pin(async_stream::try_stream! {
+                        yield AgentEvent::Message(
+                            Message::assistant().with_summarization_requested(compaction_message)
+                        );
+                        yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+                        if let Some(session_to_store) = &session {
+                            SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                        }
 
-                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
-                while let Some(event) = reply_stream.next().await {
-                    yield event?;
-                }
-            }))
+                        let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
+                        while let Some(event) = reply_stream.next().await {
+                            yield event?;
+                        }
+                    }));
+                    result
+                })
+                .await
         } else {
-            self.reply_internal(unfixed_conversation, session, cancel_token)
+            crate::session_context::SESSION_ID
+                .scope(session_id, async {
+                    self.reply_internal(unfixed_conversation, session, cancel_token)
+                        .await
+                })
                 .await
         }
     }
