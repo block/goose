@@ -137,7 +137,6 @@ pub async fn handle_web(
     // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
-    // Load config and create agent just like the CLI does
     let config = goose::config::Config::global();
 
     let provider_name: String = match config.get_param("GOOSE_PROVIDER") {
@@ -160,7 +159,7 @@ pub async fn handle_web(
 
     // Create the agent
     let agent = Agent::new();
-    let provider = goose::providers::create(&provider_name, model_config)?;
+    let provider = goose::providers::create(&provider_name, model_config).await?;
     agent.update_provider(provider).await?;
 
     // Load and enable extensions from config

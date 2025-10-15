@@ -1,17 +1,24 @@
 import { Session } from './api';
-import { getSessionName } from './utils/sessionCompat';
 
-export function resumeSession(session: Session) {
-  console.log('Launching session in new window:', getSessionName(session));
+export function resumeSession(
+  session: Session,
+  navigateInSameWindow?: (sessionId: string) => void
+) {
   const workingDir = session.working_dir;
   if (!workingDir) {
     throw new Error('Cannot resume session: working directory is missing in session');
   }
 
-  window.electron.createChatWindow(
-    undefined, // query
-    workingDir,
-    undefined, // version
-    session.id
-  );
+  // When ALPHA is true and we have a navigation callback, resume in the same window
+  // Otherwise, open in a new window (old behavior)
+  if (process.env.ALPHA && navigateInSameWindow) {
+    navigateInSameWindow(session.id);
+  } else {
+    window.electron.createChatWindow(
+      undefined, // query
+      workingDir,
+      undefined, // version
+      session.id
+    );
+  }
 }

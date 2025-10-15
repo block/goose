@@ -20,9 +20,9 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
     ImageFormat,
 };
-use crate::config::custom_providers::CustomProviderConfig;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
@@ -56,10 +56,8 @@ pub struct OpenAiProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(OpenAiProvider);
-
 impl OpenAiProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -112,7 +110,10 @@ impl OpenAiProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)

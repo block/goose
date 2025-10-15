@@ -237,11 +237,13 @@ async fn run_now_handler(
                     .and_then(|content| {
                         goose::recipe::template_recipe::parse_recipe_content(
                             &content,
-                            std::path::Path::new(&job.source)
-                                .parent()
-                                .unwrap_or_else(|| std::path::Path::new(""))
-                                .to_string_lossy()
-                                .to_string(),
+                            Some(
+                                std::path::Path::new(&job.source)
+                                    .parent()
+                                    .unwrap_or_else(|| std::path::Path::new(""))
+                                    .to_string_lossy()
+                                    .to_string(),
+                            ),
                         )
                         .ok()
                         .map(|(r, _)| r.version)

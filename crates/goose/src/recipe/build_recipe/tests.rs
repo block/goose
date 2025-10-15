@@ -304,6 +304,27 @@ fn test_build_recipe_from_template_success_without_parameters() {
 }
 
 #[test]
+fn test_build_recipe_from_template_missing_prompt_and_instructions() {
+    let instructions_and_parameters = "";
+    let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
+
+    let build_recipe_result = build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT);
+    assert!(build_recipe_result.is_err());
+    let err = build_recipe_result.unwrap_err();
+    println!("{}", err);
+
+    match err {
+        RecipeError::TemplateRendering { source } => {
+            let err_str = source.to_string();
+            assert!(
+                err_str.contains("Recipe must specify at least one of `instructions` or `prompt`.")
+            );
+        }
+        _ => panic!("Expected TemplateRendering error"),
+    }
+}
+
+#[test]
 fn test_template_inheritance() {
     let parent_content = r#"
                 version: 1.0.0

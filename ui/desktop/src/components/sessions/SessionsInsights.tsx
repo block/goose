@@ -87,7 +87,9 @@ export function SessionInsights() {
 
   const handleSessionClick = async (session: Session) => {
     try {
-      resumeSession(session);
+      resumeSession(session, (sessionId: string) => {
+        navigate(`/pair?resumeSessionId=${sessionId}`);
+      });
     } catch (error) {
       console.error('Failed to start session:', error);
       navigate('/sessions', {

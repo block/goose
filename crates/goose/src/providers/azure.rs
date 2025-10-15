@@ -11,7 +11,6 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -68,10 +67,8 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl_provider_default!(AzureProvider);
-
 impl AzureProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
         let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;

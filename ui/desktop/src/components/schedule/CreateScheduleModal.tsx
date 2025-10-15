@@ -6,7 +6,7 @@ import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
 import { Recipe, decodeRecipe } from '../../recipe';
-import { getStorageDirectory } from '../../recipe/recipeStorage';
+import { getStorageDirectory } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';

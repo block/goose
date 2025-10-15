@@ -273,7 +273,7 @@ async fn update_agent_provider(
         StatusCode::BAD_REQUEST
     })?;
 
-    let new_provider = create(&payload.provider, model_config).map_err(|e| {
+    let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
         tracing::error!("Failed to create provider: {}", e);
         StatusCode::BAD_REQUEST
     })?;

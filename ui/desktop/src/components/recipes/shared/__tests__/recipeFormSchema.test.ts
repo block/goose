@@ -17,8 +17,6 @@ describe('recipeFormSchema', () => {
       },
     ],
     jsonSchema: '{"type": "object"}',
-    recipeName: 'test_recipe',
-    global: true,
   };
 
   describe('Zod Schema Validation', () => {
@@ -154,16 +152,6 @@ describe('recipeFormSchema', () => {
         expect(result.success).toBe(true);
       });
 
-      it('rejects invalid JSON schema', () => {
-        const invalidData = { ...validFormData, jsonSchema: 'invalid json' };
-        const result = recipeFormSchema.safeParse(invalidData);
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const jsonError = result.error.issues.find((issue) => issue.path.includes('jsonSchema'));
-          expect(jsonError?.message).toBe('Invalid JSON schema format');
-        }
-      });
-
       it('allows empty JSON schema', () => {
         const validData = { ...validFormData, jsonSchema: '' };
         const result = recipeFormSchema.safeParse(validData);
@@ -174,31 +162,6 @@ describe('recipeFormSchema', () => {
         const validData = { ...validFormData, jsonSchema: undefined };
         const result = recipeFormSchema.safeParse(validData);
         expect(result.success).toBe(true);
-      });
-    });
-
-    describe('Recipe Name Validation', () => {
-      it('allows empty recipe name', () => {
-        const validData = { ...validFormData, recipeName: '' };
-        const result = recipeFormSchema.safeParse(validData);
-        expect(result.success).toBe(true);
-      });
-
-      it('allows undefined recipe name', () => {
-        const validData = { ...validFormData, recipeName: undefined };
-        const result = recipeFormSchema.safeParse(validData);
-        expect(result.success).toBe(true);
-      });
-
-      it('rejects invalid recipe name characters', () => {
-        // The regex /^[^<>:"/\\|?*]+$/ rejects these specific characters
-        const invalidData = { ...validFormData, recipeName: 'invalid<name' };
-        const result = recipeFormSchema.safeParse(invalidData);
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const nameError = result.error.issues.find((issue) => issue.path.includes('recipeName'));
-          expect(nameError?.message).toContain('invalid characters');
-        }
       });
     });
 
@@ -305,20 +268,6 @@ describe('recipeFormSchema', () => {
       });
     });
 
-    describe('Global Field Validation', () => {
-      it('validates global field as boolean true', () => {
-        const validData = { ...validFormData, global: true };
-        const result = recipeFormSchema.safeParse(validData);
-        expect(result.success).toBe(true);
-      });
-
-      it('validates global field as boolean false', () => {
-        const validData = { ...validFormData, global: false };
-        const result = recipeFormSchema.safeParse(validData);
-        expect(result.success).toBe(true);
-      });
-    });
-
     describe('Multiple Validation Errors', () => {
       it('handles multiple validation errors', () => {
         const invalidData = {
@@ -326,7 +275,6 @@ describe('recipeFormSchema', () => {
           title: 'AB', // Too short
           description: 'Short', // Too short
           instructions: 'Short', // Too short
-          jsonSchema: 'invalid json',
         };
         const result = recipeFormSchema.safeParse(invalidData);
         expect(result.success).toBe(false);
@@ -339,7 +287,6 @@ describe('recipeFormSchema', () => {
           expect(result.error.issues.some((issue) => issue.path.includes('instructions'))).toBe(
             true
           );
-          expect(result.error.issues.some((issue) => issue.path.includes('jsonSchema'))).toBe(true);
         }
       });
     });

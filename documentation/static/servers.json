@@ -64,30 +64,13 @@
   {
     "id": "blender-mcp",
     "name": "Blender",
-    "description": "3D modeling and animation integration",
+    "description": "3D modeling and animation integration (requires local server setup)",
     "command": "uvx blender-mcp",
     "link": "https://github.com/ahujasid/blender-mcp",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "Install using uvx package manager. You must first download Blender, add the Blender MCP addon, and start the Blender MCP server.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
-  },
-  {
-    "id": "brave-mcp",
-    "name": "Brave Search",
-    "description": "Web search capabilities powered by Brave",
-    "command": "npx -y @brave/brave-search-mcp",
-    "link": "https://github.com/brave/brave-search-mcp-server",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "BRAVE_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
   },
   {
     "id": "browserbase-mcp",
@@ -116,23 +99,6 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
-  },
-  {
-    "id": "cloudflare-mcp",
-    "name": "Cloudflare",
-    "description": "Cloudflare API integration for DNS and domain management",
-    "command": "npx -y @cloudflare/mcp-server-cloudflare",
-    "link": "https://github.com/cloudflare/mcp-server-cloudflare",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "CLOUDFLARE_API_TOKEN",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
   },
   {
     "id": "cloudinary-asset-management-mcp",
@@ -164,13 +130,20 @@
   {
     "id": "cognee-mcp",
     "name": "Cognee",
-    "description": "Knowledge graph and cognitive AI capabilities",
-    "command": "uvx cognee-mcp",
+    "description": "Knowledge graph and cognitive AI capabilities (requires local server setup)",
+    "command": "uv --directory /path/to/cognee-mcp run python src/server.py",
     "link": "https://github.com/topoteretes/cognee",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "This is a local extension. You must first clone and install the Cognee MCP server locally before using this extension. Update the placeholder path before running the 'goose session' command.",
     "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
+    "endorsed": true,
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "LLM_API_KEY",
+        "description": "API key for your LLM provider",
+        "required": true
+      }
+    ]
   },
   {
     "id": "computercontroller",
@@ -271,10 +244,10 @@
   {
     "id": "filesystem",
     "name": "Filesystem",
-    "description": "File system operations and management",
+    "description": "File system operations and management (requires updating local paths)",
     "command": "npx -y @modelcontextprotocol/server-filesystem /path/to/dir1 /path/to/dir2",
     "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using npx package manager. Update the placeholder paths before running the 'goose session' command. If installing from the link, you must update the paths from the Extensions page before activating the extension.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -309,40 +282,6 @@
     "environmentVariables": []
   },
   {
-    "id": "google-drive-mcp",
-    "name": "Google Drive",
-    "description": "Google Drive file management and operations",
-    "command": "npx -y @google/drive-mcp",
-    "link": "https://github.com/google/drive-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_DRIVE_CREDENTIALS",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "google-maps-mcp",
-    "name": "Google Maps",
-    "description": "Maps, geocoding, and location services",
-    "command": "npx -y @google/maps-mcp",
-    "link": "https://github.com/google/maps-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_MAPS_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
-  },
-  {
     "id": "goose-docs",
     "name": "Goose Docs",
     "description": "GitMCP for Goose documentation",
@@ -366,25 +305,14 @@
   {
     "id": "jetbrains",
     "name": "JetBrains",
-    "description": "Integrate Goose with any JetBrains IDE",
-    "command": "npx -y @jetbrains/mcp-proxy",
+    "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
+    "url": "http://localhost:<PORT>/sse",
+    "type": "remote",
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "Install using npx package manager. Requires the MCP Server plugin to be installed in your JetBrains IDE.",
+    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
-  },
-  {
-    "id": "kiwi-flight-search",
-    "name": "Kiwi Flight Search",
-    "description": "Search for flights",
-    "url": "https://mcp.kiwi.com",
-    "link": "https://mcp-install-instructions.alpic.cloud/servers/kiwi-com-flight-search",
-    "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [],
-    "type": "streamable-http"
   },
   {
     "id": "knowledge_graph_memory",
@@ -400,13 +328,30 @@
   {
     "id": "mbot-mcp",
     "name": "MBot",
-    "description": "Chatbot and conversational AI integration",
-    "command": "npx -y mbot-mcp",
+    "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
+    "command": "/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar",
     "link": "https://github.com/deemkeen/mbotmcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "This is a local extension. You must first download the JAR file from the repository, install Java, and update the placeholder paths before running the 'goose session' command.",
     "is_builtin": false,
     "endorsed": false,
-    "environmentVariables": []
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "MQTT_SERVER_URI",
+        "description": "MQTT server URI (example: tcp://1.2.3.4:1883)",
+        "required": true
+      },
+      {
+        "name": "MQTT_USERNAME", 
+        "description": "MQTT username (empty string if no auth required)",
+        "required": true
+      },
+      {
+        "name": "MQTT_PASSWORD",
+        "description": "MQTT password (empty string if no auth required)", 
+        "required": true
+      }
+    ]
   },
   {
     "id": "memory",
@@ -436,7 +381,7 @@
     "description": "Manage Neon Postgres databases, projects, and branches",
     "type": "streamable-http",
     "url": "https://mcp.neon.tech/mcp",
-    "link": "https://github.com/neondatabase-labs/mcp-server-neon",
+    "link": "https://github.com/neondatabase/mcp-server-neon",
     "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
@@ -519,34 +464,6 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "postgres-mcp",
-    "name": "PostgreSQL",
-    "description": "PostgreSQL database integration",
-    "command": "uvx mcp-server-postgres",
-    "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "POSTGRES_CONNECTION_STRING",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "puppeteer-mcp",
-    "name": "Puppeteer",
-    "description": "Browser automation and web scraping",
-    "command": "npx -y @puppeteer/mcp-server",
-    "link": "https://github.com/puppeteer/mcp-server",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
     "environmentVariables": []
   },
   {

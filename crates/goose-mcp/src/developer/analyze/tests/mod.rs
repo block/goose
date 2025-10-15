@@ -9,4 +9,5 @@ pub mod integration_tests;
 pub mod large_output_tests;
 pub mod parser_tests;
 pub mod ruby_test;
+pub mod rust_test;
 pub mod traversal_tests;

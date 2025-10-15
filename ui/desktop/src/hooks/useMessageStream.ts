@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
+import { createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { Message, Role } from '../api';
+
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 

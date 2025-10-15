@@ -1,5 +1,3 @@
-// src/lib.rs or tests/truncate_agent_tests.rs
-
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -12,8 +10,8 @@ use goose::providers::base::Provider;
 use goose::providers::{
     anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
     databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
-    groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider, xai::XaiProvider,
+    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    xai::XaiProvider,
 };
 
 #[derive(Debug, PartialEq)]
@@ -26,7 +24,6 @@ enum ProviderType {
     Databricks,
     GcpVertexAI,
     Google,
-    Groq,
     Ollama,
     OpenRouter,
     Xai,
@@ -45,7 +42,6 @@ impl ProviderType {
             ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
-            ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
             ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
@@ -71,19 +67,20 @@ impl ProviderType {
         }
     }
 
-    fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
+    async fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
         Ok(match self {
-            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config)?),
-            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config)?),
-            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config)?),
-            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config)?),
-            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config)?),
-            ProviderType::GcpVertexAI => Arc::new(GcpVertexAIProvider::from_env(model_config)?),
-            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config)?),
-            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config)?),
-            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config)?),
-            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config)?),
-            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config)?),
+            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config).await?),
+            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config).await?),
+            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config).await?),
+            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config).await?),
+            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config).await?),
+            ProviderType::GcpVertexAI => {
+                Arc::new(GcpVertexAIProvider::from_env(model_config).await?)
+            }
+            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config).await?),
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config).await?),
+            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config).await?),
+            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config).await?),
         })
     }
 }
@@ -114,7 +111,7 @@ async fn run_truncate_test(
         .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
-    let provider = provider_type.create_provider(model_config)?;
+    let provider = provider_type.create_provider(model_config).await?;
 
     let agent = Agent::new();
     agent.update_provider(provider).await?;
@@ -301,16 +298,6 @@ mod tests {
             provider_type: ProviderType::Google,
             model: "gemini-2.0-flash-exp",
             context_window: 1_200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_agent_with_groq() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Groq,
-            model: "gemma2-9b-it",
-            context_window: 9_000,
         })
         .await
     }

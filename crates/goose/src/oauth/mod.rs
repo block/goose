@@ -76,7 +76,7 @@ pub async fn oauth_flow(
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
     oauth_state
-        .start_authorization(&[], redirect_uri.as_str())
+        .start_authorization(&[], redirect_uri.as_str(), Some("goose"))
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
