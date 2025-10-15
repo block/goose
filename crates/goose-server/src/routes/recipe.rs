@@ -38,7 +38,8 @@ fn clean_data_error(err: &axum::extract::rejection::JsonDataError) -> String {
 
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
-    get_all_recipes_manifests, get_recipe_file_path_by_id, validate_recipe, RecipeValidationError,
+    get_all_recipes_manifests, get_recipe_file_path_by_id, short_id_from_path, validate_recipe,
+    RecipeValidationError,
 };
 use crate::state::AppState;
 
@@ -97,6 +98,11 @@ pub struct ScanRecipeResponse {
 pub struct SaveRecipeRequest {
     recipe: Recipe,
     id: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SaveRecipeResponse {
+    id: String,
 }
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ParseRecipeRequest {
@@ -330,7 +336,7 @@ async fn delete_recipe(
     path = "/recipes/save",
     request_body = SaveRecipeRequest,
     responses(
-        (status = 204, description = "Recipe saved to file successfully"),
+        (status = 204, description = "Recipe saved to file successfully", body = SaveRecipeResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
         (status = 404, description = "Not found", body = ErrorResponse),
@@ -341,7 +347,7 @@ async fn delete_recipe(
 async fn save_recipe(
     State(state): State<Arc<AppState>>,
     payload: Result<Json<Value>, JsonRejection>,
-) -> Result<StatusCode, ErrorResponse> {
+) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
     let request = deserialize_save_recipe_request(raw_json)?;
     ensure_recipe_valid(&request.recipe)?;
@@ -351,8 +357,10 @@ async fn save_recipe(
         None => None,
     };
 
-    match local_recipes::save_recipe_to_file(request.recipe, file_path) {
-        Ok(_) => Ok(StatusCode::NO_CONTENT),
+    match local_recipes::save_recipe_to_file(request.recipe, file_path.clone()) {
+        Ok(save_file_path) => Ok(Json(SaveRecipeResponse {
+            id: short_id_from_path(&save_file_path.display().to_string()),
+        })),
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,

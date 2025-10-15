@@ -652,6 +652,10 @@ export type SaveRecipeRequest = {
     recipe: Recipe;
 };
 
+export type SaveRecipeResponse = {
+    id: string;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -1814,10 +1818,10 @@ export type SaveRecipeResponses = {
     /**
      * Recipe saved to file successfully
      */
-    204: void;
+    204: SaveRecipeResponse;
 };
 
-export type SaveRecipeResponse = SaveRecipeResponses[keyof SaveRecipeResponses];
+export type SaveRecipeResponse2 = SaveRecipeResponses[keyof SaveRecipeResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;

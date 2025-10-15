@@ -27,7 +27,7 @@ pub struct RecipeManifestWithPath {
     pub last_modified: String,
 }
 
-fn short_id_from_path(path: &str) -> String {
+pub fn short_id_from_path(path: &str) -> String {
     let mut hasher = DefaultHasher::new();
     path.hash(&mut hasher);
     let h = hasher.finish();

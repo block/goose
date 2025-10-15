@@ -457,6 +457,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
+        super::routes::recipe::SaveRecipeResponse,
         super::routes::errors::ErrorResponse,
         super::routes::recipe::ParseRecipeRequest,
         super::routes::recipe::ParseRecipeResponse,

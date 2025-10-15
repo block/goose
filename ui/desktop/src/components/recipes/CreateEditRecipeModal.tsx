@@ -295,7 +295,7 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      let saved_recipe_id = await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);
@@ -306,9 +306,9 @@ export default function CreateEditRecipeModal({
         undefined,
         undefined,
         undefined,
-        recipe,
         undefined,
-        recipeId ?? undefined
+        undefined,
+        saved_recipe_id
       );
 
       toastSuccess({

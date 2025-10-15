@@ -1171,7 +1171,14 @@
         },
         "responses": {
           "204": {
-            "description": "Recipe saved to file successfully"
+            "description": "Recipe saved to file successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveRecipeResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized",
@@ -3871,6 +3878,17 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "SaveRecipeResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
           }
         }
       },
