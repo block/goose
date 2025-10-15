@@ -50,6 +50,7 @@ async fn manage_context(
         goose::context_mgmt::check_and_compact_messages(&agent, &request.messages, None, None)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // TODO(Douwe): store into db
 
     Ok(Json(ContextManageResponse {
         messages: processed_messages.messages().iter().cloned().collect(),

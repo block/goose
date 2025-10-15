@@ -178,14 +178,6 @@ async fn run_truncate_test(
             assert!(text_content.text.to_lowercase().contains("no"));
             assert!(!text_content.text.to_lowercase().contains("yes"));
         }
-        goose::conversation::message::MessageContent::ContextLengthExceeded(_) => {
-            // This is an acceptable outcome for providers that don't truncate themselves
-            // and correctly report that the context length was exceeded.
-            println!(
-                "Received ContextLengthExceeded as expected for {:?}",
-                provider_type
-            );
-        }
         _ => {
             panic!(
                 "Unexpected message content type: {:?}",

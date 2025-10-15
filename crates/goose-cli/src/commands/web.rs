@@ -21,7 +21,7 @@ use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
-use tracing::error;
+use tracing::{error, warn};
 use webbrowser;
 
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
@@ -566,35 +566,6 @@ async fn process_message_streaming(
                                             .into(),
                                         ))
                                         .await;
-                                }
-                                // TODO(douwe): delete this
-                                MessageContent::ContextLengthExceeded(msg) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(
-                                                &WebSocketMessage::ContextExceeded {
-                                                    message: msg.msg.clone(),
-                                                },
-                                            )
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-
-                                    let (_, summarized_messages, _, _) =
-                                        goose::context_mgmt::check_and_compact_messages(
-                                            &agent,
-                                            messages.messages(),
-                                            None,
-                                            None,
-                                        )
-                                        .await?;
-                                    SessionManager::replace_conversation(
-                                        &session_id,
-                                        &summarized_messages,
-                                    )
-                                    .await?;
                                 }
                                 _ => {}
                             }

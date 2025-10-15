@@ -33,7 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
-use crate::context_mgmt::check_and_compact_messages;
+use crate::context_mgmt::{check_and_compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -907,7 +907,7 @@ impl Agent {
         &self,
         unfixed_conversation: Conversation,
         session: Option<SessionConfig>,
-        cancel_token: Option<CancellationToken>
+        cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = &session {
@@ -932,7 +932,7 @@ impl Agent {
             let config = crate::config::Config::global();
             let threshold = config
                 .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                .unwrap_or(0.8); // Default to 80%
+                .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
             let threshold_percentage = (threshold * 100.0) as u32;
 
             let compaction_msg = format!(
@@ -941,8 +941,9 @@ impl Agent {
             );
 
             Ok(Box::pin(async_stream::try_stream! {
+                // TODO(Douwe): send this before we actually compact:
                 yield AgentEvent::Message(
-                    Message::assistant().with_summarization_requested(compaction_msg)
+                    Message::assistant().with_conversation_compacted(compaction_msg)
                 );
                 yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
                 if let Some(session_to_store) = &session {
@@ -1293,7 +1294,7 @@ impl Agent {
                                     conversation = compacted_conversation;
 
                                     yield AgentEvent::Message(
-                                        Message::assistant().with_summarization_requested(
+                                        Message::assistant().with_conversation_compacted(
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );

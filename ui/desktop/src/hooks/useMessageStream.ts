@@ -586,6 +586,7 @@ export function useMessageStream({
         id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
+        metadata: { userVisible: true, agentVisible: true },
         content: [
           {
             type: 'toolResponse' as const,

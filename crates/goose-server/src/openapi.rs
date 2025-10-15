@@ -15,10 +15,10 @@ use rmcp::model::{
 use utoipa::{OpenApi, ToSchema};
 
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
+
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -415,8 +415,7 @@ derive_utoipa!(Icon as IconSchema);
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ContextLengthExceeded,
-        SummarizationRequested,
+        ConversationCompacted,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,

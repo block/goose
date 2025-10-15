@@ -10,6 +10,8 @@ use serde::Serialize;
 use std::sync::Arc;
 use tracing::{debug, info};
 
+pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
+
 /// Result of auto-compaction check
 #[derive(Debug)]
 pub struct AutoCompactResult {
@@ -64,13 +66,18 @@ struct SummarizeContext {
 ///   - `Option<ProviderUsage>`: Provider usage from summarization (if compaction occurred)
 pub async fn check_and_compact_messages(
     agent: &Agent,
-    messages: &[Message],
+    messages_with_user_message: &[Message],
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
     // First check if compaction is needed
-    let check_result =
-        check_compaction_needed(agent, messages, threshold_override, session_metadata).await?;
+    let check_result = check_compaction_needed(
+        agent,
+        messages_with_user_message,
+        threshold_override,
+        session_metadata,
+    )
+    .await?;
 
     // If no compaction is needed, return early
     if !check_result.needs_compaction {
@@ -81,7 +88,7 @@ pub async fn check_and_compact_messages(
         );
         return Ok((
             false,
-            Conversation::new_unvalidated(messages.to_vec()),
+            Conversation::new_unvalidated(messages_with_user_message.to_vec()),
             Vec::new(),
             None,
         ));
@@ -94,17 +101,20 @@ pub async fn check_and_compact_messages(
 
     // Perform the actual compaction
     // Check if the most recent message is a user message
-    let (_messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
+    let (messages, preserved_user_message) =
+        if let Some(last_message) = messages_with_user_message.last() {
+            if matches!(last_message.role, rmcp::model::Role::User) {
+                // Remove the last user message before compaction
+                (
+                    &messages_with_user_message[..messages_with_user_message.len() - 1],
+                    Some(last_message.clone()),
+                )
+            } else {
+                (messages_with_user_message, None)
+            }
         } else {
-            (messages, None)
-        }
-    } else {
-        (messages, None)
-    };
+            (messages_with_user_message, None)
+        };
 
     let provider = agent.provider().await?;
     let summary = summarize(provider.clone(), messages).await?;
@@ -137,7 +147,7 @@ pub async fn check_and_compact_messages(
 
     // Add the compaction marker (user_visible=true, agent_visible=false)
     let compaction_marker = Message::assistant()
-        .with_summarization_requested("Conversation compacted and summarized")
+        .with_conversation_compacted("Conversation compacted and summarized")
         .with_metadata(MessageMetadata::user_only());
     let compaction_marker_tokens: usize = 0; // Not counted since agent_visible=false
     final_messages.push(compaction_marker);
@@ -202,10 +212,11 @@ async fn check_compaction_needed(
 ) -> Result<CompactionCheckResult> {
     // Get threshold from config or use override
     let config = Config::global();
+    // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(0.8) // Default to 80%
+            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
     let provider = agent.provider().await?;
@@ -228,23 +239,19 @@ async fn check_compaction_needed(
         }
     };
 
-    // Calculate usage ratio
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
-    // Calculate threshold token count and remaining tokens
     let threshold_tokens = (context_limit as f64 * threshold) as usize;
     let remaining_tokens = threshold_tokens.saturating_sub(current_tokens);
 
-    // Calculate percentage until compaction (how much more we can use before hitting threshold)
     let percentage_until_compaction = if usage_ratio < threshold {
         (threshold - usage_ratio) * 100.0
     } else {
         0.0
     };
 
-    // Check if compaction is needed (disabled if threshold is invalid)
     let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false
+        usage_ratio > DEFAULT_COMPACTION_THRESHOLD
     } else {
         usage_ratio > threshold
     };
