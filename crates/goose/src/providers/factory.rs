@@ -8,6 +8,7 @@ use super::{
     claude_code::ClaudeCodeProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
+    embedded::EmbeddedProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
@@ -44,6 +45,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)));
         registry.register::<CursorAgentProvider, _>(|m| Box::pin(CursorAgentProvider::from_env(m)));
         registry.register::<DatabricksProvider, _>(|m| Box::pin(DatabricksProvider::from_env(m)));
+        registry.register::<EmbeddedProvider, _>(|m| Box::pin(EmbeddedProvider::from_env(m)));
         registry.register::<GcpVertexAIProvider, _>(|m| Box::pin(GcpVertexAIProvider::from_env(m)));
         registry.register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)));
         registry
