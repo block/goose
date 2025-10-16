@@ -35,7 +35,9 @@ fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> 
 
 pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
     let recipe_file = load_recipe_file(recipe_name)?;
-    match build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback())) {
+    let recipe_content = recipe_file.content;
+    let recipe_dir = recipe_file.parent_dir;
+    match build_recipe_from_template(recipe_content, &recipe_dir, params, Some(create_user_prompt_callback())) {
         Ok(recipe) => {
             let secret_requirements = discover_recipe_secrets(&recipe);
             if let Err(e) = collect_missing_secrets(&secret_requirements) {
