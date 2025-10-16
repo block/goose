@@ -72,26 +72,52 @@ else
 fi
 
 # --- 3) Detect OS/Architecture ---
-# Better OS detection for Windows environments
-if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+# Allow explicit override for automation or when auto-detection is wrong:
+#   INSTALL_OS=linux|windows|darwin
+if [ -n "${INSTALL_OS:-}" ]; then
+  case "${INSTALL_OS}" in
+    linux|windows|darwin) OS="${INSTALL_OS}" ;;
+    *) echo "[error]: unsupported INSTALL_OS='${INSTALL_OS}' (expected: linux|windows|darwin)"; exit 1 ;;
+  esac
+else
+  # Better OS detection for Windows environments, with safer WSL handling.
+  # If explicit Windows-like shells/variables are present (MSYS/Cygwin), treat as windows.
+  if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     OS="windows"
-elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
-    # WSL detection
+  elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL detected. Prefer Linux unless there are clear signs we should install the Windows build:
+    # - running on a Windows-mounted path like /mnt/c/...   OR
+    # - Windows executables are available AND we're on a Windows mount
+    if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+      OS="windows"
+    else
+      # If powershell/cmd exist, only treat as Windows when in a Windows mount
+      if command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+        if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]] || [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+          OS="windows"
+        else
+          OS="linux"
+        fi
+      else
+        # No strong Windows interop present — install Linux build inside WSL by default
+        OS="linux"
+      fi
+    fi
+  elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection (like /mnt/c/) outside of /proc/version check
     OS="windows"
-elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
-    # WSL mount point detection (like /mnt/c/)
-    OS="windows"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="darwin"
-elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
-    # Check if Windows executables are available (another Windows indicator)
+  elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+    # Presence of Windows executables (likely a Windows environment)
     OS="windows"
-elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+  elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
     # Check for Windows-style mount points (like in Git Bash)
     OS="windows"
-else
+  else
     # Fallback to uname for other systems
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  fi
 fi
 
 ARCH=$(uname -m)
