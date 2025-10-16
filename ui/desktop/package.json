@@ -1,8 +1,8 @@
 {
   "name": "goose-app",
-  "productName": "goose",
+  "productName": "Goose",
   "version": "1.10.3",
-  "description": "goose App",
+  "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
   },
@@ -16,11 +16,11 @@
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "bundle:default": "node scripts/prepare-platform-binaries.js && npm run make && (cd out/goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent goose.app goose.zip) || echo 'out/goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
-    "bundle:alpha": "ALPHA=true node scripts/prepare-platform-binaries.js && ALPHA=true npm run make && (cd out/goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent goose.app goose_alpha.zip) || echo 'out/goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
+    "bundle:default": "node scripts/prepare-platform-binaries.js && npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
+    "bundle:alpha": "ALPHA=true node scripts/prepare-platform-binaries.js && ALPHA=true npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_alpha.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
     "bundle:windows": "node scripts/build-main.js && ELECTRON_PLATFORM=win32 node scripts/prepare-platform-binaries.js && npm run make -- --platform=win32 --arch=x64",
-    "bundle:intel": "node scripts/prepare-platform-binaries.js && npm run make -- --arch=x64 && cd out/goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent goose.app goose_intel_mac.zip",
-    "debug": "echo 'run --remote-debugging-port=8315' && lldb out/goose-darwin-arm64/goose.app",
+    "bundle:intel": "node scripts/prepare-platform-binaries.js && npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
+    "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "npm run generate-api && playwright test",
     "test-e2e:dev": "npm run generate-api && playwright test --reporter=list --retries=0 --max-failures=1",
     "test-e2e:ui": "npm run generate-api && playwright test --ui",
