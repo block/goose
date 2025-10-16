@@ -630,7 +630,7 @@ impl SessionStorage {
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        Ok(sqlx::query_as(
+        let session_id = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, description, working_dir, extension_data)
                 VALUES (
@@ -651,7 +651,13 @@ impl SessionStorage {
         .bind(&description)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
-        .await?)
+        .await?;
+
+        sqlx::query("PRAGMA wal_checkpoint")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(session_id)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
