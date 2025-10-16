@@ -247,9 +247,9 @@ impl ChatRecallClient {
     fn get_tools() -> Vec<Tool> {
         // Generate JSON schema from the ChatRecallParams struct
         let schema = schema_for!(ChatRecallParams);
-        let schema_value = serde_json::to_value(schema)
-            .expect("Failed to serialize ChatRecallParams schema");
-        
+        let schema_value =
+            serde_json::to_value(schema).expect("Failed to serialize ChatRecallParams schema");
+
         let input_schema = schema_value
             .as_object()
             .expect("Schema should be an object")
