@@ -1162,7 +1162,6 @@ mod extension_manager_tests {
                 description:
                     "Enable a todo list for Goose so it can keep track of what it is doing"
                         .to_string(),
-                display_name: Some("Todo".to_string()),
                 bundled: Some(true),
                 available_tools: vec![],
             },
@@ -1184,7 +1183,6 @@ mod extension_manager_tests {
         let ext_config = ExtensionConfig::Platform {
             name: EXTENSION_MANAGER_NAME.to_string(),
             description: "Extension Manager".to_string(),
-            display_name: Some("Extension Manager".to_string()),
             bundled: Some(true),
             available_tools: vec![],
         };

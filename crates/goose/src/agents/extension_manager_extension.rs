@@ -19,8 +19,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-pub static EXTENSION_NAME: &str = "extensionmanager";
-pub static DISPLAY_NAME: &str = "Extension Manager";
+pub static EXTENSION_NAME: &str = "Extension Manager";
+// pub static DISPLAY_NAME: &str = "Extension Manager";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExtensionManagerToolError {
@@ -96,7 +96,7 @@ impl ExtensionManagerClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
-                title: Some(DISPLAY_NAME.to_string()),
+                title: Some(EXTENSION_NAME.to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
                 website_url: None,
@@ -162,6 +162,7 @@ impl ExtensionManagerClient {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn manage_extensions_impl(
         &self,
         action: ManageExtensionAction,
@@ -342,6 +343,7 @@ impl ExtensionManagerClient {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn get_tools(&self) -> Vec<Tool> {
         let mut tools = vec![
             Tool::new(
