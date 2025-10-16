@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::conversation::{message::Message, Conversation};
+use goose::conversation::message::Message;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -11,8 +11,6 @@ use utoipa::ToSchema;
 pub struct ContextManageRequest {
     /// Collection of messages to be managed
     pub messages: Vec<Message>,
-    /// Operation to perform: "truncation" or "summarize"
-    pub manage_action: String,
     /// Optional session ID for session-specific agent
     pub session_id: String,
 }
@@ -48,28 +46,20 @@ async fn manage_context(
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    let mut processed_messages = Conversation::new_unvalidated(vec![]);
-    let mut token_counts: Vec<usize> = vec![];
-
-    if request.manage_action == "truncation" {
-        (processed_messages, token_counts) = agent
-            .truncate_context(&request.messages)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    } else if request.manage_action == "summarize" {
-        (processed_messages, token_counts, _) = agent
-            .summarize_context(&request.messages)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
+    let (_, processed_messages, token_counts, _) = goose::context_mgmt::check_and_compact_messages(
+        &agent,
+        &request.messages,
+        true,
+        false,
+        None,
+        None,
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // TODO(Douwe): store into db
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages
-            .messages()
-            .iter()
-            .filter(|m| m.is_user_visible())
-            .cloned()
-            .collect(),
+        messages: processed_messages.messages().to_vec(),
         token_counts,
     }))
 }

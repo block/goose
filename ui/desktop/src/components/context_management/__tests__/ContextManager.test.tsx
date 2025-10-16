@@ -2,7 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ContextManagerProvider, useContextManager } from '../ContextManager';
 import * as contextManagement from '../index';
-import { ContextManageResponse, Message } from '../../../api';
+import { Message } from '../../../api';
+
+const default_message: Message = {
+  metadata: {
+    agentVisible: false,
+    userVisible: false,
+  },
+  id: '1',
+  role: 'assistant',
+  created: 1000,
+  content: [],
+};
 
 // Mock the context management functions
 vi.mock('../index', () => ({
@@ -14,15 +25,11 @@ const mockManageContextFromBackend = vi.mocked(contextManagement.manageContextFr
 describe('ContextManager', () => {
   const mockMessages: Message[] = [
     {
-      id: '1',
-      role: 'user',
-      created: 1000,
+      ...default_message,
       content: [{ type: 'text', text: 'Hello' }],
     },
     {
-      id: '2',
-      role: 'assistant',
-      created: 2000,
+      ...default_message,
       content: [{ type: 'text', text: 'Hi there!' }],
     },
   ];
@@ -51,9 +58,6 @@ describe('ContextManager', () => {
 
       expect(result.current.isCompacting).toBe(false);
       expect(result.current.compactionError).toBe(null);
-      expect(typeof result.current.handleAutoCompaction).toBe('function');
-      expect(typeof result.current.handleManualCompaction).toBe('function');
-      expect(typeof result.current.hasCompactionMarker).toBe('function');
     });
   });
 
@@ -61,10 +65,8 @@ describe('ContextManager', () => {
     it('should return true for messages with summarizationRequested content', () => {
       const { result } = renderContextManager();
       const messageWithMarker: Message = {
-        id: '1',
-        role: 'assistant',
-        created: 1000,
-        content: [{ type: 'summarizationRequested', msg: 'Compaction marker' }],
+        ...default_message,
+        content: [{ type: 'conversationCompacted', msg: 'Compaction marker' }],
       };
 
       expect(result.current.hasCompactionMarker(messageWithMarker)).toBe(true);
@@ -73,226 +75,24 @@ describe('ContextManager', () => {
     it('should return false for messages without summarizationRequested content', () => {
       const { result } = renderContextManager();
       const regularMessage: Message = {
-        id: '1',
-        role: 'user',
-        created: 1000,
+        ...default_message,
         content: [{ type: 'text', text: 'Hello' }],
       };
 
       expect(result.current.hasCompactionMarker(regularMessage)).toBe(false);
     });
 
-    it('should return true for messages with mixed content including summarizationRequested', () => {
+    it('should return true for messages with mixed content including conversationCompacted', () => {
       const { result } = renderContextManager();
       const mixedMessage: Message = {
-        id: '1',
-        role: 'assistant',
-        created: 1000,
+        ...default_message,
         content: [
           { type: 'text', text: 'Some text' },
-          { type: 'summarizationRequested', msg: 'Compaction marker' },
+          { type: 'conversationCompacted', msg: 'Compaction marker' },
         ],
       };
 
       expect(result.current.hasCompactionMarker(mixedMessage)).toBe(true);
-    });
-  });
-
-  describe('handleAutoCompaction', () => {
-    it('should successfully perform auto compaction with server-provided messages', async () => {
-      // Mock the backend response with 3 messages: marker, summary, continuation
-      // Note: Server messages may not have id/created, which will be added by the code
-      mockManageContextFromBackend.mockResolvedValue({
-        messages: [
-          {
-            role: 'assistant',
-            content: [
-              { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
-            ],
-          } as Message,
-          {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'Summary content' }],
-          } as Message,
-          {
-            role: 'assistant',
-            content: [
-              {
-                type: 'text',
-                text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-              },
-            ],
-          } as Message,
-        ],
-        tokenCounts: [8, 100, 50],
-      });
-
-      const { result } = renderContextManager();
-
-      await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      expect(mockManageContextFromBackend).toHaveBeenCalledWith({
-        messages: mockMessages,
-        manageAction: 'summarize',
-        sessionId: 'test-session-id',
-      });
-
-      // Expect setMessages to be called with all 3 messages from server
-      // Note: Server doesn't provide id/created fields, so we don't check for them
-      expect(mockSetMessages).toHaveBeenCalledTimes(1);
-      const setMessagesCall = mockSetMessages.mock.calls[0][0];
-      expect(setMessagesCall).toHaveLength(3);
-      expect(setMessagesCall[0]).toMatchObject({
-        role: 'assistant',
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-      });
-      expect(setMessagesCall[1]).toMatchObject({
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Summary content' }],
-      });
-      expect(setMessagesCall[2]).toMatchObject({
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-          },
-        ],
-      });
-
-      // Fast-forward timers to trigger the append call
-      act(() => {
-        vi.advanceTimersByTime(150);
-      });
-
-      // Should append the continuation message (index 2) for auto-compaction
-      expect(mockAppend).toHaveBeenCalledTimes(1);
-      const appendedMessage = mockAppend.mock.calls[0][0];
-      expect(appendedMessage).toMatchObject({
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
-          },
-        ],
-      });
-    });
-
-    it('should handle compaction errors gracefully', async () => {
-      const error = new Error('Backend error');
-      mockManageContextFromBackend.mockRejectedValue(error);
-
-      const { result } = renderContextManager();
-
-      await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      expect(result.current.compactionError).toBe('Backend error');
-      expect(result.current.isCompacting).toBe(false);
-
-      expect(mockSetMessages).toHaveBeenCalledWith([
-        ...mockMessages,
-        expect.objectContaining({
-          content: [
-            {
-              type: 'summarizationRequested',
-              msg: 'Compaction failed. Please try again or start a new session.',
-            },
-          ],
-        }),
-      ]);
-    });
-
-    it('should set isCompacting state correctly during operation', async () => {
-      let resolvePromise: (value: ContextManageResponse) => void;
-      const promise = new Promise<ContextManageResponse>((resolve) => {
-        resolvePromise = resolve;
-      });
-
-      mockManageContextFromBackend.mockReturnValue(promise);
-
-      const { result } = renderContextManager();
-
-      // Start compaction
-      act(() => {
-        result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      // Should be compacting
-      expect(result.current.isCompacting).toBe(true);
-      expect(result.current.compactionError).toBe(null);
-
-      // Resolve the backend call
-      resolvePromise!({
-        messages: [
-          {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'Summary content' }],
-          },
-        ],
-        tokenCounts: [100, 50],
-      });
-
-      await act(async () => {
-        await promise;
-      });
-
-      // Should no longer be compacting
-      expect(result.current.isCompacting).toBe(false);
-    });
-
-    it('preserves display: false for ancestor messages', async () => {
-      mockManageContextFromBackend.mockResolvedValue({ messages: [], tokenCounts: [] });
-
-      const hiddenMessage: Message = {
-        id: 'hidden-1',
-        role: 'user',
-        created: 1500,
-        content: [{ type: 'text', text: 'Secret' }],
-      };
-
-      const visibleMessage: Message = {
-        id: 'visible-1',
-        role: 'assistant',
-        created: 1600,
-        content: [{ type: 'text', text: 'Public' }],
-      };
-
-      const messages: Message[] = [hiddenMessage, visibleMessage];
-
-      const { result } = renderContextManager();
-
-      await act(async () => {
-        await result.current.handleAutoCompaction(
-          messages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      // No server messages -> setMessages called with empty list
-      expect(mockSetMessages).toHaveBeenCalledWith([]);
-      expect(mockAppend).not.toHaveBeenCalled();
     });
   });
 
@@ -301,17 +101,17 @@ describe('ContextManager', () => {
       mockManageContextFromBackend.mockResolvedValue({
         messages: [
           {
-            role: 'assistant',
+            ...default_message,
             content: [
-              { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
+              { type: 'conversationCompacted', msg: 'Conversation compacted and summarized' },
             ],
           },
           {
-            role: 'assistant',
+            ...default_message,
             content: [{ type: 'text', text: 'Manual summary content' }],
           },
           {
-            role: 'assistant',
+            ...default_message,
             content: [
               {
                 type: 'text',
@@ -346,7 +146,7 @@ describe('ContextManager', () => {
       expect(setMessagesCall).toHaveLength(3);
       expect(setMessagesCall[0]).toMatchObject({
         role: 'assistant',
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+        content: [{ type: 'conversationCompacted', msg: 'Conversation compacted and summarized' }],
       });
       expect(setMessagesCall[1]).toMatchObject({
         role: 'assistant',
@@ -375,7 +175,7 @@ describe('ContextManager', () => {
       mockManageContextFromBackend.mockResolvedValue({
         messages: [
           {
-            role: 'assistant',
+            ...default_message,
             content: [{ type: 'text', text: 'Manual summary content' }],
           },
         ],
@@ -408,17 +208,17 @@ describe('ContextManager', () => {
       mockManageContextFromBackend.mockResolvedValue({
         messages: [
           {
-            role: 'assistant',
+            ...default_message,
             content: [
-              { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
+              { type: 'conversationCompacted', msg: 'Conversation compacted and summarized' },
             ],
           },
           {
-            role: 'assistant',
+            ...default_message,
             content: [{ type: 'text', text: 'Manual summary content' }],
           },
           {
-            role: 'assistant',
+            ...default_message,
             content: [
               {
                 type: 'text',
@@ -447,7 +247,7 @@ describe('ContextManager', () => {
       expect(setMessagesCall).toHaveLength(3);
       expect(setMessagesCall[0]).toMatchObject({
         role: 'assistant',
-        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+        content: [{ type: 'conversationCompacted', msg: 'Conversation compacted and summarized' }],
       });
       expect(setMessagesCall[1]).toMatchObject({
         role: 'assistant',
@@ -470,65 +270,6 @@ describe('ContextManager', () => {
 
       // Should NOT auto-continue for manual compaction, even with append function
       expect(mockAppend).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle backend errors with unknown error type', async () => {
-      mockManageContextFromBackend.mockRejectedValue('String error');
-
-      const { result } = renderContextManager();
-
-      await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      expect(result.current.compactionError).toBe('Unknown error during compaction');
-    });
-
-    it('should handle missing summary content gracefully with server-provided messages', async () => {
-      mockManageContextFromBackend.mockResolvedValue({
-        messages: [
-          {
-            role: 'assistant',
-            content: [
-              { type: 'toolResponse', id: 'test', toolResult: { content: 'Not text content' } },
-            ],
-          } as Message,
-        ],
-        tokenCounts: [100, 50],
-      });
-
-      const { result } = renderContextManager();
-
-      await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          'test-session-id'
-        );
-      });
-
-      // Should complete without error even if content is not text
-      expect(result.current.isCompacting).toBe(false);
-      expect(result.current.compactionError).toBe(null);
-
-      // Should still set messages from server
-      expect(mockSetMessages).toHaveBeenCalledTimes(1);
-      const setMessagesCall = mockSetMessages.mock.calls[0][0];
-      expect(setMessagesCall).toHaveLength(1);
-      expect(setMessagesCall[0]).toMatchObject({
-        role: 'assistant',
-        content: [
-          { type: 'toolResponse', id: 'test', toolResult: { content: 'Not text content' } },
-        ],
-      });
     });
   });
 
