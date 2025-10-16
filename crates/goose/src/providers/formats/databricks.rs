@@ -127,10 +127,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ContextLengthExceeded(_) => {
-                    continue;
-                }
-                MessageContent::SummarizationRequested(_) => {
+                MessageContent::ConversationCompacted(_) => {
                     continue;
                 }
                 MessageContent::ToolResponse(response) => {

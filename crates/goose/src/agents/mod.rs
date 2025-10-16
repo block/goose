@@ -1,5 +1,4 @@
 mod agent;
-mod context;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;

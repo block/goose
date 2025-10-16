@@ -172,7 +172,9 @@ export default function ProgressiveMessageList({
     const messagesToRender = messages.slice(0, renderedCount);
     return messagesToRender
       .map((message, index) => {
-        // Use custom render function if provided
+        if (!message.metadata.userVisible) {
+          return null;
+        }
         if (renderMessage) {
           return renderMessage(message, index);
         }

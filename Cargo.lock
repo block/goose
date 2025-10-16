@@ -2625,6 +2625,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.12",
  "rmcp",
+ "schemars",
  "serde",
  "serde_json",
  "serde_urlencoded",

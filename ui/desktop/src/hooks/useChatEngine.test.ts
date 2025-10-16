@@ -71,25 +71,39 @@ describe('useChatEngine', () => {
   describe('onMessageUpdate', () => {
     it('should truncate history and append the updated message when a message is edited', () => {
       // --- 1. ARRANGE ---
+      const metadata = {
+        agentVisible: true,
+        userVisible: true,
+      };
+
       const initialMessages: Message[] = [
-        { id: '1', role: 'user', content: [{ type: 'text', text: 'First message' }], created: 0 },
+        {
+          id: '1',
+          role: 'user',
+          content: [{ type: 'text', text: 'First message' }],
+          created: 0,
+          metadata,
+        },
         {
           id: '2',
           role: 'assistant',
           content: [{ type: 'text', text: 'First response' }],
           created: 1,
+          metadata,
         },
         {
           id: '3',
           role: 'user',
           content: [{ type: 'text', text: 'Message to be edited' }],
           created: 2,
+          metadata,
         },
         {
           id: '4',
           role: 'assistant',
           content: [{ type: 'text', text: 'Response to be deleted' }],
           created: 3,
+          metadata,
         },
       ];
 
