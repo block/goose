@@ -1,7 +1,7 @@
 {
   "title": "🎃 Community Content Contributions",
   "description": "Amazing blog posts, videos, and tutorials created by our community for goose!",
-  "lastUpdated": "2025-10-02",
+  "lastUpdated": "2025-10-16",
   "hacktoberfestYear": 2025,
   "submissionUrl": "https://github.com/block/goose/issues/4705",
   "submissions": [
@@ -29,6 +29,18 @@
       "thumbnail": "https://images.unsplash.com/photo-1759560397953-8221761119ec?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-10-04",
       "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Goose with GPT-5-mini MCP - Real-World CSV Analysis Use Case",
+      "author": {
+        "name": "Meghana Jaggi",
+        "handle": "Meghana-2124"
+      },
+      "type": "video",
+      "url": "https://youtube.com/shorts/4j-rx6lEE7I?feature=share",
+      "submittedDate": "2025-10-16",
+      "tags": ["hacktoberfest", "CSV", "GPT-5-mini", "Goose"],
       "hacktoberfest": true
     }
   ]
