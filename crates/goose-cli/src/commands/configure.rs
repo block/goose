@@ -165,7 +165,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                             }
                             Some(ConfigError::FileError(e)) => {
                                 println!(
-                                    "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                                    "\n  {} Failed to access configuration: {} \n  Please check permissions and run '{}' again",
                                     style("Error").red().italic(),
                                     e,
                                     style("goose configure").cyan()
@@ -199,12 +199,12 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
         println!();
         println!(
             "{}",
-            style("This will update your existing config file").dim()
+            style("This will update your existing configuration").dim()
         );
         println!(
             "{} {}",
-            style("  if you prefer, you can edit it directly at").dim(),
-            config.path()
+            style("  if you prefer, you can edit files directly in").dim(),
+            config.path().parent().unwrap_or_else(|| config.path())
         );
         println!();
 
@@ -469,7 +469,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     } else {
                         config.set_param(&key.name, Value::String(env_value))?;
                     }
-                    let _ = cliclack::log::info(format!("Saved {} to config file", key.name));
+                    let _ = cliclack::log::info(format!("Saved {} to configuration", key.name));
                 }
             }
             None => {

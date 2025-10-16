@@ -18,7 +18,7 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     // Define the labels and their corresponding path values once.
     let paths = [
-        ("Config file:", config_file.to_string()),
+        ("Config directory:", config_file.parent().unwrap_or_else(|| config_file).to_string()),
         ("Sessions dir:", sessions_dir.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
