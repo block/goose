@@ -14,7 +14,7 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     // Get paths using a stored reference to the global config
     let config = Config::global();
-    let config_dir = Paths::config_dir().to_string_lossy().to_string();
+    let config_dir = Paths::config_dir().display().to_string();
 
     // Define the labels and their corresponding path values once.
     let paths = [
