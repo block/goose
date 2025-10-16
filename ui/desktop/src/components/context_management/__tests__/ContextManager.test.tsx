@@ -120,7 +120,6 @@ describe('ContextManager', () => {
             ],
           },
         ],
-        tokenCounts: [8, 100, 50],
       });
 
       const { result } = renderContextManager();
@@ -179,7 +178,6 @@ describe('ContextManager', () => {
             content: [{ type: 'text', text: 'Manual summary content' }],
           },
         ],
-        tokenCounts: [100, 50],
       });
 
       const { result } = renderContextManager();
@@ -227,7 +225,6 @@ describe('ContextManager', () => {
             ],
           },
         ],
-        tokenCounts: [8, 100, 50],
       });
 
       const { result } = renderContextManager();

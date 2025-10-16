@@ -2276,8 +2276,7 @@
         "type": "object",
         "description": "Response from context management operations",
         "required": [
-          "messages",
-          "tokenCounts"
+          "messages"
         ],
         "properties": {
           "messages": {
@@ -2286,14 +2285,6 @@
               "$ref": "#/components/schemas/Message"
             },
             "description": "Processed messages after the operation"
-          },
-          "tokenCounts": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "description": "Token counts for each processed message"
           }
         }
       },

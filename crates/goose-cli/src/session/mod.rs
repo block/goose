@@ -10,6 +10,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
+use goose::context_management::AutoCompactResult;
 use goose::conversation::Conversation;
 use std::io::Write;
 
@@ -670,17 +671,20 @@ impl CliSession {
                                 None
                             };
 
-                        // Call the summarize_context method
-                        let (_, summarized_messages, _token_counts, summarization_usage) =
-                            goose::context_mgmt::check_and_compact_messages(
-                                &self.agent,
-                                self.messages.messages(),
-                                true,
-                                false,
-                                None,
-                                session_metadata_for_compact.as_ref(),
-                            )
-                            .await?;
+                        let provider = self.agent.provider().await?;
+                        let AutoCompactResult {
+                            messages: summarized_messages,
+                            summarization_usage,
+                            ..
+                        } = goose::context_management::check_and_compact_messages(
+                            provider.as_ref(),
+                            self.messages.messages(),
+                            true,
+                            false,
+                            None,
+                            session_metadata_for_compact.as_ref(),
+                        )
+                        .await?;
 
                         // Update the session messages with the summarized ones
                         self.messages = summarized_messages.clone();

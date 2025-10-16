@@ -94,10 +94,6 @@ export type ContextManageResponse = {
      * Processed messages after the operation
      */
     messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
 };
 
 export type Conversation = Array<Message>;
