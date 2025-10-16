@@ -393,7 +393,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
     };
 
     if content_parts.is_empty() {
-        format!("[{}]: [empty message]", role_str)
+        format!("[{}]: <empty message>", role_str)
     } else {
         format!("[{}]: {}", role_str, content_parts.join("\n"))
     }
