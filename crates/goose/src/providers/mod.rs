@@ -16,7 +16,6 @@ pub mod gcpvertexai;
 pub mod gemini_cli;
 pub mod githubcopilot;
 pub mod google;
-pub mod groq;
 pub mod lead_worker;
 pub mod litellm;
 pub mod model_override;
@@ -38,5 +37,5 @@ pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{create, providers, refresh_custom_providers};
+pub use factory::{create, create_with_named_model, providers, refresh_custom_providers};
 pub use model_override::ModelOverrideProvider;

@@ -6,9 +6,10 @@ use crate::{
     session::SessionManager,
 };
 use anyhow::{anyhow, Result};
-use futures::future::BoxFuture;
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use std::future::Future;
+use std::pin::Pin;
 use tracing::{debug, info};
 
 /// Standalone function to run a complete subagent task with output options
@@ -96,7 +97,7 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
-) -> BoxFuture<'static, Result<(Conversation, Option<String>)>> {
+) -> Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>> {
     Box::pin(async move {
         let text_instruction = recipe
             .instructions
@@ -154,7 +155,7 @@ fn get_agent_messages(
         // Add the main instruction
         initial_messages.push(Message::user().with_text(text_instruction.clone()));
 
-        let mut session_messages = Conversation::new_unvalidated(initial_messages);
+        let mut conversation = Conversation::new_unvalidated(initial_messages);
 
         // Log activities if provided
         if let Some(activities) = recipe.activities {
@@ -162,7 +163,6 @@ fn get_agent_messages(
                 info!("Recipe activity: {}", activity);
             }
         }
-
         let session_config = SessionConfig {
             id: session.id,
             working_dir,
@@ -173,15 +173,16 @@ fn get_agent_messages(
         };
 
         let mut stream = agent
-            .reply(session_messages.clone(), Some(session_config), None)
+            .reply(conversation.clone(), Some(session_config), None)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
-                Ok(AgentEvent::Message(msg)) => session_messages.push(msg),
-                Ok(AgentEvent::McpNotification(_))
-                | Ok(AgentEvent::ModelChange { .. })
-                | Ok(AgentEvent::HistoryReplaced(_)) => {} // Handle informational events
+                Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
                 Err(e) => {
                     tracing::error!("Error receiving message from subagent: {}", e);
                     break;
@@ -201,6 +202,6 @@ fn get_agent_messages(
             None
         };
 
-        Ok((session_messages, final_output))
+        Ok((conversation, final_output))
     })
 }

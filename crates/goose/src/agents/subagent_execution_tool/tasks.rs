@@ -77,6 +77,7 @@ async fn handle_recipe_task(
             let model_config =
                 ModelConfig::new_or_fail(model).with_temperature(settings.temperature);
             task_config.provider = providers::create(provider, model_config)
+                .await
                 .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
         } else if settings.goose_model.is_some() || settings.temperature.is_some() {
             // Partial override: wrap existing provider

@@ -8,13 +8,13 @@ import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
+  getTextContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
-  TextContent,
 } from '../../types/message';
-import { type Message } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
+import { Message } from '../../api';
 
 /**
  * Get tool responses map from messages
@@ -111,12 +111,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : messages?.length > 0 ? (
               messages
                 .map((message, index) => {
-                  // Extract text content from the message
-                  let textContent = message.content
-                    .filter((c): c is TextContent => c.type === 'text')
-                    .map((c) => c.text)
-                    .join('\n');
-
+                  const textContent = getTextContent(message);
                   // Extract image paths from the message
                   const imagePaths = extractImagePaths(textContent);
 

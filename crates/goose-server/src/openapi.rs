@@ -5,7 +5,7 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
@@ -14,11 +14,14 @@ use rmcp::model::{
 };
 use utoipa::{OpenApi, ToSchema};
 
-use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+use goose::config::declarative_providers::{
+    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
+use goose::conversation::message::{
+    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+};
+
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -335,6 +338,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::get_provider_models,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
+        super::routes::config_management::get_custom_provider,
+        super::routes::config_management::update_custom_provider,
         super::routes::config_management::remove_custom_provider,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
@@ -386,7 +391,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
-        super::routes::config_management::CreateCustomProviderRequest,
+        super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::reply::ChatRequest,
         super::routes::context::ContextManageRequest,
@@ -415,11 +420,14 @@ derive_utoipa!(Icon as IconSchema);
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ContextLengthExceeded,
-        SummarizationRequested,
+        ConversationCompacted,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
+        ProviderType,
+        LoadedProvider,
+        ProviderEngine,
+        DeclarativeProviderConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,
@@ -457,6 +465,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
+        super::routes::recipe::SaveRecipeResponse,
         super::routes::errors::ErrorResponse,
         super::routes::recipe::ParseRecipeRequest,
         super::routes::recipe::ParseRecipeResponse,
@@ -480,7 +489,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::agent::ErrorResponse,
         super::routes::setup::SetupResponse,
     ))
 )]

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { Recipe, scanRecipe } from '../recipe';
-import { Message, createUserMessage } from '../types/message';
+import { createUserMessage } from '../types/message';
+import { Message } from '../api';
+
 import {
   updateSystemPromptWithParameters,
   substituteParameters,
@@ -26,6 +28,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
+  const hasCheckedRecipeRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -54,6 +57,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setRecipeAccepted(false);
         setIsParameterModalOpen(false);
         setIsRecipeWarningModalOpen(false);
+        hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
         chatContext.setChat({
           ...chatContext.chat,
@@ -64,27 +68,17 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       }
       return;
     }
-
-    // If we have a recipe from app config (deeplink), persist it
-    // But only if the chat context doesn't explicitly have null (which indicates it was cleared)
-    const appRecipe = window.appConfig.get('recipe') as Recipe | null;
-    if (appRecipe && chatContext.chat.recipe === undefined) {
-      chatContext.setRecipe(appRecipe);
-    }
   }, [chatContext, recipe]);
 
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
-      if (finalRecipe) {
-        // If the recipe comes from session metadata (not from navigation state),
-        // it means it was already accepted in a previous session, so auto-accept it
-        const isFromSessionMetadata = !recipe && finalRecipe;
+      // Only check once per recipe load
+      if (hasCheckedRecipeRef.current) {
+        return;
+      }
 
-        if (isFromSessionMetadata) {
-          // Recipe loaded from session metadata should be automatically accepted
-          setRecipeAccepted(true);
-          return;
-        }
+      if (finalRecipe) {
+        hasCheckedRecipeRef.current = true;
 
         try {
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(finalRecipe);
@@ -108,7 +102,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     };
 
     checkRecipeAcceptance();
-  }, [finalRecipe, recipe]);
+  }, [finalRecipe, recipe, chat.messages.length]);
 
   // Filter parameters to only show valid ones that are actually used in the recipe
   const filteredParameters = useMemo(() => {

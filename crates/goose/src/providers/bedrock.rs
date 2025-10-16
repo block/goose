@@ -4,7 +4,6 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::utils::emit_debug_trace;
 use anyhow::Result;
@@ -46,7 +45,7 @@ pub struct BedrockProvider {
 }
 
 impl BedrockProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Attempt to load config and secrets to get AWS_ prefixed keys
@@ -63,15 +62,14 @@ impl BedrockProvider {
         set_aws_env_vars(config.load_values());
         set_aws_env_vars(config.load_secrets());
 
-        let sdk_config = futures::executor::block_on(aws_config::load_from_env());
+        let sdk_config = aws_config::load_from_env().await;
 
         // validate credentials or return error back up
-        futures::executor::block_on(
-            sdk_config
-                .credentials_provider()
-                .unwrap()
-                .provide_credentials(),
-        )?;
+        sdk_config
+            .credentials_provider()
+            .unwrap()
+            .provide_credentials()
+            .await?;
         let client = Client::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
@@ -171,8 +169,6 @@ impl BedrockProvider {
         }
     }
 }
-
-impl_provider_default!(BedrockProvider);
 
 #[async_trait]
 impl Provider for BedrockProvider {

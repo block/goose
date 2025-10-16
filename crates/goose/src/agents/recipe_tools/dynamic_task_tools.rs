@@ -12,72 +12,96 @@ use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::{Recipe, RecipeBuilder};
 use anyhow::{anyhow, Result};
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
-use rmcp::object;
+use rmcp::schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
 
 pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CreateDynamicTaskParams {
+    /// Array of tasks. Each task must have either 'instructions' OR 'prompt' field (at least one is required).
+    #[schemars(length(min = 1))]
+    pub task_parameters: Vec<TaskParameter>,
+
+    /// How to execute multiple tasks (default: parallel for multiple tasks, sequential for single task)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<ExecutionModeParam>,
+}
+
+/// Execution mode for tasks
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum ExecutionModeParam {
+    Sequential,
+    Parallel,
+}
+
+impl From<ExecutionModeParam> for ExecutionMode {
+    fn from(mode: ExecutionModeParam) -> Self {
+        match mode {
+            ExecutionModeParam::Sequential => ExecutionMode::Sequential,
+            ExecutionModeParam::Parallel => ExecutionMode::Parallel,
+        }
+    }
+}
+
+/// Parameters for a single task
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct TaskParameter {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<Vec<Value>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Vec<Value>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activities: Option<Vec<String>>,
+
+    /// If true, return only the last message from the subagent (default: false, returns full conversation)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_last_only: Option<bool>,
+}
+
 pub fn create_dynamic_task_tool() -> Tool {
+    let schema = schema_for!(CreateDynamicTaskParams);
+    let schema_value =
+        serde_json::to_value(schema).expect("Failed to serialize CreateDynamicTaskParams schema");
+
+    let input_schema = schema_value
+        .as_object()
+        .expect("Schema should be an object")
+        .clone();
+
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
         "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
-        object!({
-            "type": "object",
-            "properties": {
-                "task_parameters": {
-                    "type": "array",
-                    "description": "Array of tasks. Each task must have either 'instructions' OR 'prompt' field (at least one is required).",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            // Either instructions or prompt is required (validated at runtime)
-                            "instructions": {
-                                "type": "string",
-                                "description": "Task instructions (required if prompt is not provided)"
-                            },
-                            "prompt": {
-                                "type": "string",
-                                "description": "Initial prompt (required if instructions is not provided)"
-                            },
-                            // Optional - auto-generated if not provided
-                            "title": {"type": "string"},
-                            "description": {"type": "string"},
-                            "extensions": {
-                                "type": "array",
-                                "items": {"type": "object"}
-                            },
-                            "settings": {"type": "object"},
-                            "parameters": {
-                                "type": "array",
-                                "items": {"type": "object"}
-                            },
-                            "response": {"type": "object"},
-                            "retry": {"type": "object"},
-                            "context": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "activities": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "return_last_only": {
-                                "type": "boolean",
-                                "description": "If true, return only the last message from the subagent (default: false, returns full conversation)"
-                            }
-                        }
-                    },
-                    "minItems": 1
-                },
-                "execution_mode": {
-                    "type": "string",
-                    "enum": ["sequential", "parallel"],
-                    "description": "How to execute multiple tasks (default: parallel for multiple tasks, sequential for single task)"
-                }
-            },
-            "required": ["task_parameters"]
-        })
+        input_schema,
     ).annotate(ToolAnnotations {
         title: Some("Create Dynamic Tasks".to_string()),
         read_only_hint: Some(false),

@@ -29,11 +29,9 @@ import {
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
 import { ContextManagerProvider } from '../context_management/ContextManager';
-import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { Session } from '../../api';
-import { convertApiMessageToFrontendMessage } from '../context_management';
+import { Message, Session } from '../../api';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -153,7 +151,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
 
-  const messages = (session.conversation || []).map(convertApiMessageToFrontendMessage);
+  const messages = session.conversation || [];
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
