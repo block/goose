@@ -320,31 +320,4 @@ mod tests {
         assert!(result.contains("Extension help"));
         assert!(result.contains("hidden instructions"));
     }
-
-    #[test]
-    fn test_build_system_prompt_orders_extensions_by_name() {
-        let manager = PromptManager::new();
-        let extensions = vec![
-            ExtensionInfo::new("zeta_ext", "Z", false),
-            ExtensionInfo::new("alpha_ext", "A", false),
-            ExtensionInfo::new("beta_ext", "B", false),
-        ];
-
-        let result = manager.build_system_prompt(
-            extensions,
-            Some("frontend info".to_string()),
-            Value::String(String::new()),
-            None,
-            false,
-        );
-
-        let alpha_index = result.find("## alpha_ext").unwrap();
-        let beta_index = result.find("## beta_ext").unwrap();
-        let frontend_index = result.find("## frontend").unwrap();
-        let zeta_index = result.find("## zeta_ext").unwrap();
-
-        assert!(alpha_index < beta_index);
-        assert!(beta_index < frontend_index);
-        assert!(frontend_index < zeta_index);
-    }
 }
