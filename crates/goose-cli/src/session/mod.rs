@@ -131,10 +131,13 @@ impl CliSession {
         let messages = if let Some(session_id) = &session_id {
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
-                    SessionManager::get_session(session_id, true)
-                        .await
-                        .map(|session| session.conversation.unwrap_or_default())
-                        .unwrap()
+                    match SessionManager::get_session(session_id, true).await {
+                        Ok(session) => session.conversation.unwrap_or_default(),
+                        Err(_) => {
+                            // If we can't load the session, assume it's new and use empty conversation
+                            Conversation::new_unvalidated(Vec::new())
+                        }
+                    }
                 })
             })
         } else {
