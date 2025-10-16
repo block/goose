@@ -116,11 +116,11 @@ pub fn manage_schedule_tool() -> Tool {
         PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
         indoc! {r#"
             Manage scheduled recipe execution for this goose instance.
-
+            
             Actions:
             - "list": List all scheduled jobs
             - "create": Create a new scheduled job from a recipe file
-            - "run_now": Execute a scheduled job immediately
+            - "run_now": Execute a scheduled job immediately  
             - "pause": Pause a scheduled job
             - "unpause": Resume a paused job
             - "delete": Remove a scheduled job
