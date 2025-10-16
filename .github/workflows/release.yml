@@ -19,15 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ------------------------------------
-  # 1) Build CLI for multiple OS/Arch
-  # ------------------------------------
   build-cli:
     uses: ./.github/workflows/build-cli.yml
 
-  # ------------------------------------
-  # 2) Upload Install CLI Script
-  # ------------------------------------
   install-script:
     name: Upload Install Script
     runs-on: ubuntu-latest
@@ -39,10 +33,8 @@ jobs:
           name: download_cli.sh
           path: download_cli.sh
 
-  # ------------------------------------------------------------
-  # 3) Bundle Desktop App (macOS)
-  # ------------------------------------------------------------
   bundle-desktop:
+    name: Bundle desktop (macos)
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
@@ -52,10 +44,8 @@ jobs:
     secrets:
       OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
 
-  # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS)
-  # ------------------------------------------------------------
   bundle-desktop-intel:
+    name: Bundle desktop (macos intel)
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
@@ -65,15 +55,9 @@ jobs:
     secrets:
       OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
 
-  # ------------------------------------------------------------
-  # 5) Bundle Desktop App (Linux)
-  # ------------------------------------------------------------
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
 
-#  # ------------------------------------------------------------
-#  # 6) Bundle Desktop App (Windows)
-#  # ------------------------------------------------------------
   bundle-desktop-windows:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
@@ -83,9 +67,6 @@ jobs:
       WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
       WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
 
-  # ------------------------------------
-  # 7) Create/Update GitHub Release
-  # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -93,6 +74,22 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Create release manifest
+        env:
+          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/latest/download
+        run: |
+          cat > manifest.json << EOF
+          {
+            "darwin": {
+              "arm64": "${DOWNLOAD_URL}/goose.zip",
+              "*": "${DOWNLOAD_URL}/goose_intel_mac.zip"
+            },
+            "win32": {
+              "*": "${DOWNLOAD_URL}/goose-win32-x64.zip"
+            }
+          }
+          EOF
+
       - name: Download all artifacts
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
         with:
@@ -109,6 +106,7 @@ jobs:
             *.deb
             *.rpm
             download_cli.sh
+            manifest.json
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
@@ -126,6 +124,7 @@ jobs:
             *.deb
             *.rpm
             download_cli.sh
+            manifest.json
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
