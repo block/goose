@@ -1,14 +1,15 @@
 import { Recipe, saveRecipe as saveRecipeApi, listRecipes, RecipeManifestResponse } from '../api';
 
-export async function saveRecipe(recipe: Recipe, recipeId?: string | null): Promise<void> {
+export async function saveRecipe(recipe: Recipe, recipeId?: string | null): Promise<string> {
   try {
-    await saveRecipeApi({
+    let response = await saveRecipeApi({
       body: {
         recipe,
         id: recipeId,
       },
       throwOnError: true,
     });
+    return response.data.id;
   } catch (error) {
     let error_message = 'unknown error';
     if (typeof error === 'object' && error !== null && 'message' in error) {

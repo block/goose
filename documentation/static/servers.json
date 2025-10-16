@@ -34,6 +34,23 @@
     ]
   },
   {
+    "id": "apify-mcp-server",
+    "name": "Apify",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "command": "npx -y apify-mcp-server@latest",
+    "link": "https://github.com/apify/apify-mcp-server",
+    "installation_notes": "Install using npx. Requires an Apify API token.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "APIFY_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "asana-mcp",
     "name": "Asana",
     "description": "Task automation, project tracking, and team collaboration",
@@ -130,13 +147,20 @@
   {
     "id": "cognee-mcp",
     "name": "Cognee",
-    "description": "Knowledge graph and cognitive AI capabilities",
-    "command": "uvx cognee-mcp",
+    "description": "Knowledge graph and cognitive AI capabilities (requires local server setup)",
+    "command": "uv --directory /path/to/cognee-mcp run python src/server.py",
     "link": "https://github.com/topoteretes/cognee",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "This is a local extension. You must first clone and install the Cognee MCP server locally before using this extension. Update the placeholder path before running the 'goose session' command.",
     "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
+    "endorsed": true,
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "LLM_API_KEY",
+        "description": "API key for your LLM provider",
+        "required": true
+      }
+    ]
   },
   {
     "id": "computercontroller",
@@ -298,10 +322,11 @@
   {
     "id": "jetbrains",
     "name": "JetBrains",
-    "description": "Integrate Goose with any JetBrains IDE",
-    "command": "npx -y @jetbrains/mcp-proxy",
+    "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
+    "url": "http://localhost:<PORT>/sse",
+    "type": "remote",
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "Install using npx package manager. Requires the MCP Server plugin to be installed in your JetBrains IDE.",
+    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -320,13 +345,30 @@
   {
     "id": "mbot-mcp",
     "name": "MBot",
-    "description": "Chatbot and conversational AI integration",
-    "command": "npx -y mbot-mcp",
+    "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
+    "command": "/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar",
     "link": "https://github.com/deemkeen/mbotmcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "This is a local extension. You must first download the JAR file from the repository, install Java, and update the placeholder paths before running the 'goose session' command.",
     "is_builtin": false,
     "endorsed": false,
-    "environmentVariables": []
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "MQTT_SERVER_URI",
+        "description": "MQTT server URI (example: tcp://1.2.3.4:1883)",
+        "required": true
+      },
+      {
+        "name": "MQTT_USERNAME", 
+        "description": "MQTT username (empty string if no auth required)",
+        "required": true
+      },
+      {
+        "name": "MQTT_PASSWORD",
+        "description": "MQTT password (empty string if no auth required)", 
+        "required": true
+      }
+    ]
   },
   {
     "id": "memory",

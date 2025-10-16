@@ -48,10 +48,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::ContextLengthExceeded(_) => {
-            bail!("ContextLengthExceeded should not get passed to the provider")
-        }
-        MessageContent::SummarizationRequested(_) => {
+        MessageContent::ConversationCompacted(_) => {
             bail!("SummarizationRequested should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {

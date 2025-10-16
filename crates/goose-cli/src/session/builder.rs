@@ -133,7 +133,7 @@ async fn offer_extension_debugging_help(
     }
 
     // Create the debugging session
-    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None);
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None).await;
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -465,7 +465,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
-    );
+    )
+    .await;
 
     // Add stdio extensions if provided
     for extension_str in session_config.extensions {

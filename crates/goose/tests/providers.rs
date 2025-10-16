@@ -9,7 +9,6 @@ use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
-use goose::providers::groq::GROQ_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::ollama::OLLAMA_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
@@ -499,11 +498,6 @@ async fn test_databricks_provider() -> Result<()> {
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
     test_provider("Ollama", OLLAMA_DEFAULT_MODEL, &["OLLAMA_HOST"], None).await
-}
-
-#[tokio::test]
-async fn test_groq_provider() -> Result<()> {
-    test_provider("Groq", GROQ_DEFAULT_MODEL, &["GROQ_API_KEY"], None).await
 }
 
 #[tokio::test]
