@@ -31,7 +31,7 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   }, [messages]);
 
   const finalRecipe = chat.recipe;
-
+  const resolvedRecipe = chat.resolvedRecipe;
   useEffect(() => {
     if (!chatContext) return;
 
@@ -112,19 +112,30 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   // Check if all required parameters have been filled in
   const hasAllRequiredParameters = useMemo(() => {
     if (!requiresParameters) {
+      chatContext?.setChat({
+        ...chatContext?.chat,
+        resolvedRecipe: finalRecipe,
+      });
       return true; // No parameters required, so all are "filled"
     }
 
-    if (!recipeParameterValues) {
-      return false; // Parameters required but none provided
+    if (!resolvedRecipe) {
+      return false;
     }
 
     // Check if all filtered parameters have values
     return filteredParameters.every((param) => {
-      const value = recipeParameterValues[param.key];
+      const value = recipeParameterValues?.[param.key];
       return value !== undefined && value !== null && value.trim() !== '';
     });
-  }, [filteredParameters, recipeParameterValues, requiresParameters]);
+  }, [
+    filteredParameters,
+    recipeParameterValues,
+    requiresParameters,
+    resolvedRecipe,
+    finalRecipe,
+    chatContext,
+  ]);
 
   const hasMessages = messages.length > 0;
   useEffect(() => {
@@ -155,29 +166,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     if (!finalRecipe?.prompt || !recipeAccepted || finalRecipe?.isScheduledExecution) {
       return '';
     }
-
-    if (requiresParameters && recipeParameterValues) {
-      return substituteParameters(finalRecipe.prompt, recipeParameterValues);
-    }
-
-    return finalRecipe.prompt;
-  }, [finalRecipe, recipeParameterValues, recipeAccepted, requiresParameters]);
+    return resolvedRecipe?.prompt ?? finalRecipe.prompt;
+  }, [finalRecipe, recipeAccepted, resolvedRecipe]);
 
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
-    // Update chat state with parameters
-    if (chatContext) {
-      chatContext.setChat({
-        ...chatContext.chat,
-        recipeParameterValues: inputValues,
-      });
-    }
-    setIsParameterModalOpen(false);
-
     try {
-      await updateSystemPromptWithParameters(chat.sessionId, inputValues, finalRecipe || undefined);
-
-      // Save recipe parameters to session metadata
-      await updateSessionUserRecipeValues({
+      let response = await updateSessionUserRecipeValues({
         path: {
           session_id: chat.sessionId,
         },
@@ -186,6 +180,20 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         },
         throwOnError: true,
       });
+      let resolvedRecipe = response.data?.recipe;
+      if (chatContext) {
+        chatContext.setChat({
+          ...chatContext.chat,
+          recipeParameterValues: inputValues,
+          resolvedRecipe,
+        });
+      }
+      setIsParameterModalOpen(false);
+      await updateSystemPromptWithParameters(
+        chat.sessionId,
+        inputValues,
+        resolvedRecipe || undefined
+      );
     } catch (error) {
       console.error('Failed to update system prompt with parameters:', error);
     }
