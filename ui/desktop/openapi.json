@@ -1886,57 +1886,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/description": {
-      "put": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "update_session_description",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSessionDescriptionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session description updated successfully"
-          },
-          "400": {
-            "description": "Bad request - Description too long (max 200 characters)"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -1964,6 +1913,57 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/name": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_name",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionNameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session name updated successfully"
+          },
+          "400": {
+            "description": "Bad request - Name too long (max 200 characters)"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -4688,15 +4688,15 @@
           }
         }
       },
-      "UpdateSessionDescriptionRequest": {
+      "UpdateSessionNameRequest": {
         "type": "object",
         "required": [
-          "description"
+          "name"
         ],
         "properties": {
-          "description": {
+          "name": {
             "type": "string",
-            "description": "Updated description (name) for the session (max 200 characters)"
+            "description": "Updated name for the session (max 200 characters)"
           }
         }
       },

@@ -18,7 +18,6 @@ import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { loadSession } from '../utils/sessionCache';
-import { getSessionName } from '../utils/sessionCompat';
 
 interface BaseChatProps {
   chat: ChatType;
@@ -95,7 +94,7 @@ function BaseChatContent({
       // todo: set to null instead and handle that in other places
       const emptyChat: ChatType = {
         sessionId: resumeSessionId,
-        title: 'Loading...',
+        name: 'Loading...',
         messageHistoryIndex: 0,
         messages: [],
         recipe: null,
@@ -108,7 +107,7 @@ function BaseChatContent({
           const conversation = session.conversation || [];
           const loadedChat: ChatType = {
             sessionId: session.id,
-            title: getSessionName(session) || 'Untitled Chat',
+            name: session.name || 'Untitled Chat',
             messageHistoryIndex: 0,
             messages: conversation,
             recipe: null,
