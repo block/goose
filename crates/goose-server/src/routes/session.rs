@@ -1,3 +1,5 @@
+use crate::routes::errors::ErrorResponse;
+use crate::routes::recipe_utils::build_recipe_with_parameter_values;
 use crate::state::AppState;
 use axum::routing::post;
 use axum::{
@@ -6,6 +8,7 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
@@ -32,6 +35,11 @@ pub struct UpdateSessionDescriptionRequest {
 pub struct UpdateSessionUserRecipeValuesRequest {
     /// Recipe parameter values entered by the user
     user_recipe_values: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpdateSessionUserRecipeValuesResponse {
+    recipe: Recipe,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -151,10 +159,10 @@ async fn update_session_description(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session user recipe values updated successfully"),
+        (status = 200, description = "Session user recipe values updated successfully", body = UpdateSessionUserRecipeValuesResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
+        (status = 404, description = "Session not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
     ),
     security(
         ("api_key" = [])
@@ -165,14 +173,14 @@ async fn update_session_description(
 async fn update_session_user_recipe_values(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
-) -> Result<StatusCode, StatusCode> {
-    SessionManager::update_session(&session_id)
-        .user_recipe_values(Some(request.user_recipe_values))
-        .apply()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::OK)
+) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
+    match build_recipe_with_parameter_values(&session_id, request.user_recipe_values).await {
+        Ok(recipe) => Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe })),
+        Err(e) => Err(ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }),
+    }
 }
 
 #[utoipa::path(

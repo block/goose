@@ -9,9 +9,11 @@ use axum::http::StatusCode;
 
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
-use goose::recipe::local_recipes::list_local_recipes;
+use goose::recipe::build_recipe::build_recipe_from_template;
+use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
+use goose::session::SessionManager;
 use serde_json;
 use tracing::error;
 
@@ -121,4 +123,38 @@ pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, Err
         message: format!("Failed to load recipe: {}", err),
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })
+}
+
+pub async fn build_recipe_with_parameter_values(
+    session_id: &str,
+    user_recipe_values: HashMap<String, String>,
+) -> Result<Recipe> {
+    SessionManager::update_session(session_id)
+        .user_recipe_values(Some(user_recipe_values))
+        .apply()
+        .await?;
+
+    let session = SessionManager::get_session(session_id, false).await?;
+
+    let recipe = session
+        .recipe
+        .ok_or_else(|| anyhow::anyhow!("Recipe not found"))?;
+    let recipe_content = serde_json::to_string(&recipe)?;
+
+    let recipe_dir = get_recipe_library_dir(true);
+    let params = session
+        .user_recipe_values
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+
+    let recipe = build_recipe_from_template(
+        recipe_content,
+        &recipe_dir,
+        params,
+        None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
+    )
+    .map_err(|e| anyhow::anyhow!(e))?;
+
+    Ok(recipe)
 }

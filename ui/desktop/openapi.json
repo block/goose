@@ -2011,16 +2011,37 @@
         },
         "responses": {
           "200": {
-            "description": "Session user recipe values updated successfully"
+            "description": "Session user recipe values updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSessionUserRecipeValuesResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
           },
           "404": {
-            "description": "Session not found"
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4740,6 +4761,17 @@
             "additionalProperties": {
               "type": "string"
             }
+          }
+        }
+      },
+      "UpdateSessionUserRecipeValuesResponse": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },

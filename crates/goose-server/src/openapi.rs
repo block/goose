@@ -400,6 +400,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionDescriptionRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
+        super::routes::session::UpdateSessionUserRecipeValuesResponse,
         Message,
         MessageContent,
         MessageMetadata,

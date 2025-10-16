@@ -912,6 +912,10 @@ export type UpdateSessionUserRecipeValuesRequest = {
     };
 };
 
+export type UpdateSessionUserRecipeValuesResponse = {
+    recipe: Recipe;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -2495,19 +2499,23 @@ export type UpdateSessionUserRecipeValuesErrors = {
     /**
      * Session not found
      */
-    404: unknown;
+    404: ErrorResponse;
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type UpdateSessionUserRecipeValuesError = UpdateSessionUserRecipeValuesErrors[keyof UpdateSessionUserRecipeValuesErrors];
 
 export type UpdateSessionUserRecipeValuesResponses = {
     /**
      * Session user recipe values updated successfully
      */
-    200: unknown;
+    200: UpdateSessionUserRecipeValuesResponse;
 };
+
+export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
 
 export type StatusData = {
     body?: never;
