@@ -228,7 +228,6 @@ async fn check_compaction_needed(
     } else {
         usage_ratio > threshold
     };
-    eprintln!("{needs_compaction} {usage_ratio} {threshold}");
 
     debug!(
         "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
