@@ -46,36 +46,6 @@ You can also validate your output after you have generated it to ensure it meets
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
 
-// Helper function to extract template variables from text (matches backend logic)
-export const extractTemplateVariables = (content: string): string[] => {
-  const templateVarRegex = /\{\{(.*?)\}\}/g;
-  const variables: string[] = [];
-  let match;
-
-  while ((match = templateVarRegex.exec(content)) !== null) {
-    const variable = match[1].trim();
-
-    if (variable && !variables.includes(variable)) {
-      // Filter out complex variables that aren't valid parameter names
-      // This matches the backend logic in filter_complex_variables()
-      const isValid = isValidParameterName(variable);
-
-      if (isValid) {
-        variables.push(variable);
-      }
-    }
-  }
-
-  return variables;
-};
-
-// Helper function to check if a variable name is valid for parameters
-// Matches backend regex: r"^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$"
-const isValidParameterName = (variable: string): boolean => {
-  const validVarRegex = /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$/;
-  return validVarRegex.test(variable);
-};
-
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
