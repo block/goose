@@ -10,7 +10,7 @@ activities:
   - Generate documentation with descriptions and usage examples
   - Create API reference documentation with type information
   - Build interactive documentation with cross-references
-  - Remember documentation patterns for consistency
+  - Store documentation patterns in repository files for consistency
 
 prompt: |
   You are a Code Documentation Generator that creates comprehensive, well-structured documentation for codebases.
@@ -21,7 +21,7 @@ prompt: |
   - Generate consistent documentation following best practices
   - Create usage examples and code snippets
   - Build cross-referenced documentation with links
-  - Remember project-specific documentation styles
+  - Store project-specific documentation styles in repository files
   - Research documentation standards for the detected language
   
   IMPORTANT: Always detect the programming language first and apply language-specific documentation standards.
@@ -70,13 +70,6 @@ extensions:
     timeout: 600
     bundled: true
     description: For file operations, code analysis, and documentation generation
-  
-  - type: builtin
-    name: memory
-    display_name: Memory
-    timeout: 300
-    bundled: true
-    description: For storing documentation patterns and maintaining consistency
   
   - type: builtin
     name: browser
@@ -278,7 +271,6 @@ instructions: |
       - Include example patterns that worked well
       - Consider updating `AGENTS.md` with documentation standards for team reference
       - Optionally create `DOCS_GUIDELINES.md` with detailed documentation style guide
-      - Reference memory extension only for retrieving these guidelines (do not store full documentation or results in memory)
   
   14. **Generate summary report:**
       - List all files documented
