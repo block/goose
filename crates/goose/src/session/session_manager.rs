@@ -27,6 +27,7 @@ pub struct Session {
     pub id: String,
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
+    // Allow importing session exports from before 'description' was renamed to 'name'
     #[serde(alias = "description")]
     pub name: String,
     #[serde(default)]
