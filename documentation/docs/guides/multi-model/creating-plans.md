@@ -56,6 +56,7 @@ To verify that the planner provider is set, input the following terminal command
 ~ goose info -v
 ```
 
+<!-- TODO(anthonydmays): Update this when PR #5195 lands -->
 In this example, the `info` command returns the current configuration and the path to the configuration file.  
 
 ```bash
