@@ -1,6 +1,5 @@
 mod agent;
 pub(crate) mod chat_recall_extension;
-mod context;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;

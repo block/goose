@@ -63,7 +63,6 @@ impl ChatRecallClient {
     ) -> Result<Vec<Content>, String> {
         let arguments = arguments.ok_or("Missing arguments")?;
 
-        // Check if this is LOAD MODE (session_id provided) or SEARCH MODE (query provided)
         let session_id = arguments
             .get("session_id")
             .and_then(|v| v.as_str())
@@ -105,7 +104,6 @@ impl ChatRecallClient {
                     output.push_str("--- First Few Messages ---\n\n");
                     for (idx, msg) in msgs.iter().take(first_count).enumerate() {
                         output.push_str(&format!("{}. [{:?}] ", idx + 1, msg.role));
-                        // Extract text content only
                         for content in &msg.content {
                             if let Some(text) = content.as_text() {
                                 output.push_str(text);
