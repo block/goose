@@ -1214,7 +1214,7 @@ mod tests {
         let imported = storage.import_session(OLD_FORMAT_JSON).await.unwrap();
 
         assert_eq!(imported.name, "Old format session");
-        assert_eq!(imported.user_set_name, true);
+        assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
     }
 
@@ -1230,7 +1230,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(user_session.name, "My Custom Name");
-        assert_eq!(user_session.user_set_name, true);
+        assert!(user_session.user_set_name);
 
         let auto_session = storage
             .create_session(PathBuf::from("/tmp"), None)
@@ -1238,7 +1238,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(auto_session.name, "CLI Session");
-        assert_eq!(auto_session.user_set_name, false);
+        assert!(!auto_session.user_set_name);
 
         storage
             .apply_update(
@@ -1248,6 +1248,6 @@ mod tests {
             .unwrap();
 
         let updated = storage.get_session(&user_session.id, false).await.unwrap();
-        assert_eq!(updated.user_set_name, true);
+        assert!(updated.user_set_name);
     }
 }
