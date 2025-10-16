@@ -1004,7 +1004,7 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent};
     use tempfile::TempDir;
 
-    const NUM_CONCURRENT_SESSIONS: i32 = 10;
+    const NUM_CONCURRENT_SESSIONS: i32 = 1000;
 
     #[tokio::test]
     async fn test_concurrent_session_creation() {

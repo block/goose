@@ -621,6 +621,7 @@ export type Response = {
 };
 
 export type ResumeAgentRequest = {
+    load_model_and_extensions: boolean;
     session_id: string;
 };
 
