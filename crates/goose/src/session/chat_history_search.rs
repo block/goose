@@ -1,9 +1,32 @@
 use crate::conversation::message::MessageContent;
-use crate::session::session_manager::{ChatRecallMessage, ChatRecallResult, ChatRecallResults};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatRecallResult {
+    pub session_id: String,
+    pub session_description: String,
+    pub session_working_dir: String,
+    pub last_activity: DateTime<Utc>,
+    pub total_messages_in_session: usize,
+    pub messages: Vec<ChatRecallMessage>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatRecallMessage {
+    pub role: String,
+    pub content: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChatRecallResults {
+    pub results: Vec<ChatRecallResult>,
+    pub total_matches: usize,
+}
 
 type SqlQueryRow = (
     String,

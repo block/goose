@@ -71,29 +71,6 @@ pub struct SessionInsights {
 
 pub type SessionId = String;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ChatRecallResult {
-    pub session_id: String,
-    pub session_description: String,
-    pub session_working_dir: String,
-    pub last_activity: DateTime<Utc>,
-    pub total_messages_in_session: usize,
-    pub messages: Vec<ChatRecallMessage>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ChatRecallMessage {
-    pub role: String,
-    pub content: String,
-    pub timestamp: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ChatRecallResults {
-    pub results: Vec<ChatRecallResult>,
-    pub total_matches: usize,
-}
-
 impl SessionUpdateBuilder {
     fn new(session_id: String) -> Self {
         Self {
@@ -273,7 +250,7 @@ impl SessionManager {
         after_date: Option<DateTime<Utc>>,
         before_date: Option<DateTime<Utc>>,
         exclude_session_id: Option<String>,
-    ) -> Result<ChatRecallResults> {
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
         Self::instance()
             .await?
             .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
@@ -1005,7 +982,7 @@ impl SessionStorage {
         after_date: Option<DateTime<Utc>>,
         before_date: Option<DateTime<Utc>>,
         exclude_session_id: Option<String>,
-    ) -> Result<ChatRecallResults> {
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
         use crate::session::chat_history_search::ChatHistorySearch;
 
         ChatHistorySearch::new(
