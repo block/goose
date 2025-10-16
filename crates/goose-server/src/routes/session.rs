@@ -171,16 +171,6 @@ async fn update_session_user_recipe_values(
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let session = SessionManager::get_session(&session_id, false)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    // let recipe_file = RecipeFile {
-    //     content: session.recipe.unwrap().to_string(),
-    //     parent_dir: session.working_dir.clone(),
-    //     file_path: session.recipe.unwrap().file_path.clone(),
-    // }
-
-    // const NO_USER_PROMPT: Option<fn(&str, &str) -> Result<String, anyhow::Error>> = None;
 
     Ok(StatusCode::OK)
 }

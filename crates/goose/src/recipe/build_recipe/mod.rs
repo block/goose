@@ -7,7 +7,7 @@ use crate::recipe::{
 };
 use anyhow::Result;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RecipeError {
@@ -21,7 +21,7 @@ pub enum RecipeError {
 
 fn render_recipe_template<F>(
     recipe_content: String,
-    recipe_dir: &PathBuf,
+    recipe_dir: &Path,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
 ) -> Result<(String, Vec<String>)>
@@ -30,10 +30,9 @@ where
 {
     let recipe_dir_str = recipe_dir.display().to_string();
 
-    let recipe_parameters = validate_recipe_template_from_content(
-        &recipe_content,
-        Some(recipe_dir_str.clone()),
-    )?.parameters;
+    let recipe_parameters =
+        validate_recipe_template_from_content(&recipe_content, Some(recipe_dir_str.clone()))?
+            .parameters;
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, &recipe_dir_str, user_prompt_fn)?;
@@ -49,7 +48,7 @@ where
 
 pub fn build_recipe_from_template<F>(
     recipe_content: String,
-    recipe_dir: &PathBuf,
+    recipe_dir: &Path,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
 ) -> Result<Recipe, RecipeError>
@@ -57,7 +56,7 @@ where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
     let (rendered_content, missing_params) =
-        render_recipe_template(recipe_content, &recipe_dir, params.clone(), user_prompt_fn)
+        render_recipe_template(recipe_content, recipe_dir, params.clone(), user_prompt_fn)
             .map_err(|source| RecipeError::TemplateRendering { source })?;
 
     if !missing_params.is_empty() {
@@ -71,8 +70,7 @@ where
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
-            if let Ok(resolved_path) = resolve_sub_recipe_path(&sub_recipe.path, recipe_dir.as_path())
-            {
+            if let Ok(resolved_path) = resolve_sub_recipe_path(&sub_recipe.path, recipe_dir) {
                 sub_recipe.path = resolved_path;
             }
         }

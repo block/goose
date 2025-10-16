@@ -101,7 +101,8 @@ fn test_build_recipe_from_template_success() {
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
     let params = vec![("my_name".to_string(), "value".to_string())];
-    let recipe = build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
+    let recipe =
+        build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
 
     assert_eq!(recipe.title, "Test Recipe");
     assert_eq!(recipe.description, "A test recipe");
@@ -134,7 +135,8 @@ fn test_build_recipe_from_template_success_variable_in_prompt() {
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
     let params = vec![("my_name".to_string(), "value".to_string())];
-    let recipe = build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
+    let recipe =
+        build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
 
     assert_eq!(recipe.title, "Test Recipe");
     assert_eq!(recipe.description, "A test recipe");
@@ -164,7 +166,8 @@ fn test_build_recipe_from_template_wrong_parameters_in_recipe_file() {
                 ]"#;
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let build_recipe_result = build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
+    let build_recipe_result =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
     assert!(build_recipe_result.is_err());
     let err = build_recipe_result.unwrap_err();
     println!("{}", err);
@@ -203,7 +206,8 @@ fn test_build_recipe_from_template_with_default_values_in_recipe_file() {
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
     let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-    let recipe = build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
+    let recipe =
+        build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT).unwrap();
 
     assert_eq!(recipe.title, "Test Recipe");
     assert_eq!(recipe.description, "A test recipe");
@@ -228,7 +232,9 @@ fn test_build_recipe_from_template_optional_parameters_with_empty_default_values
                 ]"#;
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let recipe = build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT).unwrap();
+    let recipe =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT)
+            .unwrap();
     assert_eq!(recipe.title, "Test Recipe");
     assert_eq!(recipe.description, "A test recipe");
     assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
@@ -248,7 +254,8 @@ fn test_build_recipe_from_template_optional_parameters_without_default_values_in
                 ]"#;
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let build_recipe_result = build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
+    let build_recipe_result =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
     assert!(build_recipe_result.is_err());
     let err = build_recipe_result.unwrap_err();
     println!("{}", err);
@@ -275,7 +282,8 @@ fn test_build_recipe_from_template_wrong_input_type_in_recipe_file() {
     let params = vec![("param".to_string(), "value".to_string())];
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let build_recipe_result = build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT);
+    let build_recipe_result =
+        build_recipe_from_template(recipe_content, &recipe_dir, params, NO_USER_PROMPT);
     assert!(build_recipe_result.is_err());
     let err = build_recipe_result.unwrap_err();
     match err {
@@ -295,7 +303,9 @@ fn test_build_recipe_from_template_success_without_parameters() {
                 "#;
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let recipe = build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT).unwrap();
+    let recipe =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT)
+            .unwrap();
     assert_eq!(recipe.instructions.unwrap(), "Test instructions");
     assert!(recipe.parameters.is_none());
 }
@@ -305,7 +315,8 @@ fn test_build_recipe_from_template_missing_prompt_and_instructions() {
     let instructions_and_parameters = "";
     let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
 
-    let build_recipe_result = build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
+    let build_recipe_result =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
     assert!(build_recipe_result.is_err());
     let err = build_recipe_result.unwrap_err();
     println!("{}", err);
@@ -363,8 +374,13 @@ fn test_template_inheritance() {
         ("is_enabled".to_string(), "true".to_string()),
     ];
 
-    let parent_recipe =
-        build_recipe_from_template(parent_recipe_file.content, &parent_recipe_file.parent_dir, params.clone(), NO_USER_PROMPT).unwrap();
+    let parent_recipe = build_recipe_from_template(
+        parent_recipe_file.content,
+        &parent_recipe_file.parent_dir,
+        params.clone(),
+        NO_USER_PROMPT,
+    )
+    .unwrap();
     assert_eq!(parent_recipe.description, "Parent recipe");
     assert_eq!(
             parent_recipe.prompt.unwrap(),
@@ -377,8 +393,13 @@ fn test_template_inheritance() {
         "is_enabled"
     );
 
-    let child_recipe =
-        build_recipe_from_template(child_recipe_file.content, &child_recipe_file.parent_dir, params, NO_USER_PROMPT).unwrap();
+    let child_recipe = build_recipe_from_template(
+        child_recipe_file.content,
+        &child_recipe_file.parent_dir,
+        params,
+        NO_USER_PROMPT,
+    )
+    .unwrap();
     assert_eq!(child_recipe.title, "Parent");
     assert_eq!(child_recipe.description, "Parent recipe");
     assert_eq!(
@@ -464,7 +485,13 @@ instructions: Child instructions
             file_path: main_recipe_path,
         };
 
-        let recipe = build_recipe_from_template(recipe_file.content, &recipe_file.parent_dir, Vec::new(), NO_USER_PROMPT).unwrap();
+        let recipe = build_recipe_from_template(
+            recipe_file.content,
+            &recipe_file.parent_dir,
+            Vec::new(),
+            NO_USER_PROMPT,
+        )
+        .unwrap();
 
         assert_eq!(recipe.title, "Main Recipe");
         assert!(recipe.sub_recipes.is_some());
@@ -502,7 +529,12 @@ parameters:
             "FILE_PARAM".to_string(),
             test_file_path.to_string_lossy().to_string(),
         )];
-        let result = build_recipe_from_template(recipe_file.content, &recipe_file.parent_dir, params, NO_USER_PROMPT);
+        let result = build_recipe_from_template(
+            recipe_file.content,
+            &recipe_file.parent_dir,
+            params,
+            NO_USER_PROMPT,
+        );
 
         assert!(result.is_ok());
         let recipe = result.unwrap();
@@ -527,7 +559,12 @@ parameters:
             "FILE_PARAM".to_string(),
             "/nonexistent/path/file.txt".to_string(),
         )];
-        let result = build_recipe_from_template(recipe_file.content, &recipe_file.parent_dir, params, NO_USER_PROMPT);
+        let result = build_recipe_from_template(
+            recipe_file.content,
+            &recipe_file.parent_dir,
+            params,
+            NO_USER_PROMPT,
+        );
 
         assert!(result.is_err());
         if let Err(RecipeError::TemplateRendering { source }) = result {
@@ -550,7 +587,12 @@ parameters:
         let (_temp_dir, recipe_file) = setup_yaml_recipe_file(instructions_and_parameters);
 
         let params = vec![];
-        let result = build_recipe_from_template(recipe_file.content, &recipe_file.parent_dir, params, NO_USER_PROMPT);
+        let result = build_recipe_from_template(
+            recipe_file.content,
+            &recipe_file.parent_dir,
+            params,
+            NO_USER_PROMPT,
+        );
 
         assert!(result.is_err());
         if let Err(RecipeError::TemplateRendering { source }) = result {
