@@ -134,7 +134,6 @@ export function useChatStream({
     [onStreamFinish]
   );
 
-  // Load session using resumeAgent instead of subscribe
   useEffect(() => {
     if (!sessionId) return;
 

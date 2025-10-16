@@ -213,36 +213,7 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        let config = Config::global();
 
-        let provider_result = async {
-            let provider_name: String =
-                config
-                    .get_param("GOOSE_PROVIDER")
-                    .map_err(|_| ErrorResponse {
-                        message: "Could not configure agent: missing provider".into(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
-
-            let model: String = config.get_param("GOOSE_MODEL").map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing model".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-
-            let provider = create_with_named_model(&provider_name, &model)
-                .await
-                .map_err(|_| ErrorResponse {
-                    message: "Could not configure agent: missing model".into(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?;
-
-            agent
-                .update_provider(provider)
-                .await
-                .map_err(|e| ErrorResponse {
-                    message: format!("Could not configure agent: {}", e),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })
         };
         let extensions_result = async {
             let enabled_configs = goose::config::get_enabled_extensions();

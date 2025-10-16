@@ -20,6 +20,7 @@ import { ChatState } from '../types/chatState';
 import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
+import { startAgent } from '../api';
 
 export default function Hub({
   setView,
@@ -32,22 +33,24 @@ export default function Hub({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) {
-  // Handle chat input submission - create new chat and navigate to pair
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      // Navigate to pair page with the message to be submitted
-      // Pair will handle creating the new chat session
-      resetChat();
-      setView('pair', {
-        disableAnimation: true,
-        initialMessage: combinedTextFromInput,
-      });
+      if (process.env.ALPHA) {
+        //startAgent()
+      } else {
+        // Navigate to pair page with the message to be submitted
+        // Pair will handle creating the new chat session
+        resetChat();
+        setView('pair', {
+          disableAnimation: true,
+          initialMessage: combinedTextFromInput,
+        });
+      }
+      e.preventDefault();
     }
-
-    e.preventDefault();
   };
 
   return (
