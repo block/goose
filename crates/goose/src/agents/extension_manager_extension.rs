@@ -11,7 +11,8 @@ use rmcp::model::{
     ProtocolVersion, ReadResourceResult, ServerCapabilities, ServerNotification, Tool,
     ToolAnnotations, ToolsCapability,
 };
-use rmcp::object;
+use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -37,6 +38,35 @@ pub enum ExtensionManagerToolError {
 
     #[error("Extension operation failed: {message}")]
     OperationFailed { message: String },
+
+    #[error("Failed to deserialize parameters: {0}")]
+    DeserializationError(#[from] serde_json::Error),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ManageExtensionAction {
+    Enable,
+    Disable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ManageExtensionsParams {
+    pub action: ManageExtensionAction,
+    pub extension_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ReadResourceParams {
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ListResourcesParams {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
 }
 
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
@@ -118,27 +148,12 @@ impl ExtensionManagerClient {
             param_name: "arguments".to_string(),
         })?;
 
-        let action = arguments.get("action").and_then(|v| v.as_str()).ok_or(
-            ExtensionManagerToolError::MissingParameter {
-                param_name: "action".to_string(),
-            },
-        )?;
+        let params: ManageExtensionsParams =
+            serde_json::from_value(serde_json::Value::Object(arguments))?;
 
-        let extension_name = arguments
-            .get("extension_name")
-            .and_then(|v| v.as_str())
-            .ok_or(ExtensionManagerToolError::MissingParameter {
-                param_name: "extension_name".to_string(),
-            })?;
-
-        if !matches!(action, "enable" | "disable") {
-            return Err(ExtensionManagerToolError::InvalidAction {
-                action: action.to_string(),
-            });
-        }
 
         match self
-            .manage_extensions_impl(action.to_string(), extension_name.to_string())
+            .manage_extensions_impl(params.action, params.extension_name)
             .await
         {
             Ok(content) => Ok(content),
@@ -150,7 +165,7 @@ impl ExtensionManagerClient {
 
     async fn manage_extensions_impl(
         &self,
-        action: String,
+        action: ManageExtensionAction,
         extension_name: String,
     ) -> Result<Vec<Content>, ErrorData> {
         let extension_manager = self
@@ -177,7 +192,7 @@ impl ExtensionManagerClient {
             if tool_route_manager.is_router_functional().await {
                 let selector = tool_route_manager.get_router_tool_selector().await;
                 if let Some(selector) = selector {
-                    let selector_action = if action == "disable" { "remove" } else { "add" };
+                    let selector_action = if action == ManageExtensionAction::Disable { "remove" } else { "add" };
                     let selector = Arc::new(selector);
                     if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                         &selector,
@@ -197,7 +212,7 @@ impl ExtensionManagerClient {
             }
         }
 
-        if action == "disable" {
+        if action == ManageExtensionAction::Disable {
             let result = extension_manager
                 .remove_extension(&extension_name)
                 .await
@@ -242,7 +257,7 @@ impl ExtensionManagerClient {
                 if tool_route_manager.is_router_functional().await {
                     let selector = tool_route_manager.get_router_tool_selector().await;
                     if let Some(selector) = selector {
-                        let llm_action = if action == "disable" { "remove" } else { "add" };
+                        let llm_action = if action == ManageExtensionAction::Disable { "remove" } else { "add" };
                         let selector = Arc::new(selector);
                         if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                             &selector,
@@ -328,11 +343,16 @@ impl ExtensionManagerClient {
         Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.
         These extensions might provide the exact tools needed to solve your problem.
         If you find a relevant one, consider using your tools to enable it.".to_string(),
-                object!({
-                    "type": "object",
-                    "required": [],
-                    "properties": {}
-                }),
+                Arc::new(
+                    serde_json::json!({
+                        "type": "object",
+                        "required": [],
+                        "properties": {}
+                    })
+                    .as_object()
+                    .expect("Schema must be an object")
+                    .clone()
+                ),
             ).annotate(ToolAnnotations {
                 title: Some("Discover extensions".to_string()),
                 read_only_hint: Some(true),
@@ -346,14 +366,13 @@ impl ExtensionManagerClient {
             Enable or disable extensions to help complete tasks.
             Enable or disable an extension by providing the extension name.
             ".to_string(),
-                object!({
-                    "type": "object",
-                    "required": ["action", "extension_name"],
-                    "properties": {
-                        "action": {"type": "string", "description": "The action to perform", "enum": ["enable", "disable"]},
-                        "extension_name": {"type": "string", "description": "The name of the extension to enable"}
-                    }
-                }),
+                Arc::new(
+                    serde_json::to_value(schema_for!(ManageExtensionsParams))
+                        .expect("Failed to serialize schema")
+                        .as_object()
+                        .expect("Schema must be an object")
+                        .clone()
+                ),
             ).annotate(ToolAnnotations {
                 title: Some("Enable or disable an extension".to_string()),
                 read_only_hint: Some(false),
@@ -378,12 +397,13 @@ impl ExtensionManagerClient {
             in the provided extension, and returns a list for the user to browse. If no extension
             is provided, the tool will search all extensions for the resource.
         "#}.to_string(),
-                            object!({
-                                "type": "object",
-                                "properties": {
-                                    "extension_name": {"type": "string", "description": "Optional extension name"}
-                                }
-                            }),
+                            Arc::new(
+                                serde_json::to_value(schema_for!(ListResourcesParams))
+                                    .expect("Failed to serialize schema")
+                                    .as_object()
+                                    .expect("Schema must be an object")
+                                    .clone()
+                            ),
                         ).annotate(ToolAnnotations {
                             title: Some("List resources".to_string()),
                             read_only_hint: Some(true),
@@ -401,14 +421,13 @@ impl ExtensionManagerClient {
             resource URI in the provided extension, and reads in the resource content. If no extension
             is provided, the tool will search all extensions for the resource.
         "#}.to_string(),
-                            object!({
-                                "type": "object",
-                                "required": ["uri"],
-                                "properties": {
-                                    "uri": {"type": "string", "description": "Resource URI"},
-                                    "extension_name": {"type": "string", "description": "Optional extension name"}
-                                }
-                            }),
+                            Arc::new(
+                                serde_json::to_value(schema_for!(ReadResourceParams))
+                                    .expect("Failed to serialize schema")
+                                    .as_object()
+                                    .expect("Schema must be an object")
+                                    .clone()
+                            ),
                         ).annotate(ToolAnnotations {
                             title: Some("Read a resource".to_string()),
                             read_only_hint: Some(true),
