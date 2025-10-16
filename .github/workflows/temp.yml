@@ -1,5 +1,6 @@
 on:
-  pull_request: {}
+  push:
+    branches: ["jackamadeo/fix-auto-updating"]
 
 name: Temp
 
