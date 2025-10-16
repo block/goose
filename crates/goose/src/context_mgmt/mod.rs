@@ -76,10 +76,7 @@ pub async fn compact_messages(
     {
         if matches!(last_message.role, rmcp::model::Role::User) {
             // Remove the last user message before compaction
-            (
-                &messages[..messages.len() - 1],
-                Some(last_message.clone()),
-            )
+            (&messages[..messages.len() - 1], Some(last_message.clone()))
         } else if preserve_last_user_message {
             // Last message is not a user message, but we want to preserve the most recent user message
             // Find the most recent user message and copy it (don't remove from history)

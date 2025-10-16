@@ -50,13 +50,10 @@ async fn manage_context(
     let conversation = Conversation::new_unvalidated(request.messages);
 
     // Force compaction without preserving last user message
-    let (processed_messages, token_counts, _) = goose::context_mgmt::compact_messages(
-        &agent,
-        &conversation,
-        false,
-    )
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (processed_messages, token_counts, _) =
+        goose::context_mgmt::compact_messages(&agent, &conversation, false)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     // TODO(Douwe): store into db
 
     Ok(Json(ContextManageResponse {

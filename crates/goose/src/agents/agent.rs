@@ -931,8 +931,12 @@ impl Agent {
             // TODO(dkatz): send a notification that we are starting compaction here.
             Ok(check_result) if check_result.needs_compaction => {
                 // Perform compaction
-                match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false).await {
-                    Ok((conversation, _token_counts, _summarization_usage)) => (true, conversation, None),
+                match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false)
+                    .await
+                {
+                    Ok((conversation, _token_counts, _summarization_usage)) => {
+                        (true, conversation, None)
+                    }
                     Err(e) => (false, unfixed_conversation.clone(), Some(e)),
                 }
             }
