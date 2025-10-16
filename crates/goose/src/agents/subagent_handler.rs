@@ -12,6 +12,10 @@ use std::future::Future;
 use std::pin::Pin;
 use tracing::{debug, info};
 
+// Type alias for the complex return type
+type AgentMessagesFuture =
+    Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
+
 /// Standalone function to run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
     recipe: Recipe,
@@ -94,10 +98,7 @@ pub async fn run_complete_subagent_task(
     Ok(response_text)
 }
 
-fn get_agent_messages(
-    recipe: Recipe,
-    task_config: TaskConfig,
-) -> Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>> {
+fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
             .instructions
