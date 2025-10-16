@@ -1,17 +1,24 @@
 ---
 sidebar_position: 85
-title: Configuration File
-sidebar_label: Configuration File
+title: Configuration Files
+sidebar_label: Configuration Files
 ---
 
-# Configuration File
+# Configuration Overview
 
-Goose uses a YAML configuration file to manage settings and extensions. This file is located at:
+Goose uses YAML configuration files to manage settings and extensions. These files are located at:
 
-* macOS/Linux: `~/.config/goose/config.yaml`
-* Windows: `%APPDATA%\Block\goose\config\config.yaml`
+* macOS/Linux: `~/.config/goose/`
+* Windows: `%APPDATA%\Block\goose\config\`
 
-The configuration file allows you to set default behaviors, configure language models, and manage extensions. While many settings can also be set using [environment variables](/docs/guides/environment-variables), the config file provides a persistent way to maintain your preferences.
+The configuration files allow you to set default behaviors, configure language models, set tool permissions, and manage extensions. While many settings can also be set using [environment variables](/docs/guides/environment-variables), the config files provide a persistent way to maintain your preferences.
+
+## Configuration Files
+
+- **config.yaml** - Provider, model, extensions, and general settings
+- **permission.yaml** - Tool permission levels configured via `goose configure`
+- **secrets.yaml** - API keys and secrets (only when keyring is disabled)
+- **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
 
 ## Global Settings
 
@@ -133,7 +140,7 @@ Settings are applied in the following order of precedence:
 
 ## Updating Configuration
 
-Changes to the config file require restarting Goose to take effect. You can verify your current configuration using:
+Changes to config files require restarting Goose to take effect. You can verify your current configuration using:
 
 ```bash
 goose info -v

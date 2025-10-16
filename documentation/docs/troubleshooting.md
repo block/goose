@@ -116,7 +116,7 @@ Failed to authenticate: Execution error: OAuth configuration not supported by th
 ``` 
 
 To resolve:
-1. Temporarily comment out or remove lead/worker model variables from your config file (`~/.config/goose/config.yaml`):
+1. Temporarily comment out or remove lead/worker model variables from the main config file (`~/.config/goose/config.yaml`):
    ```yaml
    # GOOSE_LEAD_MODEL: your-model
    # GOOSE_WORKER_MODEL: your-model
