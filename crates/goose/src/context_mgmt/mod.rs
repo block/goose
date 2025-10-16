@@ -12,18 +12,6 @@ use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
-/// Result of auto-compaction check
-#[derive(Debug)]
-pub struct AutoCompactResult {
-    /// Whether compaction was performed
-    pub compacted: bool,
-    /// The messages after potential compaction
-    pub messages: Conversation,
-    /// Provider usage from summarization (if compaction occurred)
-    /// This contains the actual token counts after compaction
-    pub summarization_usage: Option<crate::providers::base::ProviderUsage>,
-}
-
 #[derive(Serialize)]
 struct SummarizeContext {
     messages: String,
