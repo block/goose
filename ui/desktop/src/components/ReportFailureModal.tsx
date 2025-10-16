@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { getExtensions, getSession } from '../api/sdk.gen';
+import { getExtensions, providers } from '../api/sdk.gen';
 
 interface SystemInfo {
   gooseVersion: string;
@@ -53,23 +53,13 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
       };
 
       try {
-        const activeSessionId: string | undefined = window.appConfig?.get('CURRENT_SESSION_ID') as
-          | string
-          | undefined;
-
-        if (activeSessionId) {
-          const sessionResponse = await getSession({
-            path: { session_id: activeSessionId },
-          });
-
-          const sessionData = sessionResponse.data as { metadata?: { provider_name?: string } };
-
-          if (sessionData?.metadata?.provider_name) {
-            info.providerType = sessionData.metadata.provider_name;
+        const providersResponse = await providers();
+        if (providersResponse.data && Array.isArray(providersResponse.data)) {
+          const providersList = providersResponse.data;
+          if (providersList.length > 0) {
+            info.providerType = providersList[0].name || 'Unknown';
           }
         }
-
-        // Use the session metadata from the SessionManager
       } catch (error) {
         console.debug('Provider detection failed:', error);
       }
