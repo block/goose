@@ -1,8 +1,10 @@
 use goose::providers::pricing::{get_model_pricing, initialize_pricing_cache, refresh_pricing};
+use serial_test::serial;
 use std::time::Instant;
 use tempfile::TempDir;
 
 #[tokio::test]
+#[serial]
 async fn test_pricing_cache_performance() {
     // Use a unique cache directory for this test to avoid conflicts
     let temp_dir = TempDir::new().unwrap();
@@ -102,6 +104,7 @@ async fn test_pricing_cache_performance() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_pricing_refresh() {
     // Use a unique cache directory for this test to avoid conflicts
     let temp_dir = TempDir::new().unwrap();
@@ -176,6 +179,7 @@ async fn run_pricing_refresh_test() -> Result<(), String> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_model_not_in_openrouter() {
     // Use a unique cache directory for this test to avoid conflicts
     let temp_dir = TempDir::new().unwrap();
@@ -198,6 +202,7 @@ async fn test_model_not_in_openrouter() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_concurrent_access() {
     // Use a unique cache directory for this test to avoid conflicts
     let temp_dir = TempDir::new().unwrap();
