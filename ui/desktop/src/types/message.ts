@@ -1,4 +1,4 @@
-import { Content, Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
@@ -9,58 +9,7 @@ export function createUserMessage(text: string): Message {
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [{ type: 'text', text }],
-  };
-}
-
-export function createAssistantMessage(text: string): Message {
-  return {
-    id: generateId(),
-    role: 'assistant',
-    created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
-  };
-}
-
-export function createToolRequestMessage(
-  id: string,
-  toolName: string,
-  args: Record<string, unknown>
-): Message {
-  return {
-    id: generateId(),
-    role: 'assistant',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolRequest',
-        id,
-        toolCall: {
-          status: 'success',
-          value: {
-            name: toolName,
-            arguments: args,
-          },
-        },
-      },
-    ],
-  };
-}
-
-export function createToolResponseMessage(id: string, result: Content[]): Message {
-  return {
-    id: generateId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolResponse',
-        id,
-        toolResult: {
-          status: 'success',
-          value: result,
-        },
-      },
-    ],
+    metadata: { userVisible: true, agentVisible: true },
   };
 }
 
@@ -79,6 +28,7 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
         },
       },
     ],
+    metadata: { userVisible: true, agentVisible: true },
   };
 }
 
@@ -90,7 +40,6 @@ export function getTextContent(message: Message): string {
   return message.content
     .map((content) => {
       if (content.type === 'text') return content.text;
-      if (content.type === 'contextLengthExceeded') return content.msg;
       return '';
     })
     .join('');

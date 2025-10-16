@@ -53,10 +53,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ContextLengthExceeded(_) => {
-                    // Skip
-                }
-                MessageContent::SummarizationRequested(_) => {
+                MessageContent::ConversationCompacted(_) => {
                     // Skip
                 }
                 MessageContent::Thinking(_thinking) => {

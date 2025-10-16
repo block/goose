@@ -9,12 +9,6 @@ interface ContextManagerState {
 }
 
 interface ContextManagerActions {
-  handleAutoCompaction: (
-    messages: Message[],
-    setMessages: (messages: Message[]) => void,
-    append: (message: Message) => void,
-    sessionId: string
-  ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
@@ -70,6 +64,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
 
         setIsCompacting(false);
       } catch (err) {
+        // TODO(Douwe): move this to the server
         console.error('Error during compaction:', err);
         setCompactionError(err instanceof Error ? err.message : 'Unknown error during compaction');
 
@@ -80,10 +75,11 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           created: Math.floor(Date.now() / 1000),
           content: [
             {
-              type: 'summarizationRequested',
+              type: 'conversationCompacted',
               msg: 'Compaction failed. Please try again or start a new session.',
             },
           ],
+          metadata: { userVisible: true, agentVisible: true },
         };
 
         setMessages([...messages, errorMarker]);
@@ -91,18 +87,6 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       }
     },
     []
-  );
-
-  const handleAutoCompaction = useCallback(
-    async (
-      messages: Message[],
-      setMessages: (messages: Message[]) => void,
-      append: (message: Message) => void,
-      sessionId: string
-    ) => {
-      await performCompaction(messages, setMessages, append, sessionId, false);
-    },
-    [performCompaction]
   );
 
   const handleManualCompaction = useCallback(
@@ -118,7 +102,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const hasCompactionMarker = useCallback((message: Message): boolean => {
-    return message.content.some((content) => content.type === 'summarizationRequested');
+    return message.content.some((content) => content.type === 'conversationCompacted');
   }, []);
 
   const value = {
@@ -127,7 +111,6 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     compactionError,
 
     // Actions
-    handleAutoCompaction,
     handleManualCompaction,
     hasCompactionMarker,
   };
