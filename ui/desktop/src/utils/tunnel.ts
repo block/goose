@@ -2,11 +2,14 @@ import { spawn, ChildProcess } from 'child_process';
 import { app, App } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import * as crypto from 'crypto';
 import { Buffer } from 'node:buffer';
 import log from './logger';
 import { loadSettings, saveSettings } from './settings';
 import { getBinaryPath } from './pathUtils';
-import { findAvailablePort } from '../goosed';
+import { findAvailablePort, checkServerStatus } from '../goosed';
+import { createClient, createConfig } from '../api/client';
 
 export interface TunnelInfo {
   url: string;
@@ -24,18 +27,14 @@ export interface TunnelInfo {
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error';
 
 let tunnelProcess: ChildProcess | null = null;
+let goosedProcess: ChildProcess | null = null;
 let currentTunnelInfo: TunnelInfo | null = null;
 let currentState: TunnelState = 'idle';
 let outputFilePath: string | null = null;
 
-// Generate a random secret for tunnel authentication
+// Generate a random secret for tunnel authentication (same as main app)
 function generateSecret(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let secret = '';
-  for (let i = 0; i < 32; i++) {
-    secret += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return secret;
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // Get or create tunnel secret
@@ -132,14 +131,85 @@ export async function startTunnel(): Promise<TunnelInfo> {
     // Get or create secret
     const secret = getTunnelSecret();
 
+    // Get user's home directory
+    const homeDir = os.homedir();
+    const isWindows = process.platform === 'win32';
+
+    // Start goosed first (similar to goosed.ts)
+    log.info(`Starting goosed on port ${port} in home directory ${homeDir}`);
+
+    // Set up environment for goosed (consistent with goosed.ts)
+    const goosedEnv = {
+      ...process.env,
+      HOME: homeDir,
+      USERPROFILE: homeDir,
+      APPDATA: process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'),
+      LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
+      PATH: `${path.dirname(goosedPath)}${path.delimiter}${process.env.PATH || ''}`,
+      GOOSE_PORT: String(port),
+      GOOSE_SERVER__SECRET_KEY: secret,
+    };
+
+    // Spawn goosed process
+    goosedProcess = spawn(goosedPath, ['agent'], {
+      cwd: homeDir,
+      env: goosedEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+      detached: isWindows,
+      shell: false,
+    });
+
+    goosedProcess.stdout?.on('data', (data: Buffer) => {
+      log.info(`goosed stdout: ${data.toString()}`);
+    });
+
+    goosedProcess.stderr?.on('data', (data: Buffer) => {
+      log.error(`goosed stderr: ${data.toString()}`);
+    });
+
+    goosedProcess.on('close', (code: number | null) => {
+      log.info(`goosed process exited with code ${code}`);
+      if (currentState === 'running') {
+        // If goosed dies while tunnel is running, stop everything
+        stopTunnel();
+      }
+    });
+
+    goosedProcess.on('error', (err: Error) => {
+      log.error('Failed to start goosed:', err);
+      currentState = 'error';
+      throw err;
+    });
+
+    // Wait for goosed to be ready
+    log.info('Waiting for goosed to be ready...');
+    const client = createClient(
+      createConfig({
+        baseUrl: `http://127.0.0.1:${port}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': secret,
+        },
+      })
+    );
+
+    const serverReady = await checkServerStatus(client);
+    if (!serverReady) {
+      throw new Error('Goosed server failed to start in time');
+    }
+
+    log.info('Goosed is ready, starting Tailscale tunnel...');
+
     // Create temp output file path
     const timestamp = Date.now();
     outputFilePath = path.join(app.getPath('temp'), `goose-tunnel-${timestamp}.json`);
 
-    log.info(`Starting tunnel: ${scriptPath} ${goosedPath} ${port} [secret] ${outputFilePath}`);
+    // Now spawn the tailscale script with just the port and output file
+    // The script no longer needs to manage goosed
+    log.info(`Starting Tailscale tunnel: ${scriptPath} ${port} ${secret} ${outputFilePath}`);
 
-    // Spawn the tunnel script
-    tunnelProcess = spawn(scriptPath, [goosedPath, String(port), secret, outputFilePath], {
+    tunnelProcess = spawn(scriptPath, [String(port), secret, outputFilePath], {
       detached: false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -157,6 +227,11 @@ export async function startTunnel(): Promise<TunnelInfo> {
       if (currentState === 'running') {
         currentState = 'idle';
         currentTunnelInfo = null;
+        // Also stop goosed when tunnel stops
+        if (goosedProcess) {
+          goosedProcess.kill();
+          goosedProcess = null;
+        }
       }
     });
 
@@ -168,22 +243,51 @@ export async function startTunnel(): Promise<TunnelInfo> {
 
     // Wait for the output file to be written
     currentTunnelInfo = await waitForOutputFile(outputFilePath);
+    // Update tunnel info with the actual goosed PID
+    if (goosedProcess.pid) {
+      currentTunnelInfo.pids.goosed = goosedProcess.pid;
+    }
     currentState = 'running';
 
     log.info('Tunnel started successfully:', currentTunnelInfo);
     return currentTunnelInfo;
   } catch (error) {
     currentState = 'error';
+    // Clean up goosed if we started it but tunnel failed
+    if (goosedProcess) {
+      goosedProcess.kill();
+      goosedProcess = null;
+    }
     log.error('Failed to start tunnel:', error);
     throw error;
   }
 }
 
 export function stopTunnel(): void {
+  // Stop the tailscale tunnel process
   if (tunnelProcess) {
     log.info('Stopping tunnel process');
     tunnelProcess.kill('SIGTERM');
     tunnelProcess = null;
+  }
+
+  // Stop the goosed process
+  if (goosedProcess) {
+    log.info('Stopping goosed process');
+    const isWindows = process.platform === 'win32';
+
+    try {
+      if (isWindows && goosedProcess.pid) {
+        // On Windows, use taskkill for cleaner shutdown
+        spawn('taskkill', ['/pid', goosedProcess.pid.toString(), '/T', '/F'], { shell: false });
+      } else {
+        goosedProcess.kill();
+      }
+    } catch (error) {
+      log.error('Error while terminating goosed process:', error);
+    }
+
+    goosedProcess = null;
   }
 
   currentState = 'idle';

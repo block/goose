@@ -3,30 +3,23 @@ set -e
 
 # Tailscale Tunnel Setup Script
 # Supports: macOS (via Homebrew bottles) and Linux (via pkgs.tailscale.com)
-# This script starts goosed and creates a Tailscale tunnel for remote access
+# This script creates a Tailscale tunnel for an already-running service
 
 # Usage information
 usage() {
-    echo "Usage: $0 <path_to_goosed> <port> <secret> <output_json_file>" >&2
-    echo "Example: $0 ./goosed 62997 my_secret_key /tmp/tunnel.json" >&2
+    echo "Usage: $0 <port> <secret> <output_json_file>" >&2
+    echo "Example: $0 62997 my_secret_key /tmp/tunnel.json" >&2
     exit 1
 }
 
 # Check arguments
-if [ $# -ne 4 ]; then
+if [ $# -ne 3 ]; then
     usage
 fi
 
-GOOSED_PATH="$1"
-PORT="$2"
-SECRET="$3"
-OUTPUT_FILE="$4"
-
-# Validate goosed path
-if [ ! -f "$GOOSED_PATH" ]; then
-    echo "Error: goosed not found at: $GOOSED_PATH"
-    exit 1
-fi
+PORT="$1"
+SECRET="$2"
+OUTPUT_FILE="$3"
 
 # Validate port is a number
 if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
@@ -34,11 +27,20 @@ if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
-# Check if port is available
-if lsof -i:$PORT >/dev/null 2>&1; then
-    echo "Error: Port $PORT is already in use"
-    exit 1
-fi
+# Check if service is running on the expected port
+echo "Checking if service is available on port ${PORT}..."
+for i in {1..10}; do
+    if curl -s "http://localhost:${PORT}/health" > /dev/null 2>&1; then
+        echo "✓ Service is running on port ${PORT}"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        echo "Error: No service responding on port ${PORT}"
+        echo "Please ensure the service is running before starting the tunnel"
+        exit 1
+    fi
+    sleep 0.5
+done
 
 # Check if tailscale is available, install if not
 if ! command -v tailscale &> /dev/null; then
@@ -219,11 +221,6 @@ fi
 cleanup() {
     echo ""
     echo "Shutting down..."
-    if [ ! -z "$GOOSED_PID" ]; then
-        echo "Stopping goosed (PID: $GOOSED_PID)"
-        kill $GOOSED_PID 2>/dev/null || true
-        wait $GOOSED_PID 2>/dev/null || true
-    fi
     if [ ! -z "$TAILSCALE_SERVE_PID" ]; then
         echo "Stopping Tailscale serve (PID: $TAILSCALE_SERVE_PID)"
         kill $TAILSCALE_SERVE_PID 2>/dev/null || true
@@ -240,27 +237,6 @@ cleanup() {
 }
 
 trap cleanup SIGINT SIGTERM EXIT
-
-# Start goosed in the background
-echo "Starting goosed on port ${PORT}..."
-export GOOSE_PORT=$PORT
-export GOOSE_SERVER__SECRET_KEY="$SECRET"
-$GOOSED_PATH agent > /dev/null 2>&1 &
-GOOSED_PID=$!
-
-# Wait for goosed to be ready
-echo "Waiting for goosed to start..."
-for i in {1..30}; do
-    if curl -s "http://localhost:${PORT}/health" > /dev/null 2>&1; then
-        echo "✓ Goosed is running (PID: $GOOSED_PID)"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo "Error: goosed failed to start"
-        exit 1
-    fi
-    sleep 0.5
-done
 
 # Setup Tailscale
 TS_STATE="$HOME/.local/share/tailscale"
@@ -353,6 +329,7 @@ else
 fi
 
 # Write JSON to output file
+# Note: goosed PID is 0 since it's managed by tunnel.ts, not this script
 jq -n \
     --arg url "$TUNNEL_URL" \
     --arg ipv4 "${V4:-null}" \
@@ -360,7 +337,6 @@ jq -n \
     --arg hostname "${HOST:-null}" \
     --arg secret "$SECRET" \
     --arg port "$PORT" \
-    --arg goosed_pid "$GOOSED_PID" \
     --arg tailscale_pid "$TAILSCALE_SERVE_PID" \
     '{
         url: $url,
@@ -370,7 +346,7 @@ jq -n \
         secret: $secret,
         port: ($port | tonumber),
         pids: {
-            goosed: ($goosed_pid | tonumber),
+            goosed: 0,
             tailscale_serve: ($tailscale_pid | tonumber)
         }
     }' > "$OUTPUT_FILE"
