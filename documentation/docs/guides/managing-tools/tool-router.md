@@ -147,7 +147,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
 
 ## Environment Variable Configuration
 
-You can also configure tool selection using environment variables or in your [configuration file](/docs/guides/config-file):
+You can also configure tool selection using environment variables or in your [configuration file](/docs/guides/config-files):
 
 ```bash
 # Enable LLM-based tool selection

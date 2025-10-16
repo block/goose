@@ -77,7 +77,7 @@ You should now be able to interact with Goose directly in Zed. Your ACP sessions
 
 ### Advanced Configuration
 
-By default, Goose will use the provider and model defined in your [configuration file](/docs/guides/config-file). You can override this for specific ACP configurations using the `GOOSE_PROVIDER` and `GOOSE_MODEL` environment variables.
+By default, Goose will use the provider and model defined in your [configuration file](/docs/guides/config-files). You can override this for specific ACP configurations using the `GOOSE_PROVIDER` and `GOOSE_MODEL` environment variables.
 
 The following Zed settings example configures two Goose agent instances. This is useful for:
 - Comparing model performance on the same task

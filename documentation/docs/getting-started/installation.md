@@ -404,4 +404,4 @@ You can also configure Extensions to extend Goose's functionality, including add
 [providers]: /docs/getting-started/providers
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [mcp]: https://www.anthropic.com/news/model-context-protocol
-[config-files]: /docs/guides/config-file.md
+[config-files]: /docs/guides/config-filess.md
