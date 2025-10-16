@@ -3,7 +3,7 @@ import { Recipe, scanRecipe } from '../recipe';
 import { createUserMessage } from '../types/message';
 import { Message } from '../api';
 
-import { updateSystemPromptWithParameters, substituteParameters } from '../utils/providerUtils';
+import { substituteParameters } from '../utils/providerUtils';
 import { updateSessionUserRecipeValues } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
@@ -118,24 +118,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       });
       return true; // No parameters required, so all are "filled"
     }
-
-    if (!resolvedRecipe) {
-      return false;
-    }
-
-    // Check if all filtered parameters have values
-    return filteredParameters.every((param) => {
-      const value = recipeParameterValues?.[param.key];
-      return value !== undefined && value !== null && value.trim() !== '';
-    });
-  }, [
-    filteredParameters,
-    recipeParameterValues,
-    requiresParameters,
-    resolvedRecipe,
-    finalRecipe,
-    chatContext,
-  ]);
+    return resolvedRecipe != null;
+  }, [requiresParameters, resolvedRecipe, chatContext, finalRecipe]);
 
   const hasMessages = messages.length > 0;
   useEffect(() => {
@@ -189,11 +173,6 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         });
       }
       setIsParameterModalOpen(false);
-      await updateSystemPromptWithParameters(
-        chat.sessionId,
-        inputValues,
-        resolvedRecipe || undefined
-      );
     } catch (error) {
       console.error('Failed to update system prompt with parameters:', error);
     }

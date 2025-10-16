@@ -5,14 +5,7 @@ import {
 } from '../components/settings/extensions';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
-import {
-  extendPrompt,
-  Recipe,
-  RecipeParameter,
-  SubRecipe,
-  updateAgentProvider,
-  updateSessionConfig,
-} from '../api';
+import { extendPrompt, Recipe, SubRecipe, updateAgentProvider, updateSessionConfig } from '../api';
 
 // Desktop-specific system prompt extension
 const desktopPrompt = `You are being accessed through the Goose Desktop application.
@@ -57,54 +50,6 @@ export const substituteParameters = (text: string, params: Record<string, string
   }
 
   return substitutedText;
-};
-
-/**
- * Updates the system prompt with parameter-substituted instructions
- * This should be called after recipe parameters are collected
- */
-export const updateSystemPromptWithParameters = async (
-  sessionId: string,
-  recipeParameters: Record<string, string>,
-  recipe?: {
-    instructions?: string | null;
-    sub_recipes?: SubRecipe[] | null;
-    parameters?: RecipeParameter[] | null;
-  }
-): Promise<void> => {
-  const subRecipes = recipe?.sub_recipes;
-  try {
-    const originalInstructions = recipe?.instructions;
-
-    if (!originalInstructions) {
-      return;
-    }
-    // Substitute parameters in the instructions
-    const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
-
-    // Update the system prompt with substituted instructions
-    const response = await extendPrompt({
-      body: {
-        session_id: sessionId,
-        extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
-      },
-    });
-    if (response.error) {
-      console.warn(`Failed to update system prompt with parameters: ${response.error}`);
-    }
-  } catch (error) {
-    console.error('Error updating system prompt with parameters:', error);
-  }
-  if (subRecipes && subRecipes?.length > 0) {
-    for (const subRecipe of subRecipes) {
-      if (subRecipe.values) {
-        for (const key in subRecipe.values) {
-          subRecipe.values[key] = substituteParameters(subRecipe.values[key], recipeParameters);
-        }
-      }
-    }
-    await addSubRecipesToAgent(sessionId, subRecipes);
-  }
 };
 
 export const initializeSystem = async (

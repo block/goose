@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::build_recipe_with_parameter_values;
 use crate::state::AppState;
+use axum::extract::State;
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -8,10 +9,12 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::prompt_template::render_global_file;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -171,11 +174,31 @@ async fn update_session_description(
 )]
 // Update session user recipe parameter values
 async fn update_session_user_recipe_values(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
 ) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
     match build_recipe_with_parameter_values(&session_id, request.user_recipe_values).await {
-        Ok(recipe) => Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe })),
+        Ok(recipe) => {
+            let agent = state
+                .get_agent_for_route(session_id.clone())
+                .await
+                .map_err(|status| ErrorResponse {
+                    message: format!("Failed to get agent: {}", status),
+                    status,
+                })?;
+            if let Some(instructions) = &recipe.instructions {
+                let mut context: HashMap<&str, Value> = HashMap::new();
+                context.insert("recipe_instructions", Value::String(instructions.clone()));
+                let prompt = render_global_file("desktop_recipe_instruction.md", &context)
+                    .expect("Prompt should render");
+                agent.extend_system_prompt(prompt).await;
+            }
+            if let Some(sub_recipes) = &recipe.sub_recipes {
+                agent.add_sub_recipes(sub_recipes.clone()).await;
+            }
+            Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe }))
+        }
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,
