@@ -24,23 +24,6 @@ pub struct AutoCompactResult {
     pub summarization_usage: Option<crate::providers::base::ProviderUsage>,
 }
 
-/// Result of checking if compaction is needed
-#[derive(Debug)]
-pub struct CompactionCheckResult {
-    /// Whether compaction is needed
-    pub needs_compaction: bool,
-    /// Current token count
-    pub current_tokens: usize,
-    /// Context limit being used
-    pub context_limit: usize,
-    /// Current usage ratio (0.0 to 1.0)
-    pub usage_ratio: f64,
-    /// Remaining tokens before compaction threshold
-    pub remaining_tokens: usize,
-    /// Percentage until compaction threshold (0.0 to 100.0)
-    pub percentage_until_compaction: f64,
-}
-
 #[derive(Serialize)]
 struct SummarizeContext {
     messages: String,
@@ -166,25 +149,12 @@ Just continue the conversation naturally based on the summarized context"
 }
 
 /// Check if messages exceed the auto-compaction threshold
-///
-/// This function analyzes the current token usage and returns whether compaction
-/// is needed based on the configured threshold. It prioritizes actual token counts
-/// from session metadata when available, falling back to estimated counts if needed.
-///
-/// # Arguments
-/// * `agent` - The agent to use for context management
-/// * `conversation` - The current conversation history
-/// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
-/// * `session_metadata` - Optional session metadata containing actual token counts
-///
-/// # Returns
-/// * `CompactionCheckResult` containing whether compaction is needed and usage details
 pub async fn check_if_compaction_needed(
     agent: &Agent,
     conversation: &Conversation,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
-) -> Result<CompactionCheckResult> {
+) -> Result<bool> {
     let messages = conversation.messages();
     let config = Config::global();
     // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
@@ -216,15 +186,6 @@ pub async fn check_if_compaction_needed(
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
-    let threshold_tokens = (context_limit as f64 * threshold) as usize;
-    let remaining_tokens = threshold_tokens.saturating_sub(current_tokens);
-
-    let percentage_until_compaction = if usage_ratio < threshold {
-        (threshold - usage_ratio) * 100.0
-    } else {
-        0.0
-    };
-
     let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
         usage_ratio > DEFAULT_COMPACTION_THRESHOLD
     } else {
@@ -241,14 +202,7 @@ pub async fn check_if_compaction_needed(
         token_source
     );
 
-    Ok(CompactionCheckResult {
-        needs_compaction,
-        current_tokens,
-        context_limit,
-        usage_ratio,
-        remaining_tokens,
-        percentage_until_compaction,
-    })
+    Ok(needs_compaction)
 }
 
 async fn do_compact(
