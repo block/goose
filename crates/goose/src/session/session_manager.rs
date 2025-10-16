@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, OnceCell};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
@@ -260,6 +260,7 @@ impl SessionManager {
 
 pub struct SessionStorage {
     pool: Pool<Sqlite>,
+    create_session_mutex: Arc<Mutex<()>>,
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
@@ -383,7 +384,10 @@ impl SessionStorage {
     async fn open(db_path: &Path) -> Result<Self> {
         let pool = Self::get_pool(db_path, false).await?;
 
-        let storage = Self { pool };
+        let storage = Self {
+            pool,
+            create_session_mutex: Arc::new(Mutex::new(())),
+        };
         storage.run_migrations().await?;
         Ok(storage)
     }
@@ -458,7 +462,10 @@ impl SessionStorage {
             .execute(&pool)
             .await?;
 
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            create_session_mutex: Arc::new(Mutex::new(())),
+        })
     }
 
     async fn import_legacy(&self, session_dir: &PathBuf) -> Result<()> {
@@ -644,6 +651,9 @@ impl SessionStorage {
     }
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
+        // Lock the mutex to prevent concurrent session creation race conditions
+        let _guard = self.create_session_mutex.lock().await;
+
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         let session_id = sqlx::query_as(
             r#"
