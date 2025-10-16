@@ -93,13 +93,17 @@ impl SessionUpdateBuilder {
         }
     }
 
+    /// User-provided name (prevents LLM from overwriting it)
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self.user_set_name = Some(true);
         self
     }
 
-    pub fn user_set_name(mut self, user_set: bool) -> Self {
-        self.user_set_name = Some(user_set);
+    /// System-generated name (allows LLM to update it later)
+    pub fn system_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self.user_set_name = Some(false);
         self
     }
 
@@ -176,6 +180,7 @@ impl SessionManager {
             .map(Arc::clone)
     }
 
+    /// `None` allows LLM to automatically generate the name, `Some` preserves the user's choice.
     pub async fn create_session(working_dir: PathBuf, name: Option<String>) -> Result<Session> {
         Self::instance()
             .await?
@@ -248,7 +253,7 @@ impl SessionManager {
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
             let name = provider.generate_session_name(&conversation).await?;
-            Self::update_session(id).name(name).apply().await
+            Self::update_session(id).system_name(name).apply().await
         } else {
             Ok(())
         }
