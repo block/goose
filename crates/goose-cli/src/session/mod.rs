@@ -655,12 +655,11 @@ impl CliSession {
                         println!("{}", console::style("Summarizing conversation...").yellow());
                         output::show_thinking();
 
-                        // Force compaction (no need to check threshold for manual summarize command)
                         let (summarized_messages, _token_counts, summarization_usage) =
                             goose::context_mgmt::compact_messages(
                                 &self.agent,
                                 &self.messages,
-                                false, // don't preserve last user message
+                                false,
                             )
                             .await?;
 

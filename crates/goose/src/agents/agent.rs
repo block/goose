@@ -918,7 +918,6 @@ impl Agent {
             None
         };
 
-        // Check if compaction is needed
         let check_result = crate::context_mgmt::check_if_compaction_needed(
             self,
             &unfixed_conversation,
@@ -930,7 +929,6 @@ impl Agent {
         let (did_compact, compacted_conversation, compaction_error) = match check_result {
             // TODO(dkatz): send a notification that we are starting compaction here.
             Ok(check_result) if check_result.needs_compaction => {
-                // Perform compaction
                 match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false)
                     .await
                 {

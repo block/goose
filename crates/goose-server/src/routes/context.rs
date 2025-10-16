@@ -46,10 +46,8 @@ async fn manage_context(
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    // Convert messages to Conversation
     let conversation = Conversation::new_unvalidated(request.messages);
 
-    // Force compaction without preserving last user message
     let (processed_messages, token_counts, _) =
         goose::context_mgmt::compact_messages(&agent, &conversation, false)
             .await
