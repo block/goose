@@ -6,16 +6,16 @@ import BaseChat2 from './BaseChat2';
 interface PairProps {
   setChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-  resumeSessionId?: string;
+  sessionId: string;
   initialMessage?: string;
 }
 
-export default function Pair({ setChat, setIsGoosehintsModalOpen, resumeSessionId }: PairProps) {
+export default function Pair({ setChat, setIsGoosehintsModalOpen, sessionId }: PairProps) {
   return (
     <BaseChat2
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
+      sessionId={sessionId}
     />
   );
 }

@@ -6,15 +6,9 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use goose::agents::Agent;
-use goose::config::Config;
-use goose::providers::create_with_named_model;
-use crate::routes::errors::ErrorResponse;
-
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
-    pub next_agent: Arc<Agent>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
@@ -24,49 +18,13 @@ pub struct AppState {
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = AgentManager::instance().await?;
-        let default_agent = agent_manager.get_or_create_agent(new_session);
-        Self::configure_agent_with_defaults(default_agent).await;
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
-            next_agent: Arc::new(default_agent),
         }))
     }
-
-    pub async fn configure_agent_with_defaults(agent: Agent) -> Result<(), ErrorResponse> {
-        let config = Config::global();
-
-            let provider_name: String =
-                config
-                    .get_param("GOOSE_PROVIDER")
-                    .map_err(|_| ErrorResponse {
-                        message: "Could not configure agent: missing provider".into(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
-
-            let model: String = config.get_param("GOOSE_MODEL").map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing model".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-
-            let provider = create_with_named_model(&provider_name, &model)
-                .await
-                .map_err(|_| ErrorResponse {
-                    message: "Could not configure agent: missing model".into(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?;
-
-            agent
-                .update_provider(provider)
-                .await
-                .map_err(|e| ErrorResponse {
-                    message: format!("Could not configure agent: {}", e),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })}
-    }
-
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
         self.agent_manager.scheduler().await

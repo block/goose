@@ -33,7 +33,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState?: boolean;
   autoSubmit?: boolean;
-  resumeSessionId?: string; // Optional session ID to resume on mount
+  sessionId: string;
 }
 
 function BaseChatContent({
@@ -44,7 +44,7 @@ function BaseChatContent({
   customChatInputProps = {},
   customMainLayoutProps = {},
   disableSearch = false,
-  resumeSessionId,
+  sessionId,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -75,7 +75,7 @@ function BaseChatContent({
 
   const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
     useChatStream({
-      sessionId: resumeSessionId || '',
+      sessionId,
       onStreamFinish,
     });
 
@@ -176,8 +176,8 @@ function BaseChatContent({
     messageHistoryIndex: 0,
     messages,
     recipe,
-    sessionId: resumeSessionId || '',
-    title: session?.description || 'New Session',
+    sessionId,
+    title: session?.description || 'No Session',
   };
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
@@ -341,7 +341,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
-            sessionId={resumeSessionId || ''}
+            sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
             onStop={stopStreaming}

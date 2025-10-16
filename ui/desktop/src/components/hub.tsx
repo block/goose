@@ -33,13 +33,24 @@ export default function Hub({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) {
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
       if (process.env.ALPHA) {
-        //startAgent()
+        const newAgent = await startAgent({
+          body: {
+            working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          },
+          throwOnError: true,
+        });
+        const session = newAgent.data;
+        setView('pair', {
+          disableAnimation: true,
+          initialMessage: combinedTextFromInput,
+          resumeSessionId: session.id,
+        });
       } else {
         // Navigate to pair page with the message to be submitted
         // Pair will handle creating the new chat session

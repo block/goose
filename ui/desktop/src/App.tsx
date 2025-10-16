@@ -98,7 +98,7 @@ const PairRouteWrapper = ({
     <Pair2
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
+      sessionId={resumeSessionId || ''} // should now always be set!
       initialMessage={initialMessage}
     />
   ) : (
