@@ -55,6 +55,19 @@
       "submittedDate": "2025-10-14",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Best Practices for Prompt Engineering with goose",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/best-practices-for-prompt-engineering-with-goose-3m6h",
+      "thumbnail": "https://i.imgur.com/Shsi56O.png",
+      "submittedDate": "2025-10-16",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
