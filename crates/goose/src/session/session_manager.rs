@@ -73,6 +73,8 @@ pub struct SessionInsights {
     total_tokens: i64,
 }
 
+pub type SessionId = String;
+
 impl SessionUpdateBuilder {
     fn new(session_id: String) -> Self {
         Self {
@@ -252,6 +254,19 @@ impl SessionManager {
         } else {
             Ok(())
         }
+    }
+
+    pub async fn search_chat_history(
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<DateTime<Utc>>,
+        before_date: Option<DateTime<Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
+        Self::instance()
+            .await?
+            .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
+            .await
     }
 }
 
@@ -673,7 +688,7 @@ impl SessionStorage {
             Some(n) => (n, true),
             None => ("CLI Session".to_string(), false),
         };
-        Ok(sqlx::query_as(
+        let session_id = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, name, user_set_name, working_dir, extension_data)
                 VALUES (
@@ -696,7 +711,13 @@ impl SessionStorage {
         .bind(user_set_name)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
-        .await?)
+        .await?;
+
+        sqlx::query("PRAGMA wal_checkpoint")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(session_id)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -1014,6 +1035,28 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn search_chat_history(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<DateTime<Utc>>,
+        before_date: Option<DateTime<Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
+        use crate::session::chat_history_search::ChatHistorySearch;
+
+        ChatHistorySearch::new(
+            &self.pool,
+            query,
+            limit,
+            after_date,
+            before_date,
+            exclude_session_id,
+        )
+        .execute()
+        .await
     }
 }
 

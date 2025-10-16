@@ -119,7 +119,7 @@ pub async fn classify_planner_response(
 }
 
 impl CliSession {
-    pub fn new(
+    pub async fn new(
         agent: Agent,
         session_id: Option<String>,
         debug: bool,
@@ -129,14 +129,10 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
     ) -> Self {
         let messages = if let Some(session_id) = &session_id {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    SessionManager::get_session(session_id, true)
-                        .await
-                        .map(|session| session.conversation.unwrap_or_default())
-                        .unwrap()
-                })
-            })
+            SessionManager::get_session(session_id, true)
+                .await
+                .map(|session| session.conversation.unwrap_or_default())
+                .unwrap()
         } else {
             Conversation::new_unvalidated(Vec::new())
         };

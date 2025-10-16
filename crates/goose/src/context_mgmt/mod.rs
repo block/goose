@@ -1,5 +1,5 @@
-use crate::conversation::message::Message;
 use crate::conversation::message::MessageMetadata;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
@@ -74,7 +74,6 @@ pub async fn check_and_compact_messages(
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
-    // Check if compaction is needed (unless forced)
     if !force_compact {
         let check_result = check_compaction_needed(
             agent,
@@ -134,7 +133,7 @@ pub async fn check_and_compact_messages(
         };
 
     let provider = agent.provider().await?;
-    let summary = summarize(provider.clone(), messages).await?;
+    let summary = do_compact(provider.clone(), messages).await?;
 
     let (summary_message, summarization_usage) = match summary {
         Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
@@ -227,7 +226,6 @@ async fn check_compaction_needed(
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> Result<CompactionCheckResult> {
-    // Get threshold from config or use override
     let config = Config::global();
     // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
     let threshold = threshold_override.unwrap_or_else(|| {
@@ -293,46 +291,106 @@ async fn check_compaction_needed(
     })
 }
 
-async fn summarize(
+async fn do_compact(
     provider: Arc<dyn Provider>,
     messages: &[Message],
-) -> anyhow::Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
-    if messages.is_empty() {
-        return std::prelude::rust_2015::Ok(None);
-    }
-
-    // Format all messages as a single string for the summarization prompt
-    let messages_text = messages
+) -> Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
+    let agent_visible_messages: Vec<&Message> = messages
         .iter()
-        .map(|msg| format!("{:?}", msg))
+        .filter(|msg| msg.is_agent_visible())
+        .collect();
+
+    let messages_text = agent_visible_messages
+        .iter()
+        .map(|&msg| format_message_for_compacting(msg))
         .collect::<Vec<_>>()
-        .join("\n\n");
+        .join("\n");
 
     let context = SummarizeContext {
         messages: messages_text,
     };
 
-    // Render the one-shot summarization prompt
     let system_prompt = render_global_file("summarize_oneshot.md", &context)?;
 
-    // Create a simple user message requesting summarization
     let user_message = Message::user()
         .with_text("Please summarize the conversation history provided in the system prompt.");
     let summarization_request = vec![user_message];
 
-    // Send the request to the provider and fetch the response
     let (mut response, mut provider_usage) = provider
         .complete_fast(&system_prompt, &summarization_request, &[])
         .await?;
 
-    // Set role to user as it will be used in following conversation as user content
     response.role = Role::User;
 
-    // Ensure we have token counts, estimating if necessary
     provider_usage
         .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
         .await
         .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-    std::prelude::rust_2015::Ok(Some((response, provider_usage)))
+    Ok(Some((response, provider_usage)))
+}
+
+fn format_message_for_compacting(msg: &Message) -> String {
+    let content_parts: Vec<String> = msg
+        .content
+        .iter()
+        .map(|content| match content {
+            MessageContent::Text(text) => text.text.clone(),
+            MessageContent::Image(img) => format!("[image: {}]", img.mime_type),
+            MessageContent::ToolRequest(req) => {
+                if let Ok(call) = &req.tool_call {
+                    format!(
+                        "tool_request({}): {}",
+                        call.name,
+                        serde_json::to_string_pretty(&call.arguments)
+                            .unwrap_or_else(|_| "<<invalid json>>".to_string())
+                    )
+                } else {
+                    "tool_request: [error]".to_string()
+                }
+            }
+            MessageContent::ToolResponse(res) => {
+                if let Ok(contents) = &res.tool_result {
+                    let text_items: Vec<String> = contents
+                        .iter()
+                        .filter_map(|content| {
+                            content.as_text().map(|text_str| text_str.text.clone())
+                        })
+                        .collect();
+
+                    if !text_items.is_empty() {
+                        format!("tool_response: {}", text_items.join("\n"))
+                    } else {
+                        "tool_response: [non-text content]".to_string()
+                    }
+                } else {
+                    "tool_response: [error]".to_string()
+                }
+            }
+            MessageContent::ToolConfirmationRequest(req) => {
+                format!("tool_confirmation_request: {}", req.tool_name)
+            }
+            MessageContent::FrontendToolRequest(req) => {
+                if let Ok(call) = &req.tool_call {
+                    format!("frontend_tool_request: {}", call.name)
+                } else {
+                    "frontend_tool_request: [error]".to_string()
+                }
+            }
+            MessageContent::Thinking(thinking) => format!("thinking: {}", thinking.thinking),
+            MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
+            MessageContent::ConversationCompacted(compact) => format!("compacted: {}", compact.msg),
+        })
+        .collect();
+
+    let role_str = match msg.role {
+        Role::User => "user",
+        Role::Assistant => "assistant",
+    };
+
+    if content_parts.is_empty() {
+        format!("[{}]: <empty message>", role_str)
+    } else {
+        format!("[{}]: {}", role_str, content_parts.join("\n"))
+    }
 }
