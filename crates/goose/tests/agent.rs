@@ -1146,8 +1146,7 @@ mod extension_manager_tests {
     use super::*;
     use goose::agents::extension::{ExtensionConfig, PlatformExtensionContext};
     use goose::agents::extension_manager_extension::{
-        EXTENSION_NAME as EXTENSION_MANAGER_NAME, MANAGE_EXTENSIONS_TOOL_NAME,
-        SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+        MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
     };
     use rmcp::model::CallToolRequestParam;
     use rmcp::object;
@@ -1181,7 +1180,7 @@ mod extension_manager_tests {
 
         // Now add the extension manager platform extension
         let ext_config = ExtensionConfig::Platform {
-            name: EXTENSION_MANAGER_NAME.to_string(),
+            name: "extensionmanager".to_string(),
             description: "Extension Manager".to_string(),
             bundled: Some(true),
             available_tools: vec![],
@@ -1199,18 +1198,19 @@ mod extension_manager_tests {
         let agent = setup_agent_with_extension_manager().await;
         let tools = agent.list_tools(None).await;
 
+        // Note: Tool names are prefixed with the normalized extension name "extensionmanager"
+        // not the display name "Extension Manager"
         let search_tool = tools.iter().find(|tool| {
-            tool.name
-                == format!("{EXTENSION_MANAGER_NAME}__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}")
+            tool.name == format!("extensionmanager__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}")
         });
         assert!(
             search_tool.is_some(),
             "search_available_extensions tool should be available"
         );
 
-        let manage_tool = tools.iter().find(|tool| {
-            tool.name == format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}")
-        });
+        let manage_tool = tools
+            .iter()
+            .find(|tool| tool.name == format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}"));
         assert!(
             manage_tool.is_some(),
             "manage_extensions tool should be available"
@@ -1222,8 +1222,7 @@ mod extension_manager_tests {
         let agent = setup_agent_with_extension_manager().await;
 
         let tool_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}")
-                .into(),
+            name: format!("extensionmanager__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({})),
         };
 
@@ -1254,7 +1253,7 @@ mod extension_manager_tests {
         let agent = setup_agent_with_extension_manager().await;
 
         let enable_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({
                 "action": "enable",
                 "extension_name": "todo"
@@ -1280,7 +1279,7 @@ mod extension_manager_tests {
 
         // Now disable it
         let disable_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({
                 "action": "disable",
                 "extension_name": "todo"
@@ -1316,7 +1315,7 @@ mod extension_manager_tests {
 
         // Call manage_extensions without action parameter
         let tool_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({
                 "extension_name": "todo"
             })),
@@ -1346,7 +1345,7 @@ mod extension_manager_tests {
         let agent = setup_agent_with_extension_manager().await;
 
         let tool_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({
                 "action": "invalid_action",
                 "extension_name": "todo"
@@ -1381,7 +1380,7 @@ mod extension_manager_tests {
 
         // Try to enable a non-existent extension
         let tool_call = CallToolRequestParam {
-            name: format!("{EXTENSION_MANAGER_NAME}__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
             arguments: Some(object!({
                 "action": "enable",
                 "extension_name": "nonexistent_extension_12345"
