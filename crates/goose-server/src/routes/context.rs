@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::conversation::message::Message;
+use goose::conversation::{message::Message, Conversation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -46,13 +46,14 @@ async fn manage_context(
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    let (_, processed_messages, token_counts, _) = goose::context_mgmt::check_and_compact_messages(
+    // Convert messages to Conversation
+    let conversation = Conversation::new_unvalidated(request.messages);
+
+    // Force compaction without preserving last user message
+    let (processed_messages, token_counts, _) = goose::context_mgmt::compact_messages(
         &agent,
-        &request.messages,
-        true,
+        &conversation,
         false,
-        None,
-        None,
     )
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

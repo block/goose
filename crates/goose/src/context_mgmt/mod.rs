@@ -46,101 +46,65 @@ struct SummarizeContext {
     messages: String,
 }
 
-/// Check if messages need compaction and compact them if necessary
+/// Compact messages by summarizing them
 ///
-/// This function combines checking and compaction. It first checks if compaction
-/// is needed based on the threshold, and if so, performs the compaction by
-/// summarizing messages and updating their visibility metadata.
+/// This function performs the actual compaction by summarizing messages and updating
+/// their visibility metadata. It does not check thresholds - use `check_if_compaction_needed`
+/// first to determine if compaction is necessary.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
-/// * `messages` - The current message history
-/// * `force_compact` - If true, skip the threshold check and force compaction
+/// * `conversation` - The current conversation history
 /// * `preserve_last_user_message` - If true and last message is not a user message, copy the most recent user message to the end
-/// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
-/// * `session_metadata` - Optional session metadata containing actual token counts
 ///
 /// # Returns
 /// * A tuple containing:
-///   - `bool`: Whether compaction was performed
-///   - `Conversation`: The potentially compacted messages
-///   - `Vec<usize>`: Indices of removed messages (empty if no compaction)
-///   - `Option<ProviderUsage>`: Provider usage from summarization (if compaction occurred)
-pub async fn check_and_compact_messages(
+///   - `Conversation`: The compacted messages
+///   - `Vec<usize>`: Token counts for each message
+///   - `Option<ProviderUsage>`: Provider usage from summarization
+pub async fn compact_messages(
     agent: &Agent,
-    messages_with_user_message: &[Message],
-    force_compact: bool,
+    conversation: &Conversation,
     preserve_last_user_message: bool,
-    threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::Session>,
-) -> std::result::Result<(bool, Conversation, Vec<usize>, Option<ProviderUsage>), anyhow::Error> {
-    if !force_compact {
-        let check_result = check_compaction_needed(
-            agent,
-            messages_with_user_message,
-            threshold_override,
-            session_metadata,
-        )
-        .await?;
+) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
+    info!("Performing message compaction");
 
-        // If no compaction is needed, return early
-        if !check_result.needs_compaction {
-            debug!(
-                "No compaction needed (usage: {:.1}% <= {:.1}% threshold)",
-                check_result.usage_ratio * 100.0,
-                check_result.percentage_until_compaction
-            );
-            return Ok((
-                false,
-                Conversation::new_unvalidated(messages_with_user_message.to_vec()),
-                Vec::new(),
-                None,
-            ));
-        }
+    let messages = conversation.messages();
 
-        info!(
-            "Performing message compaction (usage: {:.1}%)",
-            check_result.usage_ratio * 100.0
-        );
-    } else {
-        info!("Forcing message compaction due to context limit exceeded");
-    }
-
-    // Perform the actual compaction
     // Check if the most recent message is a user message
-    let (messages, preserved_user_message) =
-        if let Some(last_message) = messages_with_user_message.last() {
-            if matches!(last_message.role, rmcp::model::Role::User) {
-                // Remove the last user message before compaction
-                (
-                    &messages_with_user_message[..messages_with_user_message.len() - 1],
-                    Some(last_message.clone()),
-                )
-            } else if preserve_last_user_message {
-                // Last message is not a user message, but we want to preserve the most recent user message
-                // Find the most recent user message and copy it (don't remove from history)
-                let most_recent_user_message = messages_with_user_message
-                    .iter()
-                    .rev()
-                    .find(|msg| matches!(msg.role, rmcp::model::Role::User))
-                    .cloned();
-                (messages_with_user_message, most_recent_user_message)
-            } else {
-                (messages_with_user_message, None)
-            }
+    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
+    {
+        if matches!(last_message.role, rmcp::model::Role::User) {
+            // Remove the last user message before compaction
+            (
+                &messages[..messages.len() - 1],
+                Some(last_message.clone()),
+            )
+        } else if preserve_last_user_message {
+            // Last message is not a user message, but we want to preserve the most recent user message
+            // Find the most recent user message and copy it (don't remove from history)
+            let most_recent_user_message = messages
+                .iter()
+                .rev()
+                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
+                .cloned();
+            (messages.as_slice(), most_recent_user_message)
         } else {
-            (messages_with_user_message, None)
-        };
+            (messages.as_slice(), None)
+        }
+    } else {
+        (messages.as_slice(), None)
+    };
 
     let provider = agent.provider().await?;
-    let summary = do_compact(provider.clone(), messages).await?;
+    let summary = do_compact(provider.clone(), messages_to_compact).await?;
 
     let (summary_message, summarization_usage) = match summary {
         Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
         None => {
             // No summary was generated (empty input)
             tracing::warn!("Summarization failed. Returning empty messages.");
-            return Ok((false, Conversation::empty(), vec![], None));
+            return Ok((Conversation::empty(), vec![], None));
         }
     };
 
@@ -153,7 +117,7 @@ pub async fn check_and_compact_messages(
     let mut final_token_counts = Vec::new();
 
     // Add all original messages with updated visibility (preserve user_visible, set agent_visible=false)
-    for msg in messages.iter().cloned() {
+    for msg in messages_to_compact.iter().cloned() {
         let updated_metadata = msg.metadata.with_agent_invisible();
         let updated_msg = msg.with_metadata(updated_metadata);
         final_messages.push(updated_msg);
@@ -198,34 +162,33 @@ Just continue the conversation naturally based on the summarized context"
     }
 
     Ok((
-        true,
         Conversation::new_unvalidated(final_messages),
         final_token_counts,
         summarization_usage,
     ))
 }
 
-/// Check if messages need compaction without performing the compaction
+/// Check if messages exceed the auto-compaction threshold
 ///
-/// This function analyzes the current token usage and returns detailed information
-/// about whether compaction is needed and how close we are to the threshold.
-/// It prioritizes actual token counts from session metadata when available,
-/// falling back to estimated counts if needed.
+/// This function analyzes the current token usage and returns whether compaction
+/// is needed based on the configured threshold. It prioritizes actual token counts
+/// from session metadata when available, falling back to estimated counts if needed.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
-/// * `messages` - The current message history
+/// * `conversation` - The current conversation history
 /// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
 /// * `session_metadata` - Optional session metadata containing actual token counts
 ///
 /// # Returns
-/// * `CompactionCheckResult` containing detailed information about compaction needs
-async fn check_compaction_needed(
+/// * `CompactionCheckResult` containing whether compaction is needed and usage details
+pub async fn check_if_compaction_needed(
     agent: &Agent,
-    messages: &[Message],
+    conversation: &Conversation,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
 ) -> Result<CompactionCheckResult> {
+    let messages = conversation.messages();
     let config = Config::global();
     // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
     let threshold = threshold_override.unwrap_or_else(|| {
