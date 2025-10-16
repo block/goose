@@ -29,7 +29,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
+use crate::config::{get_enabled_extensions, Config};
 use crate::context_mgmt::{check_and_compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;

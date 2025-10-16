@@ -151,7 +151,6 @@ impl ExtensionManagerClient {
         let params: ManageExtensionsParams =
             serde_json::from_value(serde_json::Value::Object(arguments))?;
 
-
         match self
             .manage_extensions_impl(params.action, params.extension_name)
             .await
@@ -192,7 +191,11 @@ impl ExtensionManagerClient {
             if tool_route_manager.is_router_functional().await {
                 let selector = tool_route_manager.get_router_tool_selector().await;
                 if let Some(selector) = selector {
-                    let selector_action = if action == ManageExtensionAction::Disable { "remove" } else { "add" };
+                    let selector_action = if action == ManageExtensionAction::Disable {
+                        "remove"
+                    } else {
+                        "add"
+                    };
                     let selector = Arc::new(selector);
                     if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                         &selector,
@@ -257,7 +260,11 @@ impl ExtensionManagerClient {
                 if tool_route_manager.is_router_functional().await {
                     let selector = tool_route_manager.get_router_tool_selector().await;
                     if let Some(selector) = selector {
-                        let llm_action = if action == ManageExtensionAction::Disable { "remove" } else { "add" };
+                        let llm_action = if action == ManageExtensionAction::Disable {
+                            "remove"
+                        } else {
+                            "add"
+                        };
                         let selector = Arc::new(selector);
                         if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                             &selector,
@@ -481,29 +488,12 @@ impl McpClientTrait for ExtensionManagerClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
-            SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => self
-                .handle_search_available_extensions()
-                .await
-                .map_err(|e| ExtensionManagerToolError::OperationFailed {
-                    message: e.to_string(),
-                }),
-            MANAGE_EXTENSIONS_TOOL_NAME => {
-                self.handle_manage_extensions(arguments).await.map_err(|e| {
-                    ExtensionManagerToolError::OperationFailed {
-                        message: e.to_string(),
-                    }
-                })
+            SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
+                self.handle_search_available_extensions().await
             }
-            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await.map_err(|e| {
-                ExtensionManagerToolError::OperationFailed {
-                    message: e.to_string(),
-                }
-            }),
-            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await.map_err(|e| {
-                ExtensionManagerToolError::OperationFailed {
-                    message: e.to_string(),
-                }
-            }),
+            MANAGE_EXTENSIONS_TOOL_NAME => self.handle_manage_extensions(arguments).await,
+            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await,
+            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await,
             _ => Err(ExtensionManagerToolError::UnknownTool {
                 tool_name: name.to_string(),
             }),

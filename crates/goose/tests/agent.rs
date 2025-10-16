@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
+use goose::config::extensions::{set_extension, ExtensionEntry};
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
@@ -1152,6 +1153,22 @@ mod extension_manager_tests {
     use rmcp::object;
 
     async fn setup_agent_with_extension_manager() -> Agent {
+        // Add the TODO extension to the config so it can be discovered by search_available_extensions
+        // Set it as disabled initially so tests can enable it
+        let todo_extension_entry = ExtensionEntry {
+            enabled: false,
+            config: ExtensionConfig::Platform {
+                name: "todo".to_string(),
+                description:
+                    "Enable a todo list for Goose so it can keep track of what it is doing"
+                        .to_string(),
+                display_name: Some("Todo".to_string()),
+                bundled: Some(true),
+                available_tools: vec![],
+            },
+        };
+        set_extension(todo_extension_entry);
+
         let agent = Agent::new();
 
         agent
