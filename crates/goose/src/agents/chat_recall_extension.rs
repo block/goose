@@ -9,12 +9,33 @@ use rmcp::model::{
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
     ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
-use rmcp::object;
+use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "chat_recall";
+
+/// Parameters for the chat_recall tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct ChatRecallParams {
+    /// Search keywords. Use multiple related terms/synonyms (e.g., 'database postgres sql'). Mutually exclusive with session_id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    query: Option<String>,
+    /// Session ID to load. Returns first/last 3 messages. Mutually exclusive with query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<String>,
+    /// Max results (default: 10, max: 50). Search mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<i64>,
+    /// ISO 8601 date (e.g., '2025-10-01T00:00:00Z'). Search mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after_date: Option<String>,
+    /// ISO 8601 date (e.g., '2025-10-15T23:59:59Z'). Search mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    before_date: Option<String>,
+}
 
 pub struct ChatRecallClient {
     info: InitializeResult,
@@ -224,6 +245,16 @@ impl ChatRecallClient {
     }
 
     fn get_tools() -> Vec<Tool> {
+        // Generate JSON schema from the ChatRecallParams struct
+        let schema = schema_for!(ChatRecallParams);
+        let schema_value = serde_json::to_value(schema)
+            .expect("Failed to serialize ChatRecallParams schema");
+        
+        let input_schema = schema_value
+            .as_object()
+            .expect("Schema should be an object")
+            .clone();
+
         vec![Tool::new(
             "chat_recall".to_string(),
             indoc! {r#"
@@ -233,31 +264,7 @@ impl ChatRecallClient {
                 load mode (session_id): Returns first/last 3 messages of a session.
             "#}
             .to_string(),
-            object!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search keywords. Use multiple related terms/synonyms (e.g., 'database postgres sql'). Mutually exclusive with session_id."
-                    },
-                    "session_id": {
-                        "type": "string",
-                        "description": "Session ID to load. Returns first/last 3 messages. Mutually exclusive with query."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Max results (default: 10, max: 50). Search mode only."
-                    },
-                    "after_date": {
-                        "type": "string",
-                        "description": "ISO 8601 date (e.g., '2025-10-01T00:00:00Z'). Search mode only."
-                    },
-                    "before_date": {
-                        "type": "string",
-                        "description": "ISO 8601 date (e.g., '2025-10-15T23:59:59Z'). Search mode only."
-                    }
-                }
-            }),
+            input_schema,
         )
         .annotate(ToolAnnotations {
             title: Some("Recall past conversations".to_string()),
