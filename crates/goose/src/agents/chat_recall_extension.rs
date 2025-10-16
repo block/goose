@@ -114,7 +114,7 @@ impl ChatRecallClient {
 
                     let mut output = format!(
                         "Session: {} (ID: {})\nWorking Dir: {}\nTotal Messages: {}\n\n",
-                        loaded_session.description,
+                        loaded_session.name,
                         sid,
                         loaded_session.working_dir.display(),
                         total
