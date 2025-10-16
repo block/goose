@@ -18,7 +18,7 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    ConversationCompactedContent, FrontendToolRequest, Message, MessageContent, MessageMetadata,
     RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 

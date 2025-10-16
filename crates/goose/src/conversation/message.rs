@@ -112,7 +112,7 @@ pub struct FrontendToolRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ConversationCompacted {
+pub struct ConversationCompactedContent {
     pub msg: String,
 }
 
@@ -128,7 +128,7 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
-    ConversationCompacted(ConversationCompacted),
+    ConversationCompacted(ConversationCompactedContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -238,11 +238,11 @@ impl MessageContent {
     }
 
     pub fn conversation_compacted<S: Into<String>>(msg: S) -> Self {
-        MessageContent::ConversationCompacted(ConversationCompacted { msg: msg.into() })
+        MessageContent::ConversationCompacted(ConversationCompactedContent { msg: msg.into() })
     }
 
     // Add this new method to check for summarization requested content
-    pub fn as_summarization_requested(&self) -> Option<&ConversationCompacted> {
+    pub fn as_summarization_requested(&self) -> Option<&ConversationCompactedContent> {
         if let MessageContent::ConversationCompacted(ref summarization_requested) = self {
             Some(summarization_requested)
         } else {
