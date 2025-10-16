@@ -400,10 +400,10 @@ mod tests {
                 assert_eq!(&lhs.clone().user_only(), rhs);
             }
 
-            assert_eq!(
-                messages.messages()[original_conversation_len],
-                Message::user().with_text("<mock summary>").agent_only()
-            );
+            let summary_message = messages.messages()[original_conversation_len].clone();
+            let mut expected = Message::user().with_text("<mock summary>").agent_only();
+            expected.created = summary_message.created;
+            assert_eq!(summary_message, expected,);
 
             assert_eq!(
                 messages.messages()[original_conversation_len + 1],
