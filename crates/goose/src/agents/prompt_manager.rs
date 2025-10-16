@@ -25,7 +25,7 @@ impl PromptManager {
             system_prompt_override: None,
             system_prompt_extras: Vec::new(),
             // Use the fixed current date time so that prompt cache can be used.
-            // Filtering to an hour to balance user time accuracy and prompt cache hits.
+            // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
         }
     }
