@@ -319,4 +319,4 @@ When contributing Docker-related changes:
 
 - [goose in Docker Tutorial](documentation/docs/tutorials/goose-in-docker.md) - Step-by-step tutorial
 - [Installation Guide](https://block.github.io/goose/docs/getting-started/installation) - All installation methods
-- [Configuration Guide](https://block.github.io/goose/docs/guides/config-file) - Detailed configuration options
+- [Configuration Guide](https://block.github.io/goose/docs/guides/config-files) - Detailed configuration options
