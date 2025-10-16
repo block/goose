@@ -376,10 +376,10 @@ You can change your LLM provider and/or model or update your API key at any time
 
 ## Shared Configuration Settings
 
-The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `~/.config/goose/config.yaml`, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings.
+The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `~/.config/goose/`, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings. For more information, visit the [Config Files][config-files] guide.
 
 :::info
-While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config file while others implement their own storage methods.
+While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config files while others implement their own storage methods.
 :::
 
 <Tabs groupId="interface">
@@ -404,3 +404,4 @@ You can also configure Extensions to extend Goose's functionality, including add
 [providers]: /docs/getting-started/providers
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [mcp]: https://www.anthropic.com/news/model-context-protocol
+[config-files]: /docs/guides/config-file.md
