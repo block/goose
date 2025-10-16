@@ -269,6 +269,35 @@
         }
       }
     },
+    "/agent/update_from_session": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_from_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFromSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Update agent from session data successfully"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
     "/agent/update_provider": {
       "post": {
         "tags": [
@@ -4693,6 +4722,17 @@
           "supports_streaming": {
             "type": "boolean",
             "nullable": true
+          }
+        }
+      },
+      "UpdateFromSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
           }
         }
       },

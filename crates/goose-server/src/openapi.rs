@@ -345,6 +345,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
+        super::routes::agent::update_from_session,
         super::routes::agent::extend_prompt,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
@@ -491,6 +492,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
+        super::routes::agent::UpdateFromSessionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]

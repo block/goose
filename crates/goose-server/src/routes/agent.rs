@@ -1,5 +1,5 @@
 use crate::routes::errors::ErrorResponse;
-use crate::routes::recipe_utils::{load_recipe_by_id, validate_recipe};
+use crate::routes::recipe_utils::{build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe};
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
@@ -10,6 +10,7 @@ use axum::{
 use goose::config::PermissionManager;
 
 use goose::model::ModelConfig;
+use goose::prompt_template::render_global_file;
 use goose::providers::create;
 use goose::recipe::{Recipe, Response};
 use goose::recipe_deeplink;
@@ -20,6 +21,8 @@ use goose::{
 };
 use goose::{config::Config, recipe::SubRecipe};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -35,6 +38,10 @@ pub struct ExtendPromptRequest {
 pub struct ExtendPromptResponse {
     success: bool,
 }
+#[derive(Deserialize, utoipa::ToSchema)]
+  pub struct UpdateFromSessionRequest {
+      session_id: String,
+  }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
@@ -222,6 +229,65 @@ async fn add_sub_recipes(
     let agent = state.get_agent_for_route(payload.session_id).await?;
     agent.add_sub_recipes(payload.sub_recipes.clone()).await;
     Ok(Json(AddSubRecipesResponse { success: true }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/update_from_session",
+    request_body = UpdateFromSessionRequest,
+    responses(
+        (status = 200, description = "Update agent from session data successfully"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+    ),
+)]
+async fn update_from_session(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateFromSessionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let session = SessionManager::get_session(&payload.session_id, false)
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to get session: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+    let user_recipe_values = session.user_recipe_values.unwrap_or_default();
+    let context: HashMap<&str, Value> = HashMap::new();
+    let desktop_prompt = render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+    let mut update_prompt = desktop_prompt;
+    match build_recipe_with_parameter_values(&payload.session_id, user_recipe_values).await {
+        Ok(Some(recipe)) => {
+            if let Some(instructions) = &recipe.instructions {
+                let mut context: HashMap<&str, Value> = HashMap::new();
+                context.insert("recipe_instructions", Value::String(instructions.clone()));
+                update_prompt = render_global_file("desktop_recipe_instruction.md", &context)
+                    .expect("Prompt should render");
+            }
+            if let Some(sub_recipes) = &recipe.sub_recipes {
+                agent.add_sub_recipes(sub_recipes.clone()).await;
+            }
+        }
+        Ok(None) => {
+            // Recipe has missing parameters - use default prompt
+        }
+        Err(e) => {
+            return Err(ErrorResponse {
+                message: e.to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            });
+        }
+    }
+
+    agent.extend_system_prompt(update_prompt).await;
+
+    Ok(StatusCode::OK)
 }
 
 #[utoipa::path(
@@ -419,5 +485,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/agent/session_config", post(update_session_config))
         .route("/agent/add_sub_recipes", post(add_sub_recipes))
+        .route("/agent/update_from_session", post(update_from_session))
         .with_state(state)
 }

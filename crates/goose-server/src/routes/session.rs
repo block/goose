@@ -179,7 +179,7 @@ async fn update_session_user_recipe_values(
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
 ) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
     match build_recipe_with_parameter_values(&session_id, request.user_recipe_values).await {
-        Ok(recipe) => {
+        Ok(Some(recipe)) => {
             let agent = state
                 .get_agent_for_route(session_id.clone())
                 .await
@@ -199,6 +199,10 @@ async fn update_session_user_recipe_values(
             }
             Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe }))
         }
+        Ok(None) => Err(ErrorResponse {
+            message: "Missing required parameters".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        }),
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,

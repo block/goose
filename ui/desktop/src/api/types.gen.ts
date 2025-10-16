@@ -882,6 +882,10 @@ export type UpdateCustomProviderRequest = {
     supports_streaming?: boolean | null;
 };
 
+export type UpdateFromSessionRequest = {
+    session_id: string;
+};
+
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
@@ -1114,6 +1118,31 @@ export type GetToolsResponses = {
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
+export type UpdateFromSessionData = {
+    body: UpdateFromSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_from_session';
+};
+
+export type UpdateFromSessionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+};
+
+export type UpdateFromSessionResponses = {
+    /**
+     * Update agent from session data successfully
+     */
+    200: unknown;
+};
 
 export type UpdateAgentProviderData = {
     body: UpdateProviderRequest;

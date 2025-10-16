@@ -9,7 +9,7 @@ use axum::http::StatusCode;
 
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
-use goose::recipe::build_recipe::build_recipe_from_template;
+use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
@@ -128,7 +128,7 @@ pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, Err
 pub async fn build_recipe_with_parameter_values(
     session_id: &str,
     user_recipe_values: HashMap<String, String>,
-) -> Result<Recipe> {
+) -> Result<Option<Recipe>> {
     SessionManager::update_session(session_id)
         .user_recipe_values(Some(user_recipe_values))
         .apply()
@@ -148,13 +148,16 @@ pub async fn build_recipe_with_parameter_values(
         .into_iter()
         .collect();
 
-    let recipe = build_recipe_from_template(
+    let recipe = match build_recipe_from_template(
         recipe_content,
         &recipe_dir,
         params,
         None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
-    )
-    .map_err(|e| anyhow::anyhow!(e))?;
+    ) {
+        Ok(recipe) => Some(recipe),
+        Err(RecipeError::MissingParams { .. }) => None,
+        Err(e) => return Err(anyhow::anyhow!(e)),
+    };
 
     Ok(recipe)
 }
