@@ -11,7 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1Z8XtjQ9El0" />
 
 
-This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable AI-powered voice generation, voice cloning, audio editing, and speech-to-text transcription.
+This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/elevenlabs/elevenlabs-mcp) as a Goose extension to enable AI-powered voice generation, voice cloning, audio editing, and speech-to-text transcription.
 
 :::tip TLDR
 <Tabs groupId="interface">

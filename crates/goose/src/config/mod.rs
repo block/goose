@@ -1,14 +1,15 @@
 pub mod base;
-pub mod custom_providers;
+pub mod declarative_providers;
 mod experiments;
 pub mod extensions;
+pub mod paths;
 pub mod permission;
 pub mod signup_openrouter;
 pub mod signup_tetrate;
 
 pub use crate::agents::ExtensionConfig;
-pub use base::{get_config_dir, Config, ConfigError, APP_STRATEGY};
-pub use custom_providers::CustomProviderConfig;
+pub use base::{Config, ConfigError};
+pub use declarative_providers::DeclarativeProviderConfig;
 pub use experiments::ExperimentManager;
 pub use extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,

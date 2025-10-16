@@ -2,12 +2,14 @@ use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use dotenvy::dotenv;
 use goose::conversation::message::Message;
-use goose::providers::{
-    bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider,
-};
+use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
+use goose::providers::create_with_named_model;
+use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use rmcp::model::{CallToolRequestParam, Content, Tool};
 use rmcp::object;
 use std::fs;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,12 +17,11 @@ async fn main() -> Result<()> {
     dotenv().ok();
 
     // Create providers
-    let providers: Vec<Box<dyn goose::providers::base::Provider + Send + Sync>> = vec![
-        Box::new(DatabricksProvider::default()),
-        Box::new(OpenAiProvider::default()),
-        Box::new(BedrockProvider::default()),
+    let providers: Vec<Arc<dyn goose::providers::base::Provider>> = vec![
+        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?,
+        create_with_named_model("openai", OPEN_AI_DEFAULT_MODEL).await?,
+        create_with_named_model("anthropic", ANTHROPIC_DEFAULT_MODEL).await?,
     ];
-
     for provider in providers {
         // Read and encode test image
         let image_data = fs::read("crates/goose/examples/test_assets/test_image.png")?;

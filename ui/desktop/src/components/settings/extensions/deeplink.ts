@@ -43,7 +43,6 @@ function getStdioConfig(
 
   const envList = parsedUrl.searchParams.getAll('env');
 
-  // Create the extension config
   const config: ExtensionConfig = {
     name: name,
     type: 'stdio',
@@ -147,6 +146,7 @@ export async function addExtensionFromDeepLink(
   const parsedTimeout = parsedUrl.searchParams.get('timeout');
   const timeout = parsedTimeout ? parseInt(parsedTimeout, 10) : DEFAULT_EXTENSION_TIMEOUT;
   const description = parsedUrl.searchParams.get('description');
+  const installation_notes = parsedUrl.searchParams.get('installation_notes');
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
@@ -177,11 +177,16 @@ export async function addExtensionFromDeepLink(
         )
       : undefined;
 
-  const config = remoteUrl
+  const baseConfig = remoteUrl
     ? transportType === 'streamable_http'
       ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
+
+  const config = {
+    ...baseConfig,
+    ...(installation_notes ? { installation_notes } : {}),
+  };
 
   // Check if extension requires env vars or headers and go to settings if so
   const hasEnvVars = config.envs && Object.keys(config.envs).length > 0;

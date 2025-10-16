@@ -1,6 +1,7 @@
 ---
 title: Brave Search Extension
 description: Add Brave Search API as a Goose Extension
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,6 +10,8 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kD2YA61NTLU" />
+
+Server moved
 
 This tutorial will get you started with the [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
 

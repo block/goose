@@ -50,23 +50,8 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { decodeRecipe } from './api';
 import { Client, createClient, createConfig } from './api/client';
-
-async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
-  try {
-    return (
-      await decodeRecipe({
-        client,
-        throwOnError: true,
-        body: { deeplink },
-      })
-    ).data.recipe;
-  } catch (e) {
-    console.error('Failed to decode recipe:', e);
-  }
-  return null;
-}
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -151,6 +136,11 @@ async function ensureTempDirExists(): Promise<string> {
 
 if (started) app.quit();
 
+if (process.env.ENABLE_PLAYWRIGHT) {
+  console.log('[Main] Enabling Playwright remote debugging on port 9222');
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
+
 // In development mode, force registration as the default protocol client
 // In production, register normally
 if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -174,9 +164,10 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
   app.setAsDefaultProtocolClient('goose');
 }
 
-// Only apply single instance lock on Windows where it's needed for deep links
+// Apply single instance lock on Windows and Linux where it's needed for deep links
+// macOS uses the 'open-url' event instead
 let gotTheLock = true;
-if (process.platform === 'win32') {
+if (process.platform !== 'darwin') {
   gotTheLock = app.requestSingleInstanceLock();
 
   if (!gotTheLock) {
@@ -226,7 +217,7 @@ if (process.platform === 'win32') {
     });
   }
 
-  // Handle protocol URLs on Windows startup
+  // Handle protocol URLs on Windows and Linux startup
   const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
   if (protocolUrl) {
     app.whenReady().then(() => {
@@ -339,6 +330,7 @@ app.on('open-url', async (_event, url) => {
         recipeDeeplink || undefined,
         scheduledJobId || undefined
       );
+      windowDeeplinkURL = null;
       return; // Skip the rest of the handler
     }
 
@@ -359,6 +351,7 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
+    pendingDeepLink = null;
   }
 });
 
@@ -489,7 +482,6 @@ let appConfig = {
 };
 
 const windowMap = new Map<number, BrowserWindow>();
-
 const goosedClients = new Map<number, Client>();
 
 // Track power save blockers per window
@@ -504,35 +496,15 @@ const createChat = async (
   recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
-  scheduledJobId?: string // Scheduled job ID if applicable
+  scheduledJobId?: string, // Scheduled job ID if applicable
+  recipeId?: string
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
   let workingDir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  if (viewType === 'recipeEditor') {
-    // For recipeEditor, get the port from existing windows' config
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      // Get the config from localStorage through an existing window
-      try {
-        const config = await existingWindows[0].webContents.executeJavaScript(
-          `window.electron.getConfig()`
-        );
-        if (config) {
-          port = config.GOOSE_PORT;
-          workingDir = config.GOOSE_WORKING_DIR;
-        }
-      } catch (e) {
-        console.error('Failed to get config from localStorage:', e);
-      }
-    }
-    if (port === 0) {
-      console.error('No existing Goose process found for recipeEditor');
-      throw new Error('Cannot create recipeEditor window: No existing Goose process found');
-    }
-  } else {
+  {
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
 
@@ -540,10 +512,9 @@ const createChat = async (
     const settings = loadSettings();
     updateSchedulingEngineEnvironment(settings.schedulingEngine);
 
-    // Start new Goosed process for regular windows
-    // Pass through scheduling engine environment variables
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
+      GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
     };
     const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
       app,
@@ -557,12 +528,6 @@ const createChat = async (
   }
 
   // Create window config with loading state for recipe deeplinks
-  let isLoadingRecipe = false;
-  if (!recipe && recipeDeeplink) {
-    isLoadingRecipe = true;
-    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
-  }
-
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940, // large enough to show the sidebar on launch
@@ -597,12 +562,23 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
-          recipe: recipe,
+          recipeId: recipeId,
+          recipeDeeplink: recipeDeeplink,
+          scheduledJobId: scheduledJobId,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  if (!app.isPackaged) {
+    installExtension(REACT_DEVELOPER_TOOLS, {
+      loadExtensionOptions: { allowFileAccess: true },
+      session: mainWindow.webContents.session,
+    })
+      .then(() => log.info('added react dev tools'))
+      .catch((err) => log.info('failed to install react dev tools:', err));
+  }
 
   const goosedClient = createClient(
     createConfig({
@@ -614,6 +590,12 @@ const createChat = async (
     })
   );
   goosedClients.set(mainWindow.id, goosedClient);
+
+  console.log('[Main] Waiting for backend server to be ready...');
+  const serverReady = await checkServerStatus(goosedClient);
+  if (!serverReady) {
+    throw new Error('Backend server failed to start in time');
+  }
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -688,14 +670,16 @@ const createChat = async (
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
     sharedSession: '/shared-session',
-    recipeEditor: '/recipe-editor',
     welcome: '/welcome',
   };
 
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipe !== undefined || recipeDeeplink !== undefined)) {
+  if (
+    appPath === '/' &&
+    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined)
+  ) {
     appPath = '/pair';
   }
 
@@ -744,37 +728,6 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
-
-  // Handle recipe decoding in the background after window is created
-  if (isLoadingRecipe && recipeDeeplink) {
-    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
-
-    // Decode recipe asynchronously after window is created
-    decodeRecipeMain(goosedClient, recipeDeeplink)
-      .then((decodedRecipe) => {
-        if (decodedRecipe) {
-          console.log('[Main] Recipe decoded successfully, updating window config');
-
-          // Handle scheduled job parameters if present
-          if (scheduledJobId) {
-            decodedRecipe.scheduledJobId = scheduledJobId;
-            decodedRecipe.isScheduledExecution = true;
-          }
-
-          // Send the decoded recipe to the renderer process
-          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-        } else {
-          console.error('[Main] Failed to decode recipe from deeplink');
-          // Send error to renderer
-          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
-        }
-      })
-      .catch((error) => {
-        console.error('[Main] Error decoding recipe:', error);
-        // Send error to renderer
-        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
-      });
-  }
 
   // Handle window closure
   mainWindow.on('closed', () => {
@@ -1091,7 +1044,6 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   if (!client) {
     return null;
   }
-  await checkServerStatus(client);
   return client.getConfig().baseUrl || null;
 });
 
@@ -1705,7 +1657,6 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
-  // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
   // Handle microphone permission requests
@@ -1984,18 +1935,32 @@ async function appMain() {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, recipe, viewType) => {
-    if (!dir?.trim()) {
-      const recentDirs = loadRecentDirs();
-      dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+  ipcMain.on(
+    'create-chat-window',
+    (_, query, dir, version, resumeSessionId, recipe, viewType, recipeId) => {
+      if (!dir?.trim()) {
+        const recentDirs = loadRecentDirs();
+        dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+      }
+
+      // Log the recipe for debugging
+      console.log('Creating chat window with recipe:', recipe);
+
+      // Pass recipe as part of viewOptions when viewType is recipeEditor
+      createChat(
+        app,
+        query,
+        dir,
+        version,
+        resumeSessionId,
+        recipe,
+        viewType,
+        undefined,
+        undefined,
+        recipeId
+      );
     }
-
-    // Log the recipe for debugging
-    console.log('Creating chat window with recipe:', recipe);
-
-    // Pass recipe as part of viewOptions when viewType is recipeEditor
-    createChat(app, query, dir, version, resumeSessionId, recipe, viewType);
-  });
+  );
 
   ipcMain.on('notify', (_event, data) => {
     try {

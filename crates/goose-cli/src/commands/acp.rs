@@ -117,7 +117,7 @@ impl GooseAcpAgent {
             toolshim_model: None,
             fast_model: None,
         };
-        let provider = create(&provider_name, model_config)?;
+        let provider = create(&provider_name, model_config).await?;
 
         // Create a shared agent instance
         let agent = Agent::new();

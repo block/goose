@@ -93,7 +93,8 @@ jobs:
     secrets:
       WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
       WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
-
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+  
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -117,7 +118,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
-            goose-*.zip
+            goose*.zip
             *.deb
             *.rpm
             download_cli.sh

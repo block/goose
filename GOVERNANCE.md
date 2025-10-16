@@ -23,7 +23,7 @@ All Maintainers are expected to embody goose's philosophy of openness and user a
 
 ### Core Maintainers
 
-Core Maintainers are members of the goose team responsible for:
+Core Maintainers are responsible for:
 
 * Setting the overall technical direction and vision for goose
 * Reviewing and merging pull requests

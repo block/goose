@@ -23,6 +23,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
+use crate::agents::subagent_execution_tool::lib::ExecutionMode;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
@@ -32,7 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
-use crate::context_mgmt::auto_compact;
+use crate::context_mgmt::{check_and_compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -111,7 +112,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
-    HistoryReplaced(Vec<Message>),
+    HistoryReplaced(Conversation),
 }
 
 impl Default for Agent {
@@ -297,6 +298,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -304,7 +306,12 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .dispatch_tool_call(
+                        tool_call,
+                        request.id.clone(),
+                        cancel_token.clone(),
+                        session.clone(),
+                    )
                     .await;
 
                 tool_futures.push((
@@ -384,6 +391,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session: Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -451,16 +459,89 @@ impl Agent {
                 .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
-            let provider = self.provider().await.ok();
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
+            let provider = match self.provider().await {
+                Ok(p) => p,
+                Err(_) => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Provider is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let session = match session.as_ref() {
+                Some(s) => s,
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Session is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let parent_session_id = session.id.to_string();
+            let parent_working_dir = session.working_dir.clone();
 
-            let task_config = TaskConfig::new(provider);
+            let task_config = TaskConfig::new(
+                provider,
+                parent_session_id,
+                parent_working_dir,
+                get_enabled_extensions(),
+            );
+
+            let arguments = match tool_call.arguments.clone() {
+                Some(args) => Value::Object(args),
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Tool call arguments are required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+            let task_ids: Vec<String> = match arguments.get("task_ids") {
+                Some(v) => match serde_json::from_value(v.clone()) {
+                    Ok(ids) => ids,
+                    Err(_) => {
+                        return (
+                            request_id,
+                            Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                "Invalid task_ids format".to_string(),
+                                None,
+                            )),
+                        );
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "task_ids parameter is required".to_string(),
+                            None,
+                        )),
+                    );
+                }
+            };
+
+            let execution_mode = arguments
+                .get("execution_mode")
+                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
+                .unwrap_or(ExecutionMode::Sequential);
+
             subagent_execute_task_tool::run_tasks(
-                arguments,
+                task_ids,
+                execution_mode,
                 task_config,
                 &self.tasks_manager,
                 cancellation_token,
@@ -821,60 +902,6 @@ impl Agent {
         }
     }
 
-    /// Handle auto-compaction logic and return compacted messages if needed
-    async fn handle_auto_compaction(
-        &self,
-        messages: &[Message],
-        session: &Option<SessionConfig>,
-    ) -> Result<
-        Option<(
-            Conversation,
-            String,
-            Option<crate::providers::base::ProviderUsage>,
-        )>,
-    > {
-        // Try to get session metadata for more accurate token counts
-        let session_metadata = if let Some(session_config) = session {
-            SessionManager::get_session(&session_config.id, false)
-                .await
-                .ok()
-        } else {
-            None
-        };
-
-        let compact_result = auto_compact::check_and_compact_messages(
-            self,
-            messages,
-            None,
-            session_metadata.as_ref(),
-        )
-        .await?;
-
-        if compact_result.compacted {
-            let compacted_messages = compact_result.messages;
-
-            // Get threshold from config to include in message
-            let config = crate::config::Config::global();
-            let threshold = config
-                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                .unwrap_or(0.8); // Default to 80%
-            let threshold_percentage = (threshold * 100.0) as u32;
-
-            let compaction_msg = format!(
-                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
-                threshold_percentage
-            );
-
-            return Ok(Some((
-                compacted_messages,
-                compaction_msg,
-                compact_result.summarization_usage,
-            )));
-        }
-
-        Ok(None)
-    }
-
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -882,40 +909,70 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Handle auto-compaction before processing
-        let (conversation, compaction_msg, _summarization_usage) = match self
-            .handle_auto_compaction(unfixed_conversation.messages(), &session)
-            .await?
-        {
-            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
-            None => {
-                let context = self
-                    .prepare_reply_context(unfixed_conversation, &session)
-                    .await?;
-                (context.conversation, None, None)
-            }
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = &session {
+            SessionManager::get_session(&session_config.id, false)
+                .await
+                .ok()
+        } else {
+            None
         };
 
-        // If we compacted, yield the compaction message and history replacement event
-        if let Some(compaction_msg) = compaction_msg {
-            return Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
-                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+        let (did_compact, compacted_conversation, compaction_error) =
+            match check_and_compact_messages(
+                self,
+                unfixed_conversation.messages(),
+                false,
+                false,
+                None,
+                session_metadata.as_ref(),
+            )
+            .await
+            {
+                Ok((did_compact, conversation, _removed_indices, _summarization_usage)) => {
+                    (did_compact, conversation, None)
+                }
+                Err(e) => (false, unfixed_conversation.clone(), Some(e)),
+            };
+
+        if did_compact {
+            // Get threshold from config to include in message
+            let config = crate::config::Config::global();
+            let threshold = config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+            let threshold_percentage = (threshold * 100.0) as u32;
+
+            let compaction_msg = format!(
+                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
+                threshold_percentage
+            );
+
+            Ok(Box::pin(async_stream::try_stream! {
+                // TODO(Douwe): send this before we actually compact:
+                yield AgentEvent::Message(
+                    Message::assistant().with_conversation_compacted(compaction_msg)
+                );
+                yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
                 if let Some(session_to_store) = &session {
-                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                    SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
                 }
 
-                // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
-            }));
+            }))
+        } else if let Some(error) = compaction_error {
+            Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(
+                    format!("Ran into this error trying to auto-compact: {error}.\n\nPlease try again or create a new session")
+                ));
+            }))
+        } else {
+            self.reply_internal(unfixed_conversation, session, cancel_token)
+                .await
         }
-
-        // No compaction needed, proceed with normal processing
-        self.reply_internal(conversation, session, cancel_token)
-            .await
     }
 
     /// Main reply method that handles the actual agent processing
@@ -1043,6 +1100,7 @@ impl Agent {
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
+                let mut did_recovery_compact_this_iteration = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) {
@@ -1162,6 +1220,7 @@ impl Agent {
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1172,6 +1231,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.clone(),
                                         &inspection_results,
                                     );
 
@@ -1234,28 +1294,37 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            match auto_compact::perform_compaction(self, conversation.messages()).await {
-                                Ok(compact_result) => {
-                                    conversation = compact_result.messages;
+                            // Get session metadata if available
+                            let session_metadata_for_compact = if let Some(ref session_config) = session {
+                                SessionManager::get_session(&session_config.id, false).await.ok()
+                            } else {
+                                None
+                            };
+
+                            match check_and_compact_messages(self, conversation.messages(), true, true, None, session_metadata_for_compact.as_ref()).await {
+                                Ok((_did_compact, compacted_conversation, _removed_indices, _usage)) => {
+                                    conversation = compacted_conversation;
+                                    did_recovery_compact_this_iteration = true;
 
                                     yield AgentEvent::Message(
-                                        Message::assistant().with_summarization_requested(
+                                        Message::assistant().with_conversation_compacted(
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );
-                                    yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                                     }
                                     continue;
                                 }
-                                Err(_) => {
-                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
-                                    ));
+                                Err(e) => {
+                                    error!("Error: {}", e);
+                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                        ));
                                     break;
                                 }
                             }
@@ -1286,6 +1355,8 @@ impl Agent {
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
+                    } else if did_recovery_compact_this_iteration {
+                        // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
                         match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
                             Ok(should_retry) => {
@@ -1609,9 +1680,31 @@ impl Agent {
             extension_configs.len()
         );
 
+        let (title, description) =
+            if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                let title = json_content
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Custom recipe from chat")
+                    .to_string();
+
+                let description = json_content
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("a custom recipe instance from this chat session")
+                    .to_string();
+
+                (title, description)
+            } else {
+                (
+                    "Custom recipe from chat".to_string(),
+                    "a custom recipe instance from this chat session".to_string(),
+                )
+            };
+
         let recipe = Recipe::builder()
-            .title("Custom recipe from chat")
-            .description("a custom recipe instance from this chat session")
+            .title(title)
+            .description(description)
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)

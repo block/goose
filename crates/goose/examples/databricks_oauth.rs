@@ -1,22 +1,19 @@
 use anyhow::Result;
 use dotenvy::dotenv;
 use goose::conversation::message::Message;
-use goose::providers::{
-    base::{Provider, Usage},
-    databricks::DatabricksProvider,
-};
+use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use goose::providers::{base::Usage, create_with_named_model};
 use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load environment variables from .env file
     dotenv().ok();
 
     // Clear any token to force OAuth
     std::env::remove_var("DATABRICKS_TOKEN");
 
     // Create the provider
-    let provider = DatabricksProvider::default();
+    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?;
 
     // Create a simple message
     let message = Message::user().with_text("Tell me a short joke about programming.");

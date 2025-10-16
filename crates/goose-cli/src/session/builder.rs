@@ -242,7 +242,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         agent.add_final_output_tool(final_output_response).await;
     }
 
-    let new_provider = match create(&provider_name, model_config) {
+    let new_provider = match create(&provider_name, model_config).await {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
@@ -278,7 +278,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    // Handle session file resolution and resuming
+    // Handle session resolution and resuming
     let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
