@@ -68,10 +68,10 @@ fn default_limit() -> u32 {
 #[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDisplayInfo {
-    id: String,          // Derived from session_name (filename)
-    name: String,        // From metadata.name
-    created_at: String,  // Derived from session_name, in ISO 8601 format
-    working_dir: String, // from metadata.working_dir (as String)
+    id: String,
+    name: String,
+    created_at: String,
+    working_dir: String,
     schedule_id: Option<String>,
     message_count: usize,
     total_tokens: Option<i32>,
