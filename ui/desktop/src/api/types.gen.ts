@@ -230,7 +230,6 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     description: string;
-    display_name?: string | null;
     /**
      * The name used to identify this extension
      */
