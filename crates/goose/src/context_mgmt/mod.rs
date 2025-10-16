@@ -353,13 +353,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 if let Ok(contents) = &res.tool_result {
                     let text_items: Vec<String> = contents
                         .iter()
-                        .filter_map(|content| {
-                            if let Some(text_str) = content.as_text() {
-                                Some(text_str.text.clone())
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|content| content.as_text().map(|text_str| text_str.text.clone()))
                         .collect();
 
                     if !text_items.is_empty() {
