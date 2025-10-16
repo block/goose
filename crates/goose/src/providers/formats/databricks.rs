@@ -127,7 +127,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ConversationCompacted(_) => {
+                MessageContent::SystemNotification(_) => {
                     continue;
                 }
                 MessageContent::ToolResponse(response) => {

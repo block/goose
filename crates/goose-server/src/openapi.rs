@@ -18,8 +18,9 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, SystemNotificationContent, SystemNotificationType, ThinkingContent,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use utoipa::openapi::schema::{
@@ -420,7 +421,8 @@ derive_utoipa!(Icon as IconSchema);
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ConversationCompacted,
+        SystemNotificationType,
+        SystemNotificationContent,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,

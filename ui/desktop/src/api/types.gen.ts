@@ -102,10 +102,6 @@ export type ContextManageResponse = {
 
 export type Conversation = Array<Message>;
 
-export type ConversationCompacted = {
-    msg: string;
-};
-
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -404,8 +400,8 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ConversationCompacted & {
-    type: 'conversationCompacted';
+}) | (SystemNotificationContent & {
+    type: 'systemNotification';
 });
 
 /**
@@ -787,6 +783,13 @@ export type SuccessCheck = {
     command: string;
     type: 'Shell';
 };
+
+export type SystemNotificationContent = {
+    msg: string;
+    notificationType: SystemNotificationType;
+};
+
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
 export type TextContent = {
     _meta?: {

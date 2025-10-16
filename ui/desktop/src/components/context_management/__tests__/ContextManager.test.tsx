@@ -62,17 +62,23 @@ describe('ContextManager', () => {
   });
 
   describe('hasCompactionMarker', () => {
-    it('should return true for messages with summarizationRequested content', () => {
+    it('should return true for messages with systemNotification content', () => {
       const { result } = renderContextManager();
       const messageWithMarker: Message = {
         ...default_message,
-        content: [{ type: 'conversationCompacted', msg: 'Compaction marker' }],
+        content: [
+          {
+            type: 'systemNotification',
+            msg: 'Compaction marker',
+            notificationType: 'inlineMessage',
+          },
+        ],
       };
 
       expect(result.current.hasCompactionMarker(messageWithMarker)).toBe(true);
     });
 
-    it('should return false for messages without summarizationRequested content', () => {
+    it('should return false for messages without systemNotification content', () => {
       const { result } = renderContextManager();
       const regularMessage: Message = {
         ...default_message,
@@ -82,13 +88,17 @@ describe('ContextManager', () => {
       expect(result.current.hasCompactionMarker(regularMessage)).toBe(false);
     });
 
-    it('should return true for messages with mixed content including conversationCompacted', () => {
+    it('should return true for messages with mixed content including systemNotification', () => {
       const { result } = renderContextManager();
       const mixedMessage: Message = {
         ...default_message,
         content: [
           { type: 'text', text: 'Some text' },
-          { type: 'conversationCompacted', msg: 'Compaction marker' },
+          {
+            type: 'systemNotification',
+            msg: 'Compaction marker',
+            notificationType: 'inlineMessage',
+          },
         ],
       };
 
@@ -103,7 +113,11 @@ describe('ContextManager', () => {
           {
             ...default_message,
             content: [
-              { type: 'conversationCompacted', msg: 'Conversation compacted and summarized' },
+              {
+                type: 'systemNotification',
+                msg: 'Conversation compacted and summarized',
+                notificationType: 'inlineMessage',
+              },
             ],
           },
           {
@@ -210,7 +224,11 @@ describe('ContextManager', () => {
           {
             ...default_message,
             content: [
-              { type: 'conversationCompacted', msg: 'Conversation compacted and summarized' },
+              {
+                type: 'systemNotification',
+                msg: 'Conversation compacted and summarized',
+                notificationType: 'inlineMessage',
+              },
             ],
           },
           {

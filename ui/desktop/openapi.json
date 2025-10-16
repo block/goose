@@ -2303,17 +2303,6 @@
           "$ref": "#/components/schemas/Message"
         }
       },
-      "ConversationCompacted": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
-        }
-      },
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
@@ -3331,7 +3320,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ConversationCompacted"
+                "$ref": "#/components/schemas/SystemNotificationContent"
               },
               {
                 "type": "object",
@@ -3342,7 +3331,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "conversationCompacted"
+                      "systemNotification"
                     ]
                   }
                 }
@@ -4408,6 +4397,28 @@
         "discriminator": {
           "propertyName": "type"
         }
+      },
+      "SystemNotificationContent": {
+        "type": "object",
+        "required": [
+          "notificationType",
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
+          },
+          "notificationType": {
+            "$ref": "#/components/schemas/SystemNotificationType"
+          }
+        }
+      },
+      "SystemNotificationType": {
+        "type": "string",
+        "enum": [
+          "thinkingMessage",
+          "inlineMessage"
+        ]
       },
       "TextContent": {
         "type": "object",
