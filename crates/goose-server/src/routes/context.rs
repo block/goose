@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::conversation::message::Message;
+use goose::{context_management::AutoCompactResult, conversation::message::Message};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -21,8 +21,6 @@ pub struct ContextManageRequest {
 pub struct ContextManageResponse {
     /// Processed messages after the operation
     pub messages: Vec<Message>,
-    /// Token counts for each processed message
-    pub token_counts: Vec<usize>,
 }
 
 #[utoipa::path(
@@ -45,9 +43,13 @@ async fn manage_context(
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     let agent = state.get_agent_for_route(request.session_id).await?;
+    let provider = agent
+        .provider()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let (_, processed_messages, token_counts, _) = goose::context_mgmt::check_and_compact_messages(
-        &agent,
+    let AutoCompactResult { messages, .. } = goose::context_management::check_and_compact_messages(
+        provider.as_ref(),
         &request.messages,
         true,
         false,
@@ -59,8 +61,7 @@ async fn manage_context(
     // TODO(Douwe): store into db
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages.messages().to_vec(),
-        token_counts,
+        messages: messages.messages().to_vec(),
     }))
 }
 

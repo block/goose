@@ -1,6 +1,6 @@
 pub mod agents;
 pub mod config;
-pub mod context_mgmt;
+pub mod context_management;
 pub mod conversation;
 pub mod execution;
 pub mod logging;
