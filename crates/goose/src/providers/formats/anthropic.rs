@@ -449,17 +449,16 @@ pub fn create_request(
     Ok(payload)
 }
 
-/// Process streaming response from Anthropic's API
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl futures::Stream<
-    Item = anyhow::Result<(
+    Item = Result<(
         Option<Message>,
         Option<crate::providers::base::ProviderUsage>,
     )>,
 > + 'static
 where
-    S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+    S: futures::Stream<Item = Result<String>> + Unpin + Send + 'static,
 {
     use async_stream::try_stream;
     use futures::StreamExt;
@@ -483,19 +482,16 @@ where
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
 
-            // Skip empty lines and non-data lines
             if line.trim().is_empty() || !line.starts_with("data: ") {
                 continue;
             }
 
             let data_part = line.strip_prefix("data: ").unwrap_or(&line);
 
-            // Handle end of stream
             if data_part.trim() == "[DONE]" {
                 break;
             }
 
-            // Parse the JSON event
             let event: StreamingEvent = match serde_json::from_str(data_part) {
                 Ok(event) => event,
                 Err(e) => {
@@ -555,7 +551,9 @@ where
                                     chrono::Utc::now().timestamp(),
                                     vec![MessageContent::text(text)],
                                 );
-                                message.id = message_id.clone();
+                                if let Some(msg_id) = message_id.clone() {
+                                    message = message.with_id(msg_id);
+                                }
                                 yield (Some(message), None);
                             }
                         } else if delta.get("type") == Some(&json!("input_json_delta")) {
@@ -593,7 +591,9 @@ where
                                             chrono::Utc::now().timestamp(),
                                             vec![MessageContent::tool_request(tool_id, Err(error))],
                                         );
-                                        message.id = message_id.clone();
+                                        if let Some(msg_id) = message_id.clone() {
+                                            message = message.with_id(msg_id);
+                                        }
                                         yield (Some(message), None);
                                         continue;
                                     }
@@ -607,7 +607,9 @@ where
                                 chrono::Utc::now().timestamp(),
                                 vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
                             );
-                            message.id = message_id.clone();
+                            if let Some(msg_id) = message_id.clone() {
+                                message = message.with_id(msg_id);
+                            }
                             yield (Some(message), None);
                         }
                     }
@@ -678,9 +680,8 @@ where
             }
         }
 
-        // Yield final usage information if available
-        if let Some(usage) = final_usage {
-            yield (None, Some(usage));
+        if let Some(usage) = &final_usage {
+            yield (None, Some(usage.clone()));
         } else {
             tracing::debug!("🔍 Anthropic no final usage to yield");
         }

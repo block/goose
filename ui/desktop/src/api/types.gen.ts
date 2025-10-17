@@ -374,13 +374,10 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
-/**
- * A message to or from an LLM
- */
 export type Message = {
     content: Array<MessageContent>;
     created: number;
-    id?: string | null;
+    id: string;
     metadata: MessageMetadata;
     role: Role;
 };

@@ -3128,8 +3128,8 @@
       },
       "Message": {
         "type": "object",
-        "description": "A message to or from an LLM",
         "required": [
+          "id",
           "role",
           "created",
           "content",
@@ -3147,8 +3147,7 @@
             "format": "int64"
           },
           "id": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "metadata": {
             "$ref": "#/components/schemas/MessageMetadata"

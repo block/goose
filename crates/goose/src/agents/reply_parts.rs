@@ -224,10 +224,7 @@ impl Agent {
         let mut filtered_message =
             Message::new(response.role.clone(), response.created, filtered_content);
 
-        // Preserve the ID if it exists
-        if let Some(id) = response.id.clone() {
-            filtered_message = filtered_message.with_id(id);
-        }
+        filtered_message = filtered_message.with_id(response.id.clone());
 
         // Categorize tool requests
         let mut frontend_requests = Vec::new();

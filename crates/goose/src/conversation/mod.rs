@@ -42,11 +42,7 @@ impl Conversation {
     }
 
     pub fn push(&mut self, message: Message) {
-        if let Some(last) = self
-            .0
-            .last_mut()
-            .filter(|m| m.id.is_some() && m.id == message.id)
-        {
+        if let Some(last) = self.0.last_mut().filter(|m| m.id == message.id) {
             match (last.content.last_mut(), message.content.last()) {
                 (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
                     if message.content.len() == 1 =>

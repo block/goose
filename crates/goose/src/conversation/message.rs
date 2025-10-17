@@ -1,4 +1,6 @@
+use crate::conversation::tool_result_serde;
 use crate::mcp_utils::ToolResult;
+use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
@@ -9,9 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
-
-use crate::conversation::tool_result_serde;
-use crate::utils::sanitize_unicode_tags;
+use uuid::Uuid;
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -450,10 +450,9 @@ impl MessageMetadata {
 }
 
 #[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
-/// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
-    pub id: Option<String>,
+    pub id: String,
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
@@ -462,15 +461,20 @@ pub struct Message {
 }
 
 impl Message {
+    pub fn msg_id() -> String {
+        format!("msg_{}", Uuid::new_v4())
+    }
+
     pub fn new(role: Role, created: i64, content: Vec<MessageContent>) -> Self {
         Message {
-            id: None,
+            id: Message::msg_id(),
             role,
             created,
             content,
             metadata: MessageMetadata::default(),
         }
     }
+
     pub fn debug(&self) -> String {
         format!("{:?}", self)
     }
@@ -478,7 +482,7 @@ impl Message {
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
-            id: None,
+            id: Message::msg_id(),
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
@@ -489,7 +493,7 @@ impl Message {
     /// Create a new assistant message with the current timestamp
     pub fn assistant() -> Self {
         Message {
-            id: None,
+            id: Message::msg_id(),
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
@@ -498,7 +502,7 @@ impl Message {
     }
 
     pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
-        self.id = Some(id.into());
+        self.id = id.into();
         self
     }
 

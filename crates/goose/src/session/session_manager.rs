@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 3;
+const CURRENT_SCHEMA_VERSION: i32 = 4;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -620,6 +620,18 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            4 => {
+                sqlx::query(
+                    r#"
+                ALTER TABLE messages ADD COLUMN msg_id TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+                sqlx::query("CREATE INDEX idx_messages_msg_id ON messages(msg_id)")
+                    .execute(&self.pool)
+                    .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -784,15 +796,15 @@ impl SessionStorage {
     }
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? ORDER BY timestamp",
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
+            "SELECT role, content_json, created_timestamp, metadata_json, msg_id FROM messages WHERE session_id = ? ORDER BY timestamp",
         )
             .bind(session_id)
             .fetch_all(&self.pool)
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
+        for (role_str, content_json, created_timestamp, metadata_json, msg_id) in rows {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -806,6 +818,9 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
+            if let Some(msg_id) = msg_id {
+                message = message.with_id(msg_id);
+            }
             messages.push(message);
         }
 
@@ -817,8 +832,8 @@ impl SessionStorage {
 
         sqlx::query(
             r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
-            VALUES (?, ?, ?, ?, ?)
+        INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json, msg_id)
+        VALUES (?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(session_id)
@@ -826,6 +841,7 @@ impl SessionStorage {
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
         .bind(metadata_json)
+        .bind(&message.id)
         .execute(&self.pool)
         .await?;
 
@@ -999,7 +1015,7 @@ mod tests {
                     .add_message(
                         &session.id,
                         &Message {
-                            id: None,
+                            id: Message::msg_id(),
                             role: Role::User,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("hello world")],
@@ -1013,7 +1029,7 @@ mod tests {
                     .add_message(
                         &session.id,
                         &Message {
-                            id: None,
+                            id: Message::msg_id(),
                             role: Role::Assistant,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("sup world?")],
@@ -1102,7 +1118,7 @@ mod tests {
             .add_message(
                 &original.id,
                 &Message {
-                    id: None,
+                    id: Message::msg_id(),
                     role: Role::User,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(USER_MESSAGE)],
@@ -1116,7 +1132,7 @@ mod tests {
             .add_message(
                 &original.id,
                 &Message {
-                    id: None,
+                    id: Message::msg_id(),
                     role: Role::Assistant,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(ASSISTANT_MESSAGE)],
