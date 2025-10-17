@@ -73,6 +73,7 @@ pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str = "search_available_extensions";
 pub const MANAGE_EXTENSIONS_TOOL_NAME: &str = "manage_extensions";
+pub const MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE: &str = "extensionmanager__manage_extensions";
 
 pub struct ExtensionManagerClient {
     info: InitializeResult,
