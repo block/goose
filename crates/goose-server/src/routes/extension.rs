@@ -2,106 +2,24 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
-use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::agents::ExtensionConfig;
 use http::StatusCode;
-use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use tracing;
 
-/// Enum representing the different types of extension configuration requests.
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum ExtensionConfigRequest {
-    /// Server-Sent Events (SSE) extension.
-    #[serde(rename = "sse")]
-    Sse {
-        /// The name to identify this extension
-        name: String,
-        /// The URI endpoint for the SSE extension.
-        uri: String,
-        #[serde(default)]
-        /// Map of environment variable key to values.
-        envs: Envs,
-        /// List of environment variable keys. The server will fetch their values from the keyring.
-        #[serde(default)]
-        env_keys: Vec<String>,
-        timeout: Option<u64>,
-    },
-    /// Standard I/O (stdio) extension.
-    #[serde(rename = "stdio")]
-    Stdio {
-        /// The name to identify this extension
-        name: String,
-        /// The command to execute.
-        cmd: String,
-        /// Arguments for the command.
-        #[serde(default)]
-        args: Vec<String>,
-        #[serde(default)]
-        /// Map of environment variable key to values.
-        envs: Envs,
-        /// List of environment variable keys. The server will fetch their values from the keyring.
-        #[serde(default)]
-        env_keys: Vec<String>,
-        timeout: Option<u64>,
-    },
-    /// Built-in extension that is part of the goose binary.
-    #[serde(rename = "builtin")]
-    Builtin {
-        /// The name of the built-in extension.
-        name: String,
-        display_name: Option<String>,
-        timeout: Option<u64>,
-    },
-    /// Streamable HTTP extension using MCP Streamable HTTP specification.
-    #[serde(rename = "streamable_http")]
-    StreamableHttp {
-        /// The name to identify this extension
-        name: String,
-        /// The URI endpoint for the streamable HTTP extension.
-        uri: String,
-        #[serde(default)]
-        /// Map of environment variable key to values.
-        envs: Envs,
-        /// List of environment variable keys. The server will fetch their values from the keyring.
-        #[serde(default)]
-        env_keys: Vec<String>,
-        /// Custom headers to include in requests.
-        #[serde(default)]
-        headers: std::collections::HashMap<String, String>,
-        timeout: Option<u64>,
-    },
-    /// Frontend extension that provides tools to be executed by the frontend.
-    #[serde(rename = "frontend")]
-    Frontend {
-        /// The name to identify this extension
-        name: String,
-        /// The tools provided by this extension
-        tools: Vec<Tool>,
-        /// Optional instructions for using the tools
-        instructions: Option<String>,
-    },
-}
-
-/// Response structure for adding an extension.
-///
-/// - `error`: Indicates whether an error occurred (`true`) or not (`false`).
-/// - `message`: Provides detailed error information when `error` is `true`.
 #[derive(Serialize)]
 struct ExtensionResponse {
     error: bool,
     message: Option<String>,
 }
 
-/// Request structure for adding an extension, combining session_id with the extension config
 #[derive(Deserialize)]
 struct AddExtensionRequest {
     session_id: String,
     #[serde(flatten)]
-    config: ExtensionConfigRequest,
+    config: ExtensionConfig,
 }
 
-/// Handler for adding a new extension configuration.
 async fn add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
@@ -112,12 +30,9 @@ async fn add_extension(
         request.session_id
     );
 
-    let session_id = request.session_id.clone();
-    let extension_request = request.config;
-
     // If this is a Stdio extension that uses npx, check for Node.js installation
     #[cfg(target_os = "windows")]
-    if let ExtensionConfigRequest::Stdio { cmd, .. } = &extension_request {
+    if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
         if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
             // Check if Node.js is installed in standard locations
             let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
@@ -169,101 +84,8 @@ async fn add_extension(
         }
     }
 
-    // Construct ExtensionConfig with Envs populated from keyring based on provided env_keys.
-    let extension_config: ExtensionConfig = match extension_request {
-        ExtensionConfigRequest::Sse {
-            name,
-            uri,
-            envs,
-            env_keys,
-            timeout,
-        } => ExtensionConfig::Sse {
-            name,
-            uri,
-            envs,
-            env_keys,
-            description: None,
-            timeout,
-            bundled: None,
-            available_tools: Vec::new(),
-        },
-        ExtensionConfigRequest::StreamableHttp {
-            name,
-            uri,
-            envs,
-            env_keys,
-            headers,
-            timeout,
-        } => ExtensionConfig::StreamableHttp {
-            name,
-            uri,
-            envs,
-            env_keys,
-            headers,
-            description: None,
-            timeout,
-            bundled: None,
-            available_tools: Vec::new(),
-        },
-        ExtensionConfigRequest::Stdio {
-            name,
-            cmd,
-            args,
-            envs,
-            env_keys,
-            timeout,
-        } => {
-            // TODO: We can uncomment once bugs are fixed. Check allowlist for Stdio extensions
-            // if !is_command_allowed(&cmd, &args) {
-            //     return Ok(Json(ExtensionResponse {
-            //         error: true,
-            //         message: Some(format!(
-            //             "Extension '{}' is not in the allowed extensions list. Command: '{} {}'. If you require access please ask your administrator to update the allowlist.",
-            //             args.join(" "),
-            //             cmd, args.join(" ")
-            //         )),
-            //     }));
-            // }
-
-            ExtensionConfig::Stdio {
-                name,
-                cmd,
-                args,
-                description: None,
-                envs,
-                env_keys,
-                timeout,
-                bundled: None,
-                available_tools: Vec::new(),
-            }
-        }
-        ExtensionConfigRequest::Builtin {
-            name,
-            display_name,
-            timeout,
-        } => ExtensionConfig::Builtin {
-            name,
-            display_name,
-            timeout,
-            bundled: None,
-            description: None,
-            available_tools: Vec::new(),
-        },
-        ExtensionConfigRequest::Frontend {
-            name,
-            tools,
-            instructions,
-        } => ExtensionConfig::Frontend {
-            name,
-            tools,
-            instructions,
-            bundled: None,
-            available_tools: Vec::new(),
-        },
-    };
-
-    let agent = state.get_agent_for_route(session_id).await?;
-    let response = agent.add_extension(extension_config).await;
+    let agent = state.get_agent_for_route(request.session_id).await?;
+    let response = agent.add_extension(request.config).await;
 
     // Respond with the result.
     match response {

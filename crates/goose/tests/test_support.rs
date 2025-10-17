@@ -395,5 +395,6 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         updated_at: Default::default(),
         conversation: None,
         message_count,
+        user_recipe_values: None,
     }
 }

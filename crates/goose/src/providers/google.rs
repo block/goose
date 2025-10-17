@@ -3,7 +3,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, handle_response_google_compat, unescape_json_values};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
@@ -52,10 +52,8 @@ pub struct GoogleProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GoogleProvider);
-
 impl GoogleProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();

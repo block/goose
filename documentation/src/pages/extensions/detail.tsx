@@ -103,7 +103,7 @@ const getDocumentationPath = (serverId: string): string => {
                            Can be enabled on the Extensions page in Goose
                         </span>
                       </div>
-                    ) : (
+                    ) : server.show_install_command !== false ? (
                       <>
                         <div className="flex items-center gap-2 text-textStandard">
                           <Terminal className="h-4 w-4" />
@@ -129,7 +129,7 @@ const getDocumentationPath = (serverId: string): string => {
                           )}
                         </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
 
                   {server.environmentVariables && (
@@ -167,6 +167,34 @@ const getDocumentationPath = (serverId: string): string => {
                     </div>
                   )}
 
+                  {server.headers && server.headers.length > 0 && (
+                    <div className="space-y-4">
+                      <h2 className="text-lg font-medium text-textStandard m-0">
+                        Request Headers
+                      </h2>
+                      <div>
+                        {server.headers.map((header) => (
+                          <div
+                            key={header.name}
+                            className="border-b border-borderSubtle py-4 first:pt-0 last:border-0"
+                          >
+                            <div className="text-sm text-textStandard font-medium">
+                              {header.name}
+                            </div>
+                            <div className="text-textSubtle text-sm mt-1">
+                              {header.description}
+                            </div>
+                            {header.required && (
+                              <Badge variant="secondary" className="mt-2">
+                                Required
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="card-footer">
                     {githubStars !== null && (
                       <a
@@ -187,7 +215,7 @@ const getDocumentationPath = (serverId: string): string => {
                       >
                         Built-in
                       </div>
-                    ) : (
+                    ) : server.show_install_link !== false ? (
                       <a
                         href={getGooseInstallLink(server)}
                         target="_blank"
@@ -197,7 +225,7 @@ const getDocumentationPath = (serverId: string): string => {
                         <span>Install</span>
                         <Download className="h-4 w-4" />
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>

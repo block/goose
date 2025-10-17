@@ -15,14 +15,13 @@ use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
-use crate::config::custom_providers::CustomProviderConfig;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
 use rmcp::model::Tool;
 
-const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet-latest";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-0",
@@ -45,10 +44,8 @@ pub struct AnthropicProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(AnthropicProvider);
-
 impl AnthropicProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -72,7 +69,10 @@ impl AnthropicProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)

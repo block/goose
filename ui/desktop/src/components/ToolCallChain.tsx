@@ -1,5 +1,6 @@
 import { formatMessageTimestamp } from '../utils/timeUtils';
-import { Message, getToolRequests } from '../types/message';
+import { Message } from '../api';
+import { getToolRequests } from '../types/message';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import ToolCallWithResponse from './ToolCallWithResponse';
 

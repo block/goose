@@ -34,6 +34,7 @@ fn test_large_output_warning() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        ast_recursion_limit: None,
         force: false, // Should trigger warning
     };
 
@@ -82,6 +83,7 @@ fn test_force_flag_bypasses_warning() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        ast_recursion_limit: None,
         force: true, // Should bypass warning
     };
 
@@ -119,6 +121,7 @@ fn test_small_output_no_warning() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        ast_recursion_limit: None,
         force: false, // Shouldn't matter for small output
     };
 

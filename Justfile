@@ -12,6 +12,25 @@ release-binary:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
 
+# release-windows docker build command
+win_docker_build_sh := '''rustup target add x86_64-pc-windows-gnu && \
+	apt-get update && \
+	apt-get install -y mingw-w64 protobuf-compiler cmake && \
+	export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
+	export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
+	export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
+	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
+	export PKG_CONFIG_ALLOW_CROSS=1 && \
+	export PROTOC=/usr/bin/protoc && \
+	export PATH=/usr/bin:\$PATH && \
+	protoc --version && \
+	cargo build --release --target x86_64-pc-windows-gnu && \
+	GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
+	cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+	cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+	cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/
+'''
+
 # Build Windows executable
 release-windows:
     #!/usr/bin/env sh
@@ -23,25 +42,16 @@ release-windows:
             -v goose-windows-cache:/usr/local/cargo/registry \
             -w /usr/src/myapp \
             rust:latest \
-            sh -c "rustup target add x86_64-pc-windows-gnu && \
-                apt-get update && \
-                apt-get install -y mingw-w64 protobuf-compiler cmake && \
-                export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
-                export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
-                export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
-                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
-                export PKG_CONFIG_ALLOW_CROSS=1 && \
-                export PROTOC=/usr/bin/protoc && \
-                export PATH=/usr/bin:\$PATH && \
-                protoc --version && \
-                cargo build --release --target x86_64-pc-windows-gnu && \
-                GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
-                cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
+            sh -c "{{win_docker_build_sh}}"
     else
         echo "Building Windows executable using Docker through PowerShell..."
-        powershell.exe -Command "docker volume create goose-windows-cache; docker run --rm -v ${PWD}:/usr/src/myapp -v goose-windows-cache:/usr/local/cargo/registry -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu && GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/'"
+        powershell.exe -Command "docker volume create goose-windows-cache; \`
+            docker run --rm \`
+                -v ${PWD}:/usr/src/myapp \`
+                -v goose-windows-cache:/usr/local/cargo/registry \`
+                -w /usr/src/myapp \`
+                rust:latest \`
+                sh -c '{{win_docker_build_sh}}'"
     fi
     echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
@@ -128,20 +138,33 @@ copy-binary-windows:
     } else { \
         Write-Host 'Windows goose-scheduler-executor binary not found.' -ForegroundColor Yellow; \
     }"
-    @if [ -f ./temporal-service/temporal-service.exe ]; then \
-        echo "Copying Windows temporal-service binary..."; \
-        cp -p ./temporal-service/temporal-service.exe ./ui/desktop/src/bin/; \
-    else \
-        echo "Windows temporal-service binary not found. Building it..."; \
-        cd temporal-service && GOOS=windows GOARCH=amd64 go build -o temporal-service.exe main.go && cp temporal-service.exe ../ui/desktop/src/bin/; \
-    fi
-    @echo "Note: Temporal CLI for Windows will be downloaded at runtime if needed"
+    @powershell.exe -Command "if (Test-Path './temporal-service/temporal-service.exe') { \
+        Write-Host 'Copying Windows temporal-service binary...'; \
+        Copy-Item -Path './temporal-service/temporal-service.exe' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows temporal-service binary not found. Building it...'; \
+        Push-Location 'temporal-service'; \
+        $env:GOOS='windows'; $env:GOARCH='amd64'; \
+        go build -o temporal-service.exe main.go; \
+        Copy-Item -Path 'temporal-service.exe' -Destination '../ui/desktop/src/bin/' -Force; \
+        Pop-Location; \
+    }"
+    @powershell.exe -Command "Write-Host 'Note: Temporal CLI for Windows will be downloaded at runtime if needed'"
 
 # Run UI with latest
 run-ui:
     @just release-binary
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
+
+run-ui-playwright:
+    #!/usr/bin/env sh
+    just release-binary
+    echo "Running UI with Playwright debugging..."
+    RUN_DIR="$HOME/goose-runs/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$RUN_DIR"
+    echo "Using isolated directory: $RUN_DIR"
+    cd ui/desktop && ENABLE_PLAYWRIGHT=true GOOSE_PATH_ROOT="$RUN_DIR" npm run start-gui
 
 run-ui-only:
     @echo "Running UI..."

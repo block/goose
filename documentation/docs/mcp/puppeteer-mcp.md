@@ -1,6 +1,7 @@
 ---
 title: Puppeteer Extension
 description: Add Puppeteer MCP Server as a Goose Extension
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,6 +10,8 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/rms0wVGnlXA" />
+
+Server archived
 
 This tutorial covers how to add the [Puppeteer MCP Server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/puppeteer) as a Goose extension, enabling Goose to interact with websites - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
 
