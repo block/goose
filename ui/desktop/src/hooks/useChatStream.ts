@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
-import { createUserMessage, generateMessageId } from '../types/message';
+import { createUserMessage } from '../types/message';
+
+const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
 const TextDecoder = globalThis.TextDecoder;
 
@@ -69,7 +71,6 @@ async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
   setMessages: (messages: Message[]) => void,
-  setChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   try {
@@ -101,7 +102,6 @@ async function streamFromResponse(
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
               setMessages(currentMessages);
-              setChatState(ChatState.Streaming);
               break;
             }
             case 'Error': {
@@ -153,6 +153,14 @@ export function useChatStream({
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const setMessagesAndCache = (messages: Message[], log: string) => {
+    console.log(log);
+    setMessages(messages);
+    if (session) {
+      resultsCache.set(session.id, { session, messages });
+    }
+  };
+
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
   console.log(`useChatStream render #${renderCountRef.current}, ${session?.id}`);
@@ -187,24 +195,19 @@ export function useChatStream({
         });
         const session = response.data;
         setSession(session);
-        const messages = (session?.conversation || []).map((m) =>
-          m.id ? m : { ...m, id: generateMessageId() }
-        );
-        console.log('>(1)message count', messages.length);
-        setMessages(messages);
+        setMessagesAndCache(session?.conversation || [], 'load-session');
         setChatState(ChatState.Idle);
       } catch (error) {
         setSessionLoadError(error instanceof Error ? error.message : String(error));
         setChatState(ChatState.Idle);
       }
     })();
-  }, [sessionId]);
+  }, [sessionId, setMessagesAndCache]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
-      console.log('>(2)message count', messages.length);
-      setMessages(currentMessages);
+      setMessagesAndCache(currentMessages, 'user-entered');
       setChatState(ChatState.Streaming);
 
       abortControllerRef.current = new AbortController();
@@ -226,14 +229,12 @@ export function useChatStream({
         response,
         currentMessages,
         (messages: Message[]) => {
-          setMessages(messages);
-          console.log(Date.now(), 'count(3)', messages.length);
+          setMessagesAndCache(messages, 'streaming');
         },
-        setChatState,
         onFinish
       );
     },
-    [sessionId, onFinish]
+    [sessionId, onFinish, setMessagesAndCache]
   );
 
   const stopStreaming = useCallback(() => {
@@ -243,10 +244,12 @@ export function useChatStream({
 
   console.log('>> returning', messages.length, messages.length > 0, chatState);
 
+  const cached = resultsCache.get(sessionId)
+
   return {
     sessionLoadError,
-    messages,
-    session,
+    session ? messages : cached?.messages,
+    session ?? cached?.session,
     chatState,
     handleSubmit,
     stopStreaming,
