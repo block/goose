@@ -16,8 +16,6 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
-import { SamplingApprovalModal } from './components/ui/SamplingApprovalModal';
-import { useSamplingApprovalSSE } from './hooks/useSamplingApprovalSSE';
 import { ApprovalModal } from './components/ui/ApprovalModal';
 import { useApprovalSSE } from './hooks/useApprovalSSE';
 
@@ -297,12 +295,7 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
-  
-  // Use the sampling approval SSE hook (legacy - will be removed)
-  const { currentRequest, approveRequest, denyRequest } = useSamplingApprovalSSE();
-  
-  // Use the unified approval SSE hook
-  const { currentRequest: approvalRequest, approveOnce, approveAlways, deny } = useApprovalSSE();
+  const { approvalRequest, approveOnce, approveAlways, deny } = useApprovalSSE();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -608,15 +601,6 @@ export function AppInner() {
         <GoosehintsModal
           directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        />
-      )}
-      {currentRequest && (
-        <SamplingApprovalModal
-          isOpen={!!currentRequest}
-          extensionName={currentRequest.extensionName}
-          messages={currentRequest.messages}
-          onApprove={approveRequest}
-          onDeny={denyRequest}
         />
       )}
       {approvalRequest && (

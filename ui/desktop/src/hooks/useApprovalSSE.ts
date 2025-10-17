@@ -6,7 +6,7 @@ import { submitApprovalResponse, ApprovalRequest, ApprovalAction } from '../api'
 const TextDecoder = globalThis.TextDecoder;
 
 export function useApprovalSSE() {
-  const [currentRequest, setCurrentRequest] = useState<ApprovalRequest | null>(null);
+  const [approvalRequest, setCurrentRequest] = useState<ApprovalRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -93,25 +93,25 @@ export function useApprovalSSE() {
   };
 
   const approveOnce = () => {
-    if (currentRequest) {
-      const requestId = (currentRequest as { requestId: string }).requestId;
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
       respondToRequest(requestId, 'allow_once');
     }
   };
 
   const approveAlways = () => {
-    if (currentRequest) {
-      const requestId = (currentRequest as { requestId: string }).requestId;
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
       respondToRequest(requestId, 'always_allow');
     }
   };
 
   const deny = () => {
-    if (currentRequest) {
-      const requestId = (currentRequest as { requestId: string }).requestId;
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
       respondToRequest(requestId, 'deny');
     }
   };
 
-  return { currentRequest, approveOnce, approveAlways, deny, respondToRequest };
+  return { approvalRequest, approveOnce, approveAlways, deny, respondToRequest };
 }
