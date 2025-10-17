@@ -136,15 +136,18 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   ]);
 
   useEffect(() => {
-    if (!requiresParameters && chatContext && finalRecipe &&
-      chatContext.chat.resolvedRecipe !== finalRecipe) {
-    chatContext?.setChat({
-      ...chatContext.chat,
-      resolvedRecipe: finalRecipe,
-    });
-  }
-
-  }, [requiresParameters, finalRecipe]);
+    if (
+      !requiresParameters &&
+      chatContext &&
+      finalRecipe &&
+      chatContext.chat.resolvedRecipe !== finalRecipe
+    ) {
+      chatContext?.setChat({
+        ...chatContext.chat,
+        resolvedRecipe: finalRecipe,
+      });
+    }
+  }, [requiresParameters, finalRecipe, chatContext]);
 
   useEffect(() => {
     setReadyForAutoUserPrompt(true);

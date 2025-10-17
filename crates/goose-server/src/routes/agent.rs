@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
-    build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
+    apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id,
+    validate_recipe,
 };
 use crate::state::AppState;
 use axum::{
@@ -226,17 +227,10 @@ async fn update_from_session(
         .await
         {
             Ok(Some(recipe)) => {
-                if let Some(instructions) = &recipe.instructions {
-                    let mut context: HashMap<&str, Value> = HashMap::new();
-                    context.insert("recipe_instructions", Value::String(instructions.clone()));
-                    update_prompt = render_global_file("desktop_recipe_instruction.md", &context)
-                        .expect("Prompt should render");
-                }
-                if let Some(sub_recipes) = &recipe.sub_recipes {
-                    agent.add_sub_recipes(sub_recipes.clone()).await;
-                }
-                if let Some(response) = &recipe.response {
-                    agent.add_final_output_tool(response.clone()).await;
+                if let Some(prompt) =
+                    apply_recipe_to_agent(&agent, &recipe, true).await
+                {
+                    update_prompt = prompt;
                 }
             }
             Ok(None) => {
