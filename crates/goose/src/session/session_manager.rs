@@ -782,9 +782,7 @@ impl SessionStorage {
             return Ok(());
         }
 
-        if !updates.is_empty() {
-            query.push_str(", ");
-        }
+        query.push_str(", ");
         query.push_str("updated_at = datetime('now') WHERE id = ?");
 
         let mut q = sqlx::query(&query);
