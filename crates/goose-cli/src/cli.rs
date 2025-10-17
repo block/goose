@@ -198,11 +198,11 @@ enum SchedulerCommand {
         #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
         id: String,
     },
-    /// Check status of Temporal services (temporal scheduler only)
-    #[command(about = "Check status of Temporal services")]
+    /// Check status of scheduler services (deprecated - no external services needed)
+    #[command(about = "Check status of scheduler services")]
     ServicesStatus {},
-    /// Stop Temporal services (temporal scheduler only)
-    #[command(about = "Stop Temporal services")]
+    /// Stop scheduler services (deprecated - no external services needed)
+    #[command(about = "Stop scheduler services")]
     ServicesStop {},
     /// Show cron expression examples and help
     #[command(about = "Show cron expression examples and help")]
