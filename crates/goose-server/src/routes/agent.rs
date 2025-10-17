@@ -1,7 +1,6 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
-    apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id,
-    validate_recipe,
+    apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
 };
 use crate::state::AppState;
 use axum::{
@@ -227,9 +226,7 @@ async fn update_from_session(
         .await
         {
             Ok(Some(recipe)) => {
-                if let Some(prompt) =
-                    apply_recipe_to_agent(&agent, &recipe, true).await
-                {
+                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
                     update_prompt = prompt;
                 }
             }

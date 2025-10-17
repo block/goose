@@ -11,11 +11,11 @@ use axum::http::StatusCode;
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use goose::agents::Agent;
+use goose::prompt_template::render_global_file;
 use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
-use goose::prompt_template::render_global_file;
 use serde_json::Value;
 use serde_yaml;
 use tracing::error;
@@ -62,8 +62,6 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     Ok(recipe_manifests_with_path)
 }
 
-// Validates a recipe template (Stage 1 - before parameter substitution)
-// Note: This should only be called on recipe templates, not resolved recipes
 pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
     let recipe_yaml = serde_yaml::to_string(recipe).map_err(|err| {
         let message = err.to_string();
@@ -170,11 +168,7 @@ pub async fn apply_recipe_to_agent(
 
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();
-        context.insert(
-            "recipe_instructions",
-            Value::String(instructions.clone()),
-        );
-        render_global_file("desktop_recipe_instruction.md", &context)
-            .expect("Prompt should render")
+        context.insert("recipe_instructions", Value::String(instructions.clone()));
+        render_global_file("desktop_recipe_instruction.md", &context).expect("Prompt should render")
     })
 }
