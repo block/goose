@@ -309,7 +309,6 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
 
-        // Create RequestLog before making the request
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
@@ -319,12 +318,10 @@ impl Provider for SnowflakeProvider {
             })
             .await?;
 
-        // Parse response
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let response_model = get_model(&response);
 
-        // Write to RequestLog instead of using log_llm_request
         log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
