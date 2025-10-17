@@ -158,7 +158,7 @@ function BaseChatContent({
   const {
     recipe,
     recipeId,
-    recipeParameters,
+    recipeParameterValues,
     filteredParameters,
     initialPrompt,
     isParameterModalOpen,
@@ -338,7 +338,7 @@ function BaseChatContent({
                   append={(text: string) => appendWithTracking(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  parameterValues={recipeParameters || {}}
+                  parameterValues={recipeParameterValues || {}}
                 />
               </div>
             )}

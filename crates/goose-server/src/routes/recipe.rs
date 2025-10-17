@@ -382,7 +382,6 @@ fn ensure_recipe_valid(recipe: &Recipe) -> Result<(), ErrorResponse> {
             status: err.status,
         });
     }
-
     Ok(())
 }
 

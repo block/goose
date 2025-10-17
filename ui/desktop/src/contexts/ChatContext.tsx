@@ -59,7 +59,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
       messages: [],
       messageHistoryIndex: 0,
       recipe: null,
-      recipeParameters: null,
+      recipeParameterValues: null,
     });
     clearDraft();
   };
@@ -68,7 +68,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setChat({
       ...chat,
       recipe: recipe,
-      recipeParameters: null,
+      recipeParameterValues: null,
     });
   };
 
