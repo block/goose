@@ -28,7 +28,6 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { getApiUrl } from '../config';
 
 interface QueuedMessage {
   id: string;
@@ -502,49 +501,18 @@ export default function ChatInput({
   // Load auto-compact threshold
   const loadAutoCompactThreshold = useCallback(async () => {
     try {
-      const secretKey = await window.electron.getSecretKey();
-      const response = await fetch(getApiUrl('/config/read'), {
-        method: 'POST',
-        headers: {
-          'X-Secret-Key': secretKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          is_secret: false,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data !== undefined && data !== null) {
-          setAutoCompactThreshold(data);
-        }
-      } else {
-        console.error('Failed to fetch auto-compact threshold, status:', response.status);
+      const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
+      if (threshold !== undefined && threshold !== null) {
+        setAutoCompactThreshold(threshold as number);
       }
     } catch (err) {
       console.error('Error fetching auto-compact threshold:', err);
     }
-  }, []);
+  }, [read]);
 
   useEffect(() => {
     loadAutoCompactThreshold();
   }, [loadAutoCompactThreshold]);
-
-  // Listen for threshold change events from AlertBox
-  useEffect(() => {
-    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
-      setAutoCompactThreshold(event.detail.threshold);
-    };
-
-    // Type assertion to handle the mismatch between CustomEvent and EventListener
-    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
-    window.addEventListener('autoCompactThresholdChanged', eventListener);
-
-    return () => {
-      window.removeEventListener('autoCompactThresholdChanged', eventListener);
-    };
-  }, []);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -572,6 +540,9 @@ export default function ChatInput({
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
+        onThresholdChange: (newThreshold: number) => {
+          setAutoCompactThreshold(newThreshold);
+        },
       });
     }
 

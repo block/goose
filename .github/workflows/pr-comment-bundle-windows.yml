@@ -82,7 +82,7 @@ jobs:
       - name: Download Windows artifact
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
         with:
-          name: desktop-windows-dist
+          name: Goose-win32-x64
           path: windows-dist
 
       - name: Comment on PR with Windows download link
@@ -92,9 +92,9 @@ jobs:
           body: |
             ### Windows Desktop App
 
-            [🪟 Download Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
+            [🪟 Download Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-win32-x64.zip)
 
             **Instructions:**
-            After downloading, unzip the file and run goose.exe. The app is signed for Windows.
+            After downloading, unzip the file and run Goose.exe. The app is signed for Windows.
 
             This link is provided by nightly.link and will work even if you're not logged into GitHub.

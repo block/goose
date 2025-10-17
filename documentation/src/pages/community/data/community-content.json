@@ -32,6 +32,18 @@
       "hacktoberfest": true
     },
     {
+      "title": "Goose with Goose Docs MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/Qidl20e-HOc",
+      "submittedDate": "2025-10-13",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
       "title": "Best Practices for Using Goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",

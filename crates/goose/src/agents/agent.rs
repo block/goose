@@ -33,7 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
-use crate::context_mgmt::{check_and_compact_messages, DEFAULT_COMPACTION_THRESHOLD};
+use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -918,22 +918,29 @@ impl Agent {
             None
         };
 
-        let (did_compact, compacted_conversation, compaction_error) =
-            match check_and_compact_messages(
-                self,
-                unfixed_conversation.messages(),
-                false,
-                false,
-                None,
-                session_metadata.as_ref(),
-            )
-            .await
-            {
-                Ok((did_compact, conversation, _removed_indices, _summarization_usage)) => {
-                    (did_compact, conversation, None)
+        let check_result = crate::context_mgmt::check_if_compaction_needed(
+            self,
+            &unfixed_conversation,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await;
+
+        let (did_compact, compacted_conversation, compaction_error) = match check_result {
+            // TODO(dkatz): send a notification that we are starting compaction here.
+            Ok(true) => {
+                match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false)
+                    .await
+                {
+                    Ok((conversation, _token_counts, _summarization_usage)) => {
+                        (true, conversation, None)
+                    }
+                    Err(e) => (false, unfixed_conversation.clone(), Some(e)),
                 }
-                Err(e) => (false, unfixed_conversation.clone(), Some(e)),
-            };
+            }
+            Ok(false) => (false, unfixed_conversation, None),
+            Err(e) => (false, unfixed_conversation.clone(), Some(e)),
+        };
 
         if did_compact {
             // Get threshold from config to include in message
@@ -970,7 +977,7 @@ impl Agent {
                 ));
             }))
         } else {
-            self.reply_internal(unfixed_conversation, session, cancel_token)
+            self.reply_internal(compacted_conversation, session, cancel_token)
                 .await
         }
     }
@@ -1297,15 +1304,9 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            // Get session metadata if available
-                            let session_metadata_for_compact = if let Some(ref session_config) = session {
-                                SessionManager::get_session(&session_config.id, false).await.ok()
-                            } else {
-                                None
-                            };
-
-                            match check_and_compact_messages(self, conversation.messages(), true, true, None, session_metadata_for_compact.as_ref()).await {
-                                Ok((_did_compact, compacted_conversation, _removed_indices, _usage)) => {
+                            // TODO(dkatz): send a notification that we are starting compaction here.
+                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                                Ok((compacted_conversation, _token_counts, _usage)) => {
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
 

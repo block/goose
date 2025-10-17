@@ -3,7 +3,7 @@ import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-ic
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
 import { Alert, AlertType } from './types';
-import { getApiUrl } from '../../config';
+import { upsertConfig } from '../../api';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,
@@ -42,41 +42,21 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     setIsSaving(true);
     try {
       const newThreshold = validThreshold / 100; // Convert percentage to decimal
-      console.log('Saving auto-compact threshold:', newThreshold);
 
-      // Update the configuration via the upsert API
-      const response = await fetch(getApiUrl('/config/upsert'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': await window.electron.getSecretKey(),
-        },
-        body: JSON.stringify({
+      await upsertConfig({
+        body: {
           key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
           value: newThreshold,
           is_secret: false,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update threshold: ${errorText}`);
-      }
-
-      const responseText = await response.text();
-      console.log('Threshold save response:', responseText);
 
       setIsEditingThreshold(false);
 
-      // Dispatch a custom event to notify other components that the threshold has changed
-      // This allows ChatInput to reload the threshold without a page reload
-      window.dispatchEvent(
-        new CustomEvent('autoCompactThresholdChanged', {
-          detail: { threshold: newThreshold },
-        })
-      );
-
-      console.log('Dispatched autoCompactThresholdChanged event with threshold:', newThreshold);
+      // Notify parent component of the threshold change
+      if (alert.onThresholdChange) {
+        alert.onThresholdChange(newThreshold);
+      }
     } catch (error) {
       console.error('Error saving threshold:', error);
       window.alert(

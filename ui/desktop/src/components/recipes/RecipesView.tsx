@@ -13,6 +13,7 @@ import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink, Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
+import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
@@ -27,6 +28,8 @@ export default function RecipesView() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const setView = useNavigation();
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedRecipeForSchedule, setSelectedRecipeForSchedule] = useState<Recipe | null>(null);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -173,6 +176,22 @@ export default function RecipesView() {
     }
   };
 
+  const handleScheduleRecipe = (recipe: Recipe) => {
+    setSelectedRecipeForSchedule(recipe);
+    setShowScheduleModal(true);
+  };
+
+  const handleCreateScheduleFromRecipe = async (deepLink: string) => {
+    // Store the deeplink for the schedule modal to pick up
+    localStorage.setItem('pendingScheduleDeepLink', deepLink);
+
+    // Navigate to schedules view and open create modal
+    window.location.hash = '#/schedules';
+
+    setShowScheduleModal(false);
+    setSelectedRecipeForSchedule(null);
+  };
+
   // Render a recipe item
   const RecipeItem = ({
     recipeManifestResponse,
@@ -232,6 +251,18 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
+              handleScheduleRecipe(recipe);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Create schedule"
+          >
+            <Calendar className="w-4 h-4" />
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
               handleDeleteRecipe(recipeManifestResponse);
             }}
             variant="ghost"
@@ -256,6 +287,7 @@ export default function RecipesView() {
           <Skeleton className="h-4 w-24" />
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
@@ -380,6 +412,18 @@ export default function RecipesView() {
             loadSavedRecipes();
           }}
           isCreateMode={true}
+        />
+      )}
+
+      {showScheduleModal && selectedRecipeForSchedule && (
+        <ScheduleFromRecipeModal
+          isOpen={showScheduleModal}
+          onClose={() => {
+            setShowScheduleModal(false);
+            setSelectedRecipeForSchedule(null);
+          }}
+          recipe={selectedRecipeForSchedule}
+          onCreateSchedule={handleCreateScheduleFromRecipe}
         />
       )}
     </>
