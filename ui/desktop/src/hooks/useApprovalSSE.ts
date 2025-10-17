@@ -1,33 +1,22 @@
 import { useEffect, useState, useRef } from 'react';
 import { getApiUrl } from '../config';
-import { submitSamplingResponse } from '../api';
+import { submitApprovalResponse, ApprovalRequest, ApprovalAction } from '../api';
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
 
-interface SamplingRequest {
-  requestId: string;
-  extensionName: string;
-  messages: Array<{
-    role: string;
-    content: string;
-  }>;
-  systemPrompt?: string;
-  maxTokens: number;
-}
-
-export function useSamplingApprovalSSE() {
-  const [currentRequest, setCurrentRequest] = useState<SamplingRequest | null>(null);
+export function useApprovalSSE() {
+  const [approvalRequest, setCurrentRequest] = useState<ApprovalRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const connectToSamplingApprovalStream = async () => {
+    const connectToApprovalStream = async () => {
       try {
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
         // Use fetch with X-Secret-Key header
-        const response = await fetch(getApiUrl('/sampling-approval'), {
+        const response = await fetch(getApiUrl('/approval'), {
           method: 'GET',
           headers: {
             'X-Secret-Key': await window.electron.getSecretKey(),
@@ -36,7 +25,7 @@ export function useSamplingApprovalSSE() {
         });
 
         if (!response.ok) {
-          console.error('Failed to connect to sampling approval stream:', response.statusText);
+          console.error('Failed to connect to approval stream:', response.statusText);
           return;
         }
 
@@ -64,10 +53,10 @@ export function useSamplingApprovalSSE() {
             if (event.startsWith('data: ')) {
               const data = event.slice(6); // Remove 'data: ' prefix
               try {
-                const request = JSON.parse(data) as SamplingRequest;
+                const request = JSON.parse(data) as ApprovalRequest;
                 setCurrentRequest(request);
               } catch (error) {
-                console.error('Failed to parse sampling request:', error);
+                console.error('Failed to parse approval request:', error);
               }
             }
           }
@@ -79,7 +68,7 @@ export function useSamplingApprovalSSE() {
       }
     };
 
-    connectToSamplingApprovalStream();
+    connectToApprovalStream();
 
     // Cleanup on unmount
     return () => {
@@ -89,31 +78,40 @@ export function useSamplingApprovalSSE() {
     };
   }, []);
 
-  const respondToRequest = async (requestId: string, approved: boolean) => {
+  const respondToRequest = async (requestId: string, action: ApprovalAction) => {
     try {
-      await submitSamplingResponse({
+      await submitApprovalResponse({
         body: {
           requestId,
-          approved,
+          action,
         },
       });
       setCurrentRequest(null);
     } catch (error) {
-      console.error('Failed to submit sampling response:', error);
+      console.error('Failed to submit approval response:', error);
     }
   };
 
-  const approveRequest = () => {
-    if (currentRequest) {
-      respondToRequest(currentRequest.requestId, true);
+  const approveOnce = () => {
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
+      respondToRequest(requestId, 'allow_once');
     }
   };
 
-  const denyRequest = () => {
-    if (currentRequest) {
-      respondToRequest(currentRequest.requestId, false);
+  const approveAlways = () => {
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
+      respondToRequest(requestId, 'always_allow');
     }
   };
 
-  return { currentRequest, approveRequest, denyRequest };
+  const deny = () => {
+    if (approvalRequest) {
+      const requestId = (approvalRequest as { requestId: string }).requestId;
+      respondToRequest(requestId, 'deny');
+    }
+  };
+
+  return { approvalRequest, approveOnce, approveAlways, deny, respondToRequest };
 }

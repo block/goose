@@ -15,6 +15,45 @@ export type Annotations = {
     priority?: number;
 };
 
+/**
+ * The action to take in response to an approval request
+ */
+export type ApprovalAction = 'allow_once' | 'always_allow' | 'deny';
+
+/**
+ * A request for user approval
+ */
+export type ApprovalRequest = ApprovalType & {
+    type?: 'ApprovalRequest';
+} & {
+    requestId: string;
+    sessionId: string;
+};
+
+/**
+ * A response to an approval request
+ */
+export type ApprovalResponse = {
+    action: ApprovalAction;
+    requestId: string;
+};
+
+/**
+ * The type of approval being requested
+ */
+export type ApprovalType = {
+    principalType: string;
+    prompt?: string | null;
+    toolName: string;
+    type: 'toolCall';
+} | {
+    extensionName: string;
+    maxTokens: number;
+    messages: Array<SamplingMessage>;
+    systemPrompt?: string | null;
+    type: 'sampling';
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -656,22 +695,28 @@ export type RunNowResponse = {
     session_id: string;
 };
 
-export type SamplingMessageContent = {
-    content: string;
+/**
+ * A message in a sampling request
+ */
+export type SamplingMessage = {
+    content: SamplingMessageContent;
     role: string;
 };
 
-export type SamplingRequest = {
-    extensionName: string;
-    maxTokens: number;
-    messages: Array<SamplingMessageContent>;
-    requestId: string;
-    systemPrompt?: string | null;
-};
-
-export type SamplingResponse = {
-    approved: boolean;
-    requestId: string;
+/**
+ * Content in a sampling message - can be text, image, or audio
+ */
+export type SamplingMessageContent = {
+    text: string;
+    type: 'text';
+} | {
+    data: string;
+    mimeType: string;
+    type: 'image';
+} | {
+    data: string;
+    mimeType: string;
+    type: 'audio';
 };
 
 export type SaveRecipeRequest = {
@@ -1182,6 +1227,52 @@ export type UpdateRouterToolSelectorResponses = {
 };
 
 export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
+
+export type ApprovalStreamData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/approval';
+};
+
+export type ApprovalStreamErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type ApprovalStreamResponses = {
+    /**
+     * SSE stream of approval requests
+     */
+    200: unknown;
+};
+
+export type SubmitApprovalResponseData = {
+    body: ApprovalResponse;
+    path?: never;
+    query?: never;
+    url: '/approval';
+};
+
+export type SubmitApprovalResponseErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+};
+
+export type SubmitApprovalResponseResponses = {
+    /**
+     * Approval response submitted successfully
+     */
+    200: unknown;
+};
 
 export type ReadAllConfigData = {
     body?: never;
@@ -1950,52 +2041,6 @@ export type ReplyErrors = {
 export type ReplyResponses = {
     /**
      * Streaming response initiated
-     */
-    200: unknown;
-};
-
-export type SamplingApprovalStreamData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/sampling-approval';
-};
-
-export type SamplingApprovalStreamErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-};
-
-export type SamplingApprovalStreamResponses = {
-    /**
-     * SSE stream of sampling approval requests
-     */
-    200: unknown;
-};
-
-export type SubmitSamplingResponseData = {
-    body: SamplingResponse;
-    path?: never;
-    query?: never;
-    url: '/sampling-approval';
-};
-
-export type SubmitSamplingResponseErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-};
-
-export type SubmitSamplingResponseResponses = {
-    /**
-     * Approval response submitted successfully
      */
     200: unknown;
 };
