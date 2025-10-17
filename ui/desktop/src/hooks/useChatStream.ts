@@ -1,10 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-import { Message, resumeAgent, Session } from '../api';
+import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage, generateMessageId } from '../types/message';
 
 const TextDecoder = globalThis.TextDecoder;
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// TODO(Douwe): get these from the server:
+interface NotificationEvent {
+  type: 'Notification';
+  request_id: string;
+  message: {
+    method: string;
+    params: {
+      [key: string]: JsonValue;
+    };
+  };
+}
+
+type MessageEvent =
+  | { type: 'Message'; message: Message }
+  | { type: 'Error'; error: string }
+  | { type: 'Ping' }
+  | { type: 'Finish'; reason: string }
+  | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'UpdateConversation'; conversation: Conversation }
+  | NotificationEvent;
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -45,9 +68,8 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
 async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
-  onMessage: (messages: Message[]) => void,
-  onStateChange: (state: ChatState) => void,
-  onSession: (session: Session) => void,
+  setMessages: (messages: Message[]) => void,
+  setChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   try {
@@ -72,31 +94,41 @@ async function streamFromResponse(
         if (data === '[DONE]') continue;
 
         try {
-          const event = JSON.parse(data);
+          const event = JSON.parse(data) as MessageEvent;
 
-          if (event.type === 'SessionSnapshot') {
-            const session = event.session;
-            console.log('>>got session', session.description, session.conversation?.length);
-            onMessage(session.conversation || []);
-            session.conversation = [];
-            onSession(session);
-          }
-
-          if (event.type === 'Message' || event.message) {
-            const msg = (event.message || event.message) as Message;
-            currentMessages = pushMessage(currentMessages, msg);
-            onMessage(currentMessages);
-            onStateChange(ChatState.Streaming);
-          }
-
-          if (event.type === 'Error' || event.error) {
-            onFinish('Stream error: ' + event.error);
-            return;
-          }
-
-          if (event.type === 'Finish' || event.finish) {
-            onFinish();
-            return;
+          switch (event.type) {
+            case 'Message': {
+              const msg = event.message;
+              currentMessages = pushMessage(currentMessages, msg);
+              setMessages(currentMessages);
+              setChatState(ChatState.Streaming);
+              break;
+            }
+            case 'Error': {
+              onFinish('Stream error: ' + event.error);
+              return;
+            }
+            case 'Finish': {
+              onFinish();
+              return;
+            }
+            case 'ModelChange': {
+              break;
+            }
+            case 'UpdateConversation': {
+              setMessages(event.conversation);
+              break;
+            }
+            case 'Notification': {
+              break;
+            }
+            case 'Ping': {
+              break;
+            }
+            default: {
+              console.warn('Unhandled event type:', event['type']);
+              break;
+            }
           }
         } catch (e) {
           onFinish('Failed to parse SSE:' + e);
@@ -121,6 +153,10 @@ export function useChatStream({
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  console.log(`useChatStream render #${renderCountRef.current}, ${session?.id}`);
+
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -141,6 +177,7 @@ export function useChatStream({
 
     (async () => {
       try {
+        console.log('Calling resumeAgent for', sessionId);
         const response = await resumeAgent({
           body: {
             session_id: sessionId,
@@ -153,6 +190,7 @@ export function useChatStream({
         const messages = (session?.conversation || []).map((m) =>
           m.id ? m : { ...m, id: generateMessageId() }
         );
+        console.log('>(1)message count', messages.length);
         setMessages(messages);
         setChatState(ChatState.Idle);
       } catch (error) {
@@ -165,6 +203,7 @@ export function useChatStream({
   const handleSubmit = useCallback(
     async (userMessage: string) => {
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
+      console.log('>(2)message count', messages.length);
       setMessages(currentMessages);
       setChatState(ChatState.Streaming);
 
@@ -186,9 +225,11 @@ export function useChatStream({
       await streamFromResponse(
         response,
         currentMessages,
-        setMessages,
+        (messages: Message[]) => {
+          setMessages(messages);
+          console.log(Date.now(), 'count(3)', messages.length);
+        },
         setChatState,
-        setSession,
         onFinish
       );
     },
@@ -199,6 +240,8 @@ export function useChatStream({
     abortControllerRef.current?.abort();
     setChatState(ChatState.Idle);
   }, []);
+
+  console.log('>> returning', messages.length, messages.length > 0, chatState);
 
   return {
     sessionLoadError,

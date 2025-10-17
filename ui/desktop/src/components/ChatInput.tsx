@@ -516,10 +516,8 @@ export default function ChatInput({
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Loaded auto-compact threshold from config:', data);
         if (data !== undefined && data !== null) {
           setAutoCompactThreshold(data);
-          console.log('Set auto-compact threshold to:', data);
         }
       } else {
         console.error('Failed to fetch auto-compact threshold, status:', response.status);

@@ -10,12 +10,19 @@ interface PairProps {
   initialMessage?: string;
 }
 
-export default function Pair({ setChat, setIsGoosehintsModalOpen, sessionId }: PairProps) {
+export default function Pair({
+  setChat,
+  setIsGoosehintsModalOpen,
+  sessionId,
+  initialMessage,
+}: PairProps) {
   return (
     <BaseChat2
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
+      initialMessage={initialMessage}
+      suppressEmptyState={false}
     />
   );
 }

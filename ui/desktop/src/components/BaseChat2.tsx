@@ -21,19 +21,15 @@ import { useNavigation } from '../hooks/useNavigation';
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
-  onMessageStreamFinish?: () => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
-  contentClassName?: string;
-  disableSearch?: boolean;
-  showPopularTopics?: boolean;
-  suppressEmptyState?: boolean;
-  autoSubmit?: boolean;
+  suppressEmptyState: boolean;
   sessionId: string;
+  initialMessage?: string;
 }
 
 function BaseChatContent({
@@ -43,8 +39,8 @@ function BaseChatContent({
   renderAfterMessages,
   customChatInputProps = {},
   customMainLayoutProps = {},
-  disableSearch = false,
   sessionId,
+  initialMessage,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -93,6 +89,12 @@ function BaseChatContent({
 
     handleSubmit(textValue);
   };
+
+  useEffect(() => {
+    if (initialMessage && session && messages.length == 0) {
+      handleSubmit(initialMessage);
+    }
+  }, [initialMessage, session, messages, handleSubmit]);
 
   // TODO(Douwe): send this to the chatbox instead, possibly autosubmit? or backend
   const append = (_txt: string) => {};
@@ -257,12 +259,7 @@ function BaseChatContent({
             {
               messages.length > 0 || recipe ? (
                 <>
-                  {disableSearch ? (
-                    renderProgressiveMessageList(chat)
-                  ) : (
-                    // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
-                  )}
+                  <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
 
                   {/*{error && (*/}
                   {/*  <>*/}
@@ -320,8 +317,7 @@ function BaseChatContent({
             {renderAfterMessages && renderAfterMessages()}
           </ScrollArea>
 
-          {/* Fixed loading indicator at bottom left of chat container */}
-          {(messages.length === 0 || isCompacting) && !sessionLoadError && (
+          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 message={
