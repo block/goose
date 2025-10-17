@@ -39,8 +39,8 @@ add-gpt5-mini-csv-video
         "handle": "Meghana-2124"
       },
       "type": "video",
-      "url": "https://youtube.com/shorts/4j-rx6lEE7I?feature=share",
-      "submittedDate": "2025-10-16",
+      "url": "https://youtube.com/shorts/pFFlhSv1XwY?feature=share",
+      "submittedDate": "2025-10-17",
       "tags": ["hacktoberfest", "CSV", "GPT-5-mini", "Goose"],
 
       "title": "Best Practices for Using Goose in Enterprise Environments",
