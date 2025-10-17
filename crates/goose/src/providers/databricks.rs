@@ -325,6 +325,7 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
+        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
@@ -338,10 +339,12 @@ impl Provider for DatabricksProvider {
                 }
                 Ok(resp)
             })
-            .await?;
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

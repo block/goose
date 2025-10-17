@@ -260,21 +260,25 @@ impl Provider for AnthropicProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let mut request = self.api_client.request("v1/messages");
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
         }
 
-        let response = request.response_post(&payload).await?;
+        let response = request.response_post(&payload).await.inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             let error_json = serde_json::from_str::<Value>(&error_text).ok();
-            return Err(map_http_error_to_provider_error(status, error_json));
+            let error = map_http_error_to_provider_error(status, error_json);
+            let _ = log.error(&error);
+            return Err(error);
         }
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

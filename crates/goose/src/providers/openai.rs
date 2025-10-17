@@ -285,15 +285,22 @@ impl Provider for OpenAiProvider {
         payload["stream_options"] = json!({
             "include_usage": true,
         });
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
             .api_client
             .response_post(&self.base_path, &payload)
-            .await?;
-        let response = handle_status_openai_compat(response).await?;
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        let response = handle_status_openai_compat(response)
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

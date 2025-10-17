@@ -460,7 +460,7 @@ pub struct RequestLog {
     temp_path: PathBuf,
 }
 
-const LOGS_TO_KEEP: usize = 5;
+const LOGS_TO_KEEP: usize = 10;
 
 impl RequestLog {
     pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
@@ -494,31 +494,32 @@ impl RequestLog {
         })
     }
 
-    fn write_line(&mut self, msg: impl Display) -> Result<()> {
+    fn write_json(&mut self, line: &serde_json::Value) -> Result<()> {
         let writer = self
             .writer
             .as_mut()
             .ok_or_else(|| anyhow!("logger is finished"))?;
-        writeln!(writer, "{}", msg)?;
+        writeln!(writer, "{}", serde_json::to_string(line)?)?;
         Ok(())
     }
 
     pub fn error<E>(&mut self, error: E) -> Result<()>
     where
-        E: std::error::Error,
+        E: Display,
     {
-        self.write_line(error)
+        self.write_json(&serde_json::json!({
+            "error": format!("{}", error),
+        }))
     }
 
     pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
     where
         Payload: Serialize,
     {
-        let data = serde_json::json!({
+        self.write_json(&serde_json::json!({
             "data": data,
             "usage": usage,
-        });
-        self.write_line(serde_json::to_string(&data)?)
+        }))
     }
 
     fn finish(&mut self) -> Result<()> {
