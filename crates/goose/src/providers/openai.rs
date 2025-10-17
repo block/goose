@@ -218,7 +218,10 @@ impl Provider for OpenAiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
-        let json_response = self.post(&payload).await?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        let json_response = self.post(&payload).await.inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
 
         let message = response_to_message(&json_response)?;
         let usage = json_response
@@ -229,7 +232,6 @@ impl Provider for OpenAiProvider {
                 Usage::default()
             });
         let model = get_model(&json_response);
-        let mut log = RequestLog::start(&self.model, &payload)?;
         log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))
     }

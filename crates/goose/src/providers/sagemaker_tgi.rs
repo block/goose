@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::log_llm_request;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::model::ModelConfig;
@@ -312,12 +312,11 @@ impl Provider for SageMakerTgiProvider {
             "messages": messages,
             "tools": tools
         });
-        log_llm_request(
-            &self.model,
-            &debug_payload,
+        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
-            &usage,
-        );
+            Some(&usage),
+        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

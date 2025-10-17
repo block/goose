@@ -10,6 +10,7 @@ use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -493,6 +494,22 @@ impl RequestLog {
         })
     }
 
+    fn write_line(&mut self, msg: impl Display) -> Result<()> {
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| anyhow!("logger is finished"))?;
+        writeln!(writer, "{}", msg)?;
+        Ok(())
+    }
+
+    pub fn error<E>(&mut self, error: E) -> Result<()>
+    where
+        E: std::error::Error,
+    {
+        self.write_line(error)
+    }
+
     pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
     where
         Payload: Serialize,
@@ -501,16 +518,12 @@ impl RequestLog {
             "data": data,
             "usage": usage,
         });
-        let writer = self
-            .writer
-            .as_mut()
-            .ok_or_else(|| anyhow!("logger is finished"))?;
-        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
-        Ok(())
+        self.write_line(serde_json::to_string(&data)?)
     }
 
     fn finish(&mut self) -> Result<()> {
-        if let Some(_) = self.writer.take() {
+        if let Some(mut writer) = self.writer.take() {
+            writer.flush()?;
             let logs_dir = Paths::in_state_dir("logs");
             let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
@@ -531,17 +544,6 @@ impl Drop for RequestLog {
         }
         let _ = self.finish();
     }
-}
-
-pub fn log_llm_request<P, R>(
-    _model_config: &ModelConfig,
-    _payload: &P,
-    _response: &R,
-    _usage: &Usage,
-) where
-    P: ?Sized + Serialize,
-    R: ?Sized + Serialize,
-{
 }
 
 /// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.

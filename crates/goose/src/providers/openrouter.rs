@@ -8,7 +8,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat, is_google_model,
-    log_llm_request,
+    RequestLog,
 };
 use crate::conversation::message::Message;
 
@@ -259,6 +259,7 @@ impl Provider for OpenRouterProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
         let payload = create_request_based_on_model(self, system, messages, tools)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
         let response = self
@@ -275,7 +276,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log_llm_request(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

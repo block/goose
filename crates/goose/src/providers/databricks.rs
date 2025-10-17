@@ -18,6 +18,7 @@ use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+    RequestLog,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
@@ -286,6 +287,8 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
         let response = self
             .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
             .await?;
@@ -296,7 +299,7 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::log_llm_request(&self.model, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
@@ -338,8 +341,8 @@ impl Provider for DatabricksProvider {
             .await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let model = self.model.clone();
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
@@ -348,7 +351,7 @@ impl Provider for DatabricksProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::log_llm_request(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))
