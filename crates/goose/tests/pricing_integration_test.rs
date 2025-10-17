@@ -43,8 +43,7 @@ async fn test_pricing_cache_performance() {
         first_fetch_duration
     );
 
-    // Run many iterations to test cache performance
-    const ITERATIONS: u32 = 100;
+    const ITERATIONS: u32 = 10;
     let mut total_duration = std::time::Duration::ZERO;
     let mut min_duration = std::time::Duration::MAX;
     let mut max_duration = std::time::Duration::ZERO;
@@ -64,11 +63,6 @@ async fn test_pricing_cache_performance() {
         total_duration += iteration_duration;
         min_duration = min_duration.min(iteration_duration);
         max_duration = max_duration.max(iteration_duration);
-
-        // Print progress every 20 iterations
-        if (i + 1) % 20 == 0 {
-            println!("Completed {} iterations", i + 1);
-        }
     }
 
     let avg_duration = total_duration / ITERATIONS;

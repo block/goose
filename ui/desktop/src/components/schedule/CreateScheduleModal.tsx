@@ -237,16 +237,8 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
     });
   }
 
-  if (recipe.goosehints) {
-    cleanRecipe.goosehints = recipe.goosehints;
-  }
-
   if (recipe.context && recipe.context.length > 0) {
     cleanRecipe.context = recipe.context;
-  }
-
-  if (recipe.profile) {
-    cleanRecipe.profile = recipe.profile;
   }
 
   if (recipe.author) {

@@ -73,6 +73,7 @@ export function useAgent(): UseAgentReturn {
         const agentResponse = await resumeAgent({
           body: {
             session_id: sessionId,
+            load_model_and_extensions: false,
           },
           throwOnError: true,
         });
@@ -112,6 +113,7 @@ export function useAgent(): UseAgentReturn {
             ? await resumeAgent({
                 body: {
                   session_id: initContext.resumeSessionId,
+                  load_model_and_extensions: false,
                 },
                 throwOnError: true,
               })

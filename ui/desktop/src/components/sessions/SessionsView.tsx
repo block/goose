@@ -3,6 +3,7 @@ import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
+import { useNavigation } from '../../hooks/useNavigation';
 
 const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -11,6 +12,7 @@ const SessionsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [initialSessionId, setInitialSessionId] = useState<string | null>(null);
   const location = useLocation();
+  const setView = useNavigation();
 
   const loadSessionDetails = async (sessionId: string) => {
     setIsLoadingSession(true);
@@ -34,9 +36,19 @@ const SessionsView: React.FC = () => {
     }
   };
 
-  const handleSelectSession = useCallback(async (sessionId: string) => {
-    await loadSessionDetails(sessionId);
-  }, []);
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      if (process.env.ALPHA) {
+        setView('pair', {
+          disableAnimation: true,
+          resumeSessionId: sessionId,
+        });
+      } else {
+        await loadSessionDetails(sessionId);
+      }
+    },
+    [setView]
+  );
 
   // Check if a session ID was passed in the location state (from SessionsInsights)
   useEffect(() => {

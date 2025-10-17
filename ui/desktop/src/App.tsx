@@ -96,11 +96,9 @@ const PairRouteWrapper = ({
 
   return process.env.ALPHA ? (
     <Pair2
-      chat={chat}
       setChat={setChat}
-      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
+      sessionId={routeState.resumeSessionId || resumeSessionId || ''} // TODO(Douwe) one of them should be set now
       initialMessage={initialMessage}
     />
   ) : (
