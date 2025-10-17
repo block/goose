@@ -108,20 +108,16 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOSE_DISABLE_KEYRING: 1
         run: |
-          source ./bin/activate-hermit
-          
-          # Create a test directory
+          # Create test directory and file
           TEST_DIR="/tmp/goose-smoke-test-anthropic"
           mkdir -p "$TEST_DIR"
           cd "$TEST_DIR"
-          
-          # Create test file
           echo "hello" > hello.txt
           
           echo "=== Smoke Test: Anthropic / claude-sonnet-4-5-20250929 ==="
           
-          # Run goose using cargo run
-          OUTPUT=$(cargo run --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          # Run goose from the test directory
+          OUTPUT=$(cargo run --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
           
           echo "$OUTPUT"
           
@@ -141,20 +137,16 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOSE_DISABLE_KEYRING: 1
         run: |
-          source ./bin/activate-hermit
-          
-          # Create a test directory
+          # Create test directory and file
           TEST_DIR="/tmp/goose-smoke-test-openai"
           mkdir -p "$TEST_DIR"
           cd "$TEST_DIR"
-          
-          # Create test file
           echo "hello" > hello.txt
           
           echo "=== Smoke Test: OpenAI / gpt-5 ==="
           
-          # Run goose using cargo run
-          OUTPUT=$(cargo run --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          # Run goose from the test directory
+          OUTPUT=$(cargo run --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
           
           echo "$OUTPUT"
           
