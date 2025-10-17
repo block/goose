@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod approval;
 pub mod audio;
 pub mod config_management;
 pub mod context;
@@ -8,7 +9,6 @@ pub mod health;
 pub mod recipe;
 pub mod recipe_utils;
 pub mod reply;
-pub mod sampling_approval;
 pub mod schedule;
 pub mod session;
 pub mod setup;
@@ -31,7 +31,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
-        .merge(sampling_approval::routes(
-            state.sampling_approval_state.clone(),
-        ))
+        .merge(approval::routes(state.approval_state.clone()))
 }
