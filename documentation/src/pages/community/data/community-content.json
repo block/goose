@@ -32,7 +32,6 @@
       "hacktoberfest": true
     },
     {
-add-gpt5-mini-csv-video
       "title": "Goose with GPT-5-mini MCP - Real-World CSV Analysis Use Case",
       "author": {
         "name": "Meghana Jaggi",
@@ -42,7 +41,9 @@ add-gpt5-mini-csv-video
       "url": "https://youtube.com/shorts/pFFlhSv1XwY?feature=share",
       "submittedDate": "2025-10-17",
       "tags": ["hacktoberfest", "CSV", "GPT-5-mini", "Goose"],
-
+      "hacktoberfest": true
+    },
+    {
       "title": "Best Practices for Using Goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",
@@ -78,7 +79,6 @@ add-gpt5-mini-csv-video
       "thumbnail": "https://i.imgur.com/Shsi56O.png",
       "submittedDate": "2025-10-16",
       "tags": ["hacktoberfest"],
-      main
       "hacktoberfest": true
     }
   ]
