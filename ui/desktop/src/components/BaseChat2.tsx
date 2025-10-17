@@ -91,7 +91,6 @@ function BaseChatContent({
   const initialMessagesLength = useRef<number | null>(null);
 
   useEffect(() => {
-    // Track the initial messages length when session first loads
     if (session && initialMessagesLength.current === null) {
       initialMessagesLength.current = messages.length;
     }
