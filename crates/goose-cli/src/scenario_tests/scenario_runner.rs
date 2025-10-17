@@ -218,7 +218,7 @@ where
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
         .await?;
 
-    let mut session = CliSession::new(agent, None, false, None, None, None, None);
+    let mut session = CliSession::new(agent, None, false, None, None, None, None).await;
 
     let mut error = None;
     for message in &messages {

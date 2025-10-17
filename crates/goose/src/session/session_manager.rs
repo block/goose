@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 2;
+const CURRENT_SCHEMA_VERSION: i32 = 3;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -425,7 +425,8 @@ impl SessionStorage {
                 content_json TEXT NOT NULL,
                 created_timestamp INTEGER NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                tokens INTEGER
+                tokens INTEGER,
+                metadata_json TEXT
             )
         "#,
         )
@@ -610,6 +611,15 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            3 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE messages ADD COLUMN metadata_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -620,7 +630,7 @@ impl SessionStorage {
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        Ok(sqlx::query_as(
+        let session_id = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, description, working_dir, extension_data)
                 VALUES (
@@ -641,7 +651,13 @@ impl SessionStorage {
         .bind(&description)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
-        .await?)
+        .await?;
+
+        sqlx::query("PRAGMA wal_checkpoint")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(session_id)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -768,15 +784,15 @@ impl SessionStorage {
     }
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
-        let rows = sqlx::query_as::<_, (String, String, i64)>(
-            "SELECT role, content_json, created_timestamp FROM messages WHERE session_id = ? ORDER BY timestamp",
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
+            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? ORDER BY timestamp",
         )
             .bind(session_id)
             .fetch_all(&self.pool)
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp) in rows {
+        for (role_str, content_json, created_timestamp, metadata_json) in rows {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -784,7 +800,12 @@ impl SessionStorage {
             };
 
             let content = serde_json::from_str(&content_json)?;
-            let message = Message::new(role, created_timestamp, content);
+            let metadata = metadata_json
+                .and_then(|json| serde_json::from_str(&json).ok())
+                .unwrap_or_default();
+
+            let mut message = Message::new(role, created_timestamp, content);
+            message.metadata = metadata;
             messages.push(message);
         }
 
@@ -792,16 +813,19 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let metadata_json = serde_json::to_string(&message.metadata)?;
+
         sqlx::query(
             r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?)
         "#,
         )
         .bind(session_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
+        .bind(metadata_json)
         .execute(&self.pool)
         .await?;
 
@@ -826,16 +850,19 @@ impl SessionStorage {
             .await?;
 
         for message in conversation.messages() {
+            let metadata_json = serde_json::to_string(&message.metadata)?;
+
             sqlx::query(
                 r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?)
         "#,
             )
             .bind(session_id)
             .bind(role_to_string(&message.role))
             .bind(serde_json::to_string(&message.content)?)
             .bind(message.created)
+            .bind(metadata_json)
             .execute(&mut *tx)
             .await?;
         }

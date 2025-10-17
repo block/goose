@@ -72,18 +72,10 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-export type ContextLengthExceeded = {
-    msg: string;
-};
-
 /**
  * Request payload for context management operations
  */
 export type ContextManageRequest = {
-    /**
-     * Operation to perform: "truncation" or "summarize"
-     */
-    manageAction: string;
     /**
      * Collection of messages to be managed
      */
@@ -110,13 +102,8 @@ export type ContextManageResponse = {
 
 export type Conversation = Array<Message>;
 
-export type CreateCustomProviderRequest = {
-    api_key: string;
-    api_url: string;
-    display_name: string;
-    models: Array<string>;
-    provider_type: string;
-    supports_streaming?: boolean | null;
+export type ConversationCompacted = {
+    msg: string;
 };
 
 export type CreateRecipeRequest = {
@@ -134,6 +121,21 @@ export type CreateScheduleRequest = {
     execution_mode?: string | null;
     id: string;
     recipe_source: string;
+};
+
+export type DeclarativeProviderConfig = {
+    api_key_env: string;
+    base_url: string;
+    description?: string | null;
+    display_name: string;
+    engine: ProviderEngine;
+    headers?: {
+        [key: string]: string;
+    } | null;
+    models: Array<ModelInfo>;
+    name: string;
+    supports_streaming?: boolean | null;
+    timeout_seconds?: number | null;
 };
 
 export type DecodeRecipeRequest = {
@@ -171,7 +173,7 @@ export type Envs = {
 };
 
 export type ErrorResponse = {
-    error: string;
+    message: string;
 };
 
 export type ExtendPromptRequest = {
@@ -367,14 +369,19 @@ export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
 
+export type LoadedProvider = {
+    config: DeclarativeProviderConfig;
+    is_editable: boolean;
+};
+
 /**
  * A message to or from an LLM
  */
 export type Message = {
     content: Array<MessageContent>;
-    created?: number;
+    created: number;
     id?: string | null;
-    metadata?: MessageMetadata;
+    metadata: MessageMetadata;
     role: Role;
 };
 
@@ -397,10 +404,8 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ContextLengthExceeded & {
-    type: 'contextLengthExceeded';
-}) | (SummarizationRequested & {
-    type: 'summarizationRequested';
+}) | (ConversationCompacted & {
+    type: 'conversationCompacted';
 });
 
 /**
@@ -410,11 +415,11 @@ export type MessageMetadata = {
     /**
      * Whether the message should be included in the agent's context window
      */
-    agentVisible?: boolean;
+    agentVisible: boolean;
     /**
      * Whether the message should be visible to the user in the UI
      */
-    userVisible?: boolean;
+    userVisible: boolean;
 };
 
 /**
@@ -473,7 +478,10 @@ export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
     name: string;
+    provider_type: ProviderType;
 };
+
+export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
 
 /**
  * Metadata about a provider's configuration requirements and capabilities
@@ -497,7 +505,6 @@ export type ProviderMetadata = {
     display_name: string;
     /**
      * A list of currently known models with their capabilities
-     * TODO: eventually query the apis directly
      */
     known_models: Array<ModelInfo>;
     /**
@@ -509,6 +516,8 @@ export type ProviderMetadata = {
      */
     name: string;
 };
+
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
@@ -652,6 +661,10 @@ export type SaveRecipeRequest = {
     recipe: Recipe;
 };
 
+export type SaveRecipeResponse = {
+    id: string;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -749,6 +762,8 @@ export type SetupResponse = {
 
 export type StartAgentRequest = {
     recipe?: Recipe | null;
+    recipe_deeplink?: string | null;
+    recipe_id?: string | null;
     working_dir: string;
 };
 
@@ -771,10 +786,6 @@ export type SuccessCheck = {
      */
     command: string;
     type: 'Shell';
-};
-
-export type SummarizationRequested = {
-    msg: string;
 };
 
 export type TextContent = {
@@ -850,6 +861,15 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+export type UpdateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    engine: string;
+    models: Array<string>;
+    supports_streaming?: boolean | null;
 };
 
 export type UpdateProviderRequest = {
@@ -1017,9 +1037,9 @@ export type StartAgentData = {
 
 export type StartAgentErrors = {
     /**
-     * Bad request - invalid working directory
+     * Bad request
      */
-    400: unknown;
+    400: ErrorResponse;
     /**
      * Unauthorized - invalid secret key
      */
@@ -1027,8 +1047,10 @@ export type StartAgentErrors = {
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type StartAgentError = StartAgentErrors[keyof StartAgentErrors];
 
 export type StartAgentResponses = {
     /**
@@ -1183,7 +1205,7 @@ export type BackupConfigResponses = {
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
 export type CreateCustomProviderData = {
-    body: CreateCustomProviderRequest;
+    body: UpdateCustomProviderRequest;
     path?: never;
     query?: never;
     url: '/config/custom-providers';
@@ -1237,6 +1259,64 @@ export type RemoveCustomProviderResponses = {
 };
 
 export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
+
+export type GetCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type GetCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetCustomProviderResponses = {
+    /**
+     * Custom provider retrieved successfully
+     */
+    200: LoadedProvider;
+};
+
+export type GetCustomProviderResponse = GetCustomProviderResponses[keyof GetCustomProviderResponses];
+
+export type UpdateCustomProviderData = {
+    body: UpdateCustomProviderRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type UpdateCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateCustomProviderResponses = {
+    /**
+     * Custom provider updated successfully
+     */
+    200: string;
+};
+
+export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
@@ -1791,9 +1871,13 @@ export type SaveRecipeData = {
 
 export type SaveRecipeErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
+     * Unauthorized
      */
-    401: unknown;
+    401: ErrorResponse;
+    /**
+     * Not found
+     */
+    404: ErrorResponse;
     /**
      * Internal server error
      */
@@ -1806,10 +1890,10 @@ export type SaveRecipeResponses = {
     /**
      * Recipe saved to file successfully
      */
-    204: void;
+    204: SaveRecipeResponse;
 };
 
-export type SaveRecipeResponse = SaveRecipeResponses[keyof SaveRecipeResponses];
+export type SaveRecipeResponse2 = SaveRecipeResponses[keyof SaveRecipeResponses];
 
 export type ScanRecipeData = {
     body: ScanRecipeRequest;

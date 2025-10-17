@@ -255,11 +255,6 @@ const appConfigAPI: AppConfigAPI = {
   getAll: () => config,
 };
 
-// Listen for recipe updates and update config directly
-ipcRenderer.on('recipe-decoded', (_, decodedRecipe) => {
-  config.recipe = decodedRecipe;
-});
-
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);

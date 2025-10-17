@@ -10,8 +10,8 @@ use goose::providers::base::Provider;
 use goose::providers::{
     anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
     databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
-    groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider, xai::XaiProvider,
+    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    xai::XaiProvider,
 };
 
 #[derive(Debug, PartialEq)]
@@ -24,7 +24,6 @@ enum ProviderType {
     Databricks,
     GcpVertexAI,
     Google,
-    Groq,
     Ollama,
     OpenRouter,
     Xai,
@@ -43,7 +42,6 @@ impl ProviderType {
             ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
-            ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
             ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
@@ -80,7 +78,6 @@ impl ProviderType {
                 Arc::new(GcpVertexAIProvider::from_env(model_config).await?)
             }
             ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config).await?),
-            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config).await?),
             ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config).await?),
             ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config).await?),
             ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config).await?),
@@ -120,7 +117,7 @@ async fn run_truncate_test(
     agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
-    let messages = Conversation::new(vec![
+    let conversation = Conversation::new(vec![
         Message::user().with_text("hi there. what is 2 + 2?"),
         Message::assistant().with_text("hey! I think it's 4."),
         Message::user().with_text(&large_message_content),
@@ -133,7 +130,7 @@ async fn run_truncate_test(
     ])
     .unwrap();
 
-    let reply_stream = agent.reply(messages, None, None).await?;
+    let reply_stream = agent.reply(conversation, None, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -146,8 +143,8 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-            Ok(AgentEvent::HistoryReplaced(_)) => {
-                // Handle history replacement events if needed
+            Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                // Should update the conversation here, but we're not reading it
             }
             Err(e) => {
                 println!("Error: {:?}", e);
@@ -177,14 +174,6 @@ async fn run_truncate_test(
         goose::conversation::message::MessageContent::Text(ref text_content) => {
             assert!(text_content.text.to_lowercase().contains("no"));
             assert!(!text_content.text.to_lowercase().contains("yes"));
-        }
-        goose::conversation::message::MessageContent::ContextLengthExceeded(_) => {
-            // This is an acceptable outcome for providers that don't truncate themselves
-            // and correctly report that the context length was exceeded.
-            println!(
-                "Received ContextLengthExceeded as expected for {:?}",
-                provider_type
-            );
         }
         _ => {
             panic!(
@@ -301,16 +290,6 @@ mod tests {
             provider_type: ProviderType::Google,
             model: "gemini-2.0-flash-exp",
             context_window: 1_200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_agent_with_groq() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Groq,
-            model: "gemma2-9b-it",
-            context_window: 9_000,
         })
         .await
     }
@@ -1132,7 +1111,9 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
-                Ok(AgentEvent::HistoryReplaced(_)) => {}
+                Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                    // We should update the conversation here, but we're not reading it
+                }
                 Err(e) => {
                     return Err(e);
                 }
