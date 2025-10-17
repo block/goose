@@ -24,7 +24,7 @@ jobs:
           body: |
             ### macOS ARM64 Desktop App (Apple Silicon)
 
-            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-darwin-arm64.zip)
+            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
             After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app
