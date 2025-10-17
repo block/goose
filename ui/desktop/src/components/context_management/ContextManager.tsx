@@ -75,8 +75,9 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           created: Math.floor(Date.now() / 1000),
           content: [
             {
-              type: 'conversationCompacted',
+              type: 'systemNotification',
               msg: 'Compaction failed. Please try again or start a new session.',
+              notificationType: 'inlineMessage',
             },
           ],
           metadata: { userVisible: true, agentVisible: true },
@@ -102,7 +103,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const hasCompactionMarker = useCallback((message: Message): boolean => {
-    return message.content.some((content) => content.type === 'conversationCompacted');
+    return message.content.some((content) => content.type === 'systemNotification');
   }, []);
 
   const value = {

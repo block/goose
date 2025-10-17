@@ -59,7 +59,7 @@ use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionManager;
 
@@ -794,7 +794,10 @@ impl Agent {
             Ok(Box::pin(async_stream::try_stream! {
                 // TODO(Douwe): send this before we actually compact:
                 yield AgentEvent::Message(
-                    Message::assistant().with_conversation_compacted(compaction_msg)
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::InlineMessage,
+                        compaction_msg,
+                    )
                 );
                 yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
                 if let Some(session_to_store) = &session {
@@ -1147,8 +1150,9 @@ impl Agent {
                                     did_recovery_compact_this_iteration = true;
 
                                     yield AgentEvent::Message(
-                                        Message::assistant().with_conversation_compacted(
-                                            "Context limit reached. Conversation has been automatically compacted to continue."
+                                        Message::assistant().with_system_notification(
+                                            SystemNotificationType::InlineMessage,
+                                            "Context limit reached. Conversation has been automatically compacted to continue.",
                                         )
                                     );
                                     yield AgentEvent::HistoryReplaced(conversation.clone());

@@ -10,11 +10,12 @@ const default_message: Message = {
   },
   id: '1',
   role: 'assistant',
-  created: 1000,content: []
+  created: 1000,
+  content: [],
 };
 
 describe('CompactionMarker', () => {
-  it('should render default message when no conversationCompacted content found', () => {
+  it('should render default message when no systemNotification content found', () => {
     const message: Message = {
       ...default_message,
       content: [{ type: 'text', text: 'Regular message' }],
@@ -25,12 +26,16 @@ describe('CompactionMarker', () => {
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
 
-  it('should render custom message from conversationCompacted content', () => {
+  it('should render custom message from systemNotification content', () => {
     const message: Message = {
       ...default_message,
       content: [
         { type: 'text', text: 'Some other content' },
-        { type: 'conversationCompacted', msg: 'Custom compaction message' },
+        {
+          type: 'systemNotification',
+          msg: 'Custom compaction message',
+          notificationType: 'inlineMessage',
+        },
       ],
     };
 
@@ -50,10 +55,10 @@ describe('CompactionMarker', () => {
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
 
-  it('should handle summarizationRequested content with empty msg', () => {
+  it('should handle systemNotification content with empty msg', () => {
     const message: Message = {
       ...default_message,
-      content: [{ type: 'conversationCompacted', msg: '' }],
+      content: [{ type: 'systemNotification', msg: '', notificationType: 'inlineMessage' }],
     };
 
     render(<CompactionMarker message={message} />);
@@ -62,11 +67,11 @@ describe('CompactionMarker', () => {
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
 
-  it('should handle summarizationRequested content with undefined msg', () => {
+  it('should handle systemNotification content with undefined msg', () => {
     const message: Message = {
       ...default_message,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      content: [{ type: 'conversationCompacted' } as any],
+      content: [{ type: 'systemNotification', notificationType: 'inlineMessage' } as any],
     };
 
     render(<CompactionMarker message={message} />);
