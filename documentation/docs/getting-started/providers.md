@@ -68,15 +68,30 @@ To configure your chosen provider or see available options, visit the `Models` t
   - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
   - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
   - **Other Providers**
+  <Tabs groupId="setup">
+    <TabItem value="tetrate" label="Tetrate Agent Router" default>
+    We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
 
-  We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. The [goose Quickstart Guide](docs/quickstart.md#configure-provider) walks through this setup.
-  
-  For OpenRouter setup, a browser window opens prompting you to authenticate with your OpenRouter account, or create a new account if you don't have one already. When you return to the goose desktop app, you're ready to begin your first session.
-  
-  If you have a specific provider you want to use with goose, and an API key from that provider, select **Other Providers**. Find the provider of your choice and click its `Configure` button. Depending on your provider, you'll need to input [parameters](#available-providers) such as API Key, API Host, or other optional parameters. Click the `Submit` button to begin your first session.
-  
-  If you don't see your provider in the list, click `Add Custom Provider`. A modal opens for you to input the provider type, display name (will be shown on the previous model selection screen), API URL, API key, and available models. Click `Create Provider` to authenticate and begin your first session. 
+    :::info Free Credits Offer
+    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
+    :::
+    1. Choose `Automatic setup with Tetrate Agent Router`. 
+    2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
+    3. When you return to the goose desktop app, you're ready to begin your first session.
+    </TabItem>
 
+    <TabItem value="openrouter" label="OpenRouter">
+    1. Choose `Automatic setup with OpenRouter`. 
+    2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
+    3. When you return to the goose desktop app, you're ready to begin your first session.
+    </TabItem>
+
+    <TabItem value="others" label="Other Providers">
+    1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`. 
+    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window. 
+    3. Depending on your provider, you'll need to input your API Key, API Host, or other optional [parameters](#available-providers). Click the `Submit` button to authenticate and begin your first session.
+    </TabItem>
+  </Tabs>
   **To update your LLM provider and API key:** 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
   2. Click the `Settings` button on the sidebar
