@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { CompactionMarker } from '../CompactionMarker';
+import { SystemNotificationInline } from '../SystemNotificationInline';
 import { Message } from '../../../api';
 
 const default_message: Message = {
@@ -21,7 +21,7 @@ describe('CompactionMarker', () => {
       content: [{ type: 'text', text: 'Regular message' }],
     };
 
-    render(<CompactionMarker message={message} />);
+    render(<SystemNotificationInline message={message} />);
 
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
@@ -39,7 +39,7 @@ describe('CompactionMarker', () => {
       ],
     };
 
-    render(<CompactionMarker message={message} />);
+    render(<SystemNotificationInline message={message} />);
 
     expect(screen.getByText('Custom compaction message')).toBeInTheDocument();
   });
@@ -50,7 +50,7 @@ describe('CompactionMarker', () => {
       content: [],
     };
 
-    render(<CompactionMarker message={message} />);
+    render(<SystemNotificationInline message={message} />);
 
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
@@ -61,7 +61,7 @@ describe('CompactionMarker', () => {
       content: [{ type: 'systemNotification', msg: '', notificationType: 'inlineMessage' }],
     };
 
-    render(<CompactionMarker message={message} />);
+    render(<SystemNotificationInline message={message} />);
 
     // Empty string falls back to default due to || operator
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('CompactionMarker', () => {
       content: [{ type: 'systemNotification', notificationType: 'inlineMessage' } as any],
     };
 
-    render(<CompactionMarker message={message} />);
+    render(<SystemNotificationInline message={message} />);
 
     // Should render the default message when msg is undefined
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();

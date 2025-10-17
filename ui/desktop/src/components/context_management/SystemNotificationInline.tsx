@@ -1,11 +1,11 @@
 import React from 'react';
 import { Message, SystemNotificationContent } from '../../api';
 
-interface CompactionMarkerProps {
+interface SystemNotificationInlineProps {
   message: Message;
 }
 
-export const CompactionMarker: React.FC<CompactionMarkerProps> = ({ message }) => {
+export const SystemNotificationInline: React.FC<SystemNotificationInlineProps> = ({ message }) => {
   const systemNotification = message.content.find(
     (content): content is SystemNotificationContent & { type: 'systemNotification' } =>
       content.type === 'systemNotification'

@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
-import { CompactionMarker } from './context_management/CompactionMarker';
+import { SystemNotificationInline } from './context_management/SystemNotificationInline';
 import { useContextManager } from './context_management/ContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
@@ -198,7 +198,7 @@ export default function ProgressiveMessageList({
             {isUser ? (
               <>
                 {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
+                  <SystemNotificationInline message={message} />
                 ) : (
                   !hasOnlyToolResponses(message) && (
                     <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
@@ -208,7 +208,7 @@ export default function ProgressiveMessageList({
             ) : (
               <>
                 {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
+                  <SystemNotificationInline message={message} />
                 ) : (
                   <GooseMessage
                     sessionId={chat.sessionId}
