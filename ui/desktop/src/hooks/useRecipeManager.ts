@@ -111,15 +111,8 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   // Check if all required parameters have been filled in
   const hasAllRequiredParameters = useMemo(() => {
-    if (!requiresParameters) {
-      chatContext?.setChat({
-        ...chatContext?.chat,
-        resolvedRecipe: finalRecipe,
-      });
-      return true; // No parameters required, so all are "filled"
-    }
-    return resolvedRecipe != null;
-  }, [requiresParameters, resolvedRecipe, chatContext, finalRecipe]);
+    return !requiresParameters || resolvedRecipe != null;
+  }, [requiresParameters, resolvedRecipe]);
 
   const hasMessages = messages.length > 0;
   useEffect(() => {
@@ -141,6 +134,17 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     chat.sessionId,
     finalRecipe?.title,
   ]);
+
+  useEffect(() => {
+    if (!requiresParameters && chatContext && finalRecipe &&
+      chatContext.chat.resolvedRecipe !== finalRecipe) {
+    chatContext?.setChat({
+      ...chatContext.chat,
+      resolvedRecipe: finalRecipe,
+    });
+  }
+
+  }, [requiresParameters, finalRecipe]);
 
   useEffect(() => {
     setReadyForAutoUserPrompt(true);
