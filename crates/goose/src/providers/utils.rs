@@ -1,6 +1,8 @@
 use super::base::Usage;
 use super::errors::GoogleErrorCode;
+use crate::config::paths::Paths;
 use crate::model::ModelConfig;
+use crate::providers::errors::{OpenAIError, ProviderError};
 use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
@@ -11,8 +13,6 @@ use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
-
-use crate::providers::errors::{OpenAIError, ProviderError};
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -79,6 +79,14 @@ pub fn map_http_error_to_provider_error(
                 payload.as_ref().map(|p| format!(". Response: {:?}", p)).unwrap_or_default()
             );
             ProviderError::Authentication(message)
+        }
+        StatusCode::PAYLOAD_TOO_LARGE => {
+            let payload_str = if let Some(payload) = &payload {
+                payload.to_string()
+            } else {
+                "Payload is too large.".to_string()
+            };
+            ProviderError::ContextLengthExceeded(payload_str)
         }
         StatusCode::BAD_REQUEST => {
             let mut error_msg = "Unknown error".to_string();
@@ -453,14 +461,32 @@ pub fn emit_debug_trace<T1, T2>(
     T1: ?Sized + Serialize,
     T2: ?Sized + Serialize,
 {
-    tracing::debug!(
-        model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
-        input = %serde_json::to_string_pretty(payload).unwrap_or_default(),
-        output = %serde_json::to_string_pretty(response).unwrap_or_default(),
-        input_tokens = ?usage.input_tokens.unwrap_or_default(),
-        output_tokens = ?usage.output_tokens.unwrap_or_default(),
-        total_tokens = ?usage.total_tokens.unwrap_or_default(),
-    );
+    let logs_dir = Paths::in_state_dir("logs");
+
+    if let Err(e) = std::fs::create_dir_all(&logs_dir) {
+        tracing::warn!("Failed to create logs directory: {}", e);
+        return;
+    }
+
+    let log_path = |i| logs_dir.join(format!("llm_request.{}.json", i));
+
+    for i in (0..4).rev() {
+        let _ = std::fs::rename(log_path(i), log_path(i + 1));
+    }
+
+    let data = serde_json::json!({
+        "model_config": model_config,
+        "input": payload,
+        "output": response,
+        "usage": usage,
+    });
+
+    if let Err(e) = std::fs::write(
+        log_path(0),
+        serde_json::to_string_pretty(&data).unwrap_or_default(),
+    ) {
+        tracing::warn!("Failed to write log file: {}", e);
+    }
 }
 
 /// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.
@@ -929,12 +955,12 @@ mod tests {
                     "The model 'gpt-5' does not exist (code: model_not_found, type: invalid_request_error) (status 404)".to_string(),
                 )),
             ),
-            // Non-JSON body error (tests parse failure path)
+            // Non-JSON body error (tests 413 PAYLOAD_TOO_LARGE -> ContextLengthExceeded)
             (
                 413,
                 Some(Value::String("Payload Too Large".to_string())),
-                Err(ProviderError::RequestFailed(
-                    "Request failed with status: 413 Payload Too Large".to_string(),
+                Err(ProviderError::ContextLengthExceeded(
+                    "Payload is too large.".to_string(),
                 )),
             ),
         ];

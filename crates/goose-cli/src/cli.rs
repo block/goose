@@ -8,7 +8,7 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
+use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -75,7 +75,7 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
 
         sessions
             .into_iter()
-            .find(|s| s.description == name)
+            .find(|s| s.id == name || s.description.contains(&name))
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else if let Some(path) = identifier.path {
@@ -280,6 +280,14 @@ enum RecipeCommand {
         #[arg(
             help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
         )]
+        recipe_name: String,
+    },
+
+    /// Open a recipe in Goose Desktop
+    #[command(about = "Open a recipe in Goose Desktop")]
+    Open {
+        /// Recipe name to get recipe file to open
+        #[arg(help = "recipe name or full path to the recipe file")]
         recipe_name: String,
     },
 
@@ -1006,12 +1014,12 @@ pub async fn cli() -> Result<()> {
                         .unwrap_or(&recipe_name);
 
                     let recipe_version =
-                        crate::recipes::search_recipe::retrieve_recipe_file(&recipe_name)
+                        crate::recipes::search_recipe::load_recipe_file(&recipe_name)
                             .ok()
                             .and_then(|rf| {
                                 goose::recipe::template_recipe::parse_recipe_content(
                                     &rf.content,
-                                    rf.parent_dir.to_string_lossy().to_string(),
+                                    Some(rf.parent_dir.to_string_lossy().to_string()),
                                 )
                                 .ok()
                                 .map(|(r, _)| r.version)
@@ -1214,6 +1222,9 @@ pub async fn cli() -> Result<()> {
                 }
                 RecipeCommand::Deeplink { recipe_name } => {
                     handle_deeplink(&recipe_name)?;
+                }
+                RecipeCommand::Open { recipe_name } => {
+                    handle_open(&recipe_name)?;
                 }
                 RecipeCommand::List { format, verbose } => {
                     handle_list(&format, verbose)?;

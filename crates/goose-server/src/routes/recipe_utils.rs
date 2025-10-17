@@ -1,134 +1,124 @@
+use std::collections::HashMap;
 use std::fs;
 use std::hash::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
+use axum::http::StatusCode;
 
-use goose::config::APP_STRATEGY;
-use goose::recipe::read_recipe_file_content::read_recipe_file;
+use crate::routes::errors::ErrorResponse;
+use crate::state::AppState;
+use goose::recipe::local_recipes::list_local_recipes;
+use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
+use serde_json;
+use tracing::error;
 
-use std::path::Path;
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+pub struct RecipeValidationError {
+    pub status: StatusCode,
+    pub message: String,
+}
 
 pub struct RecipeManifestWithPath {
     pub id: String,
-    pub name: String,
-    pub is_global: bool,
     pub recipe: Recipe,
     pub file_path: PathBuf,
     pub last_modified: String,
 }
 
-fn short_id_from_path(path: &str) -> String {
+pub fn short_id_from_path(path: &str) -> String {
     let mut hasher = DefaultHasher::new();
     path.hash(&mut hasher);
     let h = hasher.finish();
     format!("{:016x}", h)
 }
 
-fn load_recipes_from_path(path: &PathBuf, is_global: bool) -> Result<Vec<RecipeManifestWithPath>> {
-    let mut recipe_manifests_with_path = Vec::new();
-    if path.exists() {
-        for entry in fs::read_dir(path)? {
-            let path = entry?.path();
-            if path.extension() == Some("yaml".as_ref()) {
-                let Ok(recipe_file) = read_recipe_file(path.clone()) else {
-                    continue;
-                };
-                let Ok(recipe) = Recipe::from_content(&recipe_file.content) else {
-                    continue;
-                };
-                let Ok(last_modified) = fs::metadata(path.clone()).map(|m| {
-                    chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339()
-                }) else {
-                    continue;
-                };
-                let recipe_metadata =
-                    RecipeManifestMetadata::from_yaml_file(&path).unwrap_or_else(|_| {
-                        RecipeManifestMetadata {
-                            name: recipe.title.clone(),
-                            is_global,
-                        }
-                    });
-
-                let manifest_with_path = RecipeManifestWithPath {
-                    id: short_id_from_path(recipe_file.file_path.to_string_lossy().as_ref()),
-                    name: recipe_metadata.name,
-                    is_global: recipe_metadata.is_global,
-                    recipe,
-                    file_path: recipe_file.file_path,
-                    last_modified,
-                };
-                recipe_manifests_with_path.push(manifest_with_path);
-            }
-        }
-    }
-    Ok(recipe_manifests_with_path)
-}
-
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
-    let current_dir = std::env::current_dir()?;
-    let local_recipe_path = current_dir.join(".goose/recipes");
-
-    let global_recipe_path = choose_app_strategy(APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir()
-        .join("recipes");
-
+    let recipes_with_path = list_local_recipes()?;
     let mut recipe_manifests_with_path = Vec::new();
+    for (file_path, recipe) in recipes_with_path {
+        let Ok(last_modified) = fs::metadata(file_path.clone())
+            .map(|m| chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339())
+        else {
+            continue;
+        };
 
-    recipe_manifests_with_path.extend(load_recipes_from_path(&local_recipe_path, false)?);
-    recipe_manifests_with_path.extend(load_recipes_from_path(&global_recipe_path, true)?);
+        let manifest_with_path = RecipeManifestWithPath {
+            id: short_id_from_path(file_path.to_string_lossy().as_ref()),
+            recipe,
+            file_path,
+            last_modified,
+        };
+        recipe_manifests_with_path.push(manifest_with_path);
+    }
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
 }
 
-// this is a temporary struct to deserilize the UI recipe files. should not be used for other purposes.
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
-struct RecipeManifestMetadata {
-    pub name: String,
-    #[serde(rename = "isGlobal")]
-    pub is_global: bool,
+pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
+    let recipe_json = serde_json::to_string(recipe).map_err(|err| {
+        let message = err.to_string();
+        error!("Failed to serialize recipe for validation: {}", message);
+        RecipeValidationError {
+            status: StatusCode::BAD_REQUEST,
+            message,
+        }
+    })?;
+
+    validate_recipe_template_from_content(&recipe_json, None).map_err(|err| {
+        let message = err.to_string();
+        error!("Recipe validation failed: {}", message);
+        RecipeValidationError {
+            status: StatusCode::BAD_REQUEST,
+            message,
+        }
+    })?;
+
+    Ok(())
 }
 
-impl RecipeManifestMetadata {
-    pub fn from_yaml_file(path: &Path) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", path.display(), e))?;
-        let metadata = serde_yaml::from_str::<Self>(&content)
-            .map_err(|e| anyhow::anyhow!("Failed to parse YAML: {}", e))?;
-        Ok(metadata)
+pub async fn get_recipe_file_path_by_id(
+    state: &AppState,
+    id: &str,
+) -> Result<PathBuf, ErrorResponse> {
+    let cached_path = {
+        let map = state.recipe_file_hash_map.lock().await;
+        map.get(id).cloned()
+    };
+
+    if let Some(path) = cached_path {
+        return Ok(path);
     }
+
+    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap_or_default();
+    let mut recipe_file_hash_map = HashMap::new();
+    let mut resolved_path: Option<PathBuf> = None;
+
+    for recipe_manifest_with_path in &recipe_manifest_with_paths {
+        if recipe_manifest_with_path.id == id {
+            resolved_path = Some(recipe_manifest_with_path.file_path.clone());
+        }
+        recipe_file_hash_map.insert(
+            recipe_manifest_with_path.id.clone(),
+            recipe_manifest_with_path.file_path.clone(),
+        );
+    }
+
+    state.set_recipe_file_hash_map(recipe_file_hash_map).await;
+
+    resolved_path.ok_or_else(|| ErrorResponse {
+        message: format!("Recipe not found: {}", id),
+        status: StatusCode::NOT_FOUND,
+    })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::tempdir;
+pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, ErrorResponse> {
+    let path = get_recipe_file_path_by_id(state, id).await?;
 
-    #[test]
-    fn test_from_yaml_file_success() {
-        let temp_dir = tempdir().unwrap();
-        let file_path = temp_dir.path().join("test_recipe.yaml");
-
-        let yaml_content = r#"
-name: "Test Recipe"
-isGlobal: true
-recipe: recipe_content
-"#;
-
-        fs::write(&file_path, yaml_content).unwrap();
-
-        let result = RecipeManifestMetadata::from_yaml_file(&file_path).unwrap();
-
-        assert_eq!(result.name, "Test Recipe");
-        assert!(result.is_global);
-    }
+    Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
+        message: format!("Failed to load recipe: {}", err),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })
 }

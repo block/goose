@@ -1,6 +1,7 @@
 ---
 title: PostgreSQL Extension
 description: Add PostgreSQL MCP Server as a Goose Extension
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,6 +10,8 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PZlYQ5IthYM" />
+
+Server archived
 
 The PostgreSQL MCP Server extension allows Goose to interact directly with your PostgreSQL databases, enabling database operations, querying, and schema management capabilities. This makes it easy to work with your databases through natural language interactions.
 

@@ -8,7 +8,7 @@ import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../types/message';
+import { Message } from '../api';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
@@ -22,7 +22,7 @@ import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
-import { COST_TRACKING_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
@@ -81,7 +81,8 @@ interface ChatInputProps {
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
-  recipeConfig?: Recipe | null;
+  recipe?: Recipe | null;
+  recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -108,7 +109,8 @@ export default function ChatInput({
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
-  recipeConfig,
+  recipe,
+  recipeId,
   recipeAccepted,
   initialPrompt,
   toolCount,
@@ -318,7 +320,7 @@ export default function ChatInput({
 
   useEffect(() => {
     // Only load draft once and if conditions are met
-    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -329,7 +331,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipeConfig]);
+  }, [chatContext, initialValue, recipe]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(
@@ -568,7 +570,7 @@ export default function ChatInput({
           // Hide the alert popup by dispatching a custom event that the popover can listen to
           // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append);
+          handleManualCompaction(messages, setMessages, append, sessionId || '');
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
@@ -1182,15 +1184,6 @@ export default function ChatInput({
     !agentIsReady ||
     isExtensionsLoading;
 
-  const isUserInputDisabled =
-    isAnyImageLoading ||
-    isAnyDroppedFileLoading ||
-    isRecording ||
-    isTranscribing ||
-    isCompacting ||
-    !agentIsReady ||
-    isExtensionsLoading;
-
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1305,7 +1298,6 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1352,7 +1344,8 @@ export default function ChatInput({
                         OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Models.</b>
                       </p>
-                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
+                      dictationSettings.provider === 'elevenlabs' ? (
                       <p>
                         ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Chat</b> {'>'} <b>Voice Dictation.</b>
@@ -1624,7 +1617,8 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipeConfig={recipeConfig}
+                recipe={recipe}
+                recipeId={recipeId}
                 hasMessages={messages.length > 0}
               />
             </div>

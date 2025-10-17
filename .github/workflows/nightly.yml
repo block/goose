@@ -1,4 +1,5 @@
-# This workflow is for nightly releases, automatically triggered at midnight US Eastern
+# A release from main. Automatically triggered at midnight US Eastern.
+
 name: Nightly Build
 
 on:
@@ -12,6 +13,7 @@ on:
         required: false
         default: 'main'
 
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,25 +24,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-version.outputs.version }}
+      commit_sha: ${{ steps.get-commit.outputs.commit_sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: main  # Ensure we're building from latest main
+          fetch-depth: 0
+
+      - name: Get commit info
+        id: get-commit
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Building from commit: $(git rev-parse HEAD)"
+          echo "Latest commit: $(git log -1 --oneline)"
 
       - name: Generate a nightly version
         id: set-version
         run: |
+          # Extract the version from Cargo.toml and add nightly tag with date and short commit
           VERSION=$(grep '^version\s*=' Cargo.toml | head -n 1 | cut -d\" -f2)
           DATE=$(date -u +%Y%m%d)
-          VERSION="${VERSION}-nightly.${DATE}"
-
-          # validate
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}$ ]]; then
-            echo "Error: Invalid version format: $VERSION"
-            exit 1
-          fi
-
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="${VERSION}-nightly.${DATE}.${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
 
   build-cli:
     needs: [prepare-version]
@@ -67,7 +74,9 @@ jobs:
       contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
-      signing: false
+      signing: true
+    secrets:
+      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
 
   bundle-desktop-linux:
     needs: [prepare-version]
@@ -80,32 +89,20 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
       version: ${{ needs.prepare-version.outputs.version }}
-      signing: false
-
+      signing: true
+    secrets:
+      WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
+      WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+  
   release:
     name: Release
     runs-on: ubuntu-latest
     needs: [prepare-version, build-cli, install-script, bundle-desktop, bundle-desktop-linux, bundle-desktop-windows]
     permissions:
       contents: write
-      actions: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
-        with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
-          fetch-depth: 0  # Fetch all history for proper tagging
-
-      - name: Create tag
-        run: |
-          TAG="${{ needs.prepare-version.outputs.version }}"
-
-          echo "Creating tag: $TAG"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git tag -a "$TAG" -m "Nightly release $TAG - SHA: ${{ github.sha }} - Run: ${{ github.run_number }}"
-          git push origin "$TAG"
-          echo "Tag $TAG created successfully"
 
       - name: Download all artifacts
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
@@ -121,7 +118,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
-            goose-*.zip
+            Goose*.zip
             *.deb
             *.rpm
             download_cli.sh
@@ -129,4 +126,3 @@ jobs:
           omitBody: true
           prerelease: true
           makeLatest: false
-          omitPrereleaseDuringUpdate: true

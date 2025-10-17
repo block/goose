@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Message } from '../types/message';
+import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { CompactionMarker } from './context_management/CompactionMarker';
@@ -172,7 +172,9 @@ export default function ProgressiveMessageList({
     const messagesToRender = messages.slice(0, renderedCount);
     return messagesToRender
       .map((message, index) => {
-        // Use custom render function if provided
+        if (!message.metadata.userVisible) {
+          return null;
+        }
         if (renderMessage) {
           return renderMessage(message, index);
         }

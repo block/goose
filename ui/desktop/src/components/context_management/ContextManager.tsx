@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Message } from '../../types/message';
-import { manageContextFromBackend, convertApiMessageToFrontendMessage } from './index';
+import { manageContextFromBackend } from './index';
+import { Message } from '../../api';
 
 // Define the context management interface
 interface ContextManagerState {
@@ -9,15 +9,11 @@ interface ContextManagerState {
 }
 
 interface ContextManagerActions {
-  handleAutoCompaction: (
-    messages: Message[],
-    setMessages: (messages: Message[]) => void,
-    append: (message: Message) => void
-  ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append?: (message: Message) => void
+    append?: (message: Message) => void,
+    sessionId?: string
   ) => Promise<void>;
   hasCompactionMarker: (message: Message) => boolean;
 }
@@ -37,6 +33,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append: (message: Message) => void,
+      sessionId: string,
       isManual: boolean = false
     ) => {
       setIsCompacting(true);
@@ -47,23 +44,17 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
         const summaryResponse = await manageContextFromBackend({
           messages: messages,
           manageAction: 'summarize',
+          sessionId: sessionId,
         });
 
-        // Convert API messages to frontend messages
-        // The server now handles all visibility - we just display what we receive
-        const convertedMessages = summaryResponse.messages.map((apiMessage) =>
-          convertApiMessageToFrontendMessage(apiMessage)
-        );
-
-        // Replace messages with the server-provided messages
-        setMessages(convertedMessages);
+        setMessages(summaryResponse.messages);
 
         // Only automatically submit the continuation message for auto-compaction (context limit reached)
         // Manual compaction should just compact without continuing the conversation
         if (!isManual) {
           // Automatically submit the continuation message to continue the conversation
           // This should be the third message (index 2) which contains the "I ran into a context length exceeded error..." text
-          const continuationMessage = convertedMessages[2];
+          const continuationMessage = summaryResponse.messages[2];
           if (continuationMessage) {
             setTimeout(() => {
               append(continuationMessage);
@@ -73,6 +64,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
 
         setIsCompacting(false);
       } catch (err) {
+        // TODO(Douwe): move this to the server
         console.error('Error during compaction:', err);
         setCompactionError(err instanceof Error ? err.message : 'Unknown error during compaction');
 
@@ -83,10 +75,11 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           created: Math.floor(Date.now() / 1000),
           content: [
             {
-              type: 'summarizationRequested',
+              type: 'conversationCompacted',
               msg: 'Compaction failed. Please try again or start a new session.',
             },
           ],
+          metadata: { userVisible: true, agentVisible: true },
         };
 
         setMessages([...messages, errorMarker]);
@@ -96,30 +89,20 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     []
   );
 
-  const handleAutoCompaction = useCallback(
-    async (
-      messages: Message[],
-      setMessages: (messages: Message[]) => void,
-      append: (message: Message) => void
-    ) => {
-      await performCompaction(messages, setMessages, append, false);
-    },
-    [performCompaction]
-  );
-
   const handleManualCompaction = useCallback(
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append?: (message: Message) => void
+      append?: (message: Message) => void,
+      sessionId?: string
     ) => {
-      await performCompaction(messages, setMessages, append || (() => {}), true);
+      await performCompaction(messages, setMessages, append || (() => {}), sessionId || '', true);
     },
     [performCompaction]
   );
 
   const hasCompactionMarker = useCallback((message: Message): boolean => {
-    return message.content.some((content) => content.type === 'summarizationRequested');
+    return message.content.some((content) => content.type === 'conversationCompacted');
   }, []);
 
   const value = {
@@ -128,7 +111,6 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     compactionError,
 
     // Actions
-    handleAutoCompaction,
     handleManualCompaction,
     hasCompactionMarker,
   };

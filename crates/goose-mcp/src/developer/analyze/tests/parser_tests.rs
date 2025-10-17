@@ -118,7 +118,7 @@ def func2():
 
     let tree = manager.parse(content, "python").unwrap();
     let result =
-        ElementExtractor::extract_with_depth(&tree, content, "python", "structure").unwrap();
+        ElementExtractor::extract_with_depth(&tree, content, "python", "structure", None).unwrap();
 
     // In structure mode, detailed vectors should be empty but counts preserved
     assert_eq!(result.function_count, 2);
@@ -139,7 +139,7 @@ def func2():
 
     let tree = manager.parse(content, "python").unwrap();
     let result =
-        ElementExtractor::extract_with_depth(&tree, content, "python", "semantic").unwrap();
+        ElementExtractor::extract_with_depth(&tree, content, "python", "semantic", None).unwrap();
 
     // In semantic mode, should have both elements and calls
     assert_eq!(result.function_count, 2);
@@ -225,4 +225,81 @@ fun helper() {
     assert_eq!(result.class_count, 1); // MyClass
     assert!(result.import_count > 0); // import statements
     assert!(result.main_line.is_some());
+}
+
+#[test]
+fn test_language_registry() {
+    use crate::developer::analyze::languages;
+
+    let supported = vec![
+        "python",
+        "rust",
+        "javascript",
+        "typescript",
+        "go",
+        "java",
+        "kotlin",
+        "swift",
+        "ruby",
+    ];
+
+    for lang in supported {
+        let info = languages::get_language_info(lang);
+        assert!(info.is_some(), "Language {} should be supported", lang);
+
+        let info = info.unwrap();
+        assert!(
+            !info.element_query.is_empty(),
+            "{} missing element_query",
+            lang
+        );
+        assert!(!info.call_query.is_empty(), "{} missing call_query", lang);
+        assert!(
+            !info.function_node_kinds.is_empty(),
+            "{} missing function_node_kinds",
+            lang
+        );
+        assert!(
+            !info.function_name_kinds.is_empty(),
+            "{} missing function_name_kinds",
+            lang
+        );
+    }
+
+    let js = languages::get_language_info("javascript").unwrap();
+    let ts = languages::get_language_info("typescript").unwrap();
+    assert_eq!(
+        js.element_query, ts.element_query,
+        "JS/TS should share config"
+    );
+
+    let go = languages::get_language_info("go").unwrap();
+    assert!(
+        !go.reference_query.is_empty(),
+        "Go should have reference tracking"
+    );
+    assert!(go.find_method_for_receiver_handler.is_some());
+
+    let ruby = languages::get_language_info("ruby").unwrap();
+    assert!(
+        !ruby.reference_query.is_empty(),
+        "Ruby should have reference tracking"
+    );
+    assert!(ruby.find_method_for_receiver_handler.is_some());
+
+    let rust = languages::get_language_info("rust").unwrap();
+    assert!(
+        rust.extract_function_name_handler.is_some(),
+        "Rust should have custom handler"
+    );
+
+    let swift = languages::get_language_info("swift").unwrap();
+    assert!(
+        swift.extract_function_name_handler.is_some(),
+        "Swift should have custom handler"
+    );
+
+    assert!(languages::get_language_info("unsupported").is_none());
+    assert!(languages::get_language_info("").is_none());
+    assert!(languages::get_language_info("C++").is_none());
 }

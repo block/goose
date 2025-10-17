@@ -284,12 +284,12 @@ jobs:
       - name: Copy exe/dll to final out folder and prepare flat distribution
         run: |
           cd ui/desktop
-          mkdir -p ./out/goose-win32-x64/resources/bin
-          rsync -av src/bin/ out/goose-win32-x64/resources/bin/
+          mkdir -p ./out/Goose-win32-x64/resources/bin
+          rsync -av src/bin/ out/Goose-win32-x64/resources/bin/
           
           # Create flat distribution structure
           mkdir -p ./dist-windows
-          cp -r ./out/goose-win32-x64/* ./dist-windows/
+          cp -r ./out/Goose-win32-x64/* ./dist-windows/
           
           # Verify the final structure
           echo "📋 Final flat distribution structure:"
@@ -318,8 +318,8 @@ jobs:
           wget -q https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O jsign.jar
           echo "05ca18d4ab7b8c2183289b5378d32860f0ea0f3bdab1f1b8cae5894fb225fa8a  jsign.jar" | sha256sum -c
           
-          # Sign the main Electron executable (goose.exe)
-          echo "🔐 Signing main Electron executable: goose.exe"
+          # Sign the main Electron executable (Goose.exe)
+          echo "🔐 Signing main Electron executable: Goose.exe"
           cd ui/desktop/dist-windows/
           
           java -jar ${GITHUB_WORKSPACE}/jsign.jar \
@@ -329,12 +329,12 @@ jobs:
             --alias windows-codesign \
             --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
             --tsaurl "http://timestamp.digicert.com" \
-            --name "goose" \
+            --name "Goose" \
             --url "https://github.com/block/goose" \
-            "goose.exe"
+            "Goose.exe"
 
-          osslsigncode verify goose.exe
-          echo "✅ Main executable goose.exe signed successfully"
+          osslsigncode verify Goose.exe
+          echo "✅ Main executable Goose.exe signed successfully"
           
           # Sign the backend executable (goosed.exe)
           echo "🔐 Signing backend executable: goosed.exe"
@@ -347,7 +347,7 @@ jobs:
             --alias windows-codesign \
             --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
             --tsaurl "http://timestamp.digicert.com" \
-            --name "goose Backend" \
+            --name "Goose Backend" \
             --url "https://github.com/block/goose" \
             "goosed.exe"
 
@@ -357,8 +357,8 @@ jobs:
           # Show final file status
           echo "📋 Final signed files:"
           cd ../../
-          ls -la goose.exe
-          sha256sum goose.exe
+          ls -la Goose.exe
+          sha256sum Goose.exe
           ls -la resources/bin/goosed.exe
           sha256sum resources/bin/goosed.exe
           
@@ -371,8 +371,8 @@ jobs:
         run: |
           echo "📋 Verifying both signed executables in final distribution:"
           echo "Main executable:"
-          ls -la ui/desktop/dist-windows/goose.exe
-          osslsigncode verify ui/desktop/dist-windows/goose.exe
+          ls -la ui/desktop/dist-windows/Goose.exe
+          osslsigncode verify ui/desktop/dist-windows/Goose.exe
           echo "✅ Main executable signature verification passed"
           
           echo "Backend executable:"
@@ -387,18 +387,18 @@ jobs:
           echo "📦 Creating Windows zip package..."
           
           # Create a zip file from the dist-windows directory
-          zip -r "goose-win32-x64.zip" dist-windows/
+          zip -r "Goose-win32-x64.zip" dist-windows/
           
           echo "✅ Windows zip package created:"
-          ls -la goose-win32-x64.zip
+          ls -la Goose-win32-x64.zip
           
           # Also create the zip in the expected output structure for consistency
-          mkdir -p out/goose-win32-x64/
-          cp goose-win32-x64.zip out/goose-win32-x64/
+          mkdir -p out/Goose-win32-x64/
+          cp Goose-win32-x64.zip out/Goose-win32-x64/
 
       # 11) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
-          name: goose-win32-x64
-          path: ui/desktop/out/goose-win32-x64/goose-win32-x64.zip
+          name: Goose-win32-x64
+          path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip

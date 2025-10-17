@@ -11,7 +11,7 @@ use super::utils::{
     is_google_model,
 };
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
@@ -42,10 +42,8 @@ pub struct OpenRouterProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(OpenRouterProvider);
-
 impl OpenRouterProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();

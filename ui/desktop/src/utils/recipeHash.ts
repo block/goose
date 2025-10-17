@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'crypto';
 
-function calculateRecipeHash(recipeConfig: unknown): string {
+function calculateRecipeHash(recipe: unknown): string {
   const hash = crypto.createHash('sha256');
-  hash.update(JSON.stringify(recipeConfig));
+  hash.update(JSON.stringify(recipe));
   return hash.digest('hex');
 }
 
@@ -16,8 +16,8 @@ async function getRecipeHashesDir(): Promise<string> {
   return hashesDir;
 }
 
-ipcMain.handle('has-accepted-recipe-before', async (_event, recipeConfig) => {
-  const hash = calculateRecipeHash(recipeConfig);
+ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
+  const hash = calculateRecipeHash(recipe);
   const hashFile = path.join(await getRecipeHashesDir(), `${hash}.hash`);
   try {
     await fs.access(hashFile);
@@ -30,8 +30,8 @@ ipcMain.handle('has-accepted-recipe-before', async (_event, recipeConfig) => {
   }
 });
 
-ipcMain.handle('record-recipe-hash', async (_event, recipeConfig) => {
-  const hash = calculateRecipeHash(recipeConfig);
+ipcMain.handle('record-recipe-hash', async (_event, recipe) => {
+  const hash = calculateRecipeHash(recipe);
   const filePath = path.join(await getRecipeHashesDir(), `${hash}.hash`);
   const timestamp = new Date().toISOString();
   await fs.writeFile(filePath, timestamp);

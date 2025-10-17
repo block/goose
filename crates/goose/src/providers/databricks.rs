@@ -21,7 +21,6 @@ use super::utils::{
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use crate::providers::retry::{
@@ -34,7 +33,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
-const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
+const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
@@ -109,10 +108,8 @@ pub struct DatabricksProvider {
     retry_config: RetryConfig,
 }
 
-impl_provider_default!(DatabricksProvider);
-
 impl DatabricksProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");

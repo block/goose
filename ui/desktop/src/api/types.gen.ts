@@ -25,6 +25,13 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+export type ChatRequest = {
+    messages: Array<Message>;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    session_id: string;
+};
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -65,18 +72,10 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-export type ContextLengthExceeded = {
-    msg: string;
-};
-
 /**
  * Request payload for context management operations
  */
 export type ContextManageRequest = {
-    /**
-     * Operation to perform: "truncation" or "summarize"
-     */
-    manageAction: string;
     /**
      * Collection of messages to be managed
      */
@@ -103,22 +102,13 @@ export type ContextManageResponse = {
 
 export type Conversation = Array<Message>;
 
-export type CreateCustomProviderRequest = {
-    api_key: string;
-    api_url: string;
-    display_name: string;
-    models: Array<string>;
-    provider_type: string;
-    supports_streaming?: boolean | null;
+export type ConversationCompacted = {
+    msg: string;
 };
 
 export type CreateRecipeRequest = {
-    activities?: Array<string> | null;
     author?: AuthorRequest | null;
-    description: string;
-    messages: Array<Message>;
     session_id: string;
-    title: string;
 };
 
 export type CreateRecipeResponse = {
@@ -131,6 +121,21 @@ export type CreateScheduleRequest = {
     execution_mode?: string | null;
     id: string;
     recipe_source: string;
+};
+
+export type DeclarativeProviderConfig = {
+    api_key_env: string;
+    base_url: string;
+    description?: string | null;
+    display_name: string;
+    engine: ProviderEngine;
+    headers?: {
+        [key: string]: string;
+    } | null;
+    models: Array<ModelInfo>;
+    name: string;
+    supports_streaming?: boolean | null;
+    timeout_seconds?: number | null;
 };
 
 export type DecodeRecipeRequest = {
@@ -168,7 +173,7 @@ export type Envs = {
 };
 
 export type ErrorResponse = {
-    error: string;
+    message: string;
 };
 
 export type ExtendPromptRequest = {
@@ -185,11 +190,8 @@ export type ExtendPromptResponse = {
  */
 export type ExtensionConfig = {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     /**
@@ -202,12 +204,9 @@ export type ExtensionConfig = {
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
     cmd: string;
-    description?: string | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     /**
@@ -218,11 +217,8 @@ export type ExtensionConfig = {
     type: 'stdio';
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -232,11 +228,17 @@ export type ExtensionConfig = {
     type: 'builtin';
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
-    description?: string | null;
+    description: string;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    type: 'platform';
+} | {
+    available_tools?: Array<string>;
+    bundled?: boolean | null;
+    description: string;
     env_keys?: Array<string>;
     envs?: Envs;
     headers?: {
@@ -251,10 +253,8 @@ export type ExtensionConfig = {
     uri: string;
 } | {
     available_tools?: Array<string>;
-    /**
-     * Whether this extension is bundled with goose
-     */
     bundled?: boolean | null;
+    description: string;
     /**
      * Instructions for how to use these tools
      */
@@ -278,10 +278,7 @@ export type ExtensionConfig = {
      * Python package dependencies required by this extension
      */
     dependencies?: Array<string> | null;
-    /**
-     * Description of what the extension does
-     */
-    description?: string | null;
+    description: string;
     /**
      * The name used to identify this extension
      */
@@ -346,6 +343,10 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type ImportSessionRequest = {
+    json: string;
+};
+
 export type InspectJobResponse = {
     processStartTime?: string | null;
     runningDurationSeconds?: number | null;
@@ -368,14 +369,19 @@ export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
 
+export type LoadedProvider = {
+    config: DeclarativeProviderConfig;
+    is_editable: boolean;
+};
+
 /**
  * A message to or from an LLM
  */
 export type Message = {
     content: Array<MessageContent>;
-    created?: number;
+    created: number;
     id?: string | null;
-    metadata?: MessageMetadata;
+    metadata: MessageMetadata;
     role: Role;
 };
 
@@ -398,10 +404,8 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ContextLengthExceeded & {
-    type: 'contextLengthExceeded';
-}) | (SummarizationRequested & {
-    type: 'summarizationRequested';
+}) | (ConversationCompacted & {
+    type: 'conversationCompacted';
 });
 
 /**
@@ -411,11 +415,11 @@ export type MessageMetadata = {
     /**
      * Whether the message should be included in the agent's context window
      */
-    agentVisible?: boolean;
+    agentVisible: boolean;
     /**
      * Whether the message should be visible to the user in the UI
      */
-    userVisible?: boolean;
+    userVisible: boolean;
 };
 
 /**
@@ -448,6 +452,14 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type ParseRecipeRequest = {
+    content: string;
+};
+
+export type ParseRecipeResponse = {
+    recipe: Recipe;
+};
+
 export type PermissionConfirmationRequest = {
     action: string;
     id: string;
@@ -466,7 +478,10 @@ export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
     name: string;
+    provider_type: ProviderType;
 };
+
+export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
 
 /**
  * Metadata about a provider's configuration requirements and capabilities
@@ -490,7 +505,6 @@ export type ProviderMetadata = {
     display_name: string;
     /**
      * A list of currently known models with their capabilities
-     * TODO: eventually query the apis directly
      */
     known_models: Array<ModelInfo>;
     /**
@@ -502,6 +516,8 @@ export type ProviderMetadata = {
      */
     name: string;
 };
+
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
@@ -544,59 +560,6 @@ export type RawTextContent = {
     text: string;
 };
 
-/**
- * A Recipe represents a personalized, user-generated agent configuration that defines
- * specific behaviors and capabilities within the goose system.
- *
- * # Fields
- *
- * ## Required Fields
- * * `version` - Semantic version of the Recipe file format (defaults to "1.0.0")
- * * `title` - Short, descriptive name of the Recipe
- * * `description` - Detailed description explaining the Recipe's purpose and functionality
- * * `Instructions` - Instructions that defines the Recipe's behavior
- *
- * ## Optional Fields
- * * `prompt` - the initial prompt to the session to start with
- * * `extensions` - List of extension configurations required by the Recipe
- * * `context` - Supplementary context information for the Recipe
- * * `activities` - Activity labels that appear when loading the Recipe
- * * `author` - Information about the Recipe's creator and metadata
- * * `parameters` - Additional parameters for the Recipe
- * * `response` - Response configuration including JSON schema validation
- * * `retry` - Retry configuration for automated validation and recovery
- * # Example
- *
- *
- * use goose::recipe::Recipe;
- *
- * // Using the builder pattern
- * let recipe = Recipe::builder()
- * .title("Example Agent")
- * .description("An example Recipe configuration")
- * .instructions("Act as a helpful assistant")
- * .build()
- * .expect("Missing required fields");
- *
- * // Or using struct initialization
- * let recipe = Recipe {
- * version: "1.0.0".to_string(),
- * title: "Example Agent".to_string(),
- * description: "An example Recipe configuration".to_string(),
- * instructions: Some("Act as a helpful assistant".to_string()),
- * prompt: None,
- * extensions: None,
- * context: None,
- * activities: None,
- * author: None,
- * settings: None,
- * parameters: None,
- * response: None,
- * sub_recipes: None,
- * retry: None,
- * };
- *
- */
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
@@ -616,9 +579,7 @@ export type Recipe = {
 
 export type RecipeManifestResponse = {
     id: string;
-    isGlobal: boolean;
     lastModified: string;
-    name: string;
     recipe: Recipe;
 };
 
@@ -695,6 +656,15 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SaveRecipeRequest = {
+    id?: string | null;
+    recipe: Recipe;
+};
+
+export type SaveRecipeResponse = {
+    id: string;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -731,6 +701,9 @@ export type Session = {
     schedule_id?: string | null;
     total_tokens?: number | null;
     updated_at: string;
+    user_recipe_values?: {
+        [key: string]: string;
+    } | null;
     working_dir: string;
 };
 
@@ -789,6 +762,8 @@ export type SetupResponse = {
 
 export type StartAgentRequest = {
     recipe?: Recipe | null;
+    recipe_deeplink?: string | null;
+    recipe_id?: string | null;
     working_dir: string;
 };
 
@@ -811,10 +786,6 @@ export type SuccessCheck = {
      */
     command: string;
     type: 'Shell';
-};
-
-export type SummarizationRequested = {
-    msg: string;
 };
 
 export type TextContent = {
@@ -892,6 +863,15 @@ export type ToolResponse = {
     };
 };
 
+export type UpdateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    engine: string;
+    models: Array<string>;
+    supports_streaming?: boolean | null;
+};
+
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
@@ -911,6 +891,15 @@ export type UpdateSessionDescriptionRequest = {
      * Updated description (name) for the session (max 200 characters)
      */
     description: string;
+};
+
+export type UpdateSessionUserRecipeValuesRequest = {
+    /**
+     * Recipe parameter values entered by the user
+     */
+    userRecipeValues: {
+        [key: string]: string;
+    };
 };
 
 export type UpsertConfigQuery = {
@@ -1048,9 +1037,9 @@ export type StartAgentData = {
 
 export type StartAgentErrors = {
     /**
-     * Bad request - invalid working directory
+     * Bad request
      */
-    400: unknown;
+    400: ErrorResponse;
     /**
      * Unauthorized - invalid secret key
      */
@@ -1058,8 +1047,10 @@ export type StartAgentErrors = {
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type StartAgentError = StartAgentErrors[keyof StartAgentErrors];
 
 export type StartAgentResponses = {
     /**
@@ -1214,7 +1205,7 @@ export type BackupConfigResponses = {
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
 export type CreateCustomProviderData = {
-    body: CreateCustomProviderRequest;
+    body: UpdateCustomProviderRequest;
     path?: never;
     query?: never;
     url: '/config/custom-providers';
@@ -1268,6 +1259,64 @@ export type RemoveCustomProviderResponses = {
 };
 
 export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
+
+export type GetCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type GetCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetCustomProviderResponses = {
+    /**
+     * Custom provider retrieved successfully
+     */
+    200: LoadedProvider;
+};
+
+export type GetCustomProviderResponse = GetCustomProviderResponses[keyof GetCustomProviderResponses];
+
+export type UpdateCustomProviderData = {
+    body: UpdateCustomProviderRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type UpdateCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateCustomProviderResponses = {
+    /**
+     * Custom provider updated successfully
+     */
+    200: string;
+};
+
+export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
@@ -1784,6 +1833,68 @@ export type ListRecipesResponses = {
 
 export type ListRecipesResponse = ListRecipesResponses[keyof ListRecipesResponses];
 
+export type ParseRecipeData = {
+    body: ParseRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/parse';
+};
+
+export type ParseRecipeErrors = {
+    /**
+     * Bad request - Invalid recipe format
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ParseRecipeError = ParseRecipeErrors[keyof ParseRecipeErrors];
+
+export type ParseRecipeResponses = {
+    /**
+     * Recipe parsed successfully
+     */
+    200: ParseRecipeResponse;
+};
+
+export type ParseRecipeResponse2 = ParseRecipeResponses[keyof ParseRecipeResponses];
+
+export type SaveRecipeData = {
+    body: SaveRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/save';
+};
+
+export type SaveRecipeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ErrorResponse;
+    /**
+     * Not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type SaveRecipeError = SaveRecipeErrors[keyof SaveRecipeErrors];
+
+export type SaveRecipeResponses = {
+    /**
+     * Recipe saved to file successfully
+     */
+    204: SaveRecipeResponse;
+};
+
+export type SaveRecipeResponse2 = SaveRecipeResponses[keyof SaveRecipeResponses];
+
 export type ScanRecipeData = {
     body: ScanRecipeRequest;
     path?: never;
@@ -1799,6 +1910,31 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ReplyData = {
+    body: ChatRequest;
+    path?: never;
+    query?: never;
+    url: '/reply';
+};
+
+export type ReplyErrors = {
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReplyResponses = {
+    /**
+     * Streaming response initiated
+     */
+    200: unknown;
+};
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
@@ -2127,6 +2263,37 @@ export type ListSessionsResponses = {
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
+export type ImportSessionData = {
+    body: ImportSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/sessions/import';
+};
+
+export type ImportSessionErrors = {
+    /**
+     * Bad request - Invalid JSON
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ImportSessionResponses = {
+    /**
+     * Session imported successfully
+     */
+    200: Session;
+};
+
+export type ImportSessionResponse = ImportSessionResponses[keyof ImportSessionResponses];
+
 export type GetSessionInsightsData = {
     body?: never;
     path?: never;
@@ -2258,6 +2425,76 @@ export type UpdateSessionDescriptionErrors = {
 export type UpdateSessionDescriptionResponses = {
     /**
      * Session description updated successfully
+     */
+    200: unknown;
+};
+
+export type ExportSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/export';
+};
+
+export type ExportSessionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ExportSessionResponses = {
+    /**
+     * Session exported successfully
+     */
+    200: string;
+};
+
+export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type UpdateSessionUserRecipeValuesData = {
+    body: UpdateSessionUserRecipeValuesRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/user_recipe_values';
+};
+
+export type UpdateSessionUserRecipeValuesErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionUserRecipeValuesResponses = {
+    /**
+     * Session user recipe values updated successfully
      */
     200: unknown;
 };

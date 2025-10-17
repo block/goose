@@ -7,14 +7,14 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
-use crate::config::{self, Config};
+use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
@@ -63,18 +63,13 @@ pub fn normalize_cron_expression(src: &str) -> String {
 }
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
-    let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
-        .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e.to_string()))?;
-    let data_dir = strategy.data_dir();
+    let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
     Ok(data_dir.join("schedules.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
-    let strategy = choose_app_strategy(config::APP_STRATEGY.clone()).map_err(|e| {
-        SchedulerError::StorageError(io::Error::new(io::ErrorKind::NotFound, e.to_string()))
-    })?;
-    let data_dir = strategy.data_dir();
+    let data_dir = Paths::data_dir();
     let recipes_dir = data_dir.join("scheduled_recipes");
     fs::create_dir_all(&recipes_dir).map_err(SchedulerError::StorageError)?;
     tracing::debug!(
@@ -1132,13 +1127,16 @@ async fn run_scheduled_job_internal(
                 error: format!("Model config error: {}", e),
             })?;
 
-        agent_provider = create(&provider_name, model_config).map_err(|e| JobExecutionError {
-            job_id: job.id.clone(),
-            error: format!(
-                "Failed to create provider instance '{}': {}",
-                provider_name, e
-            ),
-        })?;
+        agent_provider =
+            create(&provider_name, model_config)
+                .await
+                .map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!(
+                        "Failed to create provider instance '{}': {}",
+                        provider_name, e
+                    ),
+                })?;
     }
 
     if let Some(ref recipe_extensions) = recipe.extensions {
@@ -1202,7 +1200,7 @@ async fn run_scheduled_job_internal(
     }
 
     if let Some(ref prompt_text) = recipe.prompt {
-        let mut all_session_messages =
+        let mut conversation =
             Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
         let session_config = SessionConfig {
@@ -1215,11 +1213,7 @@ async fn run_scheduled_job_internal(
         };
 
         match agent
-            .reply(
-                all_session_messages.clone(),
-                Some(session_config.clone()),
-                None,
-            )
+            .reply(conversation.clone(), Some(session_config.clone()), None)
             .await
         {
             Ok(mut stream) => {
@@ -1233,11 +1227,13 @@ async fn run_scheduled_job_internal(
                             if msg.role == rmcp::model::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
-                            all_session_messages.push(msg);
+                            conversation.push(msg);
                         }
                         Ok(AgentEvent::McpNotification(_)) => {}
                         Ok(AgentEvent::ModelChange { .. }) => {}
-                        Ok(AgentEvent::HistoryReplaced(_)) => {}
+                        Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                            conversation = updated_conversation;
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",

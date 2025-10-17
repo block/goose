@@ -113,6 +113,12 @@ impl PromptManager {
             Value::String(suggest_disable_extensions_prompt.to_string()),
         );
 
+        // Add the mode to the context for conditional rendering
+        let config = Config::global();
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        context.insert("goose_mode", Value::String(goose_mode.clone()));
+        context.insert("is_autonomous", Value::Bool(goose_mode == "auto"));
+
         // First check the global store, and only if it's not available, fall back to the provided model_name
         let model_to_use: Option<String> =
             get_current_model().or_else(|| model_name.map(|s| s.to_string()));
@@ -139,8 +145,6 @@ impl PromptManager {
         };
 
         let mut system_prompt_extras = self.system_prompt_extras.clone();
-        let config = Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         if goose_mode == "chat" {
             system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."

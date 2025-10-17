@@ -1,6 +1,7 @@
 ---
 title: Kiwi Flight Search Extension
 description: Add Kiwi Flight Search MCP Server as a Goose Extension
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,6 +13,8 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 import { PanelLeft } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/MhLU91zKE4M" />
+
+Server moved: https://apify.com/agentify/kiwi-mcp-server
 
 This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a Goose extension to enable flight search and price comparison.
 

@@ -1,14 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { CompactionMarker } from '../CompactionMarker';
-import { Message } from '../../../types/message';
+import { Message } from '../../../api';
+
+const default_message: Message = {
+  metadata: {
+    agentVisible: false,
+    userVisible: false,
+  },
+  id: '1',
+  role: 'assistant',
+  created: 1000,content: []
+};
 
 describe('CompactionMarker', () => {
-  it('should render default message when no summarizationRequested content found', () => {
+  it('should render default message when no conversationCompacted content found', () => {
     const message: Message = {
-      id: '1',
-      role: 'assistant',
-      created: 1000,
+      ...default_message,
       content: [{ type: 'text', text: 'Regular message' }],
     };
 
@@ -17,14 +25,12 @@ describe('CompactionMarker', () => {
     expect(screen.getByText('Conversation compacted')).toBeInTheDocument();
   });
 
-  it('should render custom message from summarizationRequested content', () => {
+  it('should render custom message from conversationCompacted content', () => {
     const message: Message = {
-      id: '1',
-      role: 'assistant',
-      created: 1000,
+      ...default_message,
       content: [
         { type: 'text', text: 'Some other content' },
-        { type: 'summarizationRequested', msg: 'Custom compaction message' },
+        { type: 'conversationCompacted', msg: 'Custom compaction message' },
       ],
     };
 
@@ -35,9 +41,7 @@ describe('CompactionMarker', () => {
 
   it('should handle empty message content array', () => {
     const message: Message = {
-      id: '1',
-      role: 'assistant',
-      created: 1000,
+      ...default_message,
       content: [],
     };
 
@@ -48,10 +52,8 @@ describe('CompactionMarker', () => {
 
   it('should handle summarizationRequested content with empty msg', () => {
     const message: Message = {
-      id: '1',
-      role: 'assistant',
-      created: 1000,
-      content: [{ type: 'summarizationRequested', msg: '' }],
+      ...default_message,
+      content: [{ type: 'conversationCompacted', msg: '' }],
     };
 
     render(<CompactionMarker message={message} />);
@@ -62,11 +64,9 @@ describe('CompactionMarker', () => {
 
   it('should handle summarizationRequested content with undefined msg', () => {
     const message: Message = {
-      id: '1',
-      role: 'assistant',
-      created: 1000,
+      ...default_message,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      content: [{ type: 'summarizationRequested' } as any],
+      content: [{ type: 'conversationCompacted' } as any],
     };
 
     render(<CompactionMarker message={message} />);

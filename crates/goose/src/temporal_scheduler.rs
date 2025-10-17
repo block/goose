@@ -851,25 +851,18 @@ impl TemporalScheduler {
                             if let Some(session_info) =
                                 all_sessions.iter().find(|s| s.id == session_id)
                             {
-                                // Parse the updated_at timestamp from the database
-                                if let Ok(modified_dt) = DateTime::parse_from_str(
-                                    &session_info.updated_at,
-                                    "%Y-%m-%d %H:%M:%S UTC",
-                                ) {
-                                    let modified_utc = modified_dt.with_timezone(&Utc);
-                                    let now = Utc::now();
-                                    let time_diff = now.signed_duration_since(modified_utc);
+                                let now = Utc::now();
+                                let time_diff = now.signed_duration_since(session_info.updated_at);
 
-                                    // Increased tolerance to 5 minutes to reduce false positives
-                                    if time_diff.num_minutes() < 5 {
-                                        has_active_session = true;
-                                        tracing::debug!(
+                                // Increased tolerance to 5 minutes to reduce false positives
+                                if time_diff.num_minutes() < 5 {
+                                    has_active_session = true;
+                                    tracing::debug!(
                                         "Found active session for job '{}' modified {} minutes ago",
                                         job.id,
                                         time_diff.num_minutes()
                                     );
-                                        break;
-                                    }
+                                    break;
                                 }
                             }
                         }

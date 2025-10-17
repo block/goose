@@ -1,14 +1,11 @@
-//! Agent lifecycle management with session isolation
-
-use super::SessionExecutionMode;
+use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
-use crate::config::APP_STRATEGY;
+use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::create;
 use crate::scheduler_factory::SchedulerFactory;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -39,10 +36,7 @@ impl AgentManager {
 
     // Private constructor - prevents direct instantiation in production
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
-        // Construct scheduler with the standard goose-server path
-        let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
-            .data_dir()
-            .join("schedule.json");
+        let schedule_file_path = Paths::data_dir().join("schedule.json");
 
         let scheduler = SchedulerFactory::create(schedule_file_path).await?;
 
@@ -94,7 +88,7 @@ impl AgentManager {
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
             match ModelConfig::new(&model_name) {
-                Ok(model_config) => match create(&provider_name, model_config) {
+                Ok(model_config) => match create(&provider_name, model_config).await {
                     Ok(provider) => {
                         self.set_default_provider(provider).await;
                         info!(
@@ -112,49 +106,33 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_or_create_agent(
-        &self,
-        session_id: String,
-        mode: SessionExecutionMode,
-    ) -> Result<Arc<Agent>> {
-        let agent = {
+    pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
+        {
             let mut sessions = self.sessions.write().await;
-            if let Some(agent) = sessions.get(&session_id) {
-                debug!("Found existing agent for session {}", session_id);
-                return Ok(Arc::clone(agent));
-            }
-
-            info!(
-                "Creating new agent for session {} with mode {}",
-                session_id, mode
-            );
-            let agent = Arc::new(Agent::new());
-            sessions.put(session_id.clone(), Arc::clone(&agent));
-            agent
-        };
-
-        match &mode {
-            SessionExecutionMode::Interactive | SessionExecutionMode::Background => {
-                debug!("Setting scheduler on agent for session {}", session_id);
-                agent.set_scheduler(Arc::clone(&self.scheduler)).await;
-            }
-            SessionExecutionMode::SubTask { .. } => {
-                debug!(
-                    "SubTask mode for session {}, skipping scheduler setup",
-                    session_id
-                );
+            if let Some(existing) = sessions.get(&session_id) {
+                return Ok(Arc::clone(existing));
             }
         }
 
+        let agent = Arc::new(Agent::new());
+        agent.set_scheduler(Arc::clone(&self.scheduler)).await;
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some(session_id.clone()),
+            })
+            .await;
         if let Some(provider) = &*self.default_provider.read().await {
-            debug!(
-                "Setting default provider on agent for session {}",
-                session_id
-            );
-            let _ = agent.update_provider(Arc::clone(provider)).await;
+            agent.update_provider(Arc::clone(provider)).await?;
         }
 
-        Ok(agent)
+        let mut sessions = self.sessions.write().await;
+        if let Some(existing) = sessions.get(&session_id) {
+            Ok(Arc::clone(existing))
+        } else {
+            sessions.put(session_id, agent.clone());
+            Ok(agent)
+        }
     }
 
     pub async fn remove_session(&self, session_id: &str) -> Result<()> {

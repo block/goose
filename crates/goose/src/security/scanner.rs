@@ -27,12 +27,10 @@ impl PromptInjectionScanner {
         use crate::config::Config;
         let config = Config::global();
 
-        // Get security config and extract threshold
-        if let Ok(security_value) = config.get_param::<serde_json::Value>("security") {
-            if let Some(threshold) = security_value.get("threshold").and_then(|t| t.as_f64()) {
-                return threshold as f32;
-            }
+        if let Ok(threshold) = config.get_param::<f64>("security_prompt_threshold") {
+            return threshold as f32;
         }
+
         0.7 // Default threshold
     }
 
@@ -45,7 +43,6 @@ impl PromptInjectionScanner {
     ) -> Result<ScanResult> {
         // For Phase 1, focus on tool call content analysis
         // Phase 2 will add conversation context analysis
-
         let tool_content = self.extract_tool_content(tool_call);
         self.scan_for_dangerous_patterns(&tool_content).await
     }

@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,7 +19,7 @@ use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, I
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
@@ -30,11 +30,11 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "o1",
     "o3-mini",
     "claude-3.7-sonnet",
-    "claude-sonnet-4-20250514",
+    "claude-sonnet-4",
 ];
 
 pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4-20250514"];
+    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -81,9 +81,7 @@ struct DiskCache {
 
 impl DiskCache {
     fn new() -> Self {
-        let cache_path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("githubcopilot/info.json");
+        let cache_path = Paths::in_config_dir("githubcopilot/info.json");
         Self { cache_path }
     }
 
@@ -117,10 +115,8 @@ pub struct GithubCopilotProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GithubCopilotProvider);
-
 impl GithubCopilotProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;

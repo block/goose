@@ -185,7 +185,7 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
-            MessageContent::SummarizationRequested(summarization) => {
+            MessageContent::ConversationCompacted(summarization) => {
                 println!("\n{}", style(&summarization.msg).yellow());
             }
             _ => {
@@ -740,6 +740,14 @@ pub fn display_session_info(
             style(provider).cyan().dim(),
             style("model:").dim(),
             style(model).cyan().dim(),
+        );
+    }
+
+    if let Some(id) = session_id {
+        println!(
+            "    {} {}",
+            style("session id:").dim(),
+            style(id).cyan().dim()
         );
     }
 
