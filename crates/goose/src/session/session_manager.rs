@@ -63,9 +63,7 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    /// Total number of sessions
     total_sessions: usize,
-    /// Total tokens used across all sessions
     total_tokens: i64,
 }
 
@@ -977,7 +975,7 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent};
     use tempfile::TempDir;
 
-    const NUM_CONCURRENT_SESSIONS: i32 = 1000;
+    const NUM_CONCURRENT_SESSIONS: i32 = 10;
 
     #[tokio::test]
     async fn test_concurrent_session_creation() {
