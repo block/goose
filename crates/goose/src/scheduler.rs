@@ -1174,11 +1174,11 @@ async fn run_scheduled_job_internal(
     // Create session upfront for both cases
     let session = match SessionManager::create_session(
         current_dir.clone(),
-        Some(if recipe.prompt.is_some() {
+        if recipe.prompt.is_some() {
             format!("Scheduled job: {}", job.id)
         } else {
             "Empty job - no prompt".to_string()
-        }),
+        },
     )
     .await
     {

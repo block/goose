@@ -225,7 +225,7 @@ pub async fn handle_web(
 async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        Some("Web session".to_string()),
+        "Web session".to_string(),
     )
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;

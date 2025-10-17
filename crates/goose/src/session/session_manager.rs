@@ -94,17 +94,21 @@ impl SessionUpdateBuilder {
         }
     }
 
-    /// User-provided name (prevents LLM from overwriting it)
-    pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self.user_set_name = Some(true);
+    pub fn user_provided_name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into().trim().to_string();
+        if !name.is_empty() {
+            self.name = Some(name);
+            self.user_set_name = Some(true);
+        }
         self
     }
 
-    /// System-generated name (allows LLM to update it later)
-    pub fn system_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self.user_set_name = Some(false);
+    pub fn system_generated_name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into().trim().to_string();
+        if !name.is_empty() {
+            self.name = Some(name);
+            self.user_set_name = Some(false);
+        }
         self
     }
 
@@ -181,8 +185,7 @@ impl SessionManager {
             .map(Arc::clone)
     }
 
-    /// `None` allows LLM to automatically generate the name, `Some` preserves the user's choice.
-    pub async fn create_session(working_dir: PathBuf, name: Option<String>) -> Result<Session> {
+    pub async fn create_session(working_dir: PathBuf, name: String) -> Result<Session> {
         Self::instance()
             .await?
             .create_session(working_dir, name)
@@ -254,7 +257,10 @@ impl SessionManager {
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
             let name = provider.generate_session_name(&conversation).await?;
-            Self::update_session(id).system_name(name).apply().await
+            Self::update_session(id)
+                .system_generated_name(name)
+                .apply()
+                .await
         } else {
             Ok(())
         }
@@ -673,12 +679,8 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn create_session(&self, working_dir: PathBuf, name: Option<String>) -> Result<Session> {
+    async fn create_session(&self, working_dir: PathBuf, name: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let (session_name, user_set_name) = match name {
-            Some(n) => (n, true),
-            None => ("CLI Session".to_string(), false),
-        };
         let session_id = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, name, user_set_name, working_dir, extension_data)
@@ -689,7 +691,7 @@ impl SessionStorage {
                         WHERE id LIKE ? || '_%'
                     ), 0) + 1 AS TEXT),
                     ?,
-                    ?,
+                    FALSE,
                     ?,
                     '{}'
                 )
@@ -698,8 +700,7 @@ impl SessionStorage {
         )
         .bind(&today)
         .bind(&today)
-        .bind(&session_name)
-        .bind(user_set_name)
+        .bind(&name)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
         .await?;
@@ -995,30 +996,26 @@ impl SessionStorage {
         let import: Session = serde_json::from_str(json)?;
 
         let session = self
-            .create_session(
-                import.working_dir.clone(),
-                if import.user_set_name {
-                    Some(import.name.clone())
-                } else {
-                    None
-                },
-            )
+            .create_session(import.working_dir.clone(), import.name.clone())
             .await?;
 
-        self.apply_update(
-            SessionUpdateBuilder::new(session.id.clone())
-                .extension_data(import.extension_data)
-                .total_tokens(import.total_tokens)
-                .input_tokens(import.input_tokens)
-                .output_tokens(import.output_tokens)
-                .accumulated_total_tokens(import.accumulated_total_tokens)
-                .accumulated_input_tokens(import.accumulated_input_tokens)
-                .accumulated_output_tokens(import.accumulated_output_tokens)
-                .schedule_id(import.schedule_id)
-                .recipe(import.recipe)
-                .user_recipe_values(import.user_recipe_values),
-        )
-        .await?;
+        let mut builder = SessionUpdateBuilder::new(session.id.clone())
+            .extension_data(import.extension_data)
+            .total_tokens(import.total_tokens)
+            .input_tokens(import.input_tokens)
+            .output_tokens(import.output_tokens)
+            .accumulated_total_tokens(import.accumulated_total_tokens)
+            .accumulated_input_tokens(import.accumulated_input_tokens)
+            .accumulated_output_tokens(import.accumulated_output_tokens)
+            .schedule_id(import.schedule_id)
+            .recipe(import.recipe)
+            .user_recipe_values(import.user_recipe_values);
+
+        if import.user_set_name {
+            builder = builder.user_provided_name(import.name.clone());
+        }
+
+        self.apply_update(builder).await?;
 
         if let Some(conversation) = import.conversation {
             self.replace_conversation(&session.id, &conversation)
@@ -1053,7 +1050,7 @@ mod tests {
                 let description = format!("Test session {}", i);
 
                 let session = session_storage
-                    .create_session(working_dir.clone(), Some(description))
+                    .create_session(working_dir.clone(), description)
                     .await
                     .unwrap();
 
@@ -1088,7 +1085,7 @@ mod tests {
                 session_storage
                     .apply_update(
                         SessionUpdateBuilder::new(session.id.clone())
-                            .name(format!("Updated session {}", i))
+                            .user_provided_name(format!("Updated session {}", i))
                             .total_tokens(Some(100 * i)),
                     )
                     .await
@@ -1145,7 +1142,7 @@ mod tests {
         let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
 
         let original = storage
-            .create_session(PathBuf::from("/tmp/test"), Some(DESCRIPTION.to_string()))
+            .create_session(PathBuf::from("/tmp/test"), DESCRIPTION.to_string())
             .await
             .unwrap();
 
@@ -1228,38 +1225,5 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
-    }
-
-    #[tokio::test]
-    async fn test_user_set_name_flag() {
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test_user_name.db");
-        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
-
-        let user_session = storage
-            .create_session(PathBuf::from("/tmp"), Some("My Custom Name".to_string()))
-            .await
-            .unwrap();
-
-        assert_eq!(user_session.name, "My Custom Name");
-        assert!(user_session.user_set_name);
-
-        let auto_session = storage
-            .create_session(PathBuf::from("/tmp"), None)
-            .await
-            .unwrap();
-
-        assert_eq!(auto_session.name, "CLI Session");
-        assert!(!auto_session.user_set_name);
-
-        storage
-            .apply_update(
-                SessionUpdateBuilder::new(user_session.id.clone()).total_tokens(Some(100)),
-            )
-            .await
-            .unwrap();
-
-        let updated = storage.get_session(&user_session.id, false).await.unwrap();
-        assert!(updated.user_set_name);
     }
 }

@@ -130,12 +130,16 @@ async fn update_session_name(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionNameRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    if request.name.len() > MAX_NAME_LENGTH {
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if name.len() > MAX_NAME_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     SessionManager::update_session(&session_id)
-        .name(request.name)
+        .user_provided_name(name.to_string())
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
