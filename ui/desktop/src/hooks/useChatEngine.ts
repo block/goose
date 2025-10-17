@@ -340,6 +340,7 @@ export const useChatEngine = ({
           role: 'user',
           created: Date.now(),
           content: [],
+          metadata: { userVisible: true, agentVisible: true },
         };
 
         const notification = 'Interrupted by the user to make a correction';

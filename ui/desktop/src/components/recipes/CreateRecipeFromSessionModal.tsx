@@ -183,13 +183,21 @@ export default function CreateRecipeFromSessionModal({
         extensions: [], // Will be populated based on current extensions
       };
 
-      await saveRecipe(recipe, null);
+      let recipeId = await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();
 
       if (runAfterSave) {
-        window.electron.createChatWindow(undefined, undefined, undefined, undefined, recipe);
+        window.electron.createChatWindow(
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          recipeId
+        );
       }
     } catch (error) {
       console.error('Failed to create recipe:', error);
