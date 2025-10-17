@@ -1,3 +1,4 @@
+use crate::agents::chatrecall_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -46,6 +47,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Enable a todo list for Goose so it can keep track of what it is doing",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            chatrecall_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: chatrecall_extension::EXTENSION_NAME,
+                description:
+                    "Search past conversations and load session summaries for contextual memory",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
+                },
             },
         );
 
