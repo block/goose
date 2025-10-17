@@ -26,18 +26,37 @@ interface UpdateCheckResult {
   error?: string;
 }
 
+interface AssetManifest {
+  [platform: string]: {
+    [arch: string]: string;
+  };
+}
+
 export class GitHubUpdater {
   private readonly owner = 'block';
   private readonly repo = 'goose';
-  private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
+
+  apiUrl(path: string): string {
+    return `https://api.github.com/repos/${this.owner}/${this.repo}/${path}`;
+  }
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
     try {
       log.info('GitHubUpdater: Checking for updates via GitHub API...');
-      log.info(`GitHubUpdater: API URL: ${this.apiUrl}`);
       log.info(`GitHubUpdater: Current app version: ${app.getVersion()}`);
 
-      const response = await fetch(this.apiUrl, {
+      const url = `https://github.com/${this.owner}/${this.repo}/releases/latest/download/manifest.json`;
+      log.info(`fetching ${url}`);
+      const manifest: AssetManifest = await (
+        await fetch(url, {
+          headers: {
+            Accept: 'application/octet-stream',
+            'User-Agent': `Goose-Desktop/${app.getVersion()}`,
+          },
+        })
+      ).json();
+
+      const response = await fetch(this.apiUrl('releases/latest'), {
         headers: {
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': `Goose-Desktop/${app.getVersion()}`,
@@ -83,40 +102,20 @@ export class GitHubUpdater {
       // Find the appropriate download URL based on platform
       const platform = process.platform;
       const arch = process.arch;
-      let downloadUrl: string | undefined;
-      let assetName: string;
 
-      log.info(`GitHubUpdater: Looking for asset for platform: ${platform}, arch: ${arch}`);
-
-      if (platform === 'darwin') {
-        // macOS
-        if (arch === 'arm64') {
-          assetName = 'Goose.zip';
-        } else {
-          assetName = 'Goose_intel_mac.zip';
-        }
-      } else if (platform === 'win32') {
-        // Windows - for future support
-        assetName = 'Goose-win32-x64.zip';
-      } else {
-        // Linux - for future support
-        assetName = `Goose-linux-${arch}.zip`;
+      let platformAssets = manifest[platform];
+      if (!platformAssets) {
+        log.info(`${platform} not found in manifest: ${JSON.stringify(manifest)}`);
+        return {
+          updateAvailable: false,
+          latestVersion,
+        };
       }
-
-      log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
-      log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
-
-      const asset = release.assets.find((a) => a.name === assetName);
-      if (asset) {
-        downloadUrl = asset.browser_download_url;
-        log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
-        log.info(`GitHubUpdater: Download URL: ${downloadUrl}`);
-      } else {
-        log.warn(`GitHubUpdater: No matching asset found for ${assetName}`);
-      }
+      let downloadUrl = platformAssets[arch] || platformAssets['*'];
+      log.info(`downloadUrl: ${downloadUrl}`);
 
       return {
-        updateAvailable: true,
+        updateAvailable: !!downloadUrl,
         latestVersion,
         downloadUrl,
         releaseUrl: release.html_url,
