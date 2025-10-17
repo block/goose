@@ -8,7 +8,7 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, log_llm_request, ImageFormat};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -188,7 +188,7 @@ impl Provider for LiteLLMProvider {
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log_llm_request(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

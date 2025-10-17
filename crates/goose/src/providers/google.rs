@@ -1,7 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, handle_response_google_compat, unescape_json_values};
+use super::utils::{handle_response_google_compat, log_llm_request, unescape_json_values};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -129,7 +129,7 @@ impl Provider for GoogleProvider {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => model_config.model_name.clone(),
         };
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log_llm_request(model_config, &payload, &response, &usage);
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }

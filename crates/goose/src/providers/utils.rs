@@ -3,16 +3,18 @@ use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::{OpenAIError, ProviderError};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::io::Read;
-use std::path::Path;
+use std::fs::File;
+use std::io::{BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -452,41 +454,94 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace<T1, T2>(
-    model_config: &ModelConfig,
-    payload: &T1,
-    response: &T2,
-    usage: &Usage,
+pub struct RequestLog {
+    writer: Option<BufWriter<File>>,
+    temp_path: PathBuf,
+}
+
+const LOGS_TO_KEEP: usize = 5;
+
+impl RequestLog {
+    pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
+    where
+        Payload: Serialize,
+    {
+        let logs_dir = Paths::in_state_dir("logs");
+        std::fs::create_dir_all(&logs_dir)?;
+
+        let request_id = Uuid::new_v4();
+        let temp_name = format!("llm_request.{request_id}.jsonl");
+        let temp_path = logs_dir.join(PathBuf::from(temp_name));
+
+        let mut writer = BufWriter::new(
+            File::options()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&temp_path)?,
+        );
+
+        let data = serde_json::json!({
+            "model_config": model_config,
+            "input": payload,
+        });
+        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
+
+        Ok(Self {
+            writer: Some(writer),
+            temp_path,
+        })
+    }
+
+    pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
+    where
+        Payload: Serialize,
+    {
+        let data = serde_json::json!({
+            "data": data,
+            "usage": usage,
+        });
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| anyhow!("logger is finished"))?;
+        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<()> {
+        if let Some(_) = self.writer.take() {
+            let logs_dir = Paths::in_state_dir("logs");
+            let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
+
+            for i in (0..LOGS_TO_KEEP - 1).rev() {
+                let _ = std::fs::rename(log_path(i), log_path(i + 1));
+            }
+
+            std::fs::rename(&self.temp_path, log_path(0))?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for RequestLog {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let _ = self.finish();
+    }
+}
+
+pub fn log_llm_request<P, R>(
+    _model_config: &ModelConfig,
+    _payload: &P,
+    _response: &R,
+    _usage: &Usage,
 ) where
-    T1: ?Sized + Serialize,
-    T2: ?Sized + Serialize,
+    P: ?Sized + Serialize,
+    R: ?Sized + Serialize,
 {
-    let logs_dir = Paths::in_state_dir("logs");
-
-    if let Err(e) = std::fs::create_dir_all(&logs_dir) {
-        tracing::warn!("Failed to create logs directory: {}", e);
-        return;
-    }
-
-    let log_path = |i| logs_dir.join(format!("llm_request.{}.json", i));
-
-    for i in (0..4).rev() {
-        let _ = std::fs::rename(log_path(i), log_path(i + 1));
-    }
-
-    let data = serde_json::json!({
-        "model_config": model_config,
-        "input": payload,
-        "output": response,
-        "usage": usage,
-    });
-
-    if let Err(e) = std::fs::write(
-        log_path(0),
-        serde_json::to_string_pretty(&data).unwrap_or_default(),
-    ) {
-        tracing::warn!("Failed to write log file: {}", e);
-    }
 }
 
 /// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.

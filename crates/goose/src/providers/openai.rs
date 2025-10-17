@@ -17,8 +17,7 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{
-    emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
-    ImageFormat,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
@@ -26,6 +25,7 @@ use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
@@ -229,7 +229,8 @@ impl Provider for OpenAiProvider {
                 Usage::default()
             });
         let model = get_model(&json_response);
-        emit_debug_trace(&self.model, &payload, &json_response, &usage);
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
@@ -290,8 +291,7 @@ impl Provider for OpenAiProvider {
         let response = handle_status_openai_compat(response).await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-
-        let model_config = self.model.clone();
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
@@ -301,7 +301,7 @@ impl Provider for OpenAiProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))

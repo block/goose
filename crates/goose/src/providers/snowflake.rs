@@ -320,7 +320,7 @@ impl Provider for SnowflakeProvider {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        super::utils::log_llm_request(model_config, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }

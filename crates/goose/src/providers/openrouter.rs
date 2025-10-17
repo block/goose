@@ -7,8 +7,8 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
-    is_google_model,
+    get_model, handle_response_google_compat, handle_response_openai_compat, is_google_model,
+    log_llm_request,
 };
 use crate::conversation::message::Message;
 
@@ -275,7 +275,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log_llm_request(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

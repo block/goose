@@ -15,7 +15,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, log_llm_request, ImageFormat};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
@@ -424,7 +424,7 @@ impl Provider for GithubCopilotProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log_llm_request(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
