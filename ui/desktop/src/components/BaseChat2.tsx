@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
@@ -17,14 +17,18 @@ import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
+import { RecipeHeader } from './RecipeHeader';
+import { RecipeWarningModal } from './ui/RecipeWarningModal';
+import { scanRecipe } from '../recipe';
+import { useCostTracking } from '../hooks/useCostTracking';
+import RecipeActivities from './recipes/RecipeActivities';
+import { useToolCount } from './alerts/useToolCount';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
-  renderBeforeMessages?: () => React.ReactNode;
-  renderAfterMessages?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
   suppressEmptyState: boolean;
@@ -35,8 +39,6 @@ interface BaseChatProps {
 function BaseChatContent({
   setIsGoosehintsModalOpen,
   renderHeader,
-  renderBeforeMessages,
-  renderAfterMessages,
   customChatInputProps = {},
   customMainLayoutProps = {},
   sessionId,
@@ -46,9 +48,10 @@ function BaseChatContent({
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
-  // const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  // const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
-  // const { isCompacting, handleManualCompaction } = useContextManager();
+  const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
+  const [hasAcceptedRecipe, setHasAcceptedRecipe] = useState<boolean>();
+  const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
@@ -57,15 +60,6 @@ function BaseChatContent({
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
-
-  // Use shared cost tracking
-  // const { sessionCosts } = useCostTracking({
-  //   sessionInputTokens,
-  //   sessionOutputTokens,
-  //   localInputTokens,
-  //   localOutputTokens,
-  //   session: sessionMetadata,
-  // });
 
   const onStreamFinish = useCallback(() => {}, []);
 
@@ -79,16 +73,19 @@ function BaseChatContent({
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
 
-    // if (recipe && textValue.trim()) {
-    //   setHasStartedUsingRecipe(true);
-    // }
-    //
-    // if (onMessageSubmit && textValue.trim()) {
-    //   onMessageSubmit(textValue);
-    // }
-
+    if (recipe && textValue.trim()) {
+      setHasStartedUsingRecipe(true);
+    }
     handleSubmit(textValue);
   };
+
+  const { sessionCosts } = useCostTracking({
+    sessionInputTokens: session?.accumulated_input_tokens || 0,
+    sessionOutputTokens: session?.accumulated_output_tokens || 0,
+    localInputTokens: 0,
+    localOutputTokens: 0,
+    session,
+  });
 
   useEffect(() => {
     if (initialMessage && session && messages.length == 0) {
@@ -96,15 +93,30 @@ function BaseChatContent({
     }
   }, [initialMessage, session, messages, handleSubmit]);
 
-  // TODO(Douwe): send this to the chatbox instead, possibly autosubmit? or backend
-  const append = (_txt: string) => {};
+  const recipe = session?.recipe;
 
   useEffect(() => {
-    window.electron.logInfo(
-      'Initial messages when resuming session: ' + JSON.stringify(messages, null, 2)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!recipe) return;
+
+    (async () => {
+      const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
+      setHasAcceptedRecipe(accepted);
+
+      if (!accepted) {
+        const scanResult = await scanRecipe(recipe);
+        setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
+      }
+    })();
+  }, [recipe]);
+
+  const handleRecipeAccept = async (accept: boolean) => {
+    if (recipe && accept) {
+      await window.electron.recordRecipeHash(recipe);
+      setHasAcceptedRecipe(true);
+    } else {
+      setView('chat');
+    }
+  };
 
   // Track if this is the initial render for session resuming
   const initialRenderRef = useRef(true);
@@ -124,16 +136,7 @@ function BaseChatContent({
     }
   }, [messages.length]);
 
-  //const toolCount = useToolCount(chat.sessionId);
-
-  // Wrapper for append that tracks recipe usage
-  // const appendWithTracking = (text: string | Message) => {
-  //   // Mark that user has started using the recipe when they use append
-  //   if (recipe) {
-  //     setHasStartedUsingRecipe(true);
-  //   }
-  //   append(text);
-  // };
+  const toolCount = useToolCount(sessionId);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -172,8 +175,6 @@ function BaseChatContent({
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
-  const recipe = session?.recipe;
-
   const chat: ChatType = {
     messageHistoryIndex: 0,
     messages,
@@ -206,115 +207,50 @@ function BaseChatContent({
             paddingX={6}
             paddingY={0}
           >
-            {/*/!* Recipe agent header - sticky at top of chat container *!/*/}
-            {/*{recipe?.title && (*/}
-            {/*  <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">*/}
-            {/*    <AgentHeader*/}
-            {/*      title={recipe.title}*/}
-            {/*      profileInfo={*/}
-            {/*        recipe.profile ? `${recipe.profile} - ${recipe.mcps || 12} MCPs` : undefined*/}
-            {/*      }*/}
-            {/*      onChangeProfile={() => {*/}
-            {/*        console.log('Change profile clicked');*/}
-            {/*      }}*/}
-            {/*      showBorder={true}*/}
-            {/*    />*/}
-            {/*  </div>*/}
-            {/*)}*/}
+            {recipe?.title && (
+              <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
+                <RecipeHeader title={recipe.title} />
+              </div>
+            )}
 
-            {/* Custom content before messages */}
-            {renderBeforeMessages && renderBeforeMessages()}
+            {recipe && (
+              <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
+                <RecipeActivities
+                  append={(text: string) => handleSubmit(text)}
+                  activities={Array.isArray(recipe.activities) ? recipe.activities : null}
+                  title={recipe.title}
+                  //parameterValues={recipeParameters || {}}
+                />
+              </div>
+            )}
 
-            {/*/!* Recipe Activities - always show when recipe is active and accepted *!/*/}
-            {/*{recipe && recipeAccepted && !suppressEmptyState && (*/}
-            {/*  <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>*/}
-            {/*    <RecipeActivities*/}
-            {/*      append={(text: string) => appendWithTracking(text)}*/}
-            {/*      activities={Array.isArray(recipe.activities) ? recipe.activities : null}*/}
-            {/*      title={recipe.title}*/}
-            {/*      parameterValues={recipeParameters || {}}*/}
-            {/*    />*/}
-            {/*  </div>*/}
-            {/*)}*/}
-
-            {/*{sessionLoadError && (*/}
-            {/*  <div className="flex flex-col items-center justify-center p-8">*/}
-            {/*    <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">*/}
-            {/*      <h3 className="font-semibold mb-2">Failed to Load Session</h3>*/}
-            {/*      <p className="text-sm">{sessionLoadError}</p>*/}
-            {/*    </div>*/}
-            {/*    <button*/}
-            {/*      onClick={() => {*/}
-            {/*        setSessionLoadError(null);*/}
-            {/*        hasLoadedSessionRef.current = false;*/}
-            {/*      }}*/}
-            {/*      className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"*/}
-            {/*    >*/}
-            {/*      Retry*/}
-            {/*    </button>*/}
-            {/*  </div>*/}
-            {/*)}*/}
+            {sessionLoadError && (
+              <div className="flex flex-col items-center justify-center p-8">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
+                  <h3 className="font-semibold mb-2">Failed to Load Session</h3>
+                  <p className="text-sm">{sessionLoadError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setView('chat');
+                  }}
+                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                >
+                  Go home
+                </button>
+              </div>
+            )}
 
             {/* Messages or Popular Topics */}
-            {
-              messages.length > 0 || recipe ? (
-                <>
-                  <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
+            {messages.length > 0 || recipe ? (
+              <>
+                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
 
-                  {/*{error && (*/}
-                  {/*  <>*/}
-                  {/*    <div className="flex flex-col items-center justify-center p-4">*/}
-                  {/*      <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">*/}
-                  {/*        {error.message || 'Honk! Goose experienced an error while responding'}*/}
-                  {/*      </div>*/}
-
-                  {/*      /!* Action buttons for all errors including token limit errors *!/*/}
-                  {/*      <div className="flex gap-2 mt-2">*/}
-                  {/*        <div*/}
-                  {/*          className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"*/}
-                  {/*          onClick={async () => {*/}
-                  {/*            clearError();*/}
-
-                  {/*            await handleManualCompaction(*/}
-                  {/*              messages,*/}
-                  {/*              setMessages,*/}
-                  {/*              append,*/}
-                  {/*              chat.sessionId*/}
-                  {/*            );*/}
-                  {/*          }}*/}
-                  {/*        >*/}
-                  {/*          Summarize Conversation*/}
-                  {/*        </div>*/}
-                  {/*        <div*/}
-                  {/*          className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"*/}
-                  {/*          onClick={async () => {*/}
-                  {/*            // Find the last user message*/}
-                  {/*            const lastUserMessage = messages.reduceRight(*/}
-                  {/*              (found, m) => found || (m.role === 'user' ? m : null),*/}
-                  {/*              null as Message | null*/}
-                  {/*            );*/}
-                  {/*            if (lastUserMessage) {*/}
-                  {/*              await append(lastUserMessage);*/}
-                  {/*            }*/}
-                  {/*          }}*/}
-                  {/*        >*/}
-                  {/*          Retry Last Message*/}
-                  {/*        </div>*/}
-                  {/*      </div>*/}
-                  {/*    </div>*/}
-                  {/*  </>*/}
-                  {/*)}*/}
-
-                  <div className="block h-8" />
-                </>
-              ) : !recipe && showPopularTopics ? (
-                /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
-                <PopularChatTopics append={(text: string) => append(text)} />
-              ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
-            }
-
-            {/* Custom content after messages */}
-            {renderAfterMessages && renderAfterMessages()}
+                <div className="block h-8" />
+              </>
+            ) : !recipe && showPopularTopics ? (
+              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
+            ) : null}
           </ScrollArea>
 
           {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
@@ -344,41 +280,39 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            // numTokens={sessionTokenCount}
-            // inputTokens={sessionInputTokens || localInputTokens}
-            // outputTokens={sessionOutputTokens || localOutputTokens}
+            numTokens={session?.total_tokens || undefined}
+            inputTokens={session?.input_tokens || undefined}
+            outputTokens={session?.output_tokens || undefined}
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
             setMessages={(_m) => {}}
             disableAnimation={disableAnimation}
-            //sessionCosts={sessionCosts}
+            sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipe={recipe}
-            //recipeAccepted={recipeAccepted}
+            recipeAccepted={hasAcceptedRecipe}
             initialPrompt={initialPrompt}
-            //toolCount={toolCount || 0}
-            toolCount={0}
-            //autoSubmit={autoSubmit}
+            toolCount={toolCount || 0}
             autoSubmit={false}
-            //append={append}
             {...customChatInputProps}
           />
         </div>
       </MainPanelLayout>
 
-      {/*/!* Recipe Warning Modal *!/*/}
-      {/*<RecipeWarningModal*/}
-      {/*  isOpen={isRecipeWarningModalOpen}*/}
-      {/*  onConfirm={handleRecipeAccept}*/}
-      {/*  onCancel={handleRecipeCancel}*/}
-      {/*  recipeDetails={{*/}
-      {/*    title: recipe?.title,*/}
-      {/*    description: recipe?.description,*/}
-      {/*    instructions: recipe?.instructions || undefined,*/}
-      {/*  }}*/}
-      {/*  hasSecurityWarnings={hasSecurityWarnings}*/}
-      {/*/>*/}
+      {recipe && (
+        <RecipeWarningModal
+          isOpen={!hasAcceptedRecipe}
+          onConfirm={() => handleRecipeAccept(true)}
+          onCancel={() => handleRecipeAccept(false)}
+          recipeDetails={{
+            title: recipe.title,
+            description: recipe.description,
+            instructions: recipe.instructions || undefined,
+          }}
+          hasSecurityWarnings={hasRecipeSecurityWarnings}
+        />
+      )}
 
       {/*/!* Recipe Parameter Modal *!/*/}
       {/*{isParameterModalOpen && filteredParameters.length > 0 && (*/}

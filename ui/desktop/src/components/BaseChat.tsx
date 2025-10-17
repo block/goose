@@ -44,7 +44,7 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
-import { AgentHeader } from './AgentHeader';
+import { RecipeHeader } from './RecipeHeader';
 import LoadingGoose from './LoadingGoose';
 import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
@@ -315,16 +315,7 @@ function BaseChatContent({
             {/* Recipe agent header - sticky at top of chat container */}
             {recipe?.title && (
               <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
-                <AgentHeader
-                  title={recipe.title}
-                  profileInfo={
-                    recipe.profile ? `${recipe.profile} - ${recipe.mcps || 12} MCPs` : undefined
-                  }
-                  onChangeProfile={() => {
-                    console.log('Change profile clicked');
-                  }}
-                  showBorder={true}
-                />
+                <RecipeHeader title={recipe.title} />
               </div>
             )}
 

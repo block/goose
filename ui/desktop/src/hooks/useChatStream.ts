@@ -4,13 +4,12 @@ import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage } from '../types/message';
 
-const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
-
 const TextDecoder = globalThis.TextDecoder;
+
+const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-// TODO(Douwe): get these from the server:
 interface NotificationEvent {
   type: 'Notification';
   request_id: string;
@@ -70,7 +69,7 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
 async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
-  setMessages: (messages: Message[]) => void,
+  setMessages: (messages: Message[], log: string) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   try {
@@ -101,7 +100,7 @@ async function streamFromResponse(
             case 'Message': {
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
-              setMessages(currentMessages);
+              setMessages(currentMessages, 'streaming');
               break;
             }
             case 'Error': {
@@ -116,7 +115,7 @@ async function streamFromResponse(
               break;
             }
             case 'UpdateConversation': {
-              setMessages(event.conversation);
+              setMessages(event.conversation, 'update-conversation');
               break;
             }
             case 'Notification': {
@@ -153,13 +152,19 @@ export function useChatStream({
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const setMessagesAndCache = (messages: Message[], log: string) => {
-    console.log(log);
-    setMessages(messages);
+  const setMessagesAndLog = useCallback(
+    (messages: Message[], log: string) => {
+      console.log(log, session, messages.length);
+      setMessages(messages);
+    },
+    [session]
+  );
+
+  useEffect(() => {
     if (session) {
-      resultsCache.set(session.id, { session, messages });
+      resultsCache.set(sessionId, { session, messages });
     }
-  };
+  }, [sessionId, session, messages]);
 
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
@@ -185,7 +190,6 @@ export function useChatStream({
 
     (async () => {
       try {
-        console.log('Calling resumeAgent for', sessionId);
         const response = await resumeAgent({
           body: {
             session_id: sessionId,
@@ -194,20 +198,21 @@ export function useChatStream({
           throwOnError: true,
         });
         const session = response.data;
+        console.log('resume agent returned', session?.id, session?.conversation?.length);
         setSession(session);
-        setMessagesAndCache(session?.conversation || [], 'load-session');
+        setMessagesAndLog(session?.conversation || [], 'load-session');
         setChatState(ChatState.Idle);
       } catch (error) {
         setSessionLoadError(error instanceof Error ? error.message : String(error));
         setChatState(ChatState.Idle);
       }
     })();
-  }, [sessionId, setMessagesAndCache]);
+  }, [sessionId, setMessagesAndLog]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
-      setMessagesAndCache(currentMessages, 'user-entered');
+      setMessagesAndLog(currentMessages, 'user-entered');
       setChatState(ChatState.Streaming);
 
       abortControllerRef.current = new AbortController();
@@ -225,16 +230,9 @@ export function useChatStream({
         signal: abortControllerRef.current.signal,
       });
 
-      await streamFromResponse(
-        response,
-        currentMessages,
-        (messages: Message[]) => {
-          setMessagesAndCache(messages, 'streaming');
-        },
-        onFinish
-      );
+      await streamFromResponse(response, currentMessages, setMessagesAndLog, onFinish);
     },
-    [sessionId, onFinish, setMessagesAndCache]
+    [sessionId, onFinish, setMessagesAndLog]
   );
 
   const stopStreaming = useCallback(() => {
@@ -242,14 +240,16 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
-  console.log('>> returning', messages.length, messages.length > 0, chatState);
+  const cached = resultsCache.get(sessionId);
+  const maybe_cached_messages = session ? messages : cached?.messages || [];
+  const maybe_cached_session = session ?? cached?.session;
 
-  const cached = resultsCache.get(sessionId)
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
 
   return {
     sessionLoadError,
-    session ? messages : cached?.messages,
-    session ?? cached?.session,
+    messages: maybe_cached_messages,
+    session: maybe_cached_session,
     chatState,
     handleSubmit,
     stopStreaming,
