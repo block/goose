@@ -63,18 +63,23 @@ pub struct TaskParameter {
     pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<Vec<serde_json::Map<String, Value>>>")]
     pub extensions: Option<Vec<Value>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
     pub settings: Option<Value>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<Vec<serde_json::Map<String, Value>>>")]
     pub parameters: Option<Vec<Value>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
     pub response: Option<Value>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
     pub retry: Option<Value>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
