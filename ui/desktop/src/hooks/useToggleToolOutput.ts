@@ -1,41 +1,128 @@
-import { useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+
+interface HotkeyConfig {
+  key: string;
+  ctrl: boolean;
+  meta: boolean;
+  shift: boolean;
+  alt: boolean;
+}
+
+interface ToggleToolOutputContextType {
+  isExpandAll: boolean;
+  setExpandAll: (expand: boolean) => void;
+  toggleExpandAll: () => void;
+  hotkey: HotkeyConfig;
+  setHotkey: (hotkey: HotkeyConfig) => void;
+}
+
+const defaultHotkey: HotkeyConfig = {
+  key: 'e',
+  ctrl: true,
+  meta: false,
+  shift: false,
+  alt: false
+};
+
+const ToggleToolOutputContext = createContext<ToggleToolOutputContextType | undefined>(undefined);
+
+export function ToggleToolOutputProvider({ children }: { children: React.ReactNode }) {
+  const [isExpandAll, setExpandAll] = useState(false);
+  const [hotkey, setHotkeyState] = useState<HotkeyConfig>(defaultHotkey);
+
+  const toggleExpandAll = useCallback(() => {
+    setExpandAll(prev => !prev);
+  }, []);
+
+  const setExpandAllWrapper = useCallback((expand: boolean) => {
+    setExpandAll(expand);
+  }, []);
+
+  const setHotkey = useCallback((newHotkey: HotkeyConfig) => {
+    setHotkeyState(newHotkey);
+    // Store in localStorage for persistence
+    try {
+      localStorage.setItem('toggleToolOutputHotkey', JSON.stringify(newHotkey));
+    } catch (error) {
+      console.warn('Failed to save hotkey preference:', error);
+    }
+  }, []);
+
+  // Load hotkey preference from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedHotkey = localStorage.getItem('toggleToolOutputHotkey');
+      if (savedHotkey) {
+        const parsedHotkey = JSON.parse(savedHotkey);
+        setHotkeyState(parsedHotkey);
+      }
+    } catch (error) {
+      console.warn('Failed to load hotkey preference:', error);
+    }
+  }, []);
+
+  return (
+    <ToggleToolOutputContext.Provider value={{
+      isExpandAll,
+      setExpandAll: setExpandAllWrapper,
+      toggleExpandAll,
+      hotkey,
+      setHotkey
+    }}>
+      {children}
+    </ToggleToolOutputContext.Provider>
+  );
+}
+
+export function useToggleToolOutputContext() {
+  const context = useContext(ToggleToolOutputContext);
+  if (!context) {
+    throw new Error('useToggleToolOutputContext must be used within ToggleToolOutputProvider');
+  }
+  return context;
+}
 
 /**
- * Custom hook to handle Ctrl+R hotkey for toggling full tool output display
- * This hook adds a global keyboard listener that expands all truncated tool outputs
+ * Check if a keyboard event matches the hotkey configuration
+ */
+function matchesHotkey(event: KeyboardEvent, hotkey: HotkeyConfig): boolean {
+  return (
+    event.key.toLowerCase() === hotkey.key.toLowerCase() &&
+    event.ctrlKey === hotkey.ctrl &&
+    event.metaKey === hotkey.meta &&
+    event.shiftKey === hotkey.shift &&
+    event.altKey === hotkey.alt
+  );
+}
+
+/**
+ * Format hotkey for display (e.g., "Ctrl+E")
+ */
+export function formatHotkey(hotkey: HotkeyConfig): string {
+  const modifiers = [];
+  if (hotkey.ctrl) modifiers.push('Ctrl');
+  if (hotkey.meta) modifiers.push('Cmd');
+  if (hotkey.alt) modifiers.push('Alt');
+  if (hotkey.shift) modifiers.push('Shift');
+
+  const key = hotkey.key.length === 1 ? hotkey.key.toUpperCase() : hotkey.key;
+  modifiers.push(key);
+
+  return modifiers.join('+');
+}
+
+/**
+ * Custom hook to handle hotkey for toggling full tool output display
+ * This hook adds a global keyboard listener that toggles the expand all state
  */
 export function useToggleToolOutput() {
-  const toggleAllToolOutputs = useCallback(() => {
-    // Find all collapsed tool argument values and expand them
-    const collapsedButtons = document.querySelectorAll(
-      'button[aria-label="Expand value"], button:has(.expand-icon), button[data-tool-arg-key]'
-    );
-
-    // Also find any elements with truncate classes that contain tool arguments
-    const truncatedElements = document.querySelectorAll(
-      '.truncate button[onClick*="toggleKey"], .truncate.min-w-0 button[onClick*="toggleKey"]'
-    );
-
-    // Dispatch click events to expand all collapsed items
-    [...collapsedButtons, ...truncatedElements].forEach((element) => {
-      if (element instanceof HTMLElement) {
-        element.click();
-      }
-    });
-
-    // Alternative approach: dispatch a custom event that ToolCallArguments can listen for
-    const toggleEvent = new CustomEvent('toggleAllToolOutputs', {
-      detail: { expand: true }
-    });
-    document.dispatchEvent(toggleEvent);
-  }, []);
+  const { toggleExpandAll, hotkey } = useToggleToolOutputContext();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check for Ctrl+R (or Cmd+R on Mac)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-        e.preventDefault(); // Prevent browser refresh
-        toggleAllToolOutputs();
+      if (matchesHotkey(e, hotkey)) {
+        e.preventDefault();
+        toggleExpandAll();
       }
     };
 
@@ -43,5 +130,5 @@ export function useToggleToolOutput() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [toggleAllToolOutputs]);
+  }, [toggleExpandAll, hotkey]);
 }
