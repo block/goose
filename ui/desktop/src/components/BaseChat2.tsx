@@ -87,11 +87,27 @@ function BaseChatContent({
     session,
   });
 
+  const hasSubmittedInitialMessage = useRef(false);
+  const initialMessagesLength = useRef<number | null>(null);
+
   useEffect(() => {
-    if (initialMessage && session && messages.length == 0) {
+    // Track the initial messages length when session first loads
+    if (session && initialMessagesLength.current === null) {
+      initialMessagesLength.current = messages.length;
+    }
+  }, [session, messages.length]);
+
+  useEffect(() => {
+    if (
+      initialMessage &&
+      session &&
+      !hasSubmittedInitialMessage.current &&
+      initialMessagesLength.current === 0
+    ) {
+      hasSubmittedInitialMessage.current = true;
       handleSubmit(initialMessage);
     }
-  }, [initialMessage, session, messages, handleSubmit]);
+  }, [initialMessage, session, handleSubmit]);
 
   const recipe = session?.recipe;
 
@@ -171,7 +187,7 @@ function BaseChatContent({
     </>
   );
 
-  const showPopularTopics = messages.length === 0;
+  const showPopularTopics = messages.length === 0 && !initialMessage;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
@@ -253,20 +269,23 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
-            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  messages.length === 0
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
-            </div>
-          )}
+          {(chatState === ChatState.Thinking ||
+            chatState === ChatState.Streaming ||
+            isCompacting) &&
+            !sessionLoadError && (
+              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+                <LoadingGoose
+                  message={
+                    messages.length === 0 && chatState === ChatState.Thinking
+                      ? 'loading conversation...'
+                      : isCompacting
+                        ? 'goose is compacting the conversation...'
+                        : undefined
+                  }
+                  chatState={chatState}
+                />
+              </div>
+            )}
         </div>
 
         <div

@@ -4261,13 +4261,11 @@
         "properties": {
           "totalSessions": {
             "type": "integer",
-            "description": "Total number of sessions",
             "minimum": 0
           },
           "totalTokens": {
             "type": "integer",
-            "format": "int64",
-            "description": "Total tokens used across all sessions"
+            "format": "int64"
           }
         }
       },
