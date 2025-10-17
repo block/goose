@@ -313,7 +313,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         let session = SessionManager::create_session(
             std::env::current_dir().unwrap(),
-            "CLI session".to_string(),
+            "CLI Session".to_string(),
         )
         .await
         .unwrap();
