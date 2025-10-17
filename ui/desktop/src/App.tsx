@@ -18,6 +18,8 @@ import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
 import { SamplingApprovalModal } from './components/ui/SamplingApprovalModal';
 import { useSamplingApprovalSSE } from './hooks/useSamplingApprovalSSE';
+import { ApprovalModal } from './components/ui/ApprovalModal';
+import { useApprovalSSE } from './hooks/useApprovalSSE';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -296,8 +298,11 @@ export function AppInner() {
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
   
-  // Use the sampling approval SSE hook
+  // Use the sampling approval SSE hook (legacy - will be removed)
   const { currentRequest, approveRequest, denyRequest } = useSamplingApprovalSSE();
+  
+  // Use the unified approval SSE hook
+  const { currentRequest: approvalRequest, approveOnce, approveAlways, deny } = useApprovalSSE();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -612,6 +617,15 @@ export function AppInner() {
           messages={currentRequest.messages}
           onApprove={approveRequest}
           onDeny={denyRequest}
+        />
+      )}
+      {approvalRequest && (
+        <ApprovalModal
+          isOpen={!!approvalRequest}
+          request={approvalRequest}
+          onApproveOnce={approveOnce}
+          onApproveAlways={approveAlways}
+          onDeny={deny}
         />
       )}
     </>

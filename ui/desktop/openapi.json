@@ -343,6 +343,49 @@
         }
       }
     },
+    "/approval": {
+      "get": {
+        "tags": [
+          "super::routes::approval"
+        ],
+        "operationId": "approval_stream",
+        "responses": {
+          "200": {
+            "description": "SSE stream of approval requests"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::approval"
+        ],
+        "operationId": "submit_approval_response",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalResponse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Approval response submitted successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -2141,6 +2184,125 @@
           "priority": {
             "type": "number"
           }
+        }
+      },
+      "ApprovalAction": {
+        "type": "string",
+        "description": "The action to take in response to an approval request",
+        "enum": [
+          "allow_once",
+          "always_allow",
+          "deny"
+        ]
+      },
+      "ApprovalRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApprovalType"
+          },
+          {
+            "type": "object",
+            "required": [
+              "requestId",
+              "sessionId"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "A request for user approval"
+      },
+      "ApprovalResponse": {
+        "type": "object",
+        "description": "A response to an approval request",
+        "required": [
+          "requestId",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ApprovalAction"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      },
+      "ApprovalType": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Approval for a tool call",
+            "required": [
+              "toolName",
+              "principalType",
+              "type"
+            ],
+            "properties": {
+              "principalType": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "toolName": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "toolCall"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Approval for MCP sampling",
+            "required": [
+              "extensionName",
+              "messages",
+              "maxTokens",
+              "type"
+            ],
+            "properties": {
+              "extensionName": {
+                "type": "string"
+              },
+              "maxTokens": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SamplingMessage"
+                }
+              },
+              "systemPrompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "sampling"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "The type of approval being requested",
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "Author": {
@@ -4020,6 +4182,22 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SamplingMessage": {
+        "type": "object",
+        "description": "A message in a sampling request",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "role": {
             "type": "string"
           }
         }

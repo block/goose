@@ -24,6 +24,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
+use super::approval::ApprovalHandler;
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
@@ -92,7 +93,7 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: Mutex<PlatformExtensionContext>,
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
-    approval_handler: Arc<Mutex<Option<Arc<dyn SamplingApprovalHandler>>>>,
+    approval_handler: Arc<Mutex<Option<Arc<dyn ApprovalHandler>>>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -250,11 +251,11 @@ impl ExtensionManager {
         }
     }
 
-    pub async fn set_approval_handler(&self, handler: Arc<dyn SamplingApprovalHandler>) {
+    pub async fn set_approval_handler(&self, handler: Arc<dyn ApprovalHandler>) {
         *self.approval_handler.lock().await = Some(handler);
     }
 
-    pub async fn get_approval_handler(&self) -> Option<Arc<dyn SamplingApprovalHandler>> {
+    pub async fn get_approval_handler(&self) -> Option<Arc<dyn ApprovalHandler>> {
         self.approval_handler.lock().await.clone()
     }
 
@@ -1141,24 +1142,13 @@ impl ExtensionManager {
     }
 }
 
-/// Trait for handling sampling approval requests
-#[async_trait::async_trait]
-pub trait SamplingApprovalHandler: Send + Sync {
-    async fn request_approval(
-        &self,
-        extension_name: String,
-        messages: Vec<SamplingMessage>,
-        system_prompt: Option<String>,
-        max_tokens: u32,
-    ) -> Result<bool, String>;
-}
-
 /// Wrapper struct to implement SamplingHandler for ExtensionManager
 #[derive(Clone)]
 pub struct ExtensionSamplingHandler {
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
     extension_name: String,
-    approval_handler: Option<Arc<dyn SamplingApprovalHandler>>,
+    session_id: String,
+    approval_handler: Option<Arc<dyn ApprovalHandler>>,
 }
 
 impl ExtensionSamplingHandler {
@@ -1166,15 +1156,18 @@ impl ExtensionSamplingHandler {
         Self {
             provider,
             extension_name,
+            session_id: String::new(), // Will be set when context is available
             approval_handler: None,
         }
     }
 
-    pub fn with_approval_handler(
-        mut self,
-        approval_handler: Arc<dyn SamplingApprovalHandler>,
-    ) -> Self {
+    pub fn with_approval_handler(mut self, approval_handler: Arc<dyn ApprovalHandler>) -> Self {
         self.approval_handler = Some(approval_handler);
+        self
+    }
+
+    pub fn with_session_id(mut self, session_id: String) -> Self {
+        self.session_id = session_id;
         self
     }
 }
@@ -1187,8 +1180,9 @@ impl SamplingHandler for ExtensionSamplingHandler {
         _extension_name: String,
     ) -> Result<CreateMessageResult, ServiceError> {
         if let Some(approval_handler) = &self.approval_handler {
-            let approved = approval_handler
-                .request_approval(
+            let action = approval_handler
+                .request_sampling_approval(
+                    self.session_id.clone(),
                     self.extension_name.clone(),
                     params.messages.clone(),
                     params.system_prompt.clone(),
@@ -1197,7 +1191,7 @@ impl SamplingHandler for ExtensionSamplingHandler {
                 .await
                 .map_err(|_e| ServiceError::UnexpectedResponse)?;
 
-            if !approved {
+            if !action.is_approved() {
                 return Err(ServiceError::Cancelled {
                     reason: Some("User denied the sampling request".to_string()),
                 });
