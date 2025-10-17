@@ -1,22 +1,22 @@
 use crate::recipe::read_recipe_file_content::RecipeFile;
-use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_for_preview};
+use crate::recipe::template_recipe::parse_recipe_content;
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
 };
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-pub fn validate_recipe_parameters(
+pub fn parse_and_validate_parameters(
     recipe_file_content: &str,
     recipe_dir_str: Option<String>,
-) -> Result<Option<Vec<RecipeParameter>>> {
+) -> Result<Recipe> {
     let (recipe_template, template_variables) =
         parse_recipe_content(recipe_file_content, recipe_dir_str)?;
-    let recipe_parameters = recipe_template.parameters;
-    validate_optional_parameters(&recipe_parameters)?;
-    validate_parameters_in_template(&recipe_parameters, &template_variables)?;
-    Ok(recipe_parameters)
+    let recipe_parameters = &recipe_template.parameters;
+    validate_optional_parameters(recipe_parameters)?;
+    validate_parameters_in_template(recipe_parameters, &template_variables)?;
+    Ok(recipe_template)
 }
 
 fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
@@ -40,8 +40,8 @@ pub fn validate_recipe_template_from_content(
     recipe_content: &str,
     recipe_dir: Option<String>,
 ) -> Result<Recipe> {
-    validate_recipe_parameters(recipe_content, recipe_dir.clone())?;
-    let recipe = render_recipe_for_preview(recipe_content, recipe_dir, &HashMap::new())?;
+    parse_and_validate_parameters(recipe_content, recipe_dir.clone())?;
+    let (recipe, _) = parse_recipe_content(recipe_content, recipe_dir)?;
 
     validate_prompt_or_instructions(&recipe)?;
     if let Some(response) = &recipe.response {
