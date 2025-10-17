@@ -27,7 +27,22 @@ const THROTTLE_INTERVAL_MS: u64 = 250;
 const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
-    // Return the recipe title (always present as it's a required field)
+    // If we have parameter values, format them nicely
+    if let Some(ref params) = task_info.task.payload.parameter_values {
+        if !params.is_empty() {
+            // Filter out internal parameters like recipe_dir
+            let mut param_strs: Vec<String> = params
+                .iter()
+                .filter(|(k, _)| k.as_str() != "recipe_dir")
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect();
+            if !param_strs.is_empty() {
+                param_strs.sort(); // Sort for consistent display
+                return param_strs.join(", ");
+            }
+        }
+    }
+    // Fallback to recipe title if no parameters
     task_info.task.payload.recipe.title.clone()
 }
 

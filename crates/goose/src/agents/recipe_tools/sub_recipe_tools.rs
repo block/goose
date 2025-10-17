@@ -80,6 +80,7 @@ fn create_tasks_from_params(
                 recipe,
                 return_last_only: false,
                 sequential_when_repeated: sub_recipe.sequential_when_repeated,
+                parameter_values: Some(task_command_param.clone()),
             },
         };
 

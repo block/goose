@@ -35,6 +35,7 @@ mod test_get_task_name {
                 recipe,
                 return_last_only: false,
                 sequential_when_repeated: false,
+                parameter_values: None,
             },
         };
 
@@ -62,6 +63,7 @@ mod count_by_status {
                 recipe,
                 return_last_only: false,
                 sequential_when_repeated: false,
+                parameter_values: None,
             },
         };
         create_task_info_with_defaults(task, status)

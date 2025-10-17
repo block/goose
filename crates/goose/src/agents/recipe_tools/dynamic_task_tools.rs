@@ -293,6 +293,7 @@ pub async fn create_dynamic_task(
                         recipe,
                         return_last_only,
                         sequential_when_repeated: false,
+                        parameter_values: None,
                     },
                 };
                 tasks.push(task);

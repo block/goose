@@ -73,6 +73,7 @@ mod tests {
                 recipe,
                 return_last_only: false,
                 sequential_when_repeated: false,
+                parameter_values: None,
             },
         }
     }

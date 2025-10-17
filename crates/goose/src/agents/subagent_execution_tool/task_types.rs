@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -23,6 +24,8 @@ pub struct TaskPayload {
     pub return_last_only: bool,
     #[serde(default)]
     pub sequential_when_repeated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_values: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
