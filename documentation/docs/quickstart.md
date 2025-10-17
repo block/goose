@@ -120,7 +120,7 @@ Goose works with [supported LLM providers](/docs/getting-started/providers) that
     Goose will open a browser for you to authenticate.
       
     :::info Free Credits Offer
-    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
+    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users.
     :::
 
     Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. If you prefer a different provider, choose automatic setup with OpenRouter or manually configure a provider.
@@ -133,7 +133,7 @@ Goose works with [supported LLM providers](/docs/getting-started/providers) that
     Goose will open a browser for you to authenticate.
       
     :::info Free Credits Offer
-    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
+    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users.
     :::
 
     Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. If you prefer a different provider, choose automatic setup with OpenRouter or manually configure a provider.

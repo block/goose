@@ -18,7 +18,7 @@ export const OnboardingProviderSetup = () => {
               </h5>
             </div>
             <div className="admonition-content" style={{paddingBottom: '1rem'}}>
-              <p style={{marginBottom: '0'}}>You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.</p>
+              <p style={{marginBottom: '0'}}>You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users.</p>
             </div>
           </div>
         </li>

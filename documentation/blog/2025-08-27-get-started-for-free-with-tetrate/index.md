@@ -10,7 +10,7 @@ authors:
 
  You shouldn’t need a credit card to vibe code with Goose. While Goose is completely free to use, the reality is that most performant LLMs aren't. You want to experience Goose in action without breaking the bank or jumping through hoops. We've been thinking about how to make that first step easier for newcomers to Goose.
 
-That's why we're thrilled about our newest provider integration: [Tetrate's Agent Router Service](https://router.tetrate.ai). From August 27th through October 2nd, new Goose users can get $10 in credits to use Goose with any model on the Tetrate platform.
+That's why we're thrilled about our newest provider integration: [Tetrate's Agent Router Service](https://router.tetrate.ai). New Goose users can get $10 in credits to use Goose with any model on the Tetrate platform.
 
 <!--truncate-->
 
