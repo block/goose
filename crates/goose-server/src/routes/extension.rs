@@ -37,8 +37,8 @@ async fn add_extension(
     if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
         if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
             // Check if Node.js is installed in standard locations
-            let mut node_exists = std::path::Path::new(r"C:\\Program Files\\nodejs\\node.exe").exists()
-                || std::path::Path::new(r"C:\\Program Files (x86)\\nodejs\\node.exe").exists();
+            let mut node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
 
             // Also check Windows registry: HKEY_LOCAL_MACHINE\\SOFTWARE\\Node.js InstallPath
             if !node_exists {
