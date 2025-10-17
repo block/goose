@@ -100,19 +100,71 @@ jobs:
           source ./bin/activate-hermit
           just check-openapi-schema
 
-      - name: Build Release Binary for Smoke Tests
+      - name: Run Smoke Tests (Anthropic)
         if: github.event_name == 'pull_request'
+        env:
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
         run: |
           source ./bin/activate-hermit
-          cargo build --release
+          
+          # Create a test directory
+          TEST_DIR="/tmp/goose-smoke-test-anthropic"
+          mkdir -p "$TEST_DIR"
+          cd "$TEST_DIR"
+          
+          # Create test file
+          echo "hello" > hello.txt
+          
+          echo "=== Smoke Test: Anthropic / claude-sonnet-4-5-20250929 ==="
+          
+          # Run goose using cargo run
+          OUTPUT=$(cargo run --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          
+          echo "$OUTPUT"
+          
+          # Verify output contains hello.txt
+          if echo "$OUTPUT" | grep -q "hello.txt"; then
+            echo "✓ Anthropic smoke test passed"
+          else
+            echo "✗ Anthropic smoke test failed - hello.txt not found"
+            exit 1
+          fi
 
-      - name: Upload Release Binary for Smoke Tests
+      - name: Run Smoke Tests (OpenAI)
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: goose-binary
-          path: target/release/goose
-          retention-days: 1
+        env:
+          GOOSE_PROVIDER: openai
+          GOOSE_MODEL: gpt-5
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
+        run: |
+          source ./bin/activate-hermit
+          
+          # Create a test directory
+          TEST_DIR="/tmp/goose-smoke-test-openai"
+          mkdir -p "$TEST_DIR"
+          cd "$TEST_DIR"
+          
+          # Create test file
+          echo "hello" > hello.txt
+          
+          echo "=== Smoke Test: OpenAI / gpt-5 ==="
+          
+          # Run goose using cargo run
+          OUTPUT=$(cargo run --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          
+          echo "$OUTPUT"
+          
+          # Verify output contains hello.txt
+          if echo "$OUTPUT" | grep -q "hello.txt"; then
+            echo "✓ OpenAI smoke test passed"
+          else
+            echo "✗ OpenAI smoke test failed - hello.txt not found"
+            exit 1
+          fi
 
   desktop-lint:
     name: Test and Lint Electron Desktop App
@@ -155,74 +207,3 @@ jobs:
     if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
     with:
       signing: false
-
-  # Run smoke tests with the release binary built in rust-build-and-test
-  smoke-tests:
-    name: Smoke Test (${{ matrix.provider }} - ${{ matrix.model }})
-    runs-on: ubuntu-latest
-    needs: rust-build-and-test
-    if: github.event_name == 'pull_request'
-    strategy:
-      matrix:
-        include:
-          - provider: anthropic
-            model: claude-sonnet-4-5-20250929
-          - provider: openai
-            model: gpt-5
-      fail-fast: false
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
-
-      - name: Download Binary
-        uses: actions/download-artifact@v4
-        with:
-          name: goose-binary
-          path: target/release
-
-      - name: Make Binary Executable
-        run: chmod +x target/release/goose
-
-      - name: Run Smoke Test
-        env:
-          GOOSE_PROVIDER: ${{ matrix.provider }}
-          GOOSE_MODEL: ${{ matrix.model }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          HOME: /tmp/goose-home-${{ matrix.provider }}
-          GOOSE_DISABLE_KEYRING: 1
-        run: |
-          # Ensure the HOME directory structure exists
-          mkdir -p $HOME/.local/share/goose/sessions
-          mkdir -p $HOME/.config/goose
-
-          # Create a unique test directory for this matrix job
-          # Each matrix combination has unique provider+model, ensuring no collisions
-          TEST_DIR="/tmp/goose-test-${GOOSE_PROVIDER}-${GOOSE_MODEL}"
-          mkdir -p "$TEST_DIR"
-          cd "$TEST_DIR"
-
-          # Create test file in the test directory
-          echo "hello" > hello.txt
-
-          echo "=== Goose Smoke Test ==="
-          echo "Provider: ${GOOSE_PROVIDER}"
-          echo "Model: ${GOOSE_MODEL}"
-          echo "Test Directory: $TEST_DIR"
-          echo ""
-
-          # Run goose from the test directory and capture output
-          OUTPUT=$("$GITHUB_WORKSPACE/target/release/goose" run --text "please list files in the current directory" --with-builtin developer 2>&1)
-          
-          echo "Output:"
-          echo "$OUTPUT"
-          echo ""
-
-          # Check if hello.txt appears in output
-          if echo "$OUTPUT" | grep -q "hello.txt"; then
-            echo "✓ SUCCESS: Test passed - found hello.txt in output"
-            exit 0
-          else
-            echo "✗ FAILED: Test failed - hello.txt not found in output"
-            exit 1
-          fi
