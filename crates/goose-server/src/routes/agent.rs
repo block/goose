@@ -11,18 +11,18 @@ use axum::{
 };
 use goose::config::PermissionManager;
 
+use goose::config::Config;
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
 use goose::providers::create;
-use goose::recipe::{Recipe, Response};
+use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use goose::{config::Config, recipe::SubRecipe};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -31,41 +31,14 @@ use std::sync::Arc;
 use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ExtendPromptRequest {
-    extension: String,
-    session_id: String,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct ExtendPromptResponse {
-    success: bool,
-}
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
     session_id: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct AddSubRecipesRequest {
-    sub_recipes: Vec<SubRecipe>,
-    session_id: String,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct AddSubRecipesResponse {
-    success: bool,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
-    session_id: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct SessionConfigRequest {
-    response: Option<Response>,
     session_id: String,
 }
 
@@ -216,25 +189,6 @@ async fn resume_agent(
 
 #[utoipa::path(
     post,
-    path = "/agent/add_sub_recipes",
-    request_body = AddSubRecipesRequest,
-    responses(
-        (status = 200, description = "Added sub recipes to agent successfully", body = AddSubRecipesResponse),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-    ),
-)]
-async fn add_sub_recipes(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<AddSubRecipesRequest>,
-) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    let agent = state.get_agent_for_route(payload.session_id).await?;
-    agent.add_sub_recipes(payload.sub_recipes.clone()).await;
-    Ok(Json(AddSubRecipesResponse { success: true }))
-}
-
-#[utoipa::path(
-    post,
     path = "/agent/update_from_session",
     request_body = UpdateFromSessionRequest,
     responses(
@@ -299,25 +253,6 @@ async fn update_from_session(
     agent.extend_system_prompt(update_prompt).await;
 
     Ok(StatusCode::OK)
-}
-
-#[utoipa::path(
-    post,
-    path = "/agent/prompt",
-    request_body = ExtendPromptRequest,
-    responses(
-        (status = 200, description = "Extended system prompt successfully", body = ExtendPromptResponse),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-    ),
-)]
-async fn extend_prompt(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<ExtendPromptRequest>,
-) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    let agent = state.get_agent_for_route(payload.session_id).await?;
-    agent.extend_system_prompt(payload.extension.clone()).await;
-    Ok(Json(ExtendPromptResponse { success: true }))
 }
 
 #[utoipa::path(
@@ -455,47 +390,16 @@ async fn update_router_tool_selector(
     ))
 }
 
-#[utoipa::path(
-    post,
-    path = "/agent/session_config",
-    request_body = SessionConfigRequest,
-    responses(
-        (status = 200, description = "Session config updated successfully", body = String),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-async fn update_session_config(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<SessionConfigRequest>,
-) -> Result<Json<String>, StatusCode> {
-    let agent = state.get_agent_for_route(payload.session_id).await?;
-    if let Some(response) = payload.response {
-        agent.add_final_output_tool(response).await;
-
-        tracing::info!("Added final output tool with response config");
-        Ok(Json(
-            "Session config updated with final output tool".to_string(),
-        ))
-    } else {
-        Ok(Json("Nothing provided to update.".to_string()))
-    }
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
-        .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
             "/agent/update_router_tool_selector",
             post(update_router_tool_selector),
         )
-        .route("/agent/session_config", post(update_session_config))
-        .route("/agent/add_sub_recipes", post(add_sub_recipes))
         .route("/agent/update_from_session", post(update_from_session))
         .with_state(state)
 }

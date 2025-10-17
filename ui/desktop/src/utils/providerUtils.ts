@@ -59,19 +59,6 @@ export const initializeSystem = async (
       throwOnError: true,
     });
 
-    // Configure session with response config if present
-    // if (responseConfig?.json_schema) {
-    //   const sessionConfigResponse = await updateSessionConfig({
-    //     body: {
-    //       session_id: sessionId,
-    //       response: responseConfig,
-    //     },
-    //   });
-    //   if (sessionConfigResponse.error) {
-    //     console.warn(`Failed to configure session: ${sessionConfigResponse.error}`);
-    //   }
-    // }
-
     if (!options?.getExtensions || !options?.addExtension) {
       console.warn('Extension helpers not provided in alpha mode');
       return;
