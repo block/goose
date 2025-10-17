@@ -45,10 +45,12 @@ export class GitHubUpdater {
       log.info('GitHubUpdater: Checking for updates via GitHub API...');
       log.info(`GitHubUpdater: Current app version: ${app.getVersion()}`);
 
+      const url = `https://github.com/${this.owner}/${this.repo}/releases/latest/download/manifest.json`;
+      log.info(`fetching ${url}`);
       const manifest: AssetManifest = await (
-        await fetch(this.apiUrl('releases/latest/download/manifest.json'), {
+        await fetch(url, {
           headers: {
-            Accept: 'application/vnd.github.v3+json',
+            Accept: 'application/octet-stream',
             'User-Agent': `Goose-Desktop/${app.getVersion()}`,
           },
         })
@@ -103,12 +105,14 @@ export class GitHubUpdater {
 
       let platformAssets = manifest[platform];
       if (!platformAssets) {
+        log.info(`${platform} not found in manifest: ${JSON.stringify(manifest)}`);
         return {
           updateAvailable: false,
           latestVersion,
         };
       }
       let downloadUrl = platformAssets[arch] || platformAssets['*'];
+      log.info(`downloadUrl: ${downloadUrl}`);
 
       return {
         updateAvailable: !!downloadUrl,
