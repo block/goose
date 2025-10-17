@@ -1,5 +1,7 @@
 use crate::routes::errors::ErrorResponse;
-use crate::routes::recipe_utils::{build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe};
+use crate::routes::recipe_utils::{
+    build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
+};
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
@@ -39,9 +41,9 @@ pub struct ExtendPromptResponse {
     success: bool,
 }
 #[derive(Deserialize, utoipa::ToSchema)]
-  pub struct UpdateFromSessionRequest {
-      session_id: String,
-  }
+pub struct UpdateFromSessionRequest {
+    session_id: String,
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
@@ -259,10 +261,16 @@ async fn update_from_session(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
     let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt = render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+    let desktop_prompt =
+        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
-    if let Some(recipe)  = session.recipe {
-        match build_recipe_with_parameter_values(&recipe, session.user_recipe_values.unwrap_or_default()).await {
+    if let Some(recipe) = session.recipe {
+        match build_recipe_with_parameter_values(
+            &recipe,
+            session.user_recipe_values.unwrap_or_default(),
+        )
+        .await
+        {
             Ok(Some(recipe)) => {
                 if let Some(instructions) = &recipe.instructions {
                     let mut context: HashMap<&str, Value> = HashMap::new();

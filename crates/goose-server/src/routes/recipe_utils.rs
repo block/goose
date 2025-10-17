@@ -70,6 +70,8 @@ pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
         }
     })?;
 
+    tracing::error!("=====Recipe YAML:\n{}", recipe_yaml);
+
     validate_recipe_template_from_content(&recipe_yaml, None).map_err(|err| {
         let message = err.to_string();
         error!("Recipe validation failed: {}", message);

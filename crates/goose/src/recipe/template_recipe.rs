@@ -186,13 +186,13 @@ pub fn render_recipe_for_preview(
         UndefinedBehavior::Lenient,
     )?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
-    // if the variables are not provided, the template will be rendered with the variables, otherwise it will keep the variables as is
-    let mut ctx = preserve_vars(&template_variables).clone();
-    ctx.extend(params.clone());
-    let rendered_content = template
-        .render(ctx)
-        .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?;
-    Recipe::from_content(&rendered_content)
+    // // if the variables are not provided, the template will be rendered with the variables, otherwise it will keep the variables as is
+    // let mut ctx = preserve_vars(&template_variables).clone();
+    // ctx.extend(params.clone());
+    // let rendered_content = template
+    //     .render(ctx)
+    //     .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?;
+    Recipe::from_content(&content)
 }
 
 fn preserve_vars(variables: &HashSet<String>) -> HashMap<String, String> {

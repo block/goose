@@ -349,7 +349,9 @@ async fn save_recipe(
     payload: Result<Json<Value>, JsonRejection>,
 ) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
+    tracing::error!("=====Raw JSON:\n{}", raw_json.to_string());
     let request = deserialize_save_recipe_request(raw_json)?;
+    tracing::error!("=====Recipe:\n{:?}", request.recipe);
     ensure_recipe_valid(&request.recipe)?;
 
     let file_path = match request.id.as_ref() {
