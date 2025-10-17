@@ -100,6 +100,64 @@ jobs:
           source ./bin/activate-hermit
           just check-openapi-schema
 
+      - name: Run Smoke Tests (Anthropic)
+        if: github.event_name == 'pull_request'
+        env:
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
+        run: |
+          # Create test directory and file
+          TEST_DIR="/tmp/goose-smoke-test-anthropic"
+          mkdir -p "$TEST_DIR"
+          cd "$TEST_DIR"
+          echo "hello" > hello.txt
+          
+          echo "=== Smoke Test: Anthropic / claude-sonnet-4-5-20250929 ==="
+          
+          # Run goose from the test directory
+          OUTPUT=$(cargo run --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          
+          echo "$OUTPUT"
+          
+          # Verify output contains hello.txt
+          if echo "$OUTPUT" | grep -q "hello.txt"; then
+            echo "✓ Anthropic smoke test passed"
+          else
+            echo "✗ Anthropic smoke test failed - hello.txt not found"
+            exit 1
+          fi
+
+      - name: Run Smoke Tests (OpenAI)
+        if: github.event_name == 'pull_request'
+        env:
+          GOOSE_PROVIDER: openai
+          GOOSE_MODEL: gpt-5
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
+        run: |
+          # Create test directory and file
+          TEST_DIR="/tmp/goose-smoke-test-openai"
+          mkdir -p "$TEST_DIR"
+          cd "$TEST_DIR"
+          echo "hello" > hello.txt
+          
+          echo "=== Smoke Test: OpenAI / gpt-5 ==="
+          
+          # Run goose from the test directory
+          OUTPUT=$(cargo run --bin goose -- run --text "please list files in the current directory" --with-builtin developer 2>&1)
+          
+          echo "$OUTPUT"
+          
+          # Verify output contains hello.txt
+          if echo "$OUTPUT" | grep -q "hello.txt"; then
+            echo "✓ OpenAI smoke test passed"
+          else
+            echo "✗ OpenAI smoke test failed - hello.txt not found"
+            exit 1
+          fi
+
   desktop-lint:
     name: Test and Lint Electron Desktop App
     runs-on: macos-latest
