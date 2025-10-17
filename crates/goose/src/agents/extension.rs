@@ -1,4 +1,3 @@
-use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -35,8 +34,8 @@ impl ProcessExit {
     }
 }
 
-pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
-    || {
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> =
+    Lazy::new(|| {
         let mut map = HashMap::new();
 
         map.insert(
@@ -50,28 +49,12 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
-        map.insert(
-            "extensionmanager",
-            PlatformExtensionDef {
-                name: extension_manager_extension::EXTENSION_NAME,
-                description:
-                    "Enable extension management tools for discovering, enabling, and disabling extensions",
-                default_enabled: true,
-                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
-            },
-        );
-
         map
-    },
-);
+    });
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
-    pub extension_manager:
-        Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
-    pub tool_route_manager:
-        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
 }
 
 #[derive(Debug, Clone)]
