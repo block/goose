@@ -47,6 +47,8 @@ impl From<ExecutionModeParam> for ExecutionMode {
     }
 }
 
+type JsonObject = serde_json::Map<String, Value>;
+
 /// Parameters for a single task
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TaskParameter {
@@ -63,24 +65,19 @@ pub struct TaskParameter {
     pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Vec<serde_json::Map<String, Value>>>")]
-    pub extensions: Option<Vec<Value>>,
+    pub extensions: Option<Vec<JsonObject>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
-    pub settings: Option<Value>,
+    pub settings: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Vec<serde_json::Map<String, Value>>>")]
-    pub parameters: Option<Vec<Value>>,
+    pub parameters: Option<Vec<JsonObject>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
-    pub response: Option<Value>,
+    pub response: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<serde_json::Map<String, Value>>")]
-    pub retry: Option<Value>,
+    pub retry: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Vec<String>>,
