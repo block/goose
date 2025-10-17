@@ -1,4 +1,5 @@
 mod agent;
+pub mod approval;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
@@ -25,6 +26,7 @@ mod tool_router_index_manager;
 pub mod types;
 
 pub use agent::{Agent, AgentEvent};
+pub use approval::{ApprovalAction, ApprovalHandler, AutoApprovalHandler};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
