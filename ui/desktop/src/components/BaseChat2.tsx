@@ -269,23 +269,20 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {(chatState === ChatState.Thinking ||
-            chatState === ChatState.Streaming ||
-            isCompacting) &&
-            !sessionLoadError && (
-              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-                <LoadingGoose
-                  message={
-                    messages.length === 0 && chatState === ChatState.Thinking
-                      ? 'loading conversation...'
-                      : isCompacting
-                        ? 'goose is compacting the conversation...'
-                        : undefined
-                  }
-                  chatState={chatState}
-                />
-              </div>
-            )}
+          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
+            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+              <LoadingGoose
+                message={
+                  messages.length === 0 && chatState === ChatState.Thinking
+                    ? 'loading conversation...'
+                    : isCompacting
+                      ? 'goose is compacting the conversation...'
+                      : undefined
+                }
+                chatState={chatState}
+              />
+            </div>
+          )}
         </div>
 
         <div
