@@ -116,7 +116,7 @@ async fn start_agent(
         recipe_deeplink,
     } = payload;
 
-    let resolved_recipe = if let Some(deeplink) = recipe_deeplink {
+    let original_recipe = if let Some(deeplink) = recipe_deeplink {
         match recipe_deeplink::decode(&deeplink) {
             Ok(recipe) => Some(recipe),
             Err(err) => {
@@ -136,7 +136,7 @@ async fn start_agent(
         recipe
     };
 
-    if let Some(ref recipe) = resolved_recipe {
+    if let Some(ref recipe) = original_recipe {
         if let Err(err) = validate_recipe(recipe) {
             return Err(ErrorResponse {
                 message: err.message,
@@ -158,7 +158,7 @@ async fn start_agent(
             }
         })?;
 
-    if let Some(recipe) = resolved_recipe {
+    if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)
             .recipe(Some(recipe))
             .apply()
@@ -258,33 +258,36 @@ async fn update_from_session(
             message: format!("Failed to get session: {}", err),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-    let user_recipe_values = session.user_recipe_values.unwrap_or_default();
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt = render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
-    match build_recipe_with_parameter_values(&payload.session_id, user_recipe_values).await {
-        Ok(Some(recipe)) => {
-            if let Some(instructions) = &recipe.instructions {
-                let mut context: HashMap<&str, Value> = HashMap::new();
-                context.insert("recipe_instructions", Value::String(instructions.clone()));
-                update_prompt = render_global_file("desktop_recipe_instruction.md", &context)
-                    .expect("Prompt should render");
+    if let Some(recipe)  = session.recipe {
+        match build_recipe_with_parameter_values(&recipe, session.user_recipe_values.unwrap_or_default()).await {
+            Ok(Some(recipe)) => {
+                if let Some(instructions) = &recipe.instructions {
+                    let mut context: HashMap<&str, Value> = HashMap::new();
+                    context.insert("recipe_instructions", Value::String(instructions.clone()));
+                    update_prompt = render_global_file("desktop_recipe_instruction.md", &context)
+                        .expect("Prompt should render");
+                }
+                if let Some(sub_recipes) = &recipe.sub_recipes {
+                    agent.add_sub_recipes(sub_recipes.clone()).await;
+                }
+                if let Some(response) = &recipe.response {
+                    agent.add_final_output_tool(response.clone()).await;
+                }
             }
-            if let Some(sub_recipes) = &recipe.sub_recipes {
-                agent.add_sub_recipes(sub_recipes.clone()).await;
+            Ok(None) => {
+                // Recipe has missing parameters - use default prompt
             }
-        }
-        Ok(None) => {
-            // Recipe has missing parameters - use default prompt
-        }
-        Err(e) => {
-            return Err(ErrorResponse {
-                message: e.to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            });
+            Err(e) => {
+                return Err(ErrorResponse {
+                    message: e.to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                });
+            }
         }
     }
-
     agent.extend_system_prompt(update_prompt).await;
 
     Ok(StatusCode::OK)

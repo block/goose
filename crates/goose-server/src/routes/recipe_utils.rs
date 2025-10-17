@@ -13,8 +13,7 @@ use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
-use goose::session::SessionManager;
-use serde_json;
+use serde_yaml;
 use tracing::error;
 
 pub struct RecipeValidationError {
@@ -59,8 +58,10 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     Ok(recipe_manifests_with_path)
 }
 
+// Validates a recipe template (Stage 1 - before parameter substitution)
+// Note: This should only be called on recipe templates, not resolved recipes
 pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
-    let recipe_json = serde_json::to_string(recipe).map_err(|err| {
+    let recipe_yaml = serde_yaml::to_string(recipe).map_err(|err| {
         let message = err.to_string();
         error!("Failed to serialize recipe for validation: {}", message);
         RecipeValidationError {
@@ -69,7 +70,7 @@ pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
         }
     })?;
 
-    validate_recipe_template_from_content(&recipe_json, None).map_err(|err| {
+    validate_recipe_template_from_content(&recipe_yaml, None).map_err(|err| {
         let message = err.to_string();
         error!("Recipe validation failed: {}", message);
         RecipeValidationError {
@@ -126,27 +127,13 @@ pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, Err
 }
 
 pub async fn build_recipe_with_parameter_values(
-    session_id: &str,
+    original_recipe: &Recipe,
     user_recipe_values: HashMap<String, String>,
 ) -> Result<Option<Recipe>> {
-    SessionManager::update_session(session_id)
-        .user_recipe_values(Some(user_recipe_values))
-        .apply()
-        .await?;
-
-    let session = SessionManager::get_session(session_id, false).await?;
-
-    let recipe = session
-        .recipe
-        .ok_or_else(|| anyhow::anyhow!("Recipe not found"))?;
-    let recipe_content = serde_json::to_string(&recipe)?;
+    let recipe_content = serde_yaml::to_string(&original_recipe)?;
 
     let recipe_dir = get_recipe_library_dir(true);
-    let params = session
-        .user_recipe_values
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let params = user_recipe_values.into_iter().collect();
 
     let recipe = match build_recipe_from_template(
         recipe_content,

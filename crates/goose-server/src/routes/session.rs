@@ -178,7 +178,25 @@ async fn update_session_user_recipe_values(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
 ) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
-    match build_recipe_with_parameter_values(&session_id, request.user_recipe_values).await {
+    SessionManager::update_session(&session_id)
+        .user_recipe_values(Some(request.user_recipe_values))
+        .apply()
+        .await.map_err(|err| ErrorResponse {
+            message: err.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    let session= SessionManager::get_session(&session_id, false).await.map_err(|err| ErrorResponse {
+        message: err.to_string(),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+    let recipe = session.recipe.ok_or_else(|| ErrorResponse {
+        message: "Recipe not found".to_string(),
+        status: StatusCode::NOT_FOUND,
+    })?;
+    
+    let user_recipe_values = session.user_recipe_values.unwrap_or_default();
+    match build_recipe_with_parameter_values(&recipe, user_recipe_values).await {
         Ok(Some(recipe)) => {
             let agent = state
                 .get_agent_for_route(session_id.clone())
