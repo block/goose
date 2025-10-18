@@ -2,20 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../config';
 import { useMessageStream } from './useMessageStream';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import {
-  Message,
-  createUserMessage,
-  ToolCall,
-  ToolCallResult,
-  ToolRequestMessageContent,
-  ToolResponseMessageContent,
-  ToolConfirmationRequestMessageContent,
-  getTextContent,
-  TextContent,
-} from '../types/message';
+import { createUserMessage, getTextContent, ToolResponseMessageContent } from '../types/message';
+import { getSession, Message } from '../api';
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
-import { getSession } from '../api';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -308,11 +298,7 @@ export const useChatEngine = ({
     // isUserMessage also checks if the message is a toolConfirmationRequest
     // check if the last message is a real user's message
     if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
-      // Get the text content from the last message before removing it
-      const textContent = lastMessage.content.find((c): c is TextContent => c.type === 'text');
-      const textValue = textContent?.text || '';
-
-      // Set the text back to the input field
+      const textValue = getTextContent(lastMessage);
       _setInput(textValue);
 
       // Also add to local storage history as a backup so cmd+up can retrieve it
@@ -327,19 +313,15 @@ export const useChatEngine = ({
         setMessages([]);
       }
     } else if (!isUserMessage(lastMessage)) {
-      // the last message was an assistant message
-      // check if we have any tool requests or tool confirmation requests
-      const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
+      const toolRequests: [string, Record<string, unknown>][] = lastMessage.content
         .filter(
-          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
-            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+          (content) => content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
         )
         .map((content) => {
           if (content.type === 'toolRequest') {
             return [content.id, content.toolCall];
           } else {
-            // extract tool call from confirmation
-            const toolCall: ToolCallResult<ToolCall> = {
+            const toolCall = {
               status: 'success',
               value: {
                 name: content.toolName,
@@ -358,6 +340,7 @@ export const useChatEngine = ({
           role: 'user',
           created: Date.now(),
           content: [],
+          metadata: { userVisible: true, agentVisible: true },
         };
 
         const notification = 'Interrupted by the user to make a correction';
@@ -391,8 +374,7 @@ export const useChatEngine = ({
     return filteredMessages
       .reduce<string[]>((history, message) => {
         if (isUserMessage(message)) {
-          const textContent = message.content.find((c): c is TextContent => c.type === 'text');
-          const text = textContent?.text?.trim();
+          const text = getTextContent(message).trim();
           if (text) {
             history.push(text);
           }

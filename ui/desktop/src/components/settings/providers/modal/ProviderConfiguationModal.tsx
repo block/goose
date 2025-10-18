@@ -162,7 +162,7 @@ export default function ProviderConfigurationModal() {
     }
 
     try {
-      const isCustomProvider = currentProvider.name.startsWith('custom_');
+      const isCustomProvider = currentProvider.provider_type === 'Custom';
 
       if (isCustomProvider) {
         await removeCustomProvider({

@@ -9,7 +9,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Neon MCP Server](https://github.com/neondatabase-labs/mcp-server-neon) as a Goose extension to interact with your Neon Postgres databases and manage your projects, branches, and more.
+This tutorial covers how to add the [Neon MCP Server](https://github.com/neondatabase/mcp-server-neon) as a Goose extension to interact with your Neon Postgres databases and manage your projects, branches, and more.
 
 Neon offers two versions of the MCP server:
 

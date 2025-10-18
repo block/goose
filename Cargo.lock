@@ -2584,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2625,6 +2625,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.12",
  "rmcp",
+ "schemars",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -2657,7 +2658,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2680,7 +2681,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2732,7 +2733,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2798,7 +2799,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2836,7 +2837,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.9.0"
+version = "1.11.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5475,9 +5476,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "534fd1cd0601e798ac30545ff2b7f4a62c6f14edd4aaed1cc5eb1e85f69f09af"
+checksum = "6f35acda8f89fca5fd8c96cae3c6d5b4c38ea0072df4c8030915f3b5ff469c1c"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5503,9 +5504,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ba777eb0e5f53a757e36f0e287441da0ab766564ba7201600eeb92a4753022e"
+checksum = "c9f1d5220aaa23b79c3d02e18f7a554403b3ccea544bbb6c69d6bcb3e854a274"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",

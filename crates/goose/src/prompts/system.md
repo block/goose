@@ -46,7 +46,7 @@ No extensions are defined. You should let the user know that they should add ext
 {% endif %}
 
 {{tool_selection_strategy}}
-
+{% if is_autonomous %}
 # sub agents
 
 Execute self contained tasks where step-by-step visibility is not important through subagents.
@@ -58,6 +58,7 @@ Execute self contained tasks where step-by-step visibility is not important thro
 - Provide all needed context — subagents cannot see your context
 - Use extension filters to limit resource access
 - Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
+{% endif %}
 
 # Response Guidelines
 

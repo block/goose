@@ -101,6 +101,7 @@ tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
 oauth2 = "5.0.0"
+schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

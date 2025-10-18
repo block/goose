@@ -1,9 +1,9 @@
-import { Message } from './message';
 import { Recipe } from '../recipe';
+import { Message } from '../api';
 
 export interface ChatType {
   sessionId: string;
-  title: string;
+  name: string;
   messageHistoryIndex: number;
   messages: Message[];
   recipe?: Recipe | null; // Add recipe configuration to chat state

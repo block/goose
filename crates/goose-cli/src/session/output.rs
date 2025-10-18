@@ -185,7 +185,7 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
-            MessageContent::SummarizationRequested(summarization) => {
+            MessageContent::ConversationCompacted(summarization) => {
                 println!("\n{}", style(&summarization.msg).yellow());
             }
             _ => {

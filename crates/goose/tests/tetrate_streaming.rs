@@ -13,17 +13,17 @@ use serial_test::serial;
 mod tetrate_streaming_tests {
     use super::*;
 
-    fn create_test_provider() -> Result<TetrateProvider> {
+    async fn create_test_provider() -> Result<TetrateProvider> {
         // Create a test provider with the default model
         let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?;
-        TetrateProvider::from_env(model_config)
+        TetrateProvider::from_env(model_config).await
     }
 
     #[tokio::test]
     #[serial]
     #[ignore] // Ignore by default, run with --ignored flag when API key is available
     async fn test_tetrate_streaming_basic() -> Result<()> {
-        let provider = create_test_provider()?;
+        let provider = create_test_provider().await?;
 
         let messages = vec![Message::user().with_text("Count from 1 to 5, one number at a time.")];
 
@@ -78,7 +78,7 @@ mod tetrate_streaming_tests {
     #[serial]
     #[ignore]
     async fn test_tetrate_streaming_with_tools() -> Result<()> {
-        let provider = create_test_provider()?;
+        let provider = create_test_provider().await?;
 
         // Define a simple tool
         let weather_tool = Tool::new(
@@ -140,7 +140,7 @@ mod tetrate_streaming_tests {
     #[serial]
     #[ignore]
     async fn test_tetrate_streaming_empty_response() -> Result<()> {
-        let provider = create_test_provider()?;
+        let provider = create_test_provider().await?;
 
         // This might result in a very short or empty response
         let messages = vec![Message::user().with_text("")];
@@ -169,7 +169,7 @@ mod tetrate_streaming_tests {
     #[serial]
     #[ignore]
     async fn test_tetrate_streaming_long_response() -> Result<()> {
-        let provider = create_test_provider()?;
+        let provider = create_test_provider().await?;
 
         let messages = vec![Message::user().with_text(
             "Write a detailed 3-paragraph essay about the importance of streaming in modern APIs.",
@@ -230,7 +230,7 @@ mod tetrate_streaming_tests {
         std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing");
 
         let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?;
-        let provider = TetrateProvider::from_env(model_config)?;
+        let provider = TetrateProvider::from_env(model_config).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
 
@@ -251,7 +251,7 @@ mod tetrate_streaming_tests {
     #[serial]
     #[ignore]
     async fn test_tetrate_streaming_concurrent_streams() -> Result<()> {
-        let provider = create_test_provider()?;
+        let provider = create_test_provider().await?;
 
         // Create multiple concurrent streams
         let messages1 = vec![Message::user().with_text("Say 'Stream 1'")];

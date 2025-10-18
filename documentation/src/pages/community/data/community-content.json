@@ -1,7 +1,7 @@
 {
   "title": "🎃 Community Content Contributions",
   "description": "Amazing blog posts, videos, and tutorials created by our community for goose!",
-  "lastUpdated": "2025-10-02",
+  "lastUpdated": "2025-10-15",
   "hacktoberfestYear": 2025,
   "submissionUrl": "https://github.com/block/goose/issues/4705",
   "submissions": [
@@ -28,6 +28,56 @@
       "url": "https://dev.to/agasta/running-goose-in-containers-without-losing-your-mind-3m8",
       "thumbnail": "https://images.unsplash.com/photo-1759560397953-8221761119ec?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-10-04",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Goose with Goose Docs MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/Qidl20e-HOc",
+      "submittedDate": "2025-10-13",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
+      "submittedDate": "2025-10-15",
+      "tags": ["hacktoberfest", "goose", "enterprise"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Getting started with Goose on Windows",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/getting-started-with-goose-on-windows-30bh",
+      "thumbnail": "https://i.imgur.com/WEZXcBD.png",
+      "submittedDate": "2025-10-14",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Best Practices for Prompt Engineering with goose",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/best-practices-for-prompt-engineering-with-goose-3m6h",
+      "thumbnail": "https://i.imgur.com/Shsi56O.png",
+      "submittedDate": "2025-10-16",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     }

@@ -225,7 +225,7 @@ export const initializeSystem = async (
     }
 
     // Get recipe - prefer from options (session metadata) over app config
-    const recipe = options?.recipe || window.appConfig?.get?.('recipe');
+    const recipe = options?.recipe;
     const recipe_instructions = (recipe as { instructions?: string })?.instructions;
     const responseConfig = (recipe as { response?: { json_schema?: unknown } })?.response;
     const subRecipes = (recipe as { sub_recipes?: SubRecipe[] })?.sub_recipes;

@@ -10,7 +10,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -25,10 +25,8 @@ pub struct LiteLLMProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(LiteLLMProvider);
-
 impl LiteLLMProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config
             .get_secret("LITELLM_API_KEY")
