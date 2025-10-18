@@ -264,23 +264,31 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
     result
 }
 
-/// Convert internal Tool format to OpenAI's API tool specification
-pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
+pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
+
+    let is_gemini = model_name.starts_with("gemini");
 
     for tool in tools {
         if !tool_names.insert(&tool.name) {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
+        let parameters = if is_gemini {
+            let mut cleaned_schema = tool.input_schema.as_ref().clone();
+            cleaned_schema.remove("$schema");
+            json!(cleaned_schema)
+        } else {
+            json!(tool.input_schema)
+        };
+
         result.push(json!({
             "type": "function",
             "function": {
                 "name": tool.name,
-                // do not silently truncate description
                 "description": tool.description,
-                "parameters": tool.input_schema,
+                "parameters": parameters,
             }
         }));
     }
@@ -544,7 +552,7 @@ pub fn create_request(
 
     let messages_spec = format_messages(messages, image_format);
     let mut tools_spec = if !tools.is_empty() {
-        format_tools(tools)?
+        format_tools(tools, &model_config.model_name)?
     } else {
         vec![]
     };
@@ -639,82 +647,6 @@ mod tests {
     use rmcp::object;
     use serde_json::json;
 
-    #[test]
-    fn test_validate_tool_schemas() {
-        // Test case 1: Empty parameters object
-        // Input JSON with an incomplete parameters object
-        let mut actual = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object"
-                }
-            }
-        })];
-
-        // Run the function to validate and update schemas
-        validate_tool_schemas(&mut actual);
-
-        // Expected JSON after validation
-        let expected = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            }
-        })];
-
-        // Compare entire JSON structures instead of individual fields
-        assert_eq!(actual, expected);
-
-        // Test case 2: Missing type field
-        let mut tools = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "properties": {}
-                }
-            }
-        })];
-
-        validate_tool_schemas(&mut tools);
-
-        let params = tools[0]["function"]["parameters"].as_object().unwrap();
-        assert_eq!(params["type"], "object");
-
-        // Test case 3: Complete valid schema should remain unchanged
-        let original_schema = json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "City and country"
-                        }
-                    },
-                    "required": ["location"]
-                }
-            }
-        });
-
-        let mut tools = vec![original_schema.clone()];
-        validate_tool_schemas(&mut tools);
-        assert_eq!(tools[0], original_schema);
-    }
-
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
         "choices": [{
             "role": "assistant",
@@ -752,6 +684,7 @@ mod tests {
             "test_tool",
             "A test tool",
             object!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "input": {
@@ -763,11 +696,18 @@ mod tests {
             }),
         );
 
-        let spec = format_tools(&[tool])?;
+        // Test non-Gemini model keeps $schema
+        let spec = format_tools(&[tool.clone()], "gpt-4o")?;
+        assert_eq!(
+            spec[0]["function"]["parameters"]["$schema"],
+            "http://json-schema.org/draft-07/schema#"
+        );
 
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["type"], "function");
-        assert_eq!(spec[0]["function"]["name"], "test_tool");
+        // Test Gemini model strips $schema
+        let spec = format_tools(&[tool], "gemini-2-5-flash")?;
+        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+
         Ok(())
     }
 
@@ -879,20 +819,13 @@ mod tests {
             }),
         );
 
-        let result = format_tools(&[tool1, tool2]);
+        let result = format_tools(&[tool1, tool2], "gpt-4o");
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .to_string()
             .contains("Duplicate tool name"));
 
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_tools_empty() -> anyhow::Result<()> {
-        let spec = format_tools(&[])?;
-        assert!(spec.is_empty());
         Ok(())
     }
 

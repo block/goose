@@ -95,7 +95,7 @@ impl PromptManager {
         context.insert("goose_mode", Value::String(goose_mode.clone()));
         context.insert(
             "enable_subagents",
-            Value::Bool(should_enabled_subagents(&model_name)),
+            Value::Bool(should_enabled_subagents(model_name)),
         );
 
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
