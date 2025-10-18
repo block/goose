@@ -67,6 +67,7 @@ function BaseChatContent({
     useChatStream({
       sessionId,
       onStreamFinish,
+      initialMessage,
     });
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -86,27 +87,6 @@ function BaseChatContent({
     localOutputTokens: 0,
     session,
   });
-
-  const hasSubmittedInitialMessage = useRef(false);
-  const initialMessagesLength = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (session && initialMessagesLength.current === null) {
-      initialMessagesLength.current = messages.length;
-    }
-  }, [session, messages.length]);
-
-  useEffect(() => {
-    if (
-      initialMessage &&
-      session &&
-      !hasSubmittedInitialMessage.current &&
-      initialMessagesLength.current === 0
-    ) {
-      hasSubmittedInitialMessage.current = true;
-      handleSubmit(initialMessage);
-    }
-  }, [initialMessage, session, handleSubmit]);
 
   const recipe = session?.recipe;
 
@@ -199,6 +179,15 @@ function BaseChatContent({
   };
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
+
+  // Map chatState to LoadingGoose message
+  const getLoadingMessage = (): string | undefined => {
+    if (isCompacting) return 'goose is compacting the conversation...';
+    if (messages.length === 0 && chatState === ChatState.Thinking) {
+      return 'loading conversation...';
+    }
+    return undefined;
+  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -270,16 +259,7 @@ function BaseChatContent({
 
           {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  messages.length === 0 && chatState === ChatState.Thinking
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
+              <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
             </div>
           )}
         </div>

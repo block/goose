@@ -62,6 +62,7 @@ type MessageEvent =
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
+  initialMessage?: string;
 }
 
 interface UseChatStreamReturn {
@@ -208,6 +209,7 @@ async function streamFromResponse(
 export function useChatStream({
   sessionId,
   onStreamFinish,
+  initialMessage,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -349,6 +351,13 @@ export function useChatStream({
     },
     [sessionId, setMessagesAndLog, onFinish]
   );
+
+  useEffect(() => {
+    if (initialMessage && session && messages.length === 0 && chatState === ChatState.Idle) {
+      log.messages('auto-submit-initial', 0, { initialMessage: initialMessage.slice(0, 50) });
+      handleSubmit(initialMessage);
+    }
+  }, [initialMessage, session, messages.length, chatState, handleSubmit]);
 
   const stopStreaming = useCallback(() => {
     log.stream('stop-requested');
