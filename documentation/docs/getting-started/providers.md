@@ -55,139 +55,185 @@ goose also supports special "pass-through" providers that work with existing CLI
 CLI providers are cost-effective alternatives that use your existing subscriptions. They work differently from API providers as they execute CLI commands and integrate with the tools' native capabilities. See the [CLI Providers guide](/docs/guides/cli-providers) for detailed setup instructions.
 :::
 
-   
+
 ## Configure Provider
 
-To configure your chosen provider or see available options, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
+To configure your chosen provider or see available options, visit the `Models` tab in the goose Desktop or run `goose configure` in the CLI.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **First-time users:**
-  
-  On the welcome screen the first time you open goose, you have three options:
-  - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
-  - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
-  - **Other Providers**
-  <Tabs groupId="setup">
-    <TabItem value="tetrate" label="Tetrate Agent Router" default>
-    We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
 
-    :::info Free Credits Offer
-    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
-    :::
-    1. Choose `Automatic setup with Tetrate Agent Router`. 
-    2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
-    </TabItem>
+**To update your LLM provider and API key:**
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click the `Settings` button on the sidebar
+3. Click the `Models` tab
+4. Click `Configure providers`
+5. Click your provider in the list
+6. Add your API key and other required configurations, then click `Submit`
 
-    <TabItem value="openrouter" label="OpenRouter">
-    1. Choose `Automatic setup with OpenRouter`. 
-    2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
-    </TabItem>
+**To change your current model:**
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click the `Settings` button on the sidebar
+3. Click the `Models` tab
+4. Click `Switch models`
+5. Choose from your configured providers in the dropdown, or select `Use other provider` to configure a new one
+6. Select a model from the available options, or choose `Use custom model` to enter a specific model name
+7. Click `Select model` to confirm your choice
 
-    <TabItem value="others" label="Other Providers">
-    1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`. 
-    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window. 
-    3. Depending on your provider, you'll need to input your API Key, API Host, or other optional [parameters](#available-providers). Click the `Submit` button to authenticate and begin your first session.
-    </TabItem>
-  </Tabs>
-  **To update your LLM provider and API key:** 
-  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` button on the sidebar
-  3. Click the `Models` tab
-  4. Click `Configure providers`
-  5. Click your provider in the list
-  6. Add your API key and other required configurations, then click `Submit`
+:::tip Shortcut
+For faster access, click your current model name at the bottom of the app and choose `Change Model`.
+:::
 
-  **To change your current model:**
-  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` button on the sidebar
-  3. Click the `Models` tab
-  4. Click `Switch models`
-  5. Choose from your configured providers in the dropdown, or select `Use other provider` to configure a new one
-  6. Select a model from the available options, or choose `Use custom model` to enter a specific model name
-  7. Click `Select model` to confirm your choice
+**To start over with provider and model configuration:**
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click the `Settings` button on the sidebar
+3. Click the `Models` tab
+4. Click `Reset Provider and Model` to clear your current settings and return to the welcome screen
 
-  :::tip Shortcut
-  For faster access, click your current model name at the bottom of the app and choose `Change Model`.
-  :::
-
-  **To start over with provider and model configuration:**
-  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` button on the sidebar
-  3. Click the `Models` tab
-  4. Click `Reset Provider and Model` to clear your current settings and return to the welcome screen
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. In your terminal, run the following command: 
 
-    ```sh
-    goose configure
-    ```
+1. Run the following command:
 
-    2. Select `Configure Providers` from the menu and press Enter.
+```sh
+goose configure
+```
 
-    ```
-   ┌   goose-configure 
-   │
-   ◆  What would you like to configure?
-   │  ● Configure Providers (Change provider or update credentials)
-   │  ○ Add Extension 
-   │  ○ Toggle Extensions 
-   │  ○ Remove Extension 
-   │  ○ goose Settings 
-   └  
-   ```
-   3. Choose a model provider and press Enter.
+2. Select `Configure Providers` from the menu and press Enter.
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◆  Which model provider should we use?
-   │  ● Anthropic (Claude and other models from Anthropic)
-   │  ○ Azure OpenAI 
-   │  ○ Amazon Bedrock 
-   │  ○ Claude Code 
-   │  ○ Databricks 
-   │  ○ ...
-   └  
-   ```
-   4. Enter your API key (and any other configuration details) when prompted.
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Add Extension
+│  ○ Toggle Extensions
+│  ○ Remove Extension
+│  ○ goose Settings
+└
+```
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◇  Which model provider should we use?
-   │  Anthropic 
-   │
-   ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
-   │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-   └  
-    ```
-    5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key. 
+3. Choose a model provider and press Enter.
 
-    ```
-    ◇  Enter new value for ANTHROPIC_HOST
-    │  https://api.anthropic.com (default)
-    ```
-    6. Enter the model you want to use or you can use the default one by hitting the `Enter` key. 
-    ```
-    │
-    ◇  Model fetch complete
-    │
-    ◇  Enter a model from that provider:
-    │  claude-sonnet-4-0 (default)
-    │
-    ◓  Checking your configuration...
-    └  Configuration saved successfully
-  ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ● Anthropic (Claude and other models from Anthropic)
+│  ○ Azure OpenAI
+│  ○ Amazon Bedrock
+│  ○ Claude Code
+│  ○ Databricks
+│  ○ ...
+└
+```
+
+4. Enter your API key (and any other configuration details) when prompted.
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Anthropic
+│
+◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
+│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+└
+```
+
+5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key.
+
+```
+◇  Enter new value for ANTHROPIC_HOST
+│  https://api.anthropic.com (default)
+```
+
+6. Enter the model you want to use or you can use the default one by hitting the `Enter` key.
+
+```
+│
+◇  Model fetch complete
+│
+◇  Enter a model from that provider:
+│  claude-sonnet-4-0 (default)
+│
+◓  Checking your configuration...
+└  Configuration saved successfully
+```
+
+  </TabItem>
+</Tabs>
+
+## Provider Configuration Basics
+
+Before using any provider, you need to configure both the provider name and its specific parameters.
+
+:::warning Required Configuration
+You **must** set `goose_PROVIDER` (via environment variable or config file) to tell goose which provider to use. Without this, you'll see the error: `No provider configured. Run 'goose configure' first`
+:::
+
+### Configuration Methods
+
+You can configure goose in three ways:
+
+1. **`goose configure` (Recommended)** - Interactive CLI setup that guides you through the process
+2. **Configuration file** - Edit `~/.config/goose/config.yaml` (or `%USERPROFILE%\.config\goose\config.yaml` on Windows)
+3. **Environment variables** - Set in your shell profile or terminal session
+
+All three methods work together. The precedence order is: **Environment variables > Configuration file > Defaults**
+
+### Example: Setting Up OpenAI
+
+<Tabs groupId="config-method">
+  <TabItem value="configure" label="goose configure" default>
+
+```bash
+goose configure
+# 1. Select "Configure Providers"
+# 2. Choose "OpenAI" from the list
+# 3. Enter your API key when prompted
+# 4. (Optional) Enter custom OPENAI_HOST for custom endpoints
+```
+
+  </TabItem>
+  <TabItem value="config-file" label="config.yaml">
+
+Edit `~/.config/goose/config.yaml`:
+
+```yaml
+goose_PROVIDER: openai
+OPENAI_API_KEY: "sk-..."
+# For custom endpoints:
+# OPENAI_HOST: "http://localhost:8000"
+```
+
+  </TabItem>
+  <TabItem value="env-vars" label="Environment Variables">
+
+**Bash/Linux/macOS:**
+
+```bash
+export goose_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+# For custom endpoints:
+# export OPENAI_HOST=http://localhost:8000
+```
+
+**PowerShell (Windows):**
+
+```powershell
+$Env:goose_PROVIDER = "openai"
+$Env:OPENAI_API_KEY = "sk-..."
+# For custom endpoints:
+# $Env:OPENAI_HOST = "http://localhost:8000"
+```
+
   </TabItem>
 </Tabs>
 
@@ -203,8 +249,9 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | Authentication key for the API |
-| `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com) |
+| `goose_PROVIDER` | Yes | Must be set to `openai` |
+| `OPENAI_API_KEY` | Yes | Authentication key for the API. Can be set to any non-empty value for local endpoints that don't require authentication (e.g., "ignore") |
+| `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com). **Required for custom OpenAI-compatible endpoints like vLLM** |
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
 | `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
@@ -213,37 +260,53 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 
 <Tabs groupId="deployment">
   <TabItem value="vllm" label="vLLM Self-Hosted" default>
-    If you're running LLaMA or other models using vLLM with OpenAI compatibility:
-    ```sh
-    OPENAI_HOST=https://your-vllm-endpoint.internal
-    OPENAI_API_KEY=your-internal-api-key
-    ```
+
+If you're running LLaMA or other models using vLLM with OpenAI compatibility:
+
+```sh
+goose_PROVIDER=openai
+OPENAI_HOST=https://your-vllm-endpoint.internal
+OPENAI_API_KEY=ignore
+```
+
   </TabItem>
   <TabItem value="kserve" label="KServe Deployment">
-    For models deployed on Kubernetes using KServe:
-    ```sh
-    OPENAI_HOST=https://kserve-gateway.your-cluster
-    OPENAI_API_KEY=your-kserve-api-key
-    OPENAI_ORGANIZATION=your-org-id
-    OPENAI_PROJECT=ml-serving
-    ```
+
+For models deployed on Kubernetes using KServe:
+
+```sh
+goose_PROVIDER=openai
+OPENAI_HOST=https://kserve-gateway.your-cluster
+OPENAI_API_KEY=your-kserve-api-key
+OPENAI_ORGANIZATION=your-org-id
+OPENAI_PROJECT=ml-serving
+```
+
   </TabItem>
   <TabItem value="enterprise" label="Enterprise OpenAI">
-    For enterprise OpenAI deployments with governance:
-    ```sh
-    OPENAI_API_KEY=your-api-key
-    OPENAI_ORGANIZATION=org-id123
-    OPENAI_PROJECT=compliance-approved
-    ```
+
+For enterprise OpenAI deployments with governance:
+
+```sh
+goose_PROVIDER=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_ORGANIZATION=org-id123
+OPENAI_PROJECT=compliance-approved
+```
+
   </TabItem>
   <TabItem value="custom-headers" label="Custom Headers">
-    For OpenAI-compatible endpoints that require custom headers:
-    ```sh
-    OPENAI_API_KEY=your-api-key
-    OPENAI_ORGANIZATION=org-id123
-    OPENAI_PROJECT=compliance-approved
-    OPENAI_CUSTOM_HEADERS="X-Header-A=abc,X-Header-B=def"
-    ```
+
+For OpenAI-compatible endpoints that require custom headers:
+
+```sh
+goose_PROVIDER=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_ORGANIZATION=org-id123
+OPENAI_PROJECT=compliance-approved
+OPENAI_CUSTOM_HEADERS="X-Header-A=abc,X-Header-B=def"
+```
+
   </TabItem>
 </Tabs>
 
@@ -251,27 +314,31 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click the `Settings` button on the sidebar
-    3. Click the `Models` tab
-    4. Click `Configure providers`
-    5. Click `OpenAI` in the provider list
-    6. Fill in your configuration details:
-       - API Key (required)
-       - Host URL (for custom endpoints)
-       - Organization ID (for usage tracking)
-       - Project (for resource management)
-    7. Click `Submit`
+
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click the `Settings` button on the sidebar
+3. Click the `Models` tab
+4. Click `Configure providers`
+5. Click `OpenAI` in the provider list
+6. Fill in your configuration details:
+   - API Key (required)
+   - Host URL (for custom endpoints)
+   - Organization ID (for usage tracking)
+   - Project (for resource management)
+7. Click `Submit`
+
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run `goose configure`
-    2. Select `Configure Providers`
-    3. Choose `OpenAI` as the provider
-    4. Enter your configuration when prompted:
-       - API key
-       - Host URL (if using custom endpoint)
-       - Organization ID (if using organization tracking)
-       - Project identifier (if using project management)
+
+1. Run `goose configure`
+2. Select `Configure Providers`
+3. Choose `OpenAI` as the provider
+4. Enter your configuration when prompted:
+   - API key
+   - Host URL (if using custom endpoint)
+   - Organization ID (if using organization tracking)
+   - Project identifier (if using project management)
+
   </TabItem>
 </Tabs>
 
@@ -281,7 +348,7 @@ For enterprise deployments, you can pre-configure these values using environment
 
 ## Using goose for Free
 
-goose is a free and open source AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 
+goose is a free and open source AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier.
 
 Below, we outline a couple of free options and how to get started with them.
 
@@ -289,13 +356,13 @@ Below, we outline a couple of free options and how to get started with them.
 These free options are a great way to get started with goose and explore its capabilities. However, you may need to upgrade your LLM for better performance.
 :::
 
-
 ### Groq
+
 Groq provides free access to open source models with high-speed inference. To use Groq with goose, you need an API key from [Groq Console](https://console.groq.com/keys).
 
 Groq offers several open source models that support tool calling:
 - **moonshotai/kimi-k2-instruct** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
-- **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities  
+- **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities
 - **gemma2-9b-it** - Google's Gemma 2 model with instruction tuning
 - **llama-3.3-70b-versatile** - Meta's Llama 3.3 model for versatile applications
 
@@ -303,77 +370,87 @@ To set up Groq with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
 
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
-    2. Click the `Settings` button on the sidebar.
-    3. Click the `Models` tab.
-    4. Click `Configure Providers`
-    5. Choose `Groq` as provider from the list.
-    6. Click `Configure`, enter your API key, and click `Submit`.
+**To update your LLM provider and API key:**
+
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+2. Click the `Settings` button on the sidebar.
+3. Click the `Models` tab.
+4. Click `Configure Providers`
+5. Choose `Groq` as provider from the list.
+6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
-    ```sh
-    goose configure
-    ```
-    2. Select `Configure Providers` from the menu.
-    3. Follow the prompts to choose `Groq` as the provider.
-    4. Enter your API key when prompted.
-    5. Enter the Groq model of your choice (e.g., `moonshotai/kimi-k2-instruct`).
+
+1. Run:
+
+```sh
+goose configure
+```
+
+2. Select `Configure Providers` from the menu.
+3. Follow the prompts to choose `Groq` as the provider.
+4. Enter your API key when prompted.
+5. Enter the Groq model of your choice (e.g., `moonshotai/kimi-k2-instruct`).
+
   </TabItem>
 </Tabs>
 
 ### Google Gemini
+
 Google Gemini provides a free tier. To start using the Gemini API with goose, you need an API Key from [Google AI studio](https://aistudio.google.com/app/apikey).
 
 To set up Google Gemini with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
 
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
-    2. Click the `Settings` button on the sidebar.
-    3. Click the `Models` tab.
-    4. Click `Configure Providers`
-    5. Choose `Google Gemini` as provider from the list.
-    6. Click `Configure`, enter your API key, and click `Submit`.
+**To update your LLM provider and API key:**
+
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+2. Click the `Settings` button on the sidebar.
+3. Click the `Models` tab.
+4. Click `Configure Providers`
+5. Choose `Google Gemini` as provider from the list.
+6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
-    ```sh
-    goose configure
-    ```
-    2. Select `Configure Providers` from the menu.
-    3. Follow the prompts to choose `Google Gemini` as the provider.
-    4. Enter your API key when prompted.
-    5. Enter the Gemini model of your choice.
 
-    ```
-    ┌   goose-configure
-    │
-    ◇ What would you like to configure?
-    │ Configure Providers
-    │
-    ◇ Which model provider should we use?
-    │ Google Gemini
-    │
-    ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
-    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │    
-    ◇ Enter a model from that provider:
-    │ gemini-2.0-flash-exp
-    │
-    ◇ Hello! You're all set and ready to go, feel free to ask me anything!
-    │
-    └ Configuration saved successfully
-    ```
+1. Run:
+
+```sh
+goose configure
+```
+
+2. Select `Configure Providers` from the menu.
+3. Follow the prompts to choose `Google Gemini` as the provider.
+4. Enter your API key when prompted.
+5. Enter the Gemini model of your choice.
+
+```
+┌   goose-configure
+│
+◇ What would you like to configure?
+│ Configure Providers
+│
+◇ Which model provider should we use?
+│ Google Gemini
+│
+◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
+│▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+│
+◇ Enter a model from that provider:
+│ gemini-2.0-flash-exp
+│
+◇ Hello! You're all set and ready to go, feel free to ask me anything!
+│
+└ Configuration saved successfully
+```
+
   </TabItem>
 </Tabs>
-
 
 ### Local LLMs
 
@@ -389,379 +466,380 @@ Here are some local providers we support:
   <TabItem value="ollama" label="Ollama" default>
     <Tabs groupId="ollama-models">
       <TabItem value="ramalala" label="Ramalala">
-        1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
-        2. In a terminal, run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model):
 
-          The `--runtime-args="--jinja"` flag is required for Ramalama to work with the goose Ollama provider.
+1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
+2. In a terminal, run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model):
 
-          Example:
+The `--runtime-args="--jinja"` flag is required for Ramalama to work with the goose Ollama provider.
 
-          ```sh
-          ramalama serve --runtime-args="--jinja" ollama://qwen2.5
-          ```
+Example:
 
-          3. In a separate terminal window, configure with goose:
+```sh
+ramalama serve --runtime-args="--jinja" ollama://qwen2.5
+```
 
-          ```sh
-          goose configure
-          ```
+3. In a separate terminal window, configure with goose:
 
-          4. Choose to `Configure Providers`
+```sh
+goose configure
+```
 
-          ```
-          ┌   goose-configure
-          │
-          ◆  What would you like to configure?
-          │  ● Configure Providers (Change provider or update credentials)
-          │  ○ Toggle Extensions
-          │  ○ Add Extension
-          └
-          ```
+4. Choose to `Configure Providers`
 
-          5. Choose `Ollama` as the model provider since Ramalama is API compatible and can use the goose Ollama provider
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
 
-          ```
-          ┌   goose-configure
-          │
-          ◇  What would you like to configure?
-          │  Configure Providers
-          │
-          ◆  Which model provider should we use?
-          │  ○ Anthropic
-          │  ○ Databricks
-          │  ○ Google Gemini
-          │  ○ Groq
-          │  ● Ollama (Local open source models)
-          │  ○ OpenAI
-          │  ○ OpenRouter
-          └
-          ```
+5. Choose `Ollama` as the model provider since Ramalama is API compatible and can use the goose Ollama provider
 
-          6. Enter the host where your model is running
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Databricks
+│  ○ Google Gemini
+│  ○ Groq
+│  ● Ollama (Local open source models)
+│  ○ OpenAI
+│  ○ OpenRouter
+└
+```
 
-          :::info Endpoint
-          For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
-          :::
+6. Enter the host where your model is running
 
-          ```
-          ┌   goose-configure
-          │
-          ◇  What would you like to configure?
-          │  Configure Providers
-          │
-          ◇  Which model provider should we use?
-          │  Ollama
-          │
-          ◆  Provider Ollama requires OLLAMA_HOST, please enter a value
-          │  http://0.0.0.0:8080
-          └
-          ```
+:::info Endpoint
+For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
+:::
 
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◆  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
+└
+```
 
-          7. Enter the model you have running
+7. Enter the model you have running
 
-          ```
-          ┌   goose-configure
-          │
-          ◇  What would you like to configure?
-          │  Configure Providers
-          │
-          ◇  Which model provider should we use?
-          │  Ollama
-          │
-          ◇  Provider Ollama requires OLLAMA_HOST, please enter a value
-          │  http://0.0.0.0:8080
-          │
-          ◇  Enter a model from that provider:
-          │  qwen2.5
-          │
-          ◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
-          │
-          └  Configuration saved successfully
-          ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◇  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
+│
+◇  Enter a model from that provider:
+│  qwen2.5
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
 
-          :::tip Context Length
-          If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
-          :::
+:::tip Context Length
+If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
+:::
 
       </TabItem>
       <TabItem value="deepseek" label="DeepSeek-R1">
-        The native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with goose. 
 
-        :::warning
-        Note that this is a 70B model size and requires a powerful device to run smoothly.
-        :::
+The native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with goose.
 
+:::warning
+Note that this is a 70B model size and requires a powerful device to run smoothly.
+:::
 
-        1. [Download Ollama](https://ollama.com/download). 
-        2. In a terminal window, run the following command to install the custom DeepSeek-r1 model:
+1. [Download Ollama](https://ollama.com/download).
+2. In a terminal window, run the following command to install the custom DeepSeek-r1 model:
 
-        ```sh
-        ollama run michaelneale/deepseek-r1-goose
-        ```
+```sh
+ollama run michaelneale/deepseek-r1-goose
+```
 
-        3. In a separate terminal window, configure with goose:
+3. In a separate terminal window, configure with goose:
 
-        ```sh
-        goose configure
-        ```
+```sh
+goose configure
+```
 
-        4. Choose to `Configure Providers`
+4. Choose to `Configure Providers`
 
-        ```
-        ┌   goose-configure 
-        │
-        ◆  What would you like to configure?
-        │  ● Configure Providers (Change provider or update credentials)
-        │  ○ Toggle Extensions 
-        │  ○ Add Extension 
-        └  
-        ```
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
 
-        5. Choose `Ollama` as the model provider
+5. Choose `Ollama` as the model provider
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◆  Which model provider should we use?
-        │  ○ Anthropic 
-        │  ○ Databricks 
-        │  ○ Google Gemini 
-        │  ○ Groq 
-        │  ● Ollama (Local open source models)
-        │  ○ OpenAI 
-        │  ○ OpenRouter 
-        └  
-        ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Databricks
+│  ○ Google Gemini
+│  ○ Groq
+│  ● Ollama (Local open source models)
+│  ○ OpenAI
+│  ○ OpenRouter
+└
+```
 
-        6. Enter the host where your model is running
+6. Enter the host where your model is running
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◇  Which model provider should we use?
-        │  Ollama 
-        │
-        ◆  Provider Ollama requires OLLAMA_HOST, please enter a value
-        │  http://localhost:11434
-        └
-        ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◆  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://localhost:11434
+└
+```
 
-        7. Enter the installed model from above
+7. Enter the installed model from above
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◇  Which model provider should we use?
-        │  Ollama 
-        │
-        ◇   Provider Ollama requires OLLAMA_HOST, please enter a value
-        │  http://localhost:11434  
-        │    
-        ◇  Enter a model from that provider:
-        │  michaelneale/deepseek-r1-goose
-        │
-        ◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
-        │
-        └  Configuration saved successfully
-        ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◇   Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://localhost:11434
+│
+◇  Enter a model from that provider:
+│  michaelneale/deepseek-r1-goose
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
+
       </TabItem>
       <TabItem value="others" label="Other Models" default>
-        1. [Download Ollama](https://ollama.com/download). 
-        2. In a terminal, run any [model supporting tool-calling](https://ollama.com/search?c=tools)
 
-          Example:
+1. [Download Ollama](https://ollama.com/download).
+2. In a terminal, run any [model supporting tool-calling](https://ollama.com/search?c=tools)
 
-          ```sh
-          ollama run qwen2.5
-          ```
+Example:
 
-        3. In a separate terminal window, configure with goose:
+```sh
+ollama run qwen2.5
+```
 
-          ```sh
-          goose configure
-          ```
+3. In a separate terminal window, configure with goose:
 
-        4. Choose to `Configure Providers`
+```sh
+goose configure
+```
 
-        ```
-        ┌   goose-configure 
-        │
-        ◆  What would you like to configure?
-        │  ● Configure Providers (Change provider or update credentials)
-        │  ○ Toggle Extensions 
-        │  ○ Add Extension 
-        └  
-        ```
+4. Choose to `Configure Providers`
 
-        5. Choose `Ollama` as the model provider
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◆  Which model provider should we use?
-        │  ○ Anthropic 
-        │  ○ Databricks 
-        │  ○ Google Gemini 
-        │  ○ Groq 
-        │  ● Ollama (Local open source models)
-        │  ○ OpenAI 
-        │  ○ OpenRouter 
-        └  
-        ```
+5. Choose `Ollama` as the model provider
 
-        6. Enter the host where your model is running
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Databricks
+│  ○ Google Gemini
+│  ○ Groq
+│  ● Ollama (Local open source models)
+│  ○ OpenAI
+│  ○ OpenRouter
+└
+```
 
-        :::info Endpoint
-        For Ollama, if you don't provide a host, we set it to `localhost:11434`. 
-        When constructing the URL, we prepend `http://` if the scheme is not `http` or `https`. 
-        If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=http://{host}:{port}`.
-        :::
+6. Enter the host where your model is running
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◇  Which model provider should we use?
-        │  Ollama 
-        │
-        ◆  Provider Ollama requires OLLAMA_HOST, please enter a value
-        │  http://localhost:11434
-        └
-        ```
+:::info Endpoint
+For Ollama, if you don't provide a host, we set it to `localhost:11434`.
+When constructing the URL, we prepend `http://` if the scheme is not `http` or `https`.
+If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=http://{host}:{port}`.
+:::
 
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◆  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://localhost:11434
+└
+```
 
-        7. Enter the model you have running
+7. Enter the model you have running
 
-        ```
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Configure Providers 
-        │
-        ◇  Which model provider should we use?
-        │  Ollama 
-        │
-        ◇  Provider Ollama requires OLLAMA_HOST, please enter a value
-        │  http://localhost:11434
-        │
-        ◇  Enter a model from that provider:
-        │  qwen2.5
-        │
-        ◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
-        │
-        └  Configuration saved successfully
-        ```
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◇  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://localhost:11434
+│
+◇  Enter a model from that provider:
+│  qwen2.5
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
 
-        :::tip Context Length
-        If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size).
-        :::
-        
+:::tip Context Length
+If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size).
+:::
+
       </TabItem>
     </Tabs>
   </TabItem>
   <TabItem value="docker" label="Docker Model Runner" default>
-    1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
-    2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
-    3. [Pull a model](https://docs.docker.com/ai/model-runner/#pull-a-model), for example, from Docker Hub [AI namespace](https://hub.docker.com/u/ai), [Unsloth](https://hub.docker.com/u/unsloth), or [from HuggingFace](https://www.docker.com/blog/docker-model-runner-on-hugging-face/)
 
-    Example:
+1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
+2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
+3. [Pull a model](https://docs.docker.com/ai/model-runner/#pull-a-model), for example, from Docker Hub [AI namespace](https://hub.docker.com/u/ai), [Unsloth](https://hub.docker.com/u/unsloth), or [from HuggingFace](https://www.docker.com/blog/docker-model-runner-on-hugging-face/)
 
-    ```sh
-    docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
-    ```
+Example:
 
-    4. Configure goose to use Docker Model Runner, using the OpenAI API compatible endpoint: 
+```sh
+docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
+```
 
-    ```sh
-    goose configure
-    ```
+4. Configure goose to use Docker Model Runner, using the OpenAI API compatible endpoint:
 
-    5. Choose to `Configure Providers`
+```sh
+goose configure
+```
 
-    ```
-    ┌   goose-configure 
-    │
-    ◆  What would you like to configure?
-    │  ● Configure Providers (Change provider or update credentials)
-    │  ○ Toggle Extensions 
-    │  ○ Add Extension 
-    └  
-    ```
+5. Choose to `Configure Providers`
 
-    6. Choose `OpenAI` as the model provider: 
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
 
-    ```
-    ┌   goose-configure
-    │
-    ◇  What would you like to configure?
-    │  Configure Providers
-    │
-    ◆  Which model provider should we use?
-    │  ○ Anthropic
-    │  ○ Amazon Bedrock
-    │  ○ Claude Code
-    │  ● OpenAI (GPT-4 and other OpenAI models, including OpenAI compatible ones)
-    │  ○ OpenRouter
-    ```
+6. Choose `OpenAI` as the model provider:
 
-    7. Configure Docker Model Runner endpoint as the `OPENAI_HOST`: 
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Amazon Bedrock
+│  ○ Claude Code
+│  ● OpenAI (GPT-4 and other OpenAI models, including OpenAI compatible ones)
+│  ○ OpenRouter
+```
 
-    ```
-    ┌   goose-configure
-    │
-    ◇  What would you like to configure?
-    │  Configure Providers
-    │
-    ◇  Which model provider should we use?
-    │  OpenAI
-    │
-    ◆  Provider OpenAI requires OPENAI_HOST, please enter a value
-    │  https://api.openai.com (default)
-    └
-    ```
+7. Configure Docker Model Runner endpoint as the `OPENAI_HOST`:
 
-    The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be: 
-    `http://localhost:12434`. 
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  OpenAI
+│
+◆  Provider OpenAI requires OPENAI_HOST, please enter a value
+│  https://api.openai.com (default)
+└
+```
 
-    8. Configure the base path: 
+The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be:
+`http://localhost:12434`.
 
-    ```
-    ◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
-    │  v1/chat/completions (default)
-    └
-    ```
+8. Configure the base path:
 
-    Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base path.
+```
+◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
+│  v1/chat/completions (default)
+└
+```
 
-    9. Finally configure the model available in Docker Model Runner to be used by goose: `hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k`
+Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base path.
 
-    ```
-    │
-    ◇  Enter a model from that provider:
-    │  gpt-4o
-    │
-    ◒  Checking your configuration...                                                                                                            
-    └  Configuration saved successfully
-    ```
+9. Finally configure the model available in Docker Model Runner to be used by goose: `hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k`
+
+```
+│
+◇  Enter a model from that provider:
+│  gpt-4o
+│
+◒  Checking your configuration...
+└  Configuration saved successfully
+```
+
   </TabItem>
 </Tabs>
-
-
 
 ## Azure OpenAI Credential Chain
 
@@ -788,7 +866,6 @@ Beyond single-model setups, goose supports [multi-model configurations](/docs/gu
 ---
 
 If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/block-opensource) or on the [goose repo](https://github.com/block/goose).
-
 
 [providers]: /docs/getting-started/providers
 [function-calling-leaderboard]: https://gorilla.cs.berkeley.edu/leaderboard.html
