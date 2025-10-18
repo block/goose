@@ -7,6 +7,7 @@ use crate::providers::utils::{
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
+use chrono;
 use futures::Stream;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
@@ -286,7 +287,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::with_content(Vec::new()));
+        return Ok(Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            Vec::new(),
+        ));
     };
 
     let mut content = Vec::new();
@@ -472,7 +477,7 @@ where
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
-            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
+            } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
                 let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
@@ -484,7 +489,7 @@ where
                 }
 
                 // Check if this chunk already has finish_reason "tool_calls"
-                let is_complete = !chunk.choices.is_empty() && chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
 
                 if !is_complete {
                     let mut done = false;
@@ -513,7 +518,7 @@ where
                                         done = true;
                                     }
 
-                                    if !tool_chunk.choices.is_empty() && tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                    if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
                                         done = true;
                                     }
                                 } else {
@@ -576,7 +581,7 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.content.is_some() {
+            } else if chunk.choices[0].delta.content.is_some() {
                 let text = chunk.choices[0].delta.content.as_ref().unwrap();
                 let mut msg = Message::new(
                     Role::Assistant,
@@ -591,7 +596,7 @@ where
 
                 yield (
                     Some(msg),
-                    if !chunk.choices.is_empty() && chunk.choices[0].finish_reason.is_some() {
+                    if chunk.choices[0].finish_reason.is_some() {
                         usage
                     } else {
                         None
