@@ -1096,10 +1096,17 @@ impl Agent {
                     }
                 }
 
+                // Inject MOIM ephemeral context just before provider call
+                let messages_with_moim = super::moim::inject_moim(
+                    conversation.messages(),
+                    &self.extension_manager,
+                    &session
+                ).await;
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    conversation.messages(),
+                    &messages_with_moim,
                     &tools,
                     &toolshim_tools,
                 ).await?;
