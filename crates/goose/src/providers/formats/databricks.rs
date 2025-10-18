@@ -696,14 +696,12 @@ mod tests {
             }),
         );
 
-        // Test non-Gemini model keeps $schema
         let spec = format_tools(&[tool.clone()], "gpt-4o")?;
         assert_eq!(
             spec[0]["function"]["parameters"]["$schema"],
             "http://json-schema.org/draft-07/schema#"
         );
 
-        // Test Gemini model strips $schema
         let spec = format_tools(&[tool], "gemini-2-5-flash")?;
         assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
         assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
@@ -725,7 +723,6 @@ mod tests {
             ),
         ];
 
-        // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
             &request.id
         } else {
@@ -763,7 +760,6 @@ mod tests {
             }),
         )];
 
-        // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
             &request.id
         } else {
@@ -831,7 +827,6 @@ mod tests {
 
     #[test]
     fn test_format_messages_with_image_path() -> anyhow::Result<()> {
-        // Create a temporary PNG file with valid PNG magic numbers
         let temp_dir = tempfile::tempdir()?;
         let png_path = temp_dir.path().join("test.png");
         let png_data = [
