@@ -472,7 +472,7 @@ where
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
-            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.tool_calls.is_some() {
+            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
                 let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
