@@ -60,6 +60,11 @@ impl Agent {
             tools.push(frontend_tool.tool.clone());
         }
 
+        if !router_enabled {
+            // Stable tool ordering is important for multi session prompt caching.
+            tools.sort_by(|a, b| a.name.cmp(&b.name));
+        }
+
         // Prepare system prompt
         let extensions_info = self.extension_manager.get_extensions_info().await;
 
@@ -278,6 +283,100 @@ impl Agent {
             .accumulated_output_tokens(accumulated_output)
             .apply()
             .await?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::Message;
+    use crate::model::ModelConfig;
+    use crate::providers::base::{Provider, ProviderUsage, Usage};
+    use crate::providers::errors::ProviderError;
+    use async_trait::async_trait;
+    use rmcp::object;
+
+    #[derive(Clone)]
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait]
+    impl Provider for MockProvider {
+        fn metadata() -> crate::providers::base::ProviderMetadata {
+            crate::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text("ok"),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_tools_sorts_when_router_disabled_and_includes_frontend_and_list_tools(
+    ) -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider { model_config });
+        agent.update_provider(provider).await?;
+
+        // Disable the router to trigger sorting
+        agent.disable_router_for_recipe().await;
+
+        // Add unsorted frontend tools
+        let frontend_tools = vec![
+            Tool::new(
+                "frontend__z_tool".to_string(),
+                "Z tool".to_string(),
+                object!({ "type": "object", "properties": { } }),
+            ),
+            Tool::new(
+                "frontend__a_tool".to_string(),
+                "A tool".to_string(),
+                object!({ "type": "object", "properties": { } }),
+            ),
+        ];
+
+        agent
+            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
+                name: "frontend".to_string(),
+                description: "desc".to_string(),
+                tools: frontend_tools,
+                instructions: None,
+                bundled: None,
+                available_tools: vec![],
+            })
+            .await
+            .unwrap();
+
+        let (tools, _toolshim_tools, _system_prompt) = agent.prepare_tools_and_prompt().await?;
+
+        // Ensure both platform and frontend tools are present
+        let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();
+        assert!(names.iter().any(|n| n.starts_with("platform__")));
+        assert!(names.iter().any(|n| n == "frontend__a_tool"));
+        assert!(names.iter().any(|n| n == "frontend__z_tool"));
+
+        // Verify the names are sorted ascending
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted);
 
         Ok(())
     }

@@ -58,6 +58,8 @@ impl PromptManager {
                 false,
             ));
         }
+        // Stable tool ordering is important for multi session prompt caching.
+        extensions_info.sort_by(|a, b| a.name.cmp(&b.name));
 
         let sanitized_extensions_info: Vec<ExtensionInfo> = extensions_info
             .into_iter()
