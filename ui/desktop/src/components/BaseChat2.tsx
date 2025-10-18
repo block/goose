@@ -166,7 +166,8 @@ function BaseChatContent({
     </>
   );
 
-  const showPopularTopics = messages.length === 0 && !initialMessage;
+  const showPopularTopics =
+    messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
