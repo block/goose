@@ -743,6 +743,7 @@ pub struct RecipeInfo {
     pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
     pub final_output_response: Option<goose::recipe::Response>,
     pub retry_config: Option<goose::agents::types::RetryConfig>,
+    pub recipe: Option<goose::recipe::Recipe>,
 }
 
 pub async fn cli() -> Result<()> {
@@ -887,6 +888,7 @@ pub async fn cli() -> Result<()> {
                         sub_recipes: None,
                         final_output_response: None,
                         retry_config: None,
+                        recipe: None,
                     })
                     .await;
 
@@ -1088,6 +1090,7 @@ pub async fn cli() -> Result<()> {
                     .as_ref()
                     .and_then(|r| r.final_output_response.clone()),
                 retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
+                recipe: recipe_info.as_ref().and_then(|r| r.recipe.clone()),
             })
             .await;
 
@@ -1269,6 +1272,7 @@ pub async fn cli() -> Result<()> {
                     sub_recipes: None,
                     final_output_response: None,
                     retry_config: None,
+                    recipe: None,
                 })
                 .await;
                 if let Err(e) = session.interactive(None).await {

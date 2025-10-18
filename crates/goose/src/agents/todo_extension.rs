@@ -8,7 +8,7 @@ use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    Role, ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
 use rmcp::object;
 use serde_json::Value;
@@ -16,6 +16,23 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "todo";
+
+// Template definitions
+const TODO_TEMPLATE_INDEPENDENT: &str = include_str!("../prompts/todo_independent.md");
+const TODO_TEMPLATE_WITH_USER: &str = include_str!("../prompts/todo_with_user.md");
+
+// Template selection function
+fn select_template_for_prompt(prompt: &str) -> Option<&'static str> {
+    let prompt_lower = prompt.to_lowercase();
+
+    // Check for autonomous/independent keywords
+    if prompt_lower.contains("act autonomously") || prompt_lower.contains("work independently") {
+        return Some(TODO_TEMPLATE_INDEPENDENT);
+    }
+
+    // Default to with_user template for all other cases
+    Some(TODO_TEMPLATE_WITH_USER)
+}
 
 pub struct TodoClient {
     info: InitializeResult,
@@ -249,9 +266,77 @@ impl McpClientTrait for TodoClient {
         // Retrieve TODO content from session or fallback storage
         let content = if let Some(session_id) = &self.context.session_id {
             // Session-aware: get from session metadata
-            match SessionManager::get_session(session_id, false).await {
-                Ok(metadata) => {
-                    extension_data::TodoState::from_extension_data(&metadata.extension_data)
+            match SessionManager::get_session(session_id, true).await {
+                Ok(mut session) => {
+                    // Check if TODO is empty
+                    let todo_state =
+                        extension_data::TodoState::from_extension_data(&session.extension_data);
+                    let is_empty = todo_state
+                        .as_ref()
+                        .is_none_or(|s| s.content.trim().is_empty());
+
+                    if is_empty {
+                        // Check for template selection from either recipe instructions or first user message
+                        let mut selected_template = None;
+
+                        // First, check if there's a recipe with instructions
+                        if let Some(recipe) = &session.recipe {
+                            if let Some(instructions) = &recipe.instructions {
+                                selected_template = select_template_for_prompt(instructions);
+                                if selected_template.is_some() {
+                                    tracing::debug!(
+                                        "Selected template based on recipe instructions"
+                                    );
+                                }
+                            }
+                        }
+
+                        // If no template from recipe, try first user message
+                        if selected_template.is_none() {
+                            if let Some(conversation) = &session.conversation {
+                                if let Some(first_user_msg) = conversation
+                                    .messages()
+                                    .iter()
+                                    .find(|m| matches!(m.role, Role::User))
+                                    .and_then(|m| m.content.first())
+                                    .and_then(|c| c.as_text())
+                                {
+                                    selected_template = select_template_for_prompt(first_user_msg);
+                                    if selected_template.is_some() {
+                                        tracing::debug!(
+                                            "Selected template based on first user message"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        // Apply the selected template if we have one
+                        if let Some(template) = selected_template {
+                            let todo_state = extension_data::TodoState::new(template.to_string());
+                            if todo_state
+                                .to_extension_data(&mut session.extension_data)
+                                .is_ok()
+                            {
+                                if let Err(e) = SessionManager::update_session(session_id)
+                                    .extension_data(session.extension_data.clone())
+                                    .apply()
+                                    .await
+                                {
+                                    tracing::warn!("Failed to save default TODO template: {}", e);
+                                } else {
+                                    tracing::debug!("Populated TODO with default template");
+                                    return Some(format!(
+                                        "Current tasks and notes:\n{}\n",
+                                        template
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    // Return existing content if any
+                    extension_data::TodoState::from_extension_data(&session.extension_data)
                         .map(|state| state.content)
                         .filter(|c| !c.trim().is_empty())
                 }
@@ -272,5 +357,69 @@ impl McpClientTrait for TodoClient {
 
         // Format content for MOIM injection
         content.map(|c| format!("Current tasks and notes:\n{}\n", c))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_template_selection() {
+        // Test autonomous keywords
+        assert_eq!(
+            select_template_for_prompt("Please act autonomously on this task"),
+            Some(TODO_TEMPLATE_INDEPENDENT)
+        );
+
+        assert_eq!(
+            select_template_for_prompt("Work independently to solve this"),
+            Some(TODO_TEMPLATE_INDEPENDENT)
+        );
+
+        assert_eq!(
+            select_template_for_prompt("ACT AUTONOMOUSLY"),
+            Some(TODO_TEMPLATE_INDEPENDENT)
+        );
+
+        // Test default with_user template
+        assert_eq!(
+            select_template_for_prompt("Help me with this task"),
+            Some(TODO_TEMPLATE_WITH_USER)
+        );
+
+        assert_eq!(
+            select_template_for_prompt("Can you assist with debugging?"),
+            Some(TODO_TEMPLATE_WITH_USER)
+        );
+
+        assert_eq!(
+            select_template_for_prompt(""),
+            Some(TODO_TEMPLATE_WITH_USER)
+        );
+    }
+
+    #[test]
+    fn test_template_selection_with_recipe_instructions() {
+        // Test that recipe instructions with keywords select independent template
+        let recipe_instructions = "You should act autonomously to complete this weekly report. Do not ask for user input.";
+        assert_eq!(
+            select_template_for_prompt(recipe_instructions),
+            Some(TODO_TEMPLATE_INDEPENDENT)
+        );
+
+        let recipe_instructions2 =
+            "Work independently on analyzing the codebase and generating documentation.";
+        assert_eq!(
+            select_template_for_prompt(recipe_instructions2),
+            Some(TODO_TEMPLATE_INDEPENDENT)
+        );
+
+        // Test that recipe instructions without keywords select with_user template
+        let recipe_instructions3 = "Generate a summary of the project status.";
+        assert_eq!(
+            select_template_for_prompt(recipe_instructions3),
+            Some(TODO_TEMPLATE_WITH_USER)
+        );
     }
 }

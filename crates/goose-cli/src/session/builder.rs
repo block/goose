@@ -67,6 +67,8 @@ pub struct SessionBuilderConfig {
     pub final_output_response: Option<Response>,
     /// Retry configuration for automated validation and recovery
     pub retry_config: Option<RetryConfig>,
+    /// The full recipe object if running a recipe
+    pub recipe: Option<goose::recipe::Recipe>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -576,6 +578,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     if let Some(session_id) = session_id.as_ref() {
+        // Save the recipe to the session if we have one
+        if let Some(recipe) = session_config.recipe {
+            if let Err(e) = SessionManager::update_session(session_id)
+                .recipe(Some(recipe))
+                .apply()
+                .await
+            {
+                tracing::warn!("Failed to save recipe to session: {}", e);
+            }
+        }
+
         let session_config_for_save = SessionConfig {
             id: session_id.clone(),
             working_dir: std::env::current_dir().unwrap_or_default(),
@@ -653,6 +666,7 @@ mod tests {
             sub_recipes: None,
             final_output_response: None,
             retry_config: None,
+            recipe: None,
         };
 
         assert_eq!(config.extensions.len(), 1);

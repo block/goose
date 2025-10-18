@@ -48,20 +48,21 @@ pub fn extract_recipe_info_from_cli(
         }
     }
     let input_config = InputConfig {
-        contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-        extensions_override: recipe.extensions,
-        additional_system_prompt: recipe.instructions,
+        contents: recipe.prompt.clone().filter(|s| !s.trim().is_empty()),
+        extensions_override: recipe.extensions.clone(),
+        additional_system_prompt: recipe.instructions.clone(),
     };
 
     let recipe_info = RecipeInfo {
-        session_settings: recipe.settings.map(|s| SessionSettings {
+        session_settings: recipe.settings.clone().map(|s| SessionSettings {
             goose_provider: s.goose_provider,
             goose_model: s.goose_model,
             temperature: s.temperature,
         }),
         sub_recipes: Some(all_sub_recipes),
-        final_output_response: recipe.response,
-        retry_config: recipe.retry,
+        final_output_response: recipe.response.clone(),
+        retry_config: recipe.retry.clone(),
+        recipe: Some(recipe),
     };
 
     Ok((input_config, recipe_info))
