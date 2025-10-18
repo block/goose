@@ -81,7 +81,7 @@ export function useAgent(): UseAgentReturn {
         const messages = agentSession.conversation || [];
         return {
           sessionId: agentSession.id,
-          name: agentSession.recipe?.title || agentSession.name,
+          title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
           messages,
           recipe: agentSession.recipe,
@@ -182,7 +182,7 @@ export function useAgent(): UseAgentReturn {
           const messages = initContext.recipe && !initContext.resumeSessionId ? [] : conversation;
           let initChat: ChatType = {
             sessionId: agentSession.id,
-            name: agentSession.recipe?.title || agentSession.name,
+            title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
             messages: messages,
             recipe: recipe,

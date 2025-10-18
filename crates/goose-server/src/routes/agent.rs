@@ -139,9 +139,9 @@ async fn start_agent(
     }
 
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let name = format!("New session {}", counter);
+    let description = format!("New session {}", counter);
 
-    let mut session = SessionManager::create_session(PathBuf::from(&working_dir), name)
+    let mut session = SessionManager::create_session(PathBuf::from(&working_dir), description)
         .await
         .map_err(|err| {
             error!("Failed to create session: {}", err);

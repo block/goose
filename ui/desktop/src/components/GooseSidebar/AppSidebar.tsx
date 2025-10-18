@@ -116,16 +116,16 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
     if (
       currentPath === '/pair' &&
-      chatContext?.chat?.name &&
-      chatContext.chat.name !== DEFAULT_CHAT_TITLE
+      chatContext?.chat?.title &&
+      chatContext.chat.title !== DEFAULT_CHAT_TITLE
     ) {
-      titleBits.push(chatContext.chat.name);
+      titleBits.push(chatContext.chat.title);
     } else if (currentPath !== '/' && currentItem) {
       titleBits.push(currentItem.label);
     }
 
     document.title = titleBits.join(' - ');
-  }, [currentPath, chatContext?.chat?.name]);
+  }, [currentPath, chatContext?.chat?.title]);
 
   const isActivePath = (path: string) => {
     return currentPath === path;

@@ -302,7 +302,7 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    name: 'Pair Chat',
+    title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
     recipe: null,

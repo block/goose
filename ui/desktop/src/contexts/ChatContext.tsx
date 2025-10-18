@@ -55,7 +55,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const resetChat = () => {
     setChat({
       sessionId: '',
-      name: DEFAULT_CHAT_TITLE,
+      title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
       recipe: null,

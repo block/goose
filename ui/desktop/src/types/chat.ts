@@ -3,7 +3,7 @@ import { Message } from '../api';
 
 export interface ChatType {
   sessionId: string;
-  name: string;
+  title: string;
   messageHistoryIndex: number;
   messages: Message[];
   recipe?: Recipe | null; // Add recipe configuration to chat state

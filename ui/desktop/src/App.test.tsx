@@ -120,7 +120,7 @@ vi.mock('./contexts/ChatContext', () => ({
   useChatContext: () => ({
     chat: {
       id: 'test-id',
-      name: 'Test Chat',
+      title: 'Test Chat',
       messages: [],
       messageHistoryIndex: 0,
       recipe: null,
