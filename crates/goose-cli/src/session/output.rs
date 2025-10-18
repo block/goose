@@ -17,6 +17,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -533,23 +536,64 @@ fn print_tool_header(call: &CallToolRequestParam) {
     println!("{}", tool_header);
 }
 
-// Respect NO_COLOR, as https://crates.io/crates/console already does
-pub fn env_no_color() -> bool {
-    // if NO_COLOR is defined at all disable colors
-    std::env::var_os("NO_COLOR").is_none()
+fn env_no_color() -> bool {
+    std::env::var("NO_COLOR").is_ok()
+        || std::env::var("TERM").is_ok_and(|val| val.eq_ignore_ascii_case("dumb"))
+}
+
+fn env_forces_color() -> bool {
+    Config::global()
+        .get_param::<bool>("GOOSE_FORCE_COLOR")
+        .ok()
+        .unwrap_or(false)
+        || std::env::var("CLICOLOR_FORCE").is_ok()
+        || std::env::var("FORCE_COLOR").is_ok()
+}
+
+fn stdout_supports_color() -> bool {
+    if std::io::stdout().is_terminal() {
+        return true;
+    }
+
+    #[cfg(unix)]
+    unsafe {
+        libc::isatty(std::io::stdout().as_raw_fd()) == 1
+    }
+
+    #[cfg(not(unix))]
+    false
+}
+
+fn is_macos_terminal_app() -> bool {
+    std::env::var("TERM_PROGRAM")
+        .map(|val| val.eq_ignore_ascii_case("Apple_Terminal"))
+        .unwrap_or(false)
 }
 
 fn print_markdown(content: &str, theme: Theme) {
-    if std::io::stdout().is_terminal() {
-        bat::PrettyPrinter::new()
-            .input(bat::Input::from_bytes(content.as_bytes()))
-            .theme(theme.as_str())
-            .colored_output(env_no_color())
-            .language("Markdown")
-            .wrapping_mode(WrappingMode::NoWrapping(true))
-            .print()
-            .unwrap();
-    } else {
+    let mut printer = bat::PrettyPrinter::new();
+    printer
+        .input(bat::Input::from_bytes(content.as_bytes()))
+        .theme(theme.as_str())
+        .language("Markdown")
+        .wrapping_mode(WrappingMode::NoWrapping(true));
+
+    let stdout_has_color = stdout_supports_color();
+
+    let force_color = env_forces_color();
+    let suppress_color = env_no_color() || (!force_color && !stdout_has_color);
+
+    if suppress_color {
+        printer.colored_output(false);
+    } else if force_color
+        || is_macos_terminal_app()
+        || (!stdout_has_color && std::io::stdout().is_terminal())
+    {
+        printer.colored_output(true);
+    }
+
+    if let Err(err) = printer.print() {
+        tracing::debug!("failed to render markdown with bat: {err}; falling back to raw text");
         print!("{}", content);
     }
 }
