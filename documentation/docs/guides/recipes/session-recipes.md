@@ -265,7 +265,7 @@ You can turn your current Goose session into a reusable recipe that includes the
 
    #### Configure Recipe Location
 
-  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or [config file](/docs/guides/config-file#global-settings).
+  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or [config file](/docs/guides/config-files#global-settings).
 
   :::tip Repository Structure
   - Each recipe should be in its own directory

@@ -64,7 +64,7 @@ When in doubt, deny.
   </TabItem>
   <TabItem value="config" label="goose config file">
 
-    Add these settings to your [`config.yaml`](/docs/guides/config-file):
+    Add these settings to your [`config.yaml`](/docs/guides/config-files):
 
     ```yaml
     security_prompt_enabled: true

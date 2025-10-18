@@ -159,7 +159,7 @@ This feature gives you control over agent autonomy and prevents infinite loops a
 - Enabling human supervision or interaction during autonomous operations
 - Controlling loops while testing and debugging agent behavior
 
-This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [config.yaml file](/docs/guides/config-file). You can configure it using the Desktop app or CLI.
+This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [config.yaml file](/docs/guides/config-files). You can configure it using the Desktop app or CLI.
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
@@ -375,7 +375,7 @@ Pricing data is regularly fetched from the OpenRouter API and cached locally. Th
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
 </TabItem>
     <TabItem value="cli" label="Goose CLI">
-    Show estimated cost in the Goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-file.md).
+    Show estimated cost in the Goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-filess.md).
 
   ```
   # Set environment variable
