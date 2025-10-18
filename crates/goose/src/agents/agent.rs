@@ -1520,12 +1520,8 @@ impl Agent {
             self.extension_manager
                 .suggest_disable_extensions_prompt()
                 .await,
-            Some(model_name),
+            model_name,
             false,
-        );
-        tracing::debug!(
-            "Built system prompt with {} characters",
-            system_prompt.len()
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -1537,7 +1533,6 @@ impl Agent {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
                 e
             })?;
-        tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
 
@@ -1751,8 +1746,13 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, false);
+        let system_prompt = prompt_manager.build_system_prompt(
+            vec![],
+            None,
+            Value::Null,
+            &"gpt-4o".to_string(),
+            false,
+        );
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

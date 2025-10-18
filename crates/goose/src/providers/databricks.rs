@@ -46,7 +46,6 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
     "databricks-dbrx-instruct",
-    "databricks-mixtral-8x7b-instruct",
 ];
 
 pub const DATABRICKS_DOC_URL: &str =
