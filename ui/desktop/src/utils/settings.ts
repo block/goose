@@ -16,6 +16,7 @@ export interface Settings {
   showDockIcon: boolean;
   schedulingEngine: SchedulingEngine;
   enableWakelock: boolean;
+  tunnelSecret?: string;
 }
 
 // Constants
