@@ -28,6 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import { useToggleToolOutput } from './hooks/useToggleToolOutput';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -293,6 +294,9 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
+
+  // Enable Ctrl+R hotkey for toggling full tool output
+  useToggleToolOutput();
 
   const navigate = useNavigate();
   const setView = useNavigation();

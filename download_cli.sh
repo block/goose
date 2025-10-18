@@ -54,7 +54,11 @@ fi
 # --- 2) Variables ---
 REPO="block/goose"
 OUT_FILE="goose"
+
+# Set appropriate default bin directory based on detected OS
+# This will be determined after OS detection below, but we set a default here
 GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+
 RELEASE="${CANARY:-false}"
 CONFIGURE="${CONFIGURE:-true}"
 if [ -n "${GOOSE_VERSION:-}" ]; then
@@ -72,29 +76,50 @@ else
 fi
 
 # --- 3) Detect OS/Architecture ---
-# Better OS detection for Windows environments
-if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+# Better OS detection - prioritize WSL detection first
+if [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL detection - check this first
     OS="windows"
-elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
-    # WSL detection
-    OS="windows"
+    IS_WSL=true
 elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
     # WSL mount point detection (like /mnt/c/)
     OS="windows"
+    IS_WSL=true
+elif [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    # Native Windows environments (Git Bash, MSYS2, Cygwin)
+    OS="windows"
+    IS_WSL=false
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="darwin"
+    IS_WSL=false
 elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
     # Check if Windows executables are available (another Windows indicator)
     OS="windows"
+    IS_WSL=false
 elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
     # Check for Windows-style mount points (like in Git Bash)
     OS="windows"
+    IS_WSL=false
 else
     # Fallback to uname for other systems
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    IS_WSL=false
 fi
 
 ARCH=$(uname -m)
+
+# Adjust default bin directory based on detected OS
+if [ "${IS_WSL:-false}" = "true" ]; then
+    # WSL - use Linux-style path
+    if [ -z "${GOOSE_BIN_DIR:-}" ] || [ "$GOOSE_BIN_DIR" = "$HOME/.local/bin" ]; then
+        GOOSE_BIN_DIR="$HOME/.local/bin"
+    fi
+elif [ "$OS" = "windows" ]; then
+    # Native Windows - use Windows user profile path
+    if [ -z "${GOOSE_BIN_DIR:-}" ] || [ "$GOOSE_BIN_DIR" = "$HOME/.local/bin" ]; then
+        GOOSE_BIN_DIR="$HOME/AppData/Local/goose"
+    fi
+fi
 
 # Handle Windows environments (MSYS2, Git Bash, Cygwin, WSL)
 case "$OS" in
@@ -290,18 +315,52 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
   
   if [ "$OS" = "windows" ]; then
-    echo "To add goose to your PATH in PowerShell:"
-    echo ""
-    echo "# Add to your PowerShell profile"
-    echo '$profilePath = $PROFILE'
-    echo 'if (!(Test-Path $profilePath)) { New-Item -Path $profilePath -ItemType File -Force }'
-    echo 'Add-Content -Path $profilePath -Value ''$env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"'''
-    echo "# Reload profile or restart PowerShell"
-    echo '. $PROFILE'
-    echo ""
-    echo "Alternatively, you can run:"
-    echo "    goose configure"
-    echo "or rerun this install script after updating your PATH."
+    # Check if we're in WSL vs native Windows using the IS_WSL flag
+    if [ "${IS_WSL:-false}" = "true" ]; then
+      echo "WSL detected. To add goose to your PATH:"
+      echo ""
+      echo "# Add to your ~/.bashrc or ~/.zshrc"
+      echo "export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
+      echo ""
+      echo "Then reload your shell:"
+      echo "    source ~/.bashrc  # or source ~/.zshrc"
+      echo ""
+      echo "Alternatively, you can run:"
+      echo "    goose configure"
+      echo "or rerun this install script after updating your PATH."
+    else
+      # Native Windows (Git Bash, MSYS2, etc.)
+      echo "Windows detected. To add goose to your PATH:"
+      echo ""
+      echo "In PowerShell:"
+      echo "# Add to your PowerShell profile"
+      echo '$profilePath = $PROFILE'
+      echo 'if (!(Test-Path $profilePath)) { New-Item -Path $profilePath -ItemType File -Force }'
+
+      # Convert Unix path to Windows path for PowerShell
+      WINDOWS_BIN_DIR="$GOOSE_BIN_DIR"
+      if [[ "$GOOSE_BIN_DIR" == "$HOME/.local/bin" ]]; then
+        WINDOWS_BIN_DIR="$HOME/AppData/Local/goose"
+        echo 'Add-Content -Path $profilePath -Value ''$env:PATH = "$env:USERPROFILE\AppData\Local\goose;$env:PATH"'''
+      else
+        echo 'Add-Content -Path $profilePath -Value ''$env:PATH = "'"$WINDOWS_BIN_DIR"';$env:PATH"'''
+      fi
+
+      echo "# Reload profile or restart PowerShell"
+      echo '. $PROFILE'
+      echo ""
+      echo "In Command Prompt (cmd):"
+      if [[ "$GOOSE_BIN_DIR" == "$HOME/.local/bin" ]]; then
+        echo "    setx PATH \"%PATH%;%USERPROFILE%\\AppData\\Local\\goose\""
+      else
+        echo "    setx PATH \"%PATH%;"$WINDOWS_BIN_DIR"\""
+      fi
+      echo "    (requires restarting Command Prompt)"
+      echo ""
+      echo "Or you can run:"
+      echo "    goose configure"
+      echo "or rerun this install script after updating your PATH."
+    fi
   else
     SHELL_NAME=$(basename "$SHELL")
     
