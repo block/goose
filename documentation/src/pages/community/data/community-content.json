@@ -32,15 +32,16 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with GPT-5-mini MCP - Real-World CSV Analysis Use Case",
+      "title": "Developing Custom Recipes for Goose — A Complete Guide",
       "author": {
         "name": "Meghana Jaggi",
         "handle": "Meghana-2124"
       },
-      "type": "video",
-      "url": "https://youtube.com/shorts/pFFlhSv1XwY?feature=share",
-      "submittedDate": "2025-10-17",
-      "tags": ["hacktoberfest", "CSV", "GPT-5-mini", "Goose"],
+      "type": "blog",
+      "url": "https://open.substack.com/pub/meghanajaggi/p/developing-custom-recipes-for-goose",
+      "thumbnail": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=225&fit=crop&crop=entropy&auto=format",
+      "submittedDate": "2025-10-18",
+      "tags": ["hacktoberfest", "goose", "recipes", "automation"],
       "hacktoberfest": true
     },
     {
