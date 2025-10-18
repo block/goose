@@ -215,7 +215,6 @@ export function useChatStream({
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const sessionIdRef = useRef<string>(sessionId);
 
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
@@ -229,20 +228,6 @@ export function useChatStream({
     setMessages(newMessages);
     messagesRef.current = newMessages;
   }, []);
-
-  useEffect(() => {
-    if (sessionIdRef.current !== sessionId) {
-      log.session('changed', sessionId, {
-        from: sessionIdRef.current.slice(0, 8),
-        to: sessionId.slice(0, 8),
-      });
-      sessionIdRef.current = sessionId;
-      setMessagesAndLog([], 'session-reset');
-      setSession(undefined);
-      setSessionLoadError(undefined);
-      setChatState(ChatState.Idle);
-    }
-  }, [sessionId, setMessagesAndLog]);
 
   const onFinish = useCallback(
     (error?: string): void => {
@@ -259,11 +244,16 @@ export function useChatStream({
   useEffect(() => {
     if (!sessionId) return;
 
+    // Reset state when sessionId changes
+    log.session('loading', sessionId);
+    setMessagesAndLog([], 'session-reset');
+    setSession(undefined);
+    setSessionLoadError(undefined);
+    setChatState(ChatState.Thinking);
+
     let cancelled = false;
 
-    log.session('loading', sessionId);
     log.state(ChatState.Thinking, { reason: 'session load start' });
-    setChatState(ChatState.Thinking);
 
     (async () => {
       try {
@@ -347,11 +337,13 @@ export function useChatStream({
 
         log.stream('stream-complete');
       } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          log.error('submit failed', error);
-          onFinish('Submit error: ' + error.message);
-        } else if (error instanceof Error && error.name === 'AbortError') {
+        // AbortError is expected when user stops streaming
+        if (error instanceof Error && error.name === 'AbortError') {
           log.stream('stream-aborted');
+        } else {
+          // Unexpected error during fetch setup (streamFromResponse handles its own errors)
+          log.error('submit failed', error);
+          onFinish('Submit error: ' + (error instanceof Error ? error.message : String(error)));
         }
       }
     },
