@@ -33,7 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
-use crate::context_mgmt::auto_compact;
+use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -112,7 +112,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
-    HistoryReplaced(Vec<Message>),
+    HistoryReplaced(Conversation),
 }
 
 impl Default for Agent {
@@ -902,60 +902,6 @@ impl Agent {
         }
     }
 
-    /// Handle auto-compaction logic and return compacted messages if needed
-    async fn handle_auto_compaction(
-        &self,
-        messages: &[Message],
-        session: &Option<SessionConfig>,
-    ) -> Result<
-        Option<(
-            Conversation,
-            String,
-            Option<crate::providers::base::ProviderUsage>,
-        )>,
-    > {
-        // Try to get session metadata for more accurate token counts
-        let session_metadata = if let Some(session_config) = session {
-            SessionManager::get_session(&session_config.id, false)
-                .await
-                .ok()
-        } else {
-            None
-        };
-
-        let compact_result = auto_compact::check_and_compact_messages(
-            self,
-            messages,
-            None,
-            session_metadata.as_ref(),
-        )
-        .await?;
-
-        if compact_result.compacted {
-            let compacted_messages = compact_result.messages;
-
-            // Get threshold from config to include in message
-            let config = crate::config::Config::global();
-            let threshold = config
-                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                .unwrap_or(0.8); // Default to 80%
-            let threshold_percentage = (threshold * 100.0) as u32;
-
-            let compaction_msg = format!(
-                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
-                threshold_percentage
-            );
-
-            return Ok(Some((
-                compacted_messages,
-                compaction_msg,
-                compact_result.summarization_usage,
-            )));
-        }
-
-        Ok(None)
-    }
-
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -963,27 +909,75 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let compaction_result = self
-            .handle_auto_compaction(unfixed_conversation.messages(), &session)
-            .await?;
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = &session {
+            SessionManager::get_session(&session_config.id, false)
+                .await
+                .ok()
+        } else {
+            None
+        };
 
-        if let Some((conversation, compaction_message, _summarization_usage)) = compaction_result {
+        let check_result = crate::context_mgmt::check_if_compaction_needed(
+            self,
+            &unfixed_conversation,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await;
+
+        let (did_compact, compacted_conversation, compaction_error) = match check_result {
+            // TODO(dkatz): send a notification that we are starting compaction here.
+            Ok(true) => {
+                match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false)
+                    .await
+                {
+                    Ok((conversation, _token_counts, _summarization_usage)) => {
+                        (true, conversation, None)
+                    }
+                    Err(e) => (false, unfixed_conversation.clone(), Some(e)),
+                }
+            }
+            Ok(false) => (false, unfixed_conversation, None),
+            Err(e) => (false, unfixed_conversation.clone(), Some(e)),
+        };
+
+        if did_compact {
+            // Get threshold from config to include in message
+            let config = crate::config::Config::global();
+            let threshold = config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+            let threshold_percentage = (threshold * 100.0) as u32;
+
+            let compaction_msg = format!(
+                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
+                threshold_percentage
+            );
+
             Ok(Box::pin(async_stream::try_stream! {
+                // TODO(Douwe): send this before we actually compact:
                 yield AgentEvent::Message(
-                    Message::assistant().with_summarization_requested(compaction_message)
+                    Message::assistant().with_conversation_compacted(compaction_msg)
                 );
-                yield AgentEvent::HistoryReplaced(conversation.messages().clone());
+                yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
                 if let Some(session_to_store) = &session {
-                    SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
+                    SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
                 }
 
-                let mut reply_stream = self.reply_internal(conversation, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
             }))
+        } else if let Some(error) = compaction_error {
+            Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(
+                    format!("Ran into this error trying to auto-compact: {error}.\n\nPlease try again or create a new session")
+                ));
+            }))
         } else {
-            self.reply_internal(unfixed_conversation, session, cancel_token)
+            self.reply_internal(compacted_conversation, session, cancel_token)
                 .await
         }
     }
@@ -1048,9 +1042,7 @@ impl Agent {
             let provider = self.provider().await?;
             let session_id = session_config.id.clone();
             tokio::spawn(async move {
-                if let Err(e) =
-                    SessionManager::maybe_update_description(&session_id, provider).await
-                {
+                if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
                     warn!("Failed to generate session description: {}", e);
                 }
             });
@@ -1113,6 +1105,7 @@ impl Agent {
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
+                let mut did_recovery_compact_this_iteration = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) {
@@ -1306,28 +1299,31 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             info!("Context length exceeded, attempting compaction");
 
-                            match auto_compact::perform_compaction(self, conversation.messages()).await {
-                                Ok(compact_result) => {
-                                    conversation = compact_result.messages;
+                            // TODO(dkatz): send a notification that we are starting compaction here.
+                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                                Ok((compacted_conversation, _token_counts, _usage)) => {
+                                    conversation = compacted_conversation;
+                                    did_recovery_compact_this_iteration = true;
 
                                     yield AgentEvent::Message(
-                                        Message::assistant().with_summarization_requested(
+                                        Message::assistant().with_conversation_compacted(
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );
-                                    yield AgentEvent::HistoryReplaced(conversation.messages().to_vec());
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
                                     }
                                     continue;
                                 }
-                                Err(_) => {
-                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
-                                    ));
+                                Err(e) => {
+                                    error!("Error: {}", e);
+                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                        ));
                                     break;
                                 }
                             }
@@ -1358,6 +1354,8 @@ impl Agent {
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
+                    } else if did_recovery_compact_this_iteration {
+                        // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
                         match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
                             Ok(should_retry) => {

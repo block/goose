@@ -22,9 +22,9 @@ pub struct SessionListResponse {
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateSessionDescriptionRequest {
-    /// Updated description (name) for the session (max 200 characters)
-    description: String,
+pub struct UpdateSessionNameRequest {
+    /// Updated name for the session (max 200 characters)
+    name: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -40,7 +40,7 @@ pub struct ImportSessionRequest {
     json: String,
 }
 
-const MAX_DESCRIPTION_LENGTH: usize = 200;
+const MAX_NAME_LENGTH: usize = 200;
 
 #[utoipa::path(
     get,
@@ -109,14 +109,14 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 
 #[utoipa::path(
     put,
-    path = "/sessions/{session_id}/description",
-    request_body = UpdateSessionDescriptionRequest,
+    path = "/sessions/{session_id}/name",
+    request_body = UpdateSessionNameRequest,
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session description updated successfully"),
-        (status = 400, description = "Bad request - Description too long (max 200 characters)"),
+        (status = 200, description = "Session name updated successfully"),
+        (status = 400, description = "Bad request - Name too long (max 200 characters)"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
@@ -126,16 +126,20 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn update_session_description(
+async fn update_session_name(
     Path(session_id): Path<String>,
-    Json(request): Json<UpdateSessionDescriptionRequest>,
+    Json(request): Json<UpdateSessionNameRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    if request.description.len() > MAX_DESCRIPTION_LENGTH {
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if name.len() > MAX_NAME_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     SessionManager::update_session(&session_id)
-        .description(request.description)
+        .user_provided_name(name.to_string())
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -264,10 +268,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}/export", get(export_session))
         .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
-        .route(
-            "/sessions/{session_id}/description",
-            put(update_session_description),
-        )
+        .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),

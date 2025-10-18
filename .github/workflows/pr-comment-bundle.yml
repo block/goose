@@ -123,7 +123,7 @@ jobs:
       - name: Download ARM64 artifact
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
         with:
-          name: goose-darwin-arm64
+          name: Goose-darwin-arm64
           path: arm64-dist
 
       - name: Comment on PR with ARM64 download link
@@ -133,7 +133,7 @@ jobs:
           body: |
             ### macOS ARM64 Desktop App (Apple Silicon)
 
-            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-darwin-arm64.zip)
+            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
             After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app

@@ -42,6 +42,15 @@
       "thumbnail": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-10-18",
       "tags": ["hacktoberfest", "goose", "recipes", "automation"],
+      "title": "Goose with Goose Docs MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/Qidl20e-HOc",
+      "submittedDate": "2025-10-13",
+      "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
     {

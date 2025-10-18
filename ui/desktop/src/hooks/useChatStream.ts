@@ -49,6 +49,7 @@ export function useChatStream({
         role: 'user',
         content: [{ type: 'text', text: userMessage }],
         created: Date.now(),
+        metadata: { userVisible: true, agentVisible: true },
       };
 
       let currentMessages = [...messages, newMessage];

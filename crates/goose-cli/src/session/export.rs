@@ -369,7 +369,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                 md.push_str("**Thinking:**\n");
                 md.push_str("> *Thinking was redacted*\n\n");
             }
-            MessageContent::SummarizationRequested(summarization) => {
+            MessageContent::ConversationCompacted(summarization) => {
                 md.push_str(&format!("*{}*\n\n", summarization.msg));
             }
             _ => {

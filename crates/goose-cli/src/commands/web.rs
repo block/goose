@@ -290,7 +290,7 @@ async fn list_sessions() -> Json<serde_json::Value> {
                 session_info.push(serde_json::json!({
                     "name": session.id,
                     "path": session.id,
-                    "description": session.description,
+                    "description": session.name,
                     "message_count": session.message_count,
                     "working_dir": session.working_dir
                 }));
@@ -566,28 +566,6 @@ async fn process_message_streaming(
                                             .into(),
                                         ))
                                         .await;
-                                }
-                                MessageContent::ContextLengthExceeded(msg) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(
-                                                &WebSocketMessage::ContextExceeded {
-                                                    message: msg.msg.clone(),
-                                                },
-                                            )
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-
-                                    let (summarized_messages, _, _) =
-                                        agent.summarize_context(messages.messages()).await?;
-                                    SessionManager::replace_conversation(
-                                        &session_id,
-                                        &summarized_messages,
-                                    )
-                                    .await?;
                                 }
                                 _ => {}
                             }
