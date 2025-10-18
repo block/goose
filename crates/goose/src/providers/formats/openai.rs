@@ -281,7 +281,14 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
-    let original = &response["choices"][0]["message"];
+    let choices = response.get("choices").and_then(|c| c.as_array());
+    let choices = choices.ok_or_else(|| anyhow!("Response missing choices array"))?;
+
+    if choices.is_empty() {
+        return Err(anyhow!("Response contains empty choices array"));
+    }
+
+    let original = &choices[0]["message"];
     let mut content = Vec::new();
 
     if let Some(text) = original.get("content") {
@@ -465,17 +472,19 @@ where
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
-            } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
+            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.tool_calls.is_some() {
                 let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
-                for tool_call in tool_calls {
-                    if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
-                        tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
+                if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
+                    for tool_call in tool_calls {
+                        if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
+                        }
                     }
                 }
 
                 // Check if this chunk already has finish_reason "tool_calls"
-                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = !chunk.choices.is_empty() && chunk.choices[0].finish_reason == Some("tool_calls".to_string());
 
                 if !is_complete {
                     let mut done = false;
@@ -489,21 +498,25 @@ where
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-                                if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
-                                    for delta_call in delta_tool_calls {
-                                        if let Some(index) = delta_call.index {
-                                            if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
-                                                args.push_str(&delta_call.function.arguments);
-                                            } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                                tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                if !tool_chunk.choices.is_empty() {
+                                    if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                        for delta_call in delta_tool_calls {
+                                            if let Some(index) = delta_call.index {
+                                                if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                    args.push_str(&delta_call.function.arguments);
+                                                } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                                }
                                             }
                                         }
+                                    } else {
+                                        done = true;
+                                    }
+
+                                    if !tool_chunk.choices.is_empty() && tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                        done = true;
                                     }
                                 } else {
-                                    done = true;
-                                }
-
-                                if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
                                     done = true;
                                 }
                             }
@@ -563,7 +576,8 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if let Some(text) = &chunk.choices[0].delta.content {
+            } else if !chunk.choices.is_empty() && chunk.choices[0].delta.content.is_some() {
+                let text = chunk.choices[0].delta.content.as_ref().unwrap();
                 let mut msg = Message::new(
                     Role::Assistant,
                     chrono::Utc::now().timestamp(),
@@ -577,7 +591,7 @@ where
 
                 yield (
                     Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
+                    if !chunk.choices.is_empty() && chunk.choices[0].finish_reason.is_some() {
                         usage
                     } else {
                         None
