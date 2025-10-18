@@ -281,14 +281,14 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
-    let choices = response.get("choices").and_then(|c| c.as_array());
-    let choices = choices.ok_or_else(|| anyhow!("Response missing choices array"))?;
+    let Some(original) = response
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|m| m.get("message"))
+    else {
+        return Ok(Message::with_content(Vec::new()));
+    };
 
-    if choices.is_empty() {
-        return Err(anyhow!("Response contains empty choices array"));
-    }
-
-    let original = &choices[0]["message"];
     let mut content = Vec::new();
 
     if let Some(text) = original.get("content") {
