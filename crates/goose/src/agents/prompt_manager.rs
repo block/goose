@@ -44,7 +44,7 @@ impl PromptManager {
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
         suggest_disable_extensions_prompt: Value,
-        model_name: &String,
+        model_name: &str,
         router_enabled: bool,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
@@ -153,7 +153,7 @@ mod tests {
             vec![],
             None,
             Value::String("".to_string()),
-            &"gpt-4o".to_string(),
+            "gpt-4o",
             false,
         );
 
@@ -174,7 +174,7 @@ mod tests {
             vec![],
             None,
             Value::String("".to_string()),
-            &"gpt-4o".to_string(),
+            "gpt-4o",
             false,
         );
 
@@ -196,7 +196,7 @@ mod tests {
             vec![],
             None,
             Value::String("".to_string()),
-            &"gpt-4o".to_string(),
+            "gpt-4o",
             false,
         );
 
@@ -218,7 +218,7 @@ mod tests {
             vec![],
             None,
             Value::String("".to_string()),
-            &"gpt-4o".to_string(),
+            "gpt-4o",
             false,
         );
 
@@ -241,7 +241,7 @@ mod tests {
             vec![malicious_extension_info],
             None,
             Value::String("".to_string()),
-            &"gpt-4o".to_string(),
+            "gpt-4o",
             false,
         );
 

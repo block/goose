@@ -1746,13 +1746,8 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.build_system_prompt(
-            vec![],
-            None,
-            Value::Null,
-            &"gpt-4o".to_string(),
-            false,
-        );
+        let system_prompt =
+            prompt_manager.build_system_prompt(vec![], None, Value::Null, "gpt-4o", false);
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =
