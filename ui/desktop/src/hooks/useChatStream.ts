@@ -209,7 +209,7 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
 }: UseChatStreamProps): UseChatStreamReturn {
-  const [messages, _setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
@@ -226,7 +226,7 @@ export function useChatStream({
       lastMessageRole: newMessages[newMessages.length - 1]?.role,
       lastMessageId: newMessages[newMessages.length - 1]?.id?.slice(0, 8),
     });
-    _setMessages(newMessages);
+    setMessages(newMessages);
     messagesRef.current = newMessages;
   }, []);
 
@@ -276,14 +276,14 @@ export function useChatStream({
         });
         if (cancelled) return;
 
-        const sessionData = response.data;
+        const session = response.data;
         log.session('loaded', sessionId, {
-          messageCount: sessionData?.conversation?.length || 0,
-          description: sessionData?.description,
+          messageCount: session?.conversation?.length || 0,
+          description: session?.description,
         });
 
-        setSession(sessionData);
-        setMessagesAndLog(sessionData?.conversation || [], 'load-session');
+        setSession(session);
+        setMessagesAndLog(session?.conversation || [], 'load-session');
 
         log.state(ChatState.Idle, { reason: 'session load complete' });
         setChatState(ChatState.Idle);
