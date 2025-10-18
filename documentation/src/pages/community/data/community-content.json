@@ -32,6 +32,18 @@
       "hacktoberfest": true
     },
     {
+      "title": "Goose with Goose Docs MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/Qidl20e-HOc",
+      "submittedDate": "2025-10-13",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
       "title": "Best Practices for Using Goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",
@@ -53,6 +65,19 @@
       "url": "https://dev.to/lymah/getting-started-with-goose-on-windows-30bh",
       "thumbnail": "https://i.imgur.com/WEZXcBD.png",
       "submittedDate": "2025-10-14",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Best Practices for Prompt Engineering with goose",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/best-practices-for-prompt-engineering-with-goose-3m6h",
+      "thumbnail": "https://i.imgur.com/Shsi56O.png",
+      "submittedDate": "2025-10-16",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     }

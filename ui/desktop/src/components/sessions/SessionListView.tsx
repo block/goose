@@ -27,7 +27,7 @@ import {
   importSession,
   listSessions,
   Session,
-  updateSessionDescription,
+  updateSessionName,
 } from '../../api';
 
 interface EditSessionModalProps {
@@ -45,7 +45,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     useEffect(() => {
       if (session && isOpen) {
-        setDescription(session.description || session.id);
+        setDescription(session.name);
       } else if (!isOpen) {
         // Reset state when modal closes
         setDescription('');
@@ -57,16 +57,16 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (!session || disabled) return;
 
       const trimmedDescription = description.trim();
-      if (trimmedDescription === session.description) {
+      if (trimmedDescription === session.name) {
         onClose();
         return;
       }
 
       setIsUpdating(true);
       try {
-        await updateSessionDescription({
+        await updateSessionName({
           path: { session_id: session.id },
-          body: { description: trimmedDescription },
+          body: { name: trimmedDescription },
           throwOnError: true,
         });
         await onSave(session.id, trimmedDescription);
@@ -80,7 +80,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('Failed to update session description:', errorMessage);
         toast.error(`Failed to update session description: ${errorMessage}`);
-        setDescription(session.description || session.id);
+        setDescription(session.name);
       } finally {
         setIsUpdating(false);
       }
@@ -333,7 +333,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       startTransition(() => {
         const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
         const filtered = sessions.filter((session) => {
-          const description = session.description || session.id;
+          const description = session.name;
           const workingDir = session.working_dir;
           const sessionId = session.id;
 
@@ -397,7 +397,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, description: newDescription } : s))
+        prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
     }, []);
 
@@ -416,7 +416,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setShowDeleteConfirmation(false);
       const sessionToDeleteId = sessionToDelete.id;
-      const sessionName = sessionToDelete.description || sessionToDelete.id;
+      const sessionName = sessionToDelete.name;
       setSessionToDelete(null);
 
       try {
@@ -451,7 +451,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${session.description || session.id}.json`;
+      a.download = `${session.name}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -557,9 +557,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-16 break-words">
-              {session.description || session.id}
-            </h3>
+            <h3 className="text-base mb-1 pr-16 break-words">{session.name}</h3>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -806,7 +804,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <ConfirmationModal
           isOpen={showDeleteConfirmation}
           title="Delete Session"
-          message={`Are you sure you want to delete the session "${sessionToDelete?.description || sessionToDelete?.id}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete the session "${sessionToDelete?.name}"? This action cannot be undone.`}
           confirmLabel="Delete Session"
           cancelLabel="Cancel"
           confirmVariant="destructive"
