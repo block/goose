@@ -185,7 +185,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         config.baseUrl,
         session.working_dir,
         messages,
-        session.description || 'Shared Session',
+        session.name || 'Shared Session',
         session.total_tokens || 0
       );
 
@@ -270,7 +270,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="flex-1 flex flex-col min-h-0 px-8">
           <SessionHeader
             onBack={onBack}
-            title={session.description || 'Session Details'}
+            title={session.name}
             actionButtons={!isLoading ? actionButtons : null}
           >
             <div className="flex flex-col">

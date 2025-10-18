@@ -238,7 +238,11 @@ impl ExtensionManager {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
-            context: Mutex::new(PlatformExtensionContext { session_id: None }),
+            context: Mutex::new(PlatformExtensionContext {
+                session_id: None,
+                extension_manager: None,
+                tool_route_manager: None,
+            }),
         }
     }
 
