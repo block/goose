@@ -414,7 +414,23 @@ fn select_model_from_list(
     }
 }
 
-/// Dialog for configuring the A provider and model
+fn try_store_secret(
+    config: &Config,
+    key_name: &str,
+    value: String,
+) -> Result<bool, Box<dyn Error>> {
+    match config.set_secret(key_name, Value::String(value)) {
+        Ok(_) => Ok(true),
+        Err(e) => {
+            cliclack::outro(style(format!(
+                "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
+                key_name, e
+            )).on_red().white())?;
+            Ok(false)
+        }
+    }
+}
+
 pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     // Get global config instance
     let config = Config::global();
@@ -465,7 +481,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     .interact()?
                 {
                     if key.secret {
-                        config.set_secret(&key.name, Value::String(env_value))?;
+                        if !try_store_secret(&config, &key.name, env_value)? {
+                            return Ok(false);
+                        }
                     } else {
                         config.set_param(&key.name, Value::String(env_value))?;
                     }
@@ -505,7 +523,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                 };
 
                                 if key.secret {
-                                    config.set_secret(&key.name, Value::String(value))?;
+                                    if !try_store_secret(&config, &key.name, value)? {
+                                        return Ok(false);
+                                    }
                                 } else {
                                     config.set_param(&key.name, Value::String(value))?;
                                 }
@@ -513,7 +533,6 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                         }
                     }
                     Err(_) => {
-                        // Check if this key uses OAuth flow
                         if key.oauth_flow {
                             handle_oauth_configuration(provider_name, &key.name).await?;
                         } else {
