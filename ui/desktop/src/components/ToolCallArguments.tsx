@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
+import { useToggleToolOutputContext, formatHotkey } from '../hooks/useToggleToolOutput';
 
 export type ToolCallArgumentValue =
   | string
@@ -16,6 +17,7 @@ interface ToolCallArgumentsProps {
 
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const { isExpandAll, hotkey } = useToggleToolOutputContext();
 
   const toggleKey = (key: string) => {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -24,7 +26,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     if (typeof value === 'string') {
       const needsExpansion = value.length > 60;
-      const isExpanded = expandedKeys[key];
+      const isExpanded = isExpandAll || expandedKeys[key];
 
       if (!needsExpansion) {
         return (
@@ -58,6 +60,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <button
                   onClick={() => toggleKey(key)}
                   className={`text-left text-textPlaceholder ${isExpanded ? '' : 'truncate min-w-0'}`}
+                  title={isExpanded ? 'Click to collapse' : `Click to expand (or press ${formatHotkey(hotkey)} to expand all)`}
                 >
                   {value}
                 </button>

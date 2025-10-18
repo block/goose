@@ -28,6 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import { useToggleToolOutput, ToggleToolOutputProvider } from './hooks/useToggleToolOutput';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -293,6 +294,9 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
+
+  // Enable customizable hotkey for toggling full tool output
+  useToggleToolOutput();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -608,10 +612,12 @@ export default function App() {
   return (
     <DraftProvider>
       <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
+        <ToggleToolOutputProvider>
+          <HashRouter>
+            <AppInner />
+          </HashRouter>
+          <AnnouncementModal />
+        </ToggleToolOutputProvider>
       </ModelAndProviderProvider>
     </DraftProvider>
   );
