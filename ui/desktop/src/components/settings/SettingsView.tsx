@@ -8,7 +8,7 @@ import ConfigSettings from './config/ConfigSettings';
 import { HotkeySettings } from './HotkeySettings';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare, Keyboard } from 'lucide-react';
+import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';

@@ -204,7 +204,10 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
         println!(
             "{} {}",
             style("  if you prefer, you can edit files directly in").dim(),
-            config.path().parent().unwrap_or_else(|| config.path())
+            match std::path::Path::new(&config.path()).parent() {
+                Some(parent) => parent.display().to_string(),
+                None => config.path(),
+            }
         );
         println!();
 

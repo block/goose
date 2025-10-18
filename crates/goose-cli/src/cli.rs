@@ -323,7 +323,11 @@ enum Command {
     #[command(about = "Display goose information")]
     Info {
         /// Show verbose information including current configuration
-        #[arg(short, long, help = "Show verbose information including configuration details")]
+        #[arg(
+            short,
+            long,
+            help = "Show verbose information including configuration details"
+        )]
         verbose: bool,
     },
 

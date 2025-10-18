@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
-interface HotkeyConfig {
+export interface HotkeyConfig {
   key: string;
   ctrl: boolean;
   meta: boolean;
@@ -21,7 +21,7 @@ const defaultHotkey: HotkeyConfig = {
   ctrl: true,
   meta: false,
   shift: false,
-  alt: false
+  alt: false,
 };
 
 const ToggleToolOutputContext = createContext<ToggleToolOutputContextType | undefined>(undefined);
@@ -31,7 +31,7 @@ export function ToggleToolOutputProvider({ children }: { children: React.ReactNo
   const [hotkey, setHotkeyState] = useState<HotkeyConfig>(defaultHotkey);
 
   const toggleExpandAll = useCallback(() => {
-    setExpandAll(prev => !prev);
+    setExpandAll((prev) => !prev);
   }, []);
 
   const setExpandAllWrapper = useCallback((expand: boolean) => {
@@ -61,14 +61,16 @@ export function ToggleToolOutputProvider({ children }: { children: React.ReactNo
     }
   }, []);
 
+  const contextValue = {
+    isExpandAll,
+    setExpandAll: setExpandAllWrapper,
+    toggleExpandAll,
+    hotkey,
+    setHotkey,
+  };
+
   return (
-    <ToggleToolOutputContext.Provider value={{
-      isExpandAll,
-      setExpandAll: setExpandAllWrapper,
-      toggleExpandAll,
-      hotkey,
-      setHotkey
-    }}>
+    <ToggleToolOutputContext.Provider value={contextValue}>
       {children}
     </ToggleToolOutputContext.Provider>
   );
