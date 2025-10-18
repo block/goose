@@ -18,7 +18,13 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     // Define the labels and their corresponding path values once.
     let paths = [
-        ("Config directory:", config_file.parent().unwrap_or_else(|| config_file).to_string()),
+        (
+            "Config directory:",
+            match std::path::Path::new(&config_file).parent() {
+                Some(parent) => parent.display().to_string(),
+                None => config_file,
+            },
+        ),
         ("Sessions dir:", sessions_dir.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
