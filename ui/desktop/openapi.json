@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.9.0"
+    "version": "1.11.0"
   },
   "paths": {
     "/agent/resume": {
@@ -2161,30 +2161,14 @@
           }
         ]
       },
-      "ContextLengthExceeded": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
-        }
-      },
       "ContextManageRequest": {
         "type": "object",
         "description": "Request payload for context management operations",
         "required": [
           "messages",
-          "manageAction",
           "sessionId"
         ],
         "properties": {
-          "manageAction": {
-            "type": "string",
-            "description": "Operation to perform: \"truncation\" or \"summarize\""
-          },
           "messages": {
             "type": "array",
             "items": {
@@ -2227,6 +2211,17 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "ConversationCompacted": {
+        "type": "object",
+        "required": [
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -3020,7 +3015,9 @@
         "description": "A message to or from an LLM",
         "required": [
           "role",
-          "content"
+          "created",
+          "content",
+          "metadata"
         ],
         "properties": {
           "content": {
@@ -3218,7 +3215,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ContextLengthExceeded"
+                "$ref": "#/components/schemas/ConversationCompacted"
               },
               {
                 "type": "object",
@@ -3229,28 +3226,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "contextLengthExceeded"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SummarizationRequested"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "summarizationRequested"
+                      "conversationCompacted"
                     ]
                   }
                 }
@@ -3266,6 +3242,10 @@
       "MessageMetadata": {
         "type": "object",
         "description": "Metadata for message visibility",
+        "required": [
+          "userVisible",
+          "agentVisible"
+        ],
         "properties": {
           "agentVisible": {
             "type": "boolean",
@@ -4292,17 +4272,6 @@
         "description": "A single success check to validate recipe completion",
         "discriminator": {
           "propertyName": "type"
-        }
-      },
-      "SummarizationRequested": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
         }
       },
       "TextContent": {
