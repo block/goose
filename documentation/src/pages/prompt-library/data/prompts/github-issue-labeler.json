@@ -1,0 +1,30 @@
+{
+  "id": "github-issue-labeler",
+  "title": "GitHub Issue Labeler",
+  "description": "Analyze new GitHub issues and suggest labels, a short triage comment, and priority with structured JSON output.",
+  "category": "technical",
+  "job": "developer",
+  "example_prompt": "Review the issue at https://github.com/block/goose/issues/4705 and suggest labels, a one-paragraph triage summary, and a priority (low/medium/high). Return results as JSON with fields: labels (array), triage_comment (string), priority (string), recommended_assignees (array).",
+  "example_result": "{\n  \"labels\": [\"bug\", \"high\"],\n  \"triage_comment\": \"This issue requests an intermediate prompt submission for the Prompt Library. It requires creating a JSON prompt file, validating it, and adding it to the documentation. Work involves writing a prompt JSON and testing locally. No code changes to core are required.\",\n  \"priority\": \"medium\",\n  \"recommended_assignees\": [\"maintainer1\", \"contributor2\"]\n}",
+  "extensions": [
+    {
+      "name": "GitHub",
+      "command": "npx -y @modelcontextprotocol/server-github",
+      "is_builtin": false,
+      "link": "https://github.com/github/github-mcp-server",
+      "environmentVariables": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "description": "Personal access token with repo scope",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": []
+    }
+  ]
+}
