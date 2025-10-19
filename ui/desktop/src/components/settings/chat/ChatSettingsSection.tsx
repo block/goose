@@ -4,6 +4,7 @@ import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
+import HotkeySettings from '../hotkey/HotkeySettings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function ChatSettingsSection() {
@@ -62,6 +63,18 @@ export default function ChatSettingsSection() {
         </CardHeader>
         <CardContent className="px-2">
           <ToolSelectionStrategySection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Tool Output Hotkey</CardTitle>
+          <CardDescription>
+            Configure keyboard shortcut to expand all truncated tool outputs
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <HotkeySettings />
         </CardContent>
       </Card>
     </div>

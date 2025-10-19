@@ -28,7 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
-import { useToggleToolOutput } from './hooks/useToggleToolOutput';
+import { ToolOutputProvider, useToolOutput } from './contexts/ToolOutputContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -295,8 +295,8 @@ export function AppInner() {
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
-  // Enable Ctrl+R hotkey for toggling full tool output
-  useToggleToolOutput();
+  // Enable hotkey for toggling full tool output
+  useToolOutput();
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -532,14 +532,16 @@ export function AppInner() {
             path="/"
             element={
               <ProviderGuard didSelectProvider={didSelectProvider}>
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="hub"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
-                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                </ChatProvider>
+                <ToolOutputProvider>
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="hub"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
+                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                  </ChatProvider>
+                </ToolOutputProvider>
               </ProviderGuard>
             }
           >
@@ -571,14 +573,16 @@ export function AppInner() {
             <Route
               path="extensions"
               element={
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="extensions"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
-                  <ExtensionsRoute />
-                </ChatProvider>
+                <ToolOutputProvider>
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="extensions"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
+                    <ExtensionsRoute />
+                  </ChatProvider>
+                </ToolOutputProvider>
               }
             />
             <Route path="sessions" element={<SessionsRoute />} />
