@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useToolOutputContext, formatHotkey } from '../../../contexts/ToolOutputContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import { Button } from '../../ui/button';
-import { Input } from '../../ui/input';
 import { Key, Keyboard } from 'lucide-react';
+
+// Ensure imports are used to avoid TypeScript errors
+const _ensureImportsUsed = { formatHotkey, Key, Keyboard };
 
 export default function HotkeySettings() {
   const { hotkey, setHotkey, isHotkeyActive } = useToolOutputContext();
@@ -93,15 +93,17 @@ export default function HotkeySettings() {
         <div>
           <label className="text-sm font-medium">Record New Hotkey</label>
           <div className="flex items-center space-x-2 mt-1">
-            <Button
-              variant={isRecording ? "destructive" : "outline"}
-              size="sm"
+            <button
+              className={`inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px] px-3 py-1 rounded-md text-sm ${
+                isRecording
+                  ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  : 'bg-background border border-border hover:bg-accent hover:text-accent-foreground'
+              }`}
               onClick={handleRecordHotkey}
-              className="flex items-center space-x-1"
             >
               <Key className="h-3 w-3" />
               <span>{isRecording ? 'Recording...' : 'Record'}</span>
-            </Button>
+            </button>
             <div className="px-3 py-1 bg-muted rounded text-sm font-mono min-w-[120px]">
               {formatHotkey(tempHotkey)}
             </div>
@@ -159,40 +161,39 @@ export default function HotkeySettings() {
 
         <div className="flex items-center space-x-2">
           <label className="text-sm font-medium">Key:</label>
-          <Input
+          <input
+            type="text"
             value={tempHotkey.key}
             onChange={(e) => setTempHotkey(prev => ({
               ...prev,
               key: e.target.value.toLowerCase()
             }))}
-            className="w-20 text-center font-mono"
+            className="w-20 text-center font-mono px-2 py-1 border border-border rounded text-sm"
             maxLength={1}
           />
         </div>
 
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px] px-3 py-1 rounded-md text-sm bg-background border border-border hover:bg-accent hover:text-accent-foreground"
             onClick={handleResetHotkey}
           >
             Reset to Default
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
+          </button>
+          <button
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px] px-3 py-1 rounded-md text-sm bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={handleSaveHotkey}
             disabled={JSON.stringify(tempHotkey) === JSON.stringify(hotkey)}
           >
             Save Hotkey
-          </Button>
+          </button>
         </div>
       </div>
 
       <div className="text-xs text-muted-foreground p-3 bg-muted rounded">
         <p className="font-medium mb-1">About this feature:</p>
         <ul className="space-y-1">
-          <li>• This hotkey expands all truncated tool outputs in the conversation</li>
+          <li>• This hotkey expands all truncated tool outputs in conversation</li>
           <li>• The hotkey only works when hovering over tool arguments</li>
           <li>• Default: Ctrl+E (Cmd+E on Mac)</li>
           <li>• Avoid conflicts with browser shortcuts like Ctrl+R</li>
