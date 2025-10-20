@@ -647,7 +647,6 @@ export function useMessageStream({
     handleInputChange,
     handleSubmit,
     chatState,
-    setChatState: mutateChatState,
     addToolResult,
     updateMessageStreamBody,
     notifications,

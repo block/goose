@@ -446,7 +446,6 @@ function BaseChatContent({
             sessionId={chat.sessionId}
             handleSubmit={handleSubmit}
             chatState={chatState}
-            setChatState={setChatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={input || ''}

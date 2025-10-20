@@ -62,7 +62,7 @@ use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionManager;
 
@@ -903,6 +903,55 @@ impl Agent {
         }
     }
 
+    /// Performs compaction with proper notifications and error handling
+    ///
+    /// If continue_with_reply is true, continues with reply_internal after compaction.
+    /// Otherwise, sends a completion message and finishes.
+    pub async fn do_compact(
+        &self,
+        conversation: Conversation,
+        session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>,
+        continue_with_reply: bool,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        Ok(Box::pin(async_stream::try_stream! {
+            yield AgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::ThinkingMessage,
+                    COMPACTION_THINKING_TEXT,
+                )
+            );
+
+            match crate::context_mgmt::compact_messages(self, &conversation, false).await {
+                Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
+                    yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
+                    if let Some(session_to_store) = &session {
+                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
+                    }
+
+                    if continue_with_reply {
+                        let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
+                        while let Some(event) = reply_stream.next().await {
+                            yield event?;
+                        }
+                    } else {
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                "Compaction complete",
+                            )
+                        );
+                    }
+                }
+                Err(e) => {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                    ));
+                }
+            }
+        }))
+    }
+
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -910,6 +959,47 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Check if this is a manual compaction request
+        let is_manual_compact = unfixed_conversation.messages().last().map_or(false, |msg| {
+            msg.content.iter().any(|c| {
+                if let MessageContent::Text(text) = c {
+                    text.text.trim() == "manual-compact"
+                } else {
+                    false
+                }
+            })
+        });
+
+        if is_manual_compact {
+            // Filter out the "manual-compact" message from conversation
+            let filtered_messages: Vec<Message> = unfixed_conversation.messages()
+                .iter()
+                .filter_map(|msg| {
+                    let filtered_content: Vec<MessageContent> = msg.content.iter()
+                        .filter(|c| {
+                            if let MessageContent::Text(text) = c {
+                                text.text.trim() != "manual-compact"
+                            } else {
+                                true
+                            }
+                        })
+                        .cloned()
+                        .collect();
+
+                    if filtered_content.is_empty() {
+                        None
+                    } else {
+                        let mut filtered_msg = msg.clone();
+                        filtered_msg.content = filtered_content;
+                        Some(filtered_msg)
+                    }
+                })
+                .collect();
+
+            let conversation_without_compact = Conversation::new_unvalidated(filtered_messages);
+            return self.do_compact(conversation_without_compact, session, cancel_token, false).await;
+        }
+
         let session_metadata = if let Some(session_config) = &session {
             SessionManager::get_session(&session_config.id, false)
                 .await
@@ -944,6 +1034,7 @@ impl Agent {
         );
 
         Ok(Box::pin(async_stream::try_stream! {
+            // Send inline message about threshold
             yield AgentEvent::Message(
                 Message::assistant().with_system_notification(
                     SystemNotificationType::InlineMessage,
@@ -951,31 +1042,10 @@ impl Agent {
                 )
             );
 
-            yield AgentEvent::Message(
-                Message::assistant().with_system_notification(
-                    SystemNotificationType::ThinkingMessage,
-                    COMPACTION_THINKING_TEXT,
-                )
-            );
-
-
-            match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false).await {
-                Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
-                    yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
-                    if let Some(session_to_store) = &session {
-                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
-                    }
-
-                    let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
-                    while let Some(event) = reply_stream.next().await {
-                        yield event?;
-                    }
-                }
-                Err(e) => {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        format!("Ran into this error trying to auto-compact: {e}.\n\nPlease try again or create a new session")
-                    ));
-                }
+            // Use do_compact to handle the rest
+            let mut compact_stream = self.do_compact(unfixed_conversation, session, cancel_token, true).await?;
+            while let Some(event) = compact_stream.next().await {
+                yield event?;
             }
         }))
     }

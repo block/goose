@@ -214,17 +214,6 @@ pub async fn reply(
 
     let messages = Conversation::new_unvalidated(request.messages);
 
-    // Check if this is a manual compaction request
-    let is_manual_compact = messages.messages().last().map_or(false, |msg| {
-        msg.content.iter().any(|c| {
-            if let MessageContent::Text(text) = c {
-                text.text.trim() == "manual-compact"
-            } else {
-                false
-            }
-        })
-    });
-
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
@@ -244,106 +233,6 @@ pub async fn reply(
                 return;
             }
         };
-
-        // Handle manual compaction request
-        if is_manual_compact {
-            use goose::conversation::message::{Message as GooseMessage, SystemNotificationType};
-
-            // Send thinking message
-            let thinking_msg = GooseMessage::assistant()
-                .with_system_notification(
-                    SystemNotificationType::ThinkingMessage,
-                    "compacting conversation...",
-                );
-            stream_event(
-                MessageEvent::Message {
-                    message: thinking_msg,
-                },
-                &task_tx,
-                &task_cancel,
-            )
-            .await;
-
-            // Filter out the "manual-compact" message from conversation
-            let filtered_messages: Vec<goose::conversation::message::Message> = messages.messages()
-                .iter()
-                .filter_map(|msg| {
-                    let filtered_content: Vec<MessageContent> = msg.content.iter()
-                        .filter(|c| {
-                            if let MessageContent::Text(text) = c {
-                                text.text.trim() != "manual-compact"
-                            } else {
-                                true
-                            }
-                        })
-                        .cloned()
-                        .collect();
-
-                    if filtered_content.is_empty() {
-                        None
-                    } else {
-                        let mut filtered_msg = msg.clone();
-                        filtered_msg.content = filtered_content;
-                        Some(filtered_msg)
-                    }
-                })
-                .collect();
-
-            let msgs_without_compact = Conversation::new_unvalidated(filtered_messages);
-
-            // Perform compaction
-            match goose::context_mgmt::compact_messages(&agent, &msgs_without_compact, false).await
-            {
-                Ok((compacted_messages, _, _)) => {
-                    // Send the compacted conversation
-                    stream_event(
-                        MessageEvent::UpdateConversation {
-                            conversation: compacted_messages.clone(),
-                        },
-                        &task_tx,
-                        &task_cancel,
-                    )
-                    .await;
-
-                    // Send completion message
-                    let complete_msg = GooseMessage::assistant()
-                        .with_system_notification(
-                            SystemNotificationType::InlineMessage,
-                            "Compaction complete",
-                        );
-                    stream_event(
-                        MessageEvent::Message {
-                            message: complete_msg,
-                        },
-                        &task_tx,
-                        &task_cancel,
-                    )
-                    .await;
-
-                    // Send finish event
-                    stream_event(
-                        MessageEvent::Finish {
-                            reason: "Manual compaction completed".to_string(),
-                        },
-                        &task_tx,
-                        &task_cancel,
-                    )
-                    .await;
-                }
-                Err(e) => {
-                    tracing::error!("Compaction failed: {}", e);
-                    stream_event(
-                        MessageEvent::Error {
-                            error: format!("Compaction failed: {}", e),
-                        },
-                        &task_tx,
-                        &task_cancel,
-                    )
-                    .await;
-                }
-            }
-            return;
-        }
 
         let session = match SessionManager::get_session(&session_id, false).await {
             Ok(metadata) => metadata,

@@ -102,6 +102,11 @@ export function useChatStream({
                 setMessages(currentMessages);
               }
 
+              if (event.type === 'UpdateConversation' && event.conversation) {
+                currentMessages = event.conversation;
+                setMessages(currentMessages);
+              }
+
               if (event.error) {
                 console.error('Stream error:', event.error);
                 setChatState(ChatState.Idle);
@@ -135,7 +140,6 @@ export function useChatStream({
 
   return {
     chatState,
-    setChatState,
     handleSubmit,
     stopStreaming,
   };

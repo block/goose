@@ -59,7 +59,6 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
-  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
@@ -70,7 +69,6 @@ interface ChatInputProps {
   inputTokens?: number;
   outputTokens?: number;
   messages?: Message[];
-  setMessages: (messages: Message[]) => void;
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
@@ -94,7 +92,6 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
-  setChatState: _setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -105,7 +102,6 @@ export default function ChatInput({
   inputTokens,
   outputTokens,
   messages = [],
-  setMessages: _setMessages,
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
