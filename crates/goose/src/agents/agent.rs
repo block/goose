@@ -1289,20 +1289,18 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
-                            info!("Context length exceeded, attempting compaction");
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    "Context limit reached. Attempting to compact and continue conversation...",
+                                )
+                            );
 
-                            // TODO(dkatz): send a notification that we are starting compaction here.
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
                                 Ok((compacted_conversation, _token_counts, _usage)) => {
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
-
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_system_notification(
-                                            SystemNotificationType::InlineMessage,
-                                            "Context limit reached. Conversation has been automatically compacted to continue.",
-                                        )
-                                    );
+                                    
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
