@@ -115,7 +115,8 @@ export default function ExtensionsView({
             </div>
             <p className="text-sm text-text-muted mb-6">
               These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools.
+              capabilities using three main components: Prompts, Resources, and Tools. ⌘F/Ctrl+F to
+              search.
             </p>
 
             {/* Action Buttons */}
