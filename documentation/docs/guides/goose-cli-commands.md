@@ -294,10 +294,6 @@ goose recipe open daily-standup
 goose recipe help
 ```
 
-:::tip
-The `open` command creates a `goose://` protocol URL and opens it with your system's default handler. If goose desktop is installed and registered as the protocol handler, the recipe will open directly in a new chat window.
-:::
-
 ---
 
 #### schedule
