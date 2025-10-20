@@ -948,6 +948,14 @@ impl Agent {
                 )
             );
 
+            yield AgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::ThinkingMessage,
+                    "compacting conversation...",
+                )
+            );
+
+
             match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false).await {
                 Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
                     yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
@@ -1291,6 +1299,12 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
+                                    SystemNotificationType::ThinkingMessage,
+                                    "compacting conversation...",
+                                )
+                            );
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
                                     "Context limit reached. Attempting to compact and continue conversation...",
                                 )
@@ -1300,7 +1314,7 @@ impl Agent {
                                 Ok((compacted_conversation, _token_counts, _usage)) => {
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
-                                    
+
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &conversation).await?

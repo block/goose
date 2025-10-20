@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
+import { getThinkingMessage } from '../utils/thinkingMessage';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -365,9 +366,16 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {messages.length === 0 && !sessionLoadError && (
+          {(chatState !== ChatState.Idle || (messages.length === 0 && !sessionLoadError)) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={'loading conversation...'} chatState={chatState} />
+              <LoadingGoose
+                message={
+                  messages.length === 0 && !sessionLoadError
+                    ? 'loading conversation...'
+                    : getThinkingMessage(messages, chatState)
+                }
+                chatState={chatState}
+              />
             </div>
           )}
         </div>

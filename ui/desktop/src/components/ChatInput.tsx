@@ -536,20 +536,26 @@ export default function ChatInput({
           // Show spinner while compacting
           setChatState?.(ChatState.Thinking);
 
-          const startingCompactionMessage: Message = {
+          // Add both a thinking message (for the indicator) and an inline message (to render in chat)
+          const compactingStatusMessage: Message = {
             role: 'assistant',
             created: Date.now() / 1000,
             content: [
               {
                 type: 'systemNotification',
+                notificationType: 'thinkingMessage',
+                msg: 'compacting conversation think...',
+              },
+              {
+                type: 'systemNotification',
                 notificationType: 'inlineMessage',
-                msg: 'Compacting conversation...',
+                msg: 'Compacting conversation inline...',
               },
             ],
             metadata: { userVisible: true, agentVisible: false },
           };
 
-          const messagesWithCompacting = [...messages, startingCompactionMessage];
+          const messagesWithCompacting = [...messages, compactingStatusMessage];
           setMessages(messagesWithCompacting);
 
           try {

@@ -5,10 +5,16 @@ interface SystemNotificationInlineProps {
   message: Message;
 }
 
+/**
+ * Renders inline system notification messages in the chat.
+ * Only renders 'inlineMessage' type notifications.
+ * Note: 'thinkingMessage' types are NOT rendered - they only affect the thinking state indicator.
+ */
+
 export const SystemNotificationInline: React.FC<SystemNotificationInlineProps> = ({ message }) => {
   const systemNotification = message.content.find(
     (content): content is SystemNotificationContent & { type: 'systemNotification' } =>
-      content.type === 'systemNotification'
+      content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
   );
 
   if (!systemNotification?.msg) {

@@ -46,6 +46,7 @@ import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
 import LoadingGoose from './LoadingGoose';
+import { getThinkingMessage } from '../utils/thinkingMessage';
 import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
@@ -429,7 +430,9 @@ function BaseChatContent({
           {(chatState !== ChatState.Idle || loadingChat) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={loadingChat ? 'loading conversation...' : undefined}
+                message={
+                  loadingChat ? 'loading conversation...' : getThinkingMessage(messages, chatState)
+                }
                 chatState={chatState}
               />
             </div>
