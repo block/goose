@@ -273,11 +273,6 @@ Used to validate recipe files, manage recipe sharing, and open recipes in Goose 
 - `validate <FILE>`: Validate a recipe file
 - `deeplink <FILE>`: Generate a shareable link for a recipe file
 - `open <FILE>`: Open a recipe file directly in goose desktop
-- `list [options]`: List all available recipes
-
-**Options (for list command):**
-- **`--format <format>`**: Output format (`text` or `json`). Default is `text`
-- **`-v, --verbose`**: Show detailed information including recipe descriptions
 
 **Usage:**
 ```bash
@@ -294,15 +289,6 @@ goose recipe open my-recipe.yaml
 
 # Open a recipe by name (from configured recipe sources)
 goose recipe open daily-standup
-
-# List all available recipes
-goose recipe list
-
-# List recipes with descriptions
-goose recipe list --verbose
-
-# List recipes in JSON format
-goose recipe list --format json
 
 # Get help about recipe commands
 goose recipe help

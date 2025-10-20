@@ -21,7 +21,6 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 - Validate recipes (`goose recipe validate <file>`)
 - Generate shareable deeplinks (`goose recipe deeplink <file>`)
 - Open recipes in goose desktop (`goose recipe open <file>`)
-- List available recipes (`goose recipe list`)
 
 ### CLI and Desktop Formats
 
