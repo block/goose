@@ -528,10 +528,10 @@ export default function ChatInput({
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
-          // Trigger normal submission with "manual-compact" command
+          // Trigger normal submission with "/compact" command
           // The server will handle it through the streaming endpoint
           const customEvent = new CustomEvent('submit', {
-            detail: { value: 'manual-compact' },
+            detail: { value: '/compact' },
           }) as unknown as React.FormEvent;
 
           handleSubmit(customEvent);

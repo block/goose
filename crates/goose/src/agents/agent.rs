@@ -914,7 +914,7 @@ impl Agent {
         let is_manual_compact = unfixed_conversation.messages().last().map_or(false, |msg| {
             msg.content.iter().any(|c| {
                 if let MessageContent::Text(text) = c {
-                    text.text.trim() == "manual-compact"
+                    text.text.trim() == "/compact"
                 } else {
                     false
                 }
@@ -971,7 +971,7 @@ impl Agent {
                         .iter()
                         .filter(|c| {
                             if let MessageContent::Text(text) = c {
-                                text.text.trim() != "manual-compact"
+                                text.text.trim() != "/compact"
                             } else {
                                 true
                             }

@@ -397,7 +397,6 @@ function BaseChatContent({
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={(_m) => {}}
             disableAnimation={disableAnimation}
             //sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
