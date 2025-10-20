@@ -3,9 +3,14 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
-echo "Building goose..."
-cargo build --release --bin goose
-echo ""
+if [ -z "$SKIP_BUILD" ]; then
+  echo "Building goose..."
+  cargo build --release --bin goose
+  echo ""
+else
+  echo "Skipping build (SKIP_BUILD is set)..."
+  echo ""
+fi
 
 SCRIPT_DIR=$(pwd)
 

@@ -68,13 +68,9 @@ jobs:
           retention-days: 1
 
   smoke-tests:
-    name: Smoke Tests (${{ matrix.provider }})
+    name: Smoke Tests
     runs-on: ubuntu-latest
     needs: build-binary
-    strategy:
-      matrix:
-        provider: [anthropic, openai]
-      fail-fast: false
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -88,39 +84,20 @@ jobs:
       - name: Make Binary Executable
         run: chmod +x target/release/goose
 
-      - name: Run Smoke Test
+      - name: Run Smoke Tests with Provider Script
         env:
-          GOOSE_PROVIDER: ${{ matrix.provider }}
-          GOOSE_MODEL: ${{ matrix.provider == 'anthropic' && 'claude-sonnet-4-5-20250929' || 'gpt-5' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DATABRICKS_API_KEY: ${{ secrets.DATABRICKS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
+          SKIP_BUILD: 1
         run: |
           # Ensure the HOME directory structure exists
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
 
-          # Create test file in current directory
-          echo "hello" > hello.txt
-
-          echo "=== Goose Smoke Test ==="
-          echo "Provider: ${GOOSE_PROVIDER}"
-          echo "Model: ${GOOSE_MODEL}"
-          echo ""
-
-          # Run goose and capture output
-          OUTPUT=$(./target/release/goose run --text "please list files in the current directory" --with-builtin developer 2>&1)
-          
-          echo "Output:"
-          echo "$OUTPUT"
-          echo ""
-
-          # Check if hello.txt appears in output
-          if echo "$OUTPUT" | grep -q "hello.txt"; then
-            echo "✓ SUCCESS: Test passed - found hello.txt in output"
-            exit 0
-          else
-            echo "✗ FAILED: Test failed - hello.txt not found in output"
-            exit 1
-          fi
+          # Run the provider test script (binary already built and downloaded)
+          bash scripts/test_providers.sh
