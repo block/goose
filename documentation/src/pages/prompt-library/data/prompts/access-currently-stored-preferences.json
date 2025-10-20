@@ -5,15 +5,13 @@
   "category": "productivity",
   "job": "operations",
   "example_prompt": "What do you know about me so far?",
-  "example_result": "I know that your name is Ade. You enjoy reading tech blogs, playing with technical tools, and are interested in building agentic systems. You prefer concise and clear communication, and you value efficiency in your workflows. Additionally, you have a keen interest in AI and its applications in various domains.",
+  "example_result": "You've asked me to remember the following:\n\n### Personal\n* My name is Ade. I like to read tech blogs, play with technical tools, and i'm interested in building agentic systems.",
   "extensions": [
     {
       "name": "Memory",
       "command": "memory",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     }
   ]
 }
