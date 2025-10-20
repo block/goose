@@ -71,12 +71,6 @@ pub struct ResumeAgentRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ExtensionResponse {
-    error: bool,
-    message: Option<String>,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddExtensionRequest {
     session_id: String,
     config: ExtensionConfig,
@@ -416,19 +410,15 @@ async fn agent_add_extension(
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, StatusCode> {
     // If this is a Stdio extension that uses npx, check for Node.js installation
-    //#[cfg(target_os = "windows")]
+    #[cfg(target_os = "windows")]
     if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
         if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
-            // Check if Node.js is installed in standard locations
             let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
                 || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
 
             if !node_exists {
-                // Get the directory containing npx.cmd
                 let cmd_path = std::path::Path::new(&cmd);
                 let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-                // Run the Node.js installer script
                 let install_script = script_dir.join("install-node.cmd");
 
                 if install_script.exists() {
@@ -446,13 +436,7 @@ async fn agent_add_extension(
                             "Failed to install Node.js: {}",
                             String::from_utf8_lossy(&output.stderr)
                         );
-                        return Ok(Json(ExtensionResponse {
-                            error: true,
-                            message: Some(format!(
-                                "Failed to install Node.js: {}",
-                                String::from_utf8_lossy(&output.stderr)
-                            )),
-                        }));
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
                     }
                     eprintln!("Node.js installation completed");
                 } else {
@@ -460,16 +444,15 @@ async fn agent_add_extension(
                         "Node.js installer script not found at: {}",
                         install_script.display()
                     );
-                    return StatusCode::INTERNAL_SERVER_ERROR;
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
             }
         }
     }
 
     let agent = state.get_agent_for_route(request.session_id).await?;
-    // TODO(Douwe): report this actually back to the client
-    let _response = agent.add_extension(request.config).await.map_err(|e| {
-        tracing::error!("Failed to add extension: {}", e);
+    agent.add_extension(request.config).await.map_err(|e| {
+        error!("Failed to add extension: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     Ok(StatusCode::OK)
