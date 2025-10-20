@@ -28,8 +28,19 @@ jobs:
         with:
           filters: |
             docs-only:
+              # Match top-level markdown files
+              - '*.md'
+              # Match anything under documentation/
               - 'documentation/**'
+              # Exclude everything else
+              - '!*'
+
             code:
+              # Match everything
+              - '**'
+              # Exclude top-level markdown files
+              - '!*.md'
+              # Exclude documentation directory
               - '!documentation/**'
 
   rust-format:
