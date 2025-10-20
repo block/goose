@@ -281,7 +281,7 @@ goose recipe <COMMAND>
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
 
-# Generate a shareable deeplink
+# Generate a shareable link
 goose recipe deeplink my-recipe.yaml
 
 # Open a recipe in goose desktop
