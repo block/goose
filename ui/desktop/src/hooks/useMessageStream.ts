@@ -277,6 +277,9 @@ export function useMessageStream({
 
                 switch (parsedEvent.type) {
                   case 'Message': {
+                    // Transition from waiting to streaming on first message
+                    mutateChatState(ChatState.Streaming);
+
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage: Message = {
                       ...parsedEvent.message,
@@ -285,26 +288,6 @@ export function useMessageStream({
                       created: parsedEvent.message.created || Date.now(),
                       content: parsedEvent.message.content || [],
                     };
-
-                    // Check message content to determine appropriate state
-                    const hasToolConfirmation = newMessage.content.some(
-                      (content) => content.type === 'toolConfirmationRequest'
-                    );
-
-                    const hasThinkingMessage = newMessage.content.some(
-                      (content) =>
-                        content.type === 'systemNotification' &&
-                        content.notificationType === 'thinkingMessage'
-                    );
-
-                    // Set appropriate state based on message content
-                    if (hasToolConfirmation) {
-                      mutateChatState(ChatState.WaitingForUserInput);
-                    } else if (hasThinkingMessage) {
-                      mutateChatState(ChatState.Thinking);
-                    } else {
-                      mutateChatState(ChatState.Streaming);
-                    }
 
                     // Update messages with the new message
                     if (
@@ -318,6 +301,26 @@ export function useMessageStream({
                       forceUpdate();
                     } else {
                       currentMessages = [...currentMessages, newMessage];
+                    }
+
+                    // Check if this message contains tool confirmation requests
+                    const hasToolConfirmation = newMessage.content.some(
+                      (content) => content.type === 'toolConfirmationRequest'
+                    );
+
+                    if (hasToolConfirmation) {
+                      mutateChatState(ChatState.WaitingForUserInput);
+                    }
+
+                    // Check if this message contains a thinking message notification
+                    const hasThinkingMessage = newMessage.content.some(
+                      (content) =>
+                        content.type === 'systemNotification' &&
+                        content.notificationType === 'thinkingMessage'
+                    );
+
+                    if (hasThinkingMessage) {
+                      mutateChatState(ChatState.Thinking);
                     }
 
                     mutate(currentMessages, false);

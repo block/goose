@@ -1299,14 +1299,14 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    "compacting conversation...",
-                                )
-                            );
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
                                     "Context limit reached. Attempting to compact and continue conversation...",
+                                )
+                            );
+                           yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::ThinkingMessage,
+                                    "compacting conversation...",
                                 )
                             );
 
