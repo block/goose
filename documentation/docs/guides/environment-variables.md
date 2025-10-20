@@ -234,6 +234,7 @@ These variables control how Goose handles [tool execution](/docs/guides/goose-pe
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how Goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
+| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_ENABLE_ROUTER` | Enables [intelligent tool selection strategy](/docs/guides/managing-tools/tool-router) | "true", "false" | "false" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
@@ -243,6 +244,9 @@ These variables control how Goose handles [tool execution](/docs/guides/goose-pe
 **Examples**
 
 ```bash
+# Enable debug mode to see full tool parameters
+export GOOSE_DEBUG=true
+
 # Enable intelligent tool selection
 export GOOSE_ENABLE_ROUTER=true
 
@@ -251,7 +255,7 @@ export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
-export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
+export GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
 ```
 
 ### Enhanced Code Editing

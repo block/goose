@@ -81,7 +81,7 @@ Start or resume interactive chat sessions.
 **Basic Options:**
 - **`-n, --name <name>`**: Give the session a name
 - **`-r, --resume`**: Resume a previous session  
-- **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
+- **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths (can also be set via `GOOSE_DEBUG` environment variable)
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
 **Extension Options:**
@@ -221,7 +221,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--with-builtin <name>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Control Options:**
-- **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths (can also be set via `GOOSE_DEBUG` environment variable)
 - **`--max-turns <NUMBER>`**: Maximum number of turns allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
