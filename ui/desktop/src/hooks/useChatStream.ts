@@ -59,7 +59,7 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
-  loadedFromCache: boolean; // Indicates if current data came from cache
+  loadedFromCache: boolean;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -269,11 +269,8 @@ export function useChatStream({
       setSession(cachedData.session);
       setMessagesAndLog(cachedData.messages, 'load-from-cache');
       setChatState(ChatState.Idle);
-      setLoadedFromCache(true); // Mark as loaded from cache
+      setLoadedFromCache(true);
       log.state(ChatState.Idle, { reason: 'loaded from cache' });
-
-      // Still load in background to ensure backend is ready and data is fresh
-      // but don't show loading state
     } else {
       sessionLogger.cacheMiss('Session not in cache or cache empty');
 
@@ -281,7 +278,7 @@ export function useChatStream({
       setMessagesAndLog([], 'session-reset');
       setSession(undefined);
       setChatState(ChatState.Thinking);
-      setLoadedFromCache(false); // Mark as NOT from cache
+      setLoadedFromCache(false);
       log.state(ChatState.Thinking, { reason: 'session load start' });
     }
 
