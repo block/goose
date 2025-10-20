@@ -270,29 +270,19 @@ goose bench ...etc.
 Used to validate recipe files, manage recipe sharing, list available recipes, and open recipes in goose desktop.
 
 **Commands:**
-- `list [OPTIONS]`: List all available recipes from local directories and configured GitHub repositories
-- `validate <FILE>`: Validate a recipe file
-- `deeplink <FILE>`: Generate a shareable link for a recipe file
-- `open <FILE>`: Open a recipe file directly in goose desktop
-
-##### recipe list [options]
-List all available recipes that Goose can find from local directories and configured GitHub repositories.
-
-**Options:**
-- **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
-- **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
-
-**Recipe Discovery:**
-Goose searches for recipes in the following locations (in order):
-1. **Current directory**: `.` (looks for `*.yaml` and `*.json` files)
-2. **Custom paths**: Directories specified in [`GOOSE_RECIPE_PATH`](/docs/guides/environment-variables#recipe-configuration) environment variable (colon-separated on Unix, semicolon-separated on Windows)
-3. **Global recipe library**: `~/.config/goose/recipes/` (or equivalent on your OS)
-4. **Local project recipes**: `./.goose/recipes/`
-5. **GitHub repository**: If [`GOOSE_RECIPE_GITHUB_REPO`](/docs/guides/environment-variables#recipe-configuration) environment variable is configured
+- **`deeplink <RECIPE_NAME>`**: Generate a shareable link for a recipe file
+- **`list [OPTIONS]`**: List all available recipes from local directories and configured GitHub repositories
+  - **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
+  - **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
+- **`open <RECIPE_NAME>`**: Open a recipe file directly in goose desktop
+- **`validate <RECIPE_NAME>`**: Validate a recipe file
 
 **Usage:**
 ```bash
-# List all available recipes (default text format)
+# Generate a shareable link
+goose recipe deeplink my-recipe.yaml
+
+# List all available recipes
 goose recipe list
 
 # List recipes with detailed information
@@ -301,74 +291,14 @@ goose recipe list --verbose
 # List recipes in JSON format for automation
 goose recipe list --format json
 
-# Set up custom recipe paths
-export GOOSE_RECIPE_PATH="/path/to/my/recipes:/path/to/team/recipes"
-goose recipe list
-
-# Configure GitHub recipe repository
-export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
-goose recipe list
-```
-
-**Example Output:**
-```bash
-$ goose recipe list
-Available recipes:
-goose-self-test - A comprehensive meta-testing recipe - local: ./goose-self-test.yaml
-hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose/recipes/hello-world.yaml
-job-finder - Find software engineering positions - local: ~/.config/goose/recipes/job-finder.yaml
-
-$ goose recipe list --verbose
-Available recipes:
-  goose-self-test - A comprehensive meta-testing recipe - local: ./goose-self-test.yaml
-    Title: Goose Self-Testing Integration Suite
-    Path: ./goose-self-test.yaml
-  hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose/recipes/hello-world.yaml
-    Title: Hello World Recipe
-    Path: /Users/username/.config/goose/recipes/hello-world.yaml
-```
-
-**JSON Output Format:**
-The JSON format provides structured data suitable for automation and integration with other tools:
-```json
-[
-  {
-    "name": "goose-self-test",
-    "source": "Local",
-    "path": "./goose-self-test.yaml",
-    "title": "Goose Self-Testing Integration Suite",
-    "description": "A comprehensive meta-testing recipe"
-  },
-  {
-    "name": "hello-world",
-    "source": "GitHub",
-    "path": "recipes/hello-world.yaml",
-    "title": "Hello World Recipe",
-    "description": "A sample recipe demonstrating basic usage"
-  }
-]
-```
-
-**Other Recipe Commands:**
-
-**Usage:**
-```bash
-goose recipe <COMMAND>
-
-# List all available recipes
-goose recipe list
-
-# Validate a recipe file
-goose recipe validate my-recipe.yaml
-
-# Generate a shareable link
-goose recipe deeplink my-recipe.yaml
-
 # Open a recipe in goose desktop
 goose recipe open my-recipe.yaml
 
 # Open a recipe by name
 goose recipe open my-recipe
+
+# Validate a recipe file
+goose recipe validate my-recipe.yaml
 
 # Get help about recipe commands
 goose recipe help
