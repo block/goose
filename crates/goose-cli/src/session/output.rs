@@ -186,7 +186,17 @@ pub fn render_message(message: &Message, debug: bool) {
                 print_markdown("Thinking was redacted", theme);
             }
             MessageContent::SystemNotification(notification) => {
-                println!("\n{}", style(&notification.msg).yellow());
+                use goose::conversation::message::SystemNotificationType;
+
+                match notification.notification_type {
+                    SystemNotificationType::ThinkingMessage => {
+                        show_thinking();
+                        set_thinking_message(&notification.msg);
+                    }
+                    SystemNotificationType::InlineMessage => {
+                        println!("\n{}", style(&notification.msg).yellow());
+                    }
+                }
             }
             _ => {
                 println!("WARNING: Message content type could not be rendered");
