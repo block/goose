@@ -530,10 +530,8 @@ export default function ChatInput({
         showCompactButton: true,
         compactButtonDisabled: !numTokens,
         onCompact: async () => {
-          // Simple compact: just call the API endpoint and let the agent handle it
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
-          // Show spinner while compacting
           setChatState?.(ChatState.Thinking);
           const compactingStatusMessage: Message = {
             role: 'assistant',
@@ -564,14 +562,12 @@ export default function ChatInput({
                 sessionId: sessionId || '',
               },
             });
-            // Update messages with the compacted version from the backend
             if (result.data) {
               setMessages(result.data.messages);
             }
           } catch (err) {
             console.error('Manual compaction failed:', err);
           } finally {
-            // Clear spinner when done
             setChatState?.(ChatState.Idle);
           }
         },

@@ -312,7 +312,6 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
-                    // Check if this message contains a thinking message notification
                     const hasThinkingMessage = newMessage.content.some(
                       (content) =>
                         content.type === 'systemNotification' &&

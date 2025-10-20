@@ -1,12 +1,5 @@
 import { Message } from '../api';
 import { ChatState } from '../types/chatState';
-
-/**
- * Extracts the current thinking message from the message stream.
- * Only looks for systemNotification messages with type 'thinkingMessage'.
- * These are NOT rendered in the chat - they only hijack the thinking state text.
- * Note: 'inlineMessage' types ARE rendered in the chat and should not be used here.
- */
 export function getThinkingMessage(messages: Message[], chatState: ChatState): string | undefined {
   // Only look for thinking messages when we're in a loading state
   if (chatState === ChatState.Idle) {

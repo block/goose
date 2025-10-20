@@ -67,9 +67,11 @@ export default function ProgressiveMessageList({
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
-  // Helper to check if a message contains a system notification
-  const hasSystemNotification = (message: Message): boolean => {
-    return message.content.some((content) => content.type === 'systemNotification');
+  const hasInlineSystemNotification = (message: Message): boolean => {
+    return message.content.some(
+      (content) =>
+        content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
+    );
   };
 
   // Simple progressive loading - start immediately when component mounts if needed
@@ -179,6 +181,19 @@ export default function ProgressiveMessageList({
           return null;
         }
 
+        // System notifications are never user messages, handle them first
+        if (hasInlineSystemNotification(message)) {
+          return (
+            <div
+              key={message.id && `${message.id}-${message.content.length}`}
+              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
+              data-testid="message-container"
+            >
+              <SystemNotificationInline message={message} />
+            </div>
+          );
+        }
+
         const isUser = isUserMessage(message);
 
         return (
@@ -188,37 +203,25 @@ export default function ProgressiveMessageList({
             data-testid="message-container"
           >
             {isUser ? (
-              <>
-                {hasSystemNotification(message) ? (
-                  <SystemNotificationInline message={message} />
-                ) : (
-                  !hasOnlyToolResponses(message) && (
-                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
-                  )
-                )}
-              </>
+              !hasOnlyToolResponses(message) && (
+                <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+              )
             ) : (
-              <>
-                {hasSystemNotification(message) ? (
-                  <SystemNotificationInline message={message} />
-                ) : (
-                  <GooseMessage
-                    sessionId={chat.sessionId}
-                    messageHistoryIndex={chat.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    append={append}
-                    appendMessage={appendMessage}
-                    toolCallNotifications={toolCallNotifications}
-                    isStreaming={
-                      isStreamingMessage &&
-                      !isUser &&
-                      index === messagesToRender.length - 1 &&
-                      message.role === 'assistant'
-                    }
-                  />
-                )}
-              </>
+              <GooseMessage
+                sessionId={chat.sessionId}
+                messageHistoryIndex={chat.messageHistoryIndex}
+                message={message}
+                messages={messages}
+                append={append}
+                appendMessage={appendMessage}
+                toolCallNotifications={toolCallNotifications}
+                isStreaming={
+                  isStreamingMessage &&
+                  !isUser &&
+                  index === messagesToRender.length - 1 &&
+                  message.role === 'assistant'
+                }
+              />
             )}
           </div>
         );
