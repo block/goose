@@ -7,6 +7,8 @@ use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tracing;
 
+// TODO(Douwe): delete this file
+
 #[derive(Serialize)]
 struct ExtensionResponse {
     error: bool,

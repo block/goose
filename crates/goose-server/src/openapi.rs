@@ -345,6 +345,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::update_from_session,
+        super::routes::agent::agent_add_extension,
+        super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
         super::routes::reply::confirm_permission,
@@ -484,6 +486,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::UpdateFromSessionRequest,
+        super::routes::agent::AddExtensionRequest,
+        super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]
