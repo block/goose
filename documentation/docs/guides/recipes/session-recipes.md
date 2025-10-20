@@ -422,6 +422,10 @@ You can turn your current Goose session into a reusable recipe that includes the
   - The CLI can prompt users for required [extension secrets](/docs/guides/recipes/recipe-reference#extension-secrets)
   :::
 
+  :::tip Opening Recipes in Desktop
+  You can also open recipe files directly in goose desktop using `goose recipe open <file>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+  :::
+
    </TabItem>
 </Tabs>
 

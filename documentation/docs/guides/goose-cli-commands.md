@@ -267,11 +267,17 @@ goose bench ...etc.
 ---
 
 #### recipe
-Used to validate recipe files and manage recipe sharing.
+Used to validate recipe files, manage recipe sharing, and open recipes in Goose Desktop.
 
 **Commands:**
 - `validate <FILE>`: Validate a recipe file
 - `deeplink <FILE>`: Generate a shareable link for a recipe file
+- `open <FILE>`: Open a recipe file directly in goose desktop
+- `list [options]`: List all available recipes
+
+**Options (for list command):**
+- **`--format <format>`**: Output format (`text` or `json`). Default is `text`
+- **`-v, --verbose`**: Show detailed information including recipe descriptions
 
 **Usage:**
 ```bash
@@ -280,12 +286,31 @@ goose recipe <COMMAND>
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
 
-# Generate a shareable link
+# Generate a shareable deeplink
 goose recipe deeplink my-recipe.yaml
+
+# Open a recipe in goose desktop
+goose recipe open my-recipe.yaml
+
+# Open a recipe by name (from configured recipe sources)
+goose recipe open daily-standup
+
+# List all available recipes
+goose recipe list
+
+# List recipes with descriptions
+goose recipe list --verbose
+
+# List recipes in JSON format
+goose recipe list --format json
 
 # Get help about recipe commands
 goose recipe help
 ```
+
+:::tip
+The `open` command creates a `goose://` protocol URL and opens it with your system's default handler. If goose desktop is installed and registered as the protocol handler, the recipe will open directly in a new chat window.
+:::
 
 ---
 
@@ -490,7 +515,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
 
-The Goose CLI theme is independent from the Goose Desktop theme.
+The goose CLI theme is independent from the goose desktop theme.
 :::
 
 **Examples:**
