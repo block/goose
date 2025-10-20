@@ -67,6 +67,7 @@ use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionManager;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+const COMPACTION_THINKING_TEXT: &str = "Goose is compacting the conversation...";
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -951,7 +952,7 @@ impl Agent {
             yield AgentEvent::Message(
                 Message::assistant().with_system_notification(
                     SystemNotificationType::ThinkingMessage,
-                    "compacting conversation...",
+                    COMPACTION_THINKING_TEXT,
                 )
             );
 
@@ -1306,7 +1307,7 @@ impl Agent {
                            yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::ThinkingMessage,
-                                    "compacting conversation...",
+                                    COMPACTION_THINKING_TEXT,
                                 )
                             );
 

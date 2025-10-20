@@ -535,8 +535,6 @@ export default function ChatInput({
 
           // Show spinner while compacting
           setChatState?.(ChatState.Thinking);
-
-          // Add both a thinking message (for the indicator) and an inline message (to render in chat)
           const compactingStatusMessage: Message = {
             role: 'assistant',
             created: Date.now() / 1000,
@@ -544,12 +542,12 @@ export default function ChatInput({
               {
                 type: 'systemNotification',
                 notificationType: 'thinkingMessage',
-                msg: 'compacting conversation think...',
+                msg: 'Goose is compacting the conversation...',
               },
               {
                 type: 'systemNotification',
                 notificationType: 'inlineMessage',
-                msg: 'Compacting conversation inline...',
+                msg: 'Compacting conversation...',
               },
             ],
             metadata: { userVisible: true, agentVisible: false },
