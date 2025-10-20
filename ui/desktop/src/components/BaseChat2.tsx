@@ -126,7 +126,7 @@ function BaseChatContent({
     }
   }, [chat.messages, chat.sessionId]);
 
-  const { chatState, handleSubmit, stopStreaming } = useChatStream({
+  const { chatState, setChatState, handleSubmit, stopStreaming } = useChatStream({
     sessionId: chat.sessionId || '',
     messages,
     setMessages,
@@ -379,6 +379,7 @@ function BaseChatContent({
             sessionId={chat?.sessionId || ''}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={stopStreaming}
             //commandHistory={commandHistory}
             initialValue={initialPrompt}

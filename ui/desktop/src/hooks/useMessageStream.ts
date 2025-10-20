@@ -144,6 +144,11 @@ export interface UseMessageStreamHelpers {
   /** Current chat state (idle, thinking, streaming, waiting for user input) */
   chatState: ChatState;
 
+  /** Update the chat state */
+  setChatState: (
+    state: ChatState | Promise<ChatState | undefined>
+  ) => Promise<ChatState | undefined>;
+
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
 
@@ -632,6 +637,7 @@ export function useMessageStream({
     handleInputChange,
     handleSubmit,
     chatState,
+    setChatState: mutateChatState,
     addToolResult,
     updateMessageStreamBody,
     notifications,

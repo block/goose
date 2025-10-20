@@ -121,6 +121,7 @@ function BaseChatContent({
     filteredMessages,
     append,
     chatState,
+    setChatState,
     error,
     setMessages,
     input,
@@ -442,6 +443,7 @@ function BaseChatContent({
             sessionId={chat.sessionId}
             handleSubmit={handleSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={input || ''}

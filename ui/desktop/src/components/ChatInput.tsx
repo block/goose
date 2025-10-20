@@ -59,6 +59,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
@@ -93,6 +94,7 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -531,7 +533,9 @@ export default function ChatInput({
           // Simple compact: just call the API endpoint and let the agent handle it
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
-          // TODO(dkatz). Set the spinner to compacting... here instead of this client method.
+          // Show spinner while compacting
+          setChatState?.(ChatState.Thinking);
+
           const startingCompactionMessage: Message = {
             role: 'assistant',
             created: Date.now() / 1000,
@@ -562,6 +566,9 @@ export default function ChatInput({
             }
           } catch (err) {
             console.error('Manual compaction failed:', err);
+          } finally {
+            // Clear spinner when done
+            setChatState?.(ChatState.Idle);
           }
         },
         compactIcon: <ScrollText size={12} />,

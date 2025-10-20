@@ -135,6 +135,7 @@ export function useChatStream({
 
   return {
     chatState,
+    setChatState,
     handleSubmit,
     stopStreaming,
   };
