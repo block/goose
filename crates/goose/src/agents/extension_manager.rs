@@ -455,9 +455,13 @@ impl ExtensionManager {
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
-                let def = PLATFORM_EXTENSIONS.get(name.as_str()).ok_or_else(|| {
-                    ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
-                })?;
+                // Normalize the name to match the key used in PLATFORM_EXTENSIONS
+                let normalized_key = normalize(name.clone());
+                let def = PLATFORM_EXTENSIONS
+                    .get(normalized_key.as_str())
+                    .ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
+                    })?;
                 let context = self.get_context().await;
                 (def.client_factory)(context)
             }
