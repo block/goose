@@ -11,7 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server archived
 
-This tutorial covers how to add the [Google Maps MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps) as a Goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
+This tutorial covers how to add the [Google Maps MCP Server](https://www.pulsemcp.com/servers/google-maps-docs) as a Goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
 
 :::tip TLDR
 <Tabs groupId="interface">

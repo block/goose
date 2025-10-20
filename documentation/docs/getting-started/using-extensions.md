@@ -623,7 +623,7 @@ Some extensions require environment variables. You can include these in your com
 goose session --with-extension "VAR=value command arg1 arg2"
 ```
 
-For example, to start a session with the [GitHub extension](https://github.com/modelcontextprotocol/servers/tree/main/src/github), you'd run:
+For example, to start a session with the [GitHub extension](https://github.com/github/github-mcp-server), you'd run:
 
 ```bash
 goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
