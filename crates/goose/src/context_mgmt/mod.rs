@@ -94,11 +94,10 @@ pub async fn compact_messages(
     }
 
     // Add a system notification to inform the user (user_visible=true, agent_visible=false)
-    let system_notification = Message::assistant()
-        .with_system_notification(
-            SystemNotificationType::InlineMessage,
-            "Conversation compacted and summarized",
-        );
+    let system_notification = Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        "Conversation compacted and summarized",
+    );
     let system_notification_tokens: usize = 0; // Not counted since agent_visible=false
     final_messages.push(system_notification);
     final_token_counts.push(system_notification_tokens);

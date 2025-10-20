@@ -927,7 +927,9 @@ impl Agent {
         .await?;
 
         if !needs_compaction {
-            return self.reply_internal(unfixed_conversation, session, cancel_token).await;
+            return self
+                .reply_internal(unfixed_conversation, session, cancel_token)
+                .await;
         }
 
         let config = crate::config::Config::global();

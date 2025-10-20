@@ -713,7 +713,9 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContent, MessageMetadata, SystemNotificationType};
+    use crate::conversation::message::{
+        Message, MessageContent, MessageMetadata, SystemNotificationType,
+    };
     use crate::conversation::*;
     use rmcp::model::{
         AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
