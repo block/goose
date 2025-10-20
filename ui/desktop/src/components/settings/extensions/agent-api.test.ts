@@ -313,31 +313,6 @@ describe('Agent API', () => {
         }),
       });
     });
-
-    it('should not mutate the original extension config', async () => {
-      const originalConfig: ExtensionConfig = {
-        type: 'stdio',
-        name: 'Extension Manager',
-        description: 'Test description',
-        cmd: 'python',
-        args: ['script.py'],
-      };
-
-      const mockResponse = {
-        ok: true,
-        text: vi.fn().mockResolvedValue('{"error": false}'),
-      };
-      mockFetch.mockResolvedValue(mockResponse);
-
-      const { replaceWithShims } = await import('./utils');
-      vi.mocked(replaceWithShims).mockResolvedValue('/path/to/shim');
-
-      await addToAgent(originalConfig, {}, 'test-session');
-
-      // Verify the original config was not mutated
-      expect(originalConfig.name).toBe('Extension Manager');
-      expect(originalConfig.cmd).toBe('python');
-    });
   });
 
   describe('removeFromAgent', () => {

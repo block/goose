@@ -324,8 +324,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .extension_manager
         .set_context(PlatformExtensionContext {
             session_id: session_id.clone(),
-            extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-            tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
         })
         .await;
 

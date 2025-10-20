@@ -222,7 +222,7 @@ pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Resul
                         "  - Session ID: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}",
                         session_name, // Display the session_name as Session ID
                         metadata.working_dir.display(),
-                        metadata.name,
+                        metadata.description,
                         metadata.schedule_id.as_deref().unwrap_or("N/A")
                     );
                 }

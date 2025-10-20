@@ -1,4 +1,7 @@
+use crate::routes::errors::ErrorResponse;
+use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
+use axum::extract::State;
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -6,6 +9,7 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
@@ -22,9 +26,9 @@ pub struct SessionListResponse {
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateSessionNameRequest {
-    /// Updated name for the session (max 200 characters)
-    name: String,
+pub struct UpdateSessionDescriptionRequest {
+    /// Updated description (name) for the session (max 200 characters)
+    description: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -34,13 +38,18 @@ pub struct UpdateSessionUserRecipeValuesRequest {
     user_recipe_values: HashMap<String, String>,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpdateSessionUserRecipeValuesResponse {
+    recipe: Recipe,
+}
+
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
     json: String,
 }
 
-const MAX_NAME_LENGTH: usize = 200;
+const MAX_DESCRIPTION_LENGTH: usize = 200;
 
 #[utoipa::path(
     get,
@@ -109,14 +118,14 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 
 #[utoipa::path(
     put,
-    path = "/sessions/{session_id}/name",
-    request_body = UpdateSessionNameRequest,
+    path = "/sessions/{session_id}/description",
+    request_body = UpdateSessionDescriptionRequest,
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session name updated successfully"),
-        (status = 400, description = "Bad request - Name too long (max 200 characters)"),
+        (status = 200, description = "Session description updated successfully"),
+        (status = 400, description = "Bad request - Description too long (max 200 characters)"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
@@ -126,20 +135,16 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn update_session_name(
+async fn update_session_description(
     Path(session_id): Path<String>,
-    Json(request): Json<UpdateSessionNameRequest>,
+    Json(request): Json<UpdateSessionDescriptionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let name = request.name.trim();
-    if name.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if name.len() > MAX_NAME_LENGTH {
+    if request.description.len() > MAX_DESCRIPTION_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     SessionManager::update_session(&session_id)
-        .user_provided_name(name.to_string())
+        .description(request.description)
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -155,10 +160,10 @@ async fn update_session_name(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session user recipe values updated successfully"),
+        (status = 200, description = "Session user recipe values updated successfully", body = UpdateSessionUserRecipeValuesResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
+        (status = 404, description = "Session not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
     ),
     security(
         ("api_key" = [])
@@ -167,16 +172,54 @@ async fn update_session_name(
 )]
 // Update session user recipe parameter values
 async fn update_session_user_recipe_values(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
     SessionManager::update_session(&session_id)
         .user_recipe_values(Some(request.user_recipe_values))
         .apply()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|err| ErrorResponse {
+            message: err.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
 
-    Ok(StatusCode::OK)
+    let session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|err| ErrorResponse {
+            message: err.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+    let recipe = session.recipe.ok_or_else(|| ErrorResponse {
+        message: "Recipe not found".to_string(),
+        status: StatusCode::NOT_FOUND,
+    })?;
+
+    let user_recipe_values = session.user_recipe_values.unwrap_or_default();
+    match build_recipe_with_parameter_values(&recipe, user_recipe_values).await {
+        Ok(Some(recipe)) => {
+            let agent = state
+                .get_agent_for_route(session_id.clone())
+                .await
+                .map_err(|status| ErrorResponse {
+                    message: format!("Failed to get agent: {}", status),
+                    status,
+                })?;
+            if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, false).await {
+                agent.extend_system_prompt(prompt).await;
+            }
+            Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe }))
+        }
+        Ok(None) => Err(ErrorResponse {
+            message: "Missing required parameters".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        }),
+        Err(e) => Err(ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }),
+    }
 }
 
 #[utoipa::path(
@@ -268,7 +311,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}/export", get(export_session))
         .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
-        .route("/sessions/{session_id}/name", put(update_session_name))
+        .route(
+            "/sessions/{session_id}/description",
+            put(update_session_description),
+        )
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),

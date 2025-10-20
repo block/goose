@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddExtensionData, AddExtensionErrors, AddExtensionResponses, AddSubRecipesData, AddSubRecipesErrors, AddSubRecipesResponses, BackupConfigData, BackupConfigErrors, BackupConfigResponses, ConfirmPermissionData, ConfirmPermissionErrors, ConfirmPermissionResponses, CreateCustomProviderData, CreateCustomProviderErrors, CreateCustomProviderResponses, CreateRecipeData, CreateRecipeErrors, CreateRecipeResponses, CreateScheduleData, CreateScheduleErrors, CreateScheduleResponses, DecodeRecipeData, DecodeRecipeErrors, DecodeRecipeResponses, DeleteRecipeData, DeleteRecipeErrors, DeleteRecipeResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSessionData, DeleteSessionErrors, DeleteSessionResponses, EncodeRecipeData, EncodeRecipeErrors, EncodeRecipeResponses, ExportSessionData, ExportSessionErrors, ExportSessionResponses, ExtendPromptData, ExtendPromptErrors, ExtendPromptResponses, GetCustomProviderData, GetCustomProviderErrors, GetCustomProviderResponses, GetExtensionsData, GetExtensionsErrors, GetExtensionsResponses, GetProviderModelsData, GetProviderModelsErrors, GetProviderModelsResponses, GetSessionData, GetSessionErrors, GetSessionInsightsData, GetSessionInsightsErrors, GetSessionInsightsResponses, GetSessionResponses, GetToolsData, GetToolsErrors, GetToolsResponses, ImportSessionData, ImportSessionErrors, ImportSessionResponses, InitConfigData, InitConfigErrors, InitConfigResponses, InspectRunningJobData, InspectRunningJobErrors, InspectRunningJobResponses, KillRunningJobData, KillRunningJobResponses, ListRecipesData, ListRecipesErrors, ListRecipesResponses, ListSchedulesData, ListSchedulesErrors, ListSchedulesResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ManageContextData, ManageContextErrors, ManageContextResponses, ParseRecipeData, ParseRecipeErrors, ParseRecipeResponses, PauseScheduleData, PauseScheduleErrors, PauseScheduleResponses, ProvidersData, ProvidersResponses, ReadAllConfigData, ReadAllConfigResponses, ReadConfigData, ReadConfigErrors, ReadConfigResponses, RecoverConfigData, RecoverConfigErrors, RecoverConfigResponses, RemoveConfigData, RemoveConfigErrors, RemoveConfigResponses, RemoveCustomProviderData, RemoveCustomProviderErrors, RemoveCustomProviderResponses, RemoveExtensionData, RemoveExtensionErrors, RemoveExtensionResponses, ReplyData, ReplyErrors, ReplyResponses, ResumeAgentData, ResumeAgentErrors, ResumeAgentResponses, RunNowHandlerData, RunNowHandlerErrors, RunNowHandlerResponses, SaveRecipeData, SaveRecipeErrors, SaveRecipeResponses, ScanRecipeData, ScanRecipeResponses, SessionsHandlerData, SessionsHandlerErrors, SessionsHandlerResponses, StartAgentData, StartAgentErrors, StartAgentResponses, StartOpenrouterSetupData, StartOpenrouterSetupResponses, StartTetrateSetupData, StartTetrateSetupResponses, StatusData, StatusResponses, UnpauseScheduleData, UnpauseScheduleErrors, UnpauseScheduleResponses, UpdateAgentProviderData, UpdateAgentProviderErrors, UpdateAgentProviderResponses, UpdateCustomProviderData, UpdateCustomProviderErrors, UpdateCustomProviderResponses, UpdateRouterToolSelectorData, UpdateRouterToolSelectorErrors, UpdateRouterToolSelectorResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSessionConfigData, UpdateSessionConfigErrors, UpdateSessionConfigResponses, UpdateSessionNameData, UpdateSessionNameErrors, UpdateSessionNameResponses, UpdateSessionUserRecipeValuesData, UpdateSessionUserRecipeValuesErrors, UpdateSessionUserRecipeValuesResponses, UpsertConfigData, UpsertConfigErrors, UpsertConfigResponses, UpsertPermissionsData, UpsertPermissionsErrors, UpsertPermissionsResponses, ValidateConfigData, ValidateConfigErrors, ValidateConfigResponses } from './types.gen';
+import type { AddExtensionData, AddExtensionErrors, AddExtensionResponses, BackupConfigData, BackupConfigErrors, BackupConfigResponses, ConfirmPermissionData, ConfirmPermissionErrors, ConfirmPermissionResponses, CreateCustomProviderData, CreateCustomProviderErrors, CreateCustomProviderResponses, CreateRecipeData, CreateRecipeErrors, CreateRecipeResponses, CreateScheduleData, CreateScheduleErrors, CreateScheduleResponses, DecodeRecipeData, DecodeRecipeErrors, DecodeRecipeResponses, DeleteRecipeData, DeleteRecipeErrors, DeleteRecipeResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSessionData, DeleteSessionErrors, DeleteSessionResponses, EncodeRecipeData, EncodeRecipeErrors, EncodeRecipeResponses, ExportSessionData, ExportSessionErrors, ExportSessionResponses, GetCustomProviderData, GetCustomProviderErrors, GetCustomProviderResponses, GetExtensionsData, GetExtensionsErrors, GetExtensionsResponses, GetProviderModelsData, GetProviderModelsErrors, GetProviderModelsResponses, GetSessionData, GetSessionErrors, GetSessionInsightsData, GetSessionInsightsErrors, GetSessionInsightsResponses, GetSessionResponses, GetToolsData, GetToolsErrors, GetToolsResponses, ImportSessionData, ImportSessionErrors, ImportSessionResponses, InitConfigData, InitConfigErrors, InitConfigResponses, InspectRunningJobData, InspectRunningJobErrors, InspectRunningJobResponses, KillRunningJobData, KillRunningJobResponses, ListRecipesData, ListRecipesErrors, ListRecipesResponses, ListSchedulesData, ListSchedulesErrors, ListSchedulesResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ManageContextData, ManageContextErrors, ManageContextResponses, ParseRecipeData, ParseRecipeErrors, ParseRecipeResponses, PauseScheduleData, PauseScheduleErrors, PauseScheduleResponses, ProvidersData, ProvidersResponses, ReadAllConfigData, ReadAllConfigResponses, ReadConfigData, ReadConfigErrors, ReadConfigResponses, RecoverConfigData, RecoverConfigErrors, RecoverConfigResponses, RemoveConfigData, RemoveConfigErrors, RemoveConfigResponses, RemoveCustomProviderData, RemoveCustomProviderErrors, RemoveCustomProviderResponses, RemoveExtensionData, RemoveExtensionErrors, RemoveExtensionResponses, ReplyData, ReplyErrors, ReplyResponses, ResumeAgentData, ResumeAgentErrors, ResumeAgentResponses, RunNowHandlerData, RunNowHandlerErrors, RunNowHandlerResponses, SaveRecipeData, SaveRecipeErrors, SaveRecipeResponses, ScanRecipeData, ScanRecipeResponses, SessionsHandlerData, SessionsHandlerErrors, SessionsHandlerResponses, StartAgentData, StartAgentErrors, StartAgentResponses, StartOpenrouterSetupData, StartOpenrouterSetupResponses, StartTetrateSetupData, StartTetrateSetupResponses, StatusData, StatusResponses, UnpauseScheduleData, UnpauseScheduleErrors, UnpauseScheduleResponses, UpdateAgentProviderData, UpdateAgentProviderErrors, UpdateAgentProviderResponses, UpdateCustomProviderData, UpdateCustomProviderErrors, UpdateCustomProviderResponses, UpdateFromSessionData, UpdateFromSessionErrors, UpdateFromSessionResponses, UpdateRouterToolSelectorData, UpdateRouterToolSelectorErrors, UpdateRouterToolSelectorResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSessionDescriptionData, UpdateSessionDescriptionErrors, UpdateSessionDescriptionResponses, UpdateSessionUserRecipeValuesData, UpdateSessionUserRecipeValuesErrors, UpdateSessionUserRecipeValuesResponses, UpsertConfigData, UpsertConfigErrors, UpsertConfigResponses, UpsertPermissionsData, UpsertPermissionsErrors, UpsertPermissionsResponses, ValidateConfigData, ValidateConfigErrors, ValidateConfigResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -18,42 +18,9 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
     meta?: Record<string, unknown>;
 };
 
-export const addSubRecipes = <ThrowOnError extends boolean = false>(options: Options<AddSubRecipesData, ThrowOnError>) => {
-    return (options.client ?? client).post<AddSubRecipesResponses, AddSubRecipesErrors, ThrowOnError>({
-        url: '/agent/add_sub_recipes',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
-export const extendPrompt = <ThrowOnError extends boolean = false>(options: Options<ExtendPromptData, ThrowOnError>) => {
-    return (options.client ?? client).post<ExtendPromptResponses, ExtendPromptErrors, ThrowOnError>({
-        url: '/agent/prompt',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
 export const resumeAgent = <ThrowOnError extends boolean = false>(options: Options<ResumeAgentData, ThrowOnError>) => {
     return (options.client ?? client).post<ResumeAgentResponses, ResumeAgentErrors, ThrowOnError>({
         url: '/agent/resume',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
-export const updateSessionConfig = <ThrowOnError extends boolean = false>(options: Options<UpdateSessionConfigData, ThrowOnError>) => {
-    return (options.client ?? client).post<UpdateSessionConfigResponses, UpdateSessionConfigErrors, ThrowOnError>({
-        url: '/agent/session_config',
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -77,6 +44,17 @@ export const getTools = <ThrowOnError extends boolean = false>(options: Options<
     return (options.client ?? client).get<GetToolsResponses, GetToolsErrors, ThrowOnError>({
         url: '/agent/tools',
         ...options
+    });
+};
+
+export const updateFromSession = <ThrowOnError extends boolean = false>(options: Options<UpdateFromSessionData, ThrowOnError>) => {
+    return (options.client ?? client).post<UpdateFromSessionResponses, UpdateFromSessionErrors, ThrowOnError>({
+        url: '/agent/update_from_session',
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
     });
 };
 
@@ -504,21 +482,21 @@ export const getSession = <ThrowOnError extends boolean = false>(options: Option
     });
 };
 
-export const exportSession = <ThrowOnError extends boolean = false>(options: Options<ExportSessionData, ThrowOnError>) => {
-    return (options.client ?? client).get<ExportSessionResponses, ExportSessionErrors, ThrowOnError>({
-        url: '/sessions/{session_id}/export',
-        ...options
-    });
-};
-
-export const updateSessionName = <ThrowOnError extends boolean = false>(options: Options<UpdateSessionNameData, ThrowOnError>) => {
-    return (options.client ?? client).put<UpdateSessionNameResponses, UpdateSessionNameErrors, ThrowOnError>({
-        url: '/sessions/{session_id}/name',
+export const updateSessionDescription = <ThrowOnError extends boolean = false>(options: Options<UpdateSessionDescriptionData, ThrowOnError>) => {
+    return (options.client ?? client).put<UpdateSessionDescriptionResponses, UpdateSessionDescriptionErrors, ThrowOnError>({
+        url: '/sessions/{session_id}/description',
         ...options,
         headers: {
             'Content-Type': 'application/json',
             ...options.headers
         }
+    });
+};
+
+export const exportSession = <ThrowOnError extends boolean = false>(options: Options<ExportSessionData, ThrowOnError>) => {
+    return (options.client ?? client).get<ExportSessionResponses, ExportSessionErrors, ThrowOnError>({
+        url: '/sessions/{session_id}/export',
+        ...options
     });
 };
 
