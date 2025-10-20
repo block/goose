@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload } from 'lucide-react';
 
 
-A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
+A session is a single, continuous interaction between you and goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
 
 ## Start Session 
 
