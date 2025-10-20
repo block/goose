@@ -94,7 +94,7 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
-  setChatState,
+  setChatState: _setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -105,7 +105,7 @@ export default function ChatInput({
   inputTokens,
   outputTokens,
   messages = [],
-  setMessages,
+  setMessages: _setMessages,
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
@@ -529,47 +529,16 @@ export default function ChatInput({
         },
         showCompactButton: true,
         compactButtonDisabled: !numTokens,
-        onCompact: async () => {
+        onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
-          setChatState?.(ChatState.Thinking);
-          const compactingStatusMessage: Message = {
-            role: 'assistant',
-            created: Date.now() / 1000,
-            content: [
-              {
-                type: 'systemNotification',
-                notificationType: 'thinkingMessage',
-                msg: 'Goose is compacting the conversation...',
-              },
-              {
-                type: 'systemNotification',
-                notificationType: 'inlineMessage',
-                msg: 'Compacting conversation...',
-              },
-            ],
-            metadata: { userVisible: true, agentVisible: false },
-          };
+          // Trigger normal submission with "manual-compact" command
+          // The server will handle it through the streaming endpoint
+          const customEvent = new CustomEvent('submit', {
+            detail: { value: 'manual-compact' },
+          }) as unknown as React.FormEvent;
 
-          const messagesWithCompacting = [...messages, compactingStatusMessage];
-          setMessages(messagesWithCompacting);
-
-          try {
-            const { manageContext } = await import('../api');
-            const result = await manageContext({
-              body: {
-                messages: messages,
-                sessionId: sessionId || '',
-              },
-            });
-            if (result.data) {
-              setMessages(result.data.messages);
-            }
-          } catch (err) {
-            console.error('Manual compaction failed:', err);
-          } finally {
-            setChatState?.(ChatState.Idle);
-          }
+          handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
