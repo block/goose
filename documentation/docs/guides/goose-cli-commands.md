@@ -267,7 +267,7 @@ goose bench ...etc.
 ---
 
 #### recipe
-Used to validate recipe files, manage recipe sharing, and open recipes in Goose Desktop.
+Used to validate recipe files, manage recipe sharing, and open recipes in goose desktop.
 
 **Commands:**
 - `validate <FILE>`: Validate a recipe file
