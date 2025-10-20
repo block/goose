@@ -726,6 +726,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onNavigate={handleSearchNavigation}
                     searchResults={searchResults}
                     className="relative"
+                    placeholder="Search history..."
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div

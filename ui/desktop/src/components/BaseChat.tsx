@@ -366,7 +366,7 @@ function BaseChatContent({
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>
+                    <SearchView placeholder="Search conversation...">
                       <ProgressiveMessageList
                         messages={filteredMessages}
                         chat={chat}

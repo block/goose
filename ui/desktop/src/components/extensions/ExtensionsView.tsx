@@ -144,7 +144,7 @@ export default function ExtensionsView({
         </div>
 
         <div className="px-8 pb-16">
-          <SearchView onSearch={(term) => setSearchTerm(term)}>
+          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search extensions...">
             <ExtensionsSection
               key={refreshKey}
               sessionId={sessionId}
