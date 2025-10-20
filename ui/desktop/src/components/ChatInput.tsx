@@ -530,6 +530,24 @@ export default function ChatInput({
         onCompact: async () => {
           // Simple compact: just call the API endpoint and let the agent handle it
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+
+          // TODO(dkatz). Set the spinner to compacting... here instead of this client method.
+          const startingCompactionMessage: Message = {
+            role: 'assistant',
+            created: Date.now() / 1000,
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'inlineMessage',
+                msg: 'Compacting conversation...',
+              },
+            ],
+            metadata: { userVisible: true, agentVisible: false },
+          };
+
+          const messagesWithCompacting = [...messages, startingCompactionMessage];
+          setMessages(messagesWithCompacting);
+
           try {
             const { manageContext } = await import('../api');
             const result = await manageContext({
