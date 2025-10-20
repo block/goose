@@ -123,7 +123,7 @@ The Desktop Recipe Library displays all recipes you've explicitly saved or impor
 
 Use the `goose recipe list` command to find all available recipes from multiple sources:
 
-### Basic Usage
+**Basic Usage**
 
 ```bash
 # List all available recipes
@@ -136,7 +136,7 @@ goose recipe list --verbose
 goose recipe list --format json
 ```
 
-### Recipe Discovery Process
+**Recipe Discovery Process**
 
 Goose searches for recipes in the following locations (in order):
 
@@ -146,9 +146,9 @@ Goose searches for recipes in the following locations (in order):
 4. **Local project recipes**: `./.goose/recipes/`
 5. **GitHub repository**: If [`GOOSE_RECIPE_GITHUB_REPO`](/docs/guides/environment-variables#recipe-configuration) environment variable is configured
 
-### Example Output
+**Example Output**
 
-**Default text format:**
+*Default text format:*
 ```bash
 $ goose recipe list
 Available recipes:
@@ -157,7 +157,7 @@ hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose
 job-finder - Find software engineering positions - local: ~/.config/goose/recipes/job-finder.yaml
 ```
 
-**Verbose mode:**
+*Verbose mode:*
 ```bash
 $ goose recipe list --verbose
 Available recipes:
@@ -169,7 +169,7 @@ Available recipes:
     Path: /Users/username/.config/goose/recipes/hello-world.yaml
 ```
 
-**JSON format for automation:**
+*JSON format for automation:*
 ```json
 [
   {
@@ -189,15 +189,15 @@ Available recipes:
 ]
 ```
 
-### Configuring Recipe Sources
+**Configuring Recipe Sources**
 
-**Add custom recipe directories:**
+Add custom recipe directories:
 ```bash
 export GOOSE_RECIPE_PATH="/path/to/my/recipes:/path/to/team/recipes"
 goose recipe list
 ```
 
-**Configure GitHub recipe repository:**
+Configure GitHub recipe repository:
 ```bash
 export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
 goose recipe list
@@ -205,7 +205,7 @@ goose recipe list
 
 See the [Environment Variables Guide](/docs/guides/environment-variables#recipe-configuration) for more configuration options.
 
-### Manual Directory Browsing (Advanced)
+**Manual Directory Browsing (Advanced)**
 
 If you need to browse recipe directories manually:
 
