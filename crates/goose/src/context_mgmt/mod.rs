@@ -98,8 +98,7 @@ pub async fn compact_messages(
         .with_system_notification(
             SystemNotificationType::InlineMessage,
             "Conversation compacted and summarized",
-        )
-        .with_metadata(MessageMetadata::user_only());
+        );
     let system_notification_tokens: usize = 0; // Not counted since agent_visible=false
     final_messages.push(system_notification);
     final_token_counts.push(system_notification_tokens);

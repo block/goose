@@ -950,13 +950,11 @@ impl Agent {
 
             match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false).await {
                 Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
-                    // Replace history with compacted version
                     yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
                     if let Some(session_to_store) = &session {
                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
                     }
 
-                    // Continue with normal reply flow
                     let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
                     while let Some(event) = reply_stream.next().await {
                         yield event?;

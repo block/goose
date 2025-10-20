@@ -670,6 +670,7 @@ impl Message {
         msg: S,
     ) -> Self {
         self.with_content(MessageContent::system_notification(notification_type, msg))
+            .with_metadata(MessageMetadata::user_only())
     }
 
     /// Set the visibility metadata for the message
@@ -1215,5 +1216,15 @@ mod tests {
         assert_eq!(value["content"][0]["type"], "systemNotification");
         assert_eq!(value["content"][0]["notificationType"], "inlineMessage");
         assert_eq!(value["content"][0]["msg"], "Test notification");
+    }
+
+    #[test]
+    fn test_system_notification_sets_correct_metadata() {
+        let message = Message::assistant()
+            .with_system_notification(SystemNotificationType::InlineMessage, "Test notification");
+
+        // System notifications should be user_visible=true, agent_visible=false
+        assert!(message.is_user_visible());
+        assert!(!message.is_agent_visible());
     }
 }
