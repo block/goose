@@ -15,6 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
+use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::session::SessionManager;
 use rmcp::model::Tool;
 
@@ -32,8 +33,7 @@ async fn toolshim_postprocess(
 }
 
 impl Agent {
-    /// Prepares tools and system prompt for a provider request
-    pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(&self) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get router enabled status
         let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
@@ -43,6 +43,15 @@ impl Agent {
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {
             tools = self.list_tools(None).await;
+            let provider = self.provider().await?;
+            let model_name = provider.get_model_config().model_name;
+
+            if !should_enabled_subagents(&model_name) {
+                tools.retain(|tool| {
+                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
+                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
+                });
+            }
         }
 
         // Add frontend tools
@@ -66,7 +75,7 @@ impl Agent {
             self.extension_manager
                 .suggest_disable_extensions_prompt()
                 .await,
-            Some(model_name),
+            model_name,
             router_enabled,
         );
 
@@ -82,48 +91,6 @@ impl Agent {
         }
 
         Ok((tools, toolshim_tools, system_prompt))
-    }
-
-    /// Generate a response from the LLM provider
-    /// Handles toolshim transformations if needed
-    pub(crate) async fn generate_response_from_provider(
-        provider: Arc<dyn Provider>,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-        toolshim_tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = provider.get_model_config();
-
-        // Convert tool messages to text if toolshim is enabled
-        let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
-        } else {
-            Conversation::new_unvalidated(messages.to_vec())
-        };
-
-        // Call the provider to get a response
-        let (mut response, mut usage) = provider
-            .complete(system_prompt, messages_for_provider.messages(), tools)
-            .await?;
-
-        // Ensure we have token counts, estimating if necessary
-        usage
-            .ensure_tokens(
-                system_prompt,
-                messages_for_provider.messages(),
-                &response,
-                tools,
-            )
-            .await?;
-
-        crate::providers::base::set_current_model(&usage.model);
-
-        if config.toolshim {
-            response = toolshim_postprocess(response, toolshim_tools).await?;
-        }
-
-        Ok((response, usage))
     }
 
     /// Stream a response from the LLM provider.
@@ -150,39 +117,46 @@ impl Agent {
         let toolshim_tools = toolshim_tools.to_owned();
         let provider = provider.clone();
 
-        let mut stream = if provider.supports_streaming() {
+        // Capture errors during stream creation and return them as part of the stream
+        // so they can be handled by the existing error handling logic in the agent
+        let stream_result = if provider.supports_streaming() {
             debug!("WAITING_LLM_STREAM_START");
-            let msg_stream = provider
+            let result = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?;
+                .await;
             debug!("WAITING_LLM_STREAM_END");
-            msg_stream
+            result
         } else {
             debug!("WAITING_LLM_START");
-            let (message, mut usage) = provider
+            let complete_result = provider
                 .complete(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?;
+                .await;
             debug!("WAITING_LLM_END");
 
-            // Ensure we have token counts for non-streaming case
-            usage
-                .ensure_tokens(
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &message,
-                    &tools,
-                )
-                .await?;
+            match complete_result {
+                Ok((message, usage)) => Ok(stream_from_single_message(message, usage)),
+                Err(e) => Err(e),
+            }
+        };
 
-            stream_from_single_message(message, usage)
+        // If there was an error creating the stream, return a stream that yields that error
+        let mut stream = match stream_result {
+            Ok(s) => s,
+            Err(e) => {
+                // Return a stream that immediately yields the error
+                // This allows the error to be caught by existing error handling in agent.rs
+                return Ok(Box::pin(try_stream! {
+                    yield Err(e)?;
+                }));
+            }
         };
 
         Ok(Box::pin(try_stream! {

@@ -267,11 +267,12 @@ goose bench ...etc.
 ---
 
 #### recipe
-Used to validate recipe files and manage recipe sharing.
+Used to validate recipe files, manage recipe sharing, and open recipes in goose desktop.
 
 **Commands:**
 - `validate <FILE>`: Validate a recipe file
 - `deeplink <FILE>`: Generate a shareable link for a recipe file
+- `open <FILE>`: Open a recipe file directly in goose desktop
 
 **Usage:**
 ```bash
@@ -282,6 +283,12 @@ goose recipe validate my-recipe.yaml
 
 # Generate a shareable link
 goose recipe deeplink my-recipe.yaml
+
+# Open a recipe in goose desktop
+goose recipe open my-recipe.yaml
+
+# Open a recipe by name
+goose recipe open my-recipe
 
 # Get help about recipe commands
 goose recipe help

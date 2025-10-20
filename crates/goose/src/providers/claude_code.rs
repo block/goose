@@ -9,10 +9,9 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -27,10 +26,8 @@ pub struct ClaudeCodeProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(ClaudeCodeProvider);
-
 impl ClaudeCodeProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
             .get_param("CLAUDE_CODE_COMMAND")
@@ -498,13 +495,14 @@ impl Provider for ClaudeCodeProvider {
             "system": system,
             "messages": messages.len()
         });
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = json!({
             "lines": json_lines.len(),
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,
@@ -519,16 +517,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_claude_code_model_config() {
-        let provider = ClaudeCodeProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "claude-sonnet-4-20250514");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
     fn test_permission_mode_flag_construction() {
         // Test that in auto mode, the --permission-mode acceptEdits flag is added
         std::env::set_var("GOOSE_MODE", "auto");
@@ -540,21 +528,21 @@ mod tests {
         std::env::remove_var("GOOSE_MODE");
     }
 
-    #[test]
-    fn test_claude_code_invalid_model_no_fallback() {
+    #[tokio::test]
+    async fn test_claude_code_invalid_model_no_fallback() {
         // Test that an invalid model is kept as-is (no fallback)
         let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
+        let provider = ClaudeCodeProvider::from_env(invalid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "invalid-model");
     }
 
-    #[test]
-    fn test_claude_code_valid_model() {
+    #[tokio::test]
+    async fn test_claude_code_valid_model() {
         // Test that a valid model is preserved
         let valid_model = ModelConfig::new_or_fail("sonnet");
-        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
+        let provider = ClaudeCodeProvider::from_env(valid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "sonnet");

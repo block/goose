@@ -8,9 +8,9 @@ use tokio::process::Command;
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -26,10 +26,8 @@ pub struct GeminiCliProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GeminiCliProvider);
-
 impl GeminiCliProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
             .get_param("GEMINI_CLI_COMMAND")
@@ -319,12 +317,12 @@ impl Provider for GeminiCliProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -334,10 +332,6 @@ impl Provider for GeminiCliProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        let lines = self.execute_command(system, messages, tools).await?;
-
-        let (message, usage) = self.parse_response(&lines)?;
-
         // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
@@ -346,12 +340,22 @@ impl Provider for GeminiCliProvider {
             "messages": messages.len()
         });
 
+        let mut log = RequestLog::start(&self.model, &payload).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
+        })?;
+
+        let lines = self.execute_command(system, messages, tools).await?;
+
+        let (message, usage) = self.parse_response(&lines)?;
+
         let response = json!({
             "lines": lines.len(),
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage)).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
+        })?;
 
         Ok((
             message,
@@ -364,31 +368,21 @@ impl Provider for GeminiCliProvider {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_gemini_cli_model_config() {
-        let provider = GeminiCliProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "gemini-2.5-pro");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
-    fn test_gemini_cli_invalid_model_no_fallback() {
+    #[tokio::test]
+    async fn test_gemini_cli_invalid_model_no_fallback() {
         // Test that an invalid model is kept as-is (no fallback)
         let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = GeminiCliProvider::from_env(invalid_model).unwrap();
+        let provider = GeminiCliProvider::from_env(invalid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "invalid-model");
     }
 
-    #[test]
-    fn test_gemini_cli_valid_model() {
+    #[tokio::test]
+    async fn test_gemini_cli_valid_model() {
         // Test that a valid model is preserved
         let valid_model = ModelConfig::new_or_fail(GEMINI_CLI_DEFAULT_MODEL);
-        let provider = GeminiCliProvider::from_env(valid_model).unwrap();
+        let provider = GeminiCliProvider::from_env(valid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, GEMINI_CLI_DEFAULT_MODEL);

@@ -8,7 +8,7 @@ import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../types/message';
+import { Message } from '../api';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
@@ -22,13 +22,12 @@ import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
-import { COST_TRACKING_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { getApiUrl } from '../config';
 
 interface QueuedMessage {
   id: string;
@@ -81,7 +80,8 @@ interface ChatInputProps {
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
-  recipeConfig?: Recipe | null;
+  recipe?: Recipe | null;
+  recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -108,7 +108,8 @@ export default function ChatInput({
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
-  recipeConfig,
+  recipe,
+  recipeId,
   recipeAccepted,
   initialPrompt,
   toolCount,
@@ -318,7 +319,7 @@ export default function ChatInput({
 
   useEffect(() => {
     // Only load draft once and if conditions are met
-    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -329,7 +330,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipeConfig]);
+  }, [chatContext, initialValue, recipe]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(
@@ -500,51 +501,18 @@ export default function ChatInput({
   // Load auto-compact threshold
   const loadAutoCompactThreshold = useCallback(async () => {
     try {
-      const secretKey = await window.electron.getSecretKey();
-      const response = await fetch(getApiUrl('/config/read'), {
-        method: 'POST',
-        headers: {
-          'X-Secret-Key': secretKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          is_secret: false,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Loaded auto-compact threshold from config:', data);
-        if (data !== undefined && data !== null) {
-          setAutoCompactThreshold(data);
-          console.log('Set auto-compact threshold to:', data);
-        }
-      } else {
-        console.error('Failed to fetch auto-compact threshold, status:', response.status);
+      const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
+      if (threshold !== undefined && threshold !== null) {
+        setAutoCompactThreshold(threshold as number);
       }
     } catch (err) {
       console.error('Error fetching auto-compact threshold:', err);
     }
-  }, []);
+  }, [read]);
 
   useEffect(() => {
     loadAutoCompactThreshold();
   }, [loadAutoCompactThreshold]);
-
-  // Listen for threshold change events from AlertBox
-  useEffect(() => {
-    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
-      setAutoCompactThreshold(event.detail.threshold);
-    };
-
-    // Type assertion to handle the mismatch between CustomEvent and EventListener
-    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
-    window.addEventListener('autoCompactThresholdChanged', eventListener);
-
-    return () => {
-      window.removeEventListener('autoCompactThresholdChanged', eventListener);
-    };
-  }, []);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -572,6 +540,9 @@ export default function ChatInput({
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
+        onThresholdChange: (newThreshold: number) => {
+          setAutoCompactThreshold(newThreshold);
+        },
       });
     }
 
@@ -1182,15 +1153,6 @@ export default function ChatInput({
     !agentIsReady ||
     isExtensionsLoading;
 
-  const isUserInputDisabled =
-    isAnyImageLoading ||
-    isAnyDroppedFileLoading ||
-    isRecording ||
-    isTranscribing ||
-    isCompacting ||
-    !agentIsReady ||
-    isExtensionsLoading;
-
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1305,7 +1267,6 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1352,7 +1313,8 @@ export default function ChatInput({
                         OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Models.</b>
                       </p>
-                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
+                      dictationSettings.provider === 'elevenlabs' ? (
                       <p>
                         ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Chat</b> {'>'} <b>Voice Dictation.</b>
@@ -1624,7 +1586,8 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipeConfig={recipeConfig}
+                recipe={recipe}
+                recipeId={recipeId}
                 hasMessages={messages.length > 0}
               />
             </div>

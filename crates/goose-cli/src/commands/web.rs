@@ -137,7 +137,6 @@ pub async fn handle_web(
     // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
-    // Load config and create agent just like the CLI does
     let config = goose::config::Config::global();
 
     let provider_name: String = match config.get_param("GOOSE_PROVIDER") {
@@ -160,20 +159,14 @@ pub async fn handle_web(
 
     // Create the agent
     let agent = Agent::new();
-    let provider = goose::providers::create(&provider_name, model_config)?;
+    let provider = goose::providers::create(&provider_name, model_config).await?;
     agent.update_provider(provider).await?;
 
     // Load and enable extensions from config
-    let extensions = goose::config::ExtensionConfigManager::get_all()?;
-    for ext_config in extensions {
-        if ext_config.enabled {
-            if let Err(e) = agent.add_extension(ext_config.config.clone()).await {
-                eprintln!(
-                    "Warning: Failed to load extension {}: {}",
-                    ext_config.config.name(),
-                    e
-                );
-            }
+    let enabled_configs = goose::config::get_enabled_extensions();
+    for config in enabled_configs {
+        if let Err(e) = agent.add_extension(config.clone()).await {
+            eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
         }
     }
 
@@ -573,28 +566,6 @@ async fn process_message_streaming(
                                             .into(),
                                         ))
                                         .await;
-                                }
-                                MessageContent::ContextLengthExceeded(msg) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(
-                                                &WebSocketMessage::ContextExceeded {
-                                                    message: msg.msg.clone(),
-                                                },
-                                            )
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-
-                                    let (summarized_messages, _, _) =
-                                        agent.summarize_context(messages.messages()).await?;
-                                    SessionManager::replace_conversation(
-                                        &session_id,
-                                        &summarized_messages,
-                                    )
-                                    .await?;
                                 }
                                 _ => {}
                             }

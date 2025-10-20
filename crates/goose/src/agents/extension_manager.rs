@@ -32,7 +32,7 @@ use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use rmcp::model::{
@@ -576,6 +576,15 @@ impl ExtensionManager {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .map(|ext| ext.config.clone())
+            .collect()
+    }
+
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(
         &self,
@@ -1035,7 +1044,7 @@ impl ExtensionManager {
 
         // First get disabled extensions from current config
         let mut disabled_extensions: Vec<String> = vec![];
-        for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
+        for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
                 let description = match &config {

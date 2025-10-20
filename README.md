@@ -52,7 +52,7 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 > 
 > Because it always helps them "migrate" their code to production! 🚀
 
-# goose around with us
+# goose around with us  
 - [Discord](https://discord.gg/block-opensource)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)

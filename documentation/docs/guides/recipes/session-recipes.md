@@ -487,7 +487,7 @@ When someone clicks the link, it will open Goose Desktop with your recipe config
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
 
 - Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
-- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>`
+- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>` or open it directly in goose desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
 
 ## Schedule Recipe
 <Tabs groupId="interface">

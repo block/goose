@@ -1,6 +1,7 @@
 ---
 title: Google Drive Extension
 description: Add Google Drive MCP Server as a Goose Extension
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,6 +10,8 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/p9HGYbJk9wU" />
+
+Server archived 
 
 This tutorial covers how to add the [Google Drive MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
 

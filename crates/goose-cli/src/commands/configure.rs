@@ -8,13 +8,13 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::custom_providers::CustomProviderConfig;
-use goose::config::extensions::name_to_key;
-use goose::config::permission::PermissionLevel;
-use goose::config::{
-    Config, ConfigError, ExperimentManager, ExtensionConfigManager, ExtensionEntry,
-    PermissionManager,
+use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};
+use goose::config::extensions::{
+    get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
+    name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
+use goose::config::permission::PermissionLevel;
+use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, PermissionManager};
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, providers};
@@ -105,10 +105,10 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                         );
                         // Since we are setting up for the first time, we'll also enable the developer system
                         // This operation is best-effort and errors are ignored
-                        ExtensionConfigManager::set(ExtensionEntry {
+                        set_extension(ExtensionEntry {
                             enabled: true,
                             config: ExtensionConfig::default(),
-                        })?;
+                        });
                     }
                     Ok(false) => {
                         let _ = config.clear();
@@ -258,7 +258,7 @@ async fn handle_oauth_configuration(
 
     // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?;
-    match create(provider_name, temp_model) {
+    match create(provider_name, temp_model).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
                 let _ = cliclack::log::success("OAuth authentication completed successfully!");
@@ -420,12 +420,15 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let config = Config::global();
 
     // Get all available providers and their metadata
-    let available_providers = providers();
+    let mut available_providers = providers().await;
+
+    // Sort providers alphabetically by display name
+    available_providers.sort_by(|a, b| a.0.display_name.cmp(&b.0.display_name));
 
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
         .iter()
-        .map(|p| (&p.name, p.display_name.as_str(), p.description.as_str()))
+        .map(|(p, _)| (&p.name, p.display_name.as_str(), p.description.as_str()))
         .collect();
 
     // Get current default provider if it exists
@@ -439,9 +442,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .interact()?;
 
     // Get the selected provider's metadata
-    let provider_meta = available_providers
+    let (provider_meta, _) = available_providers
         .iter()
-        .find(|p| &p.name == provider_name)
+        .find(|(p, _)| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
     // Configure required provider keys
@@ -550,7 +553,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     spin.start("Attempting to fetch supported models...");
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
-        let temp_provider = create(provider_name, temp_model_config)?;
+        let temp_provider = create(provider_name, temp_model_config).await?;
         temp_provider.fetch_supported_models().await
     };
     spin.stop(style("Model fetch complete").green());
@@ -586,7 +589,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
 
-    let provider = create(provider_name, model_config)?;
+    let provider = create(provider_name, model_config).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
@@ -641,7 +644,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 /// Configure extensions that can be used with goose
 /// Dialog for toggling which extensions are enabled/disabled
 pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
-    let extensions = ExtensionConfigManager::get_all()?;
+    let extensions = get_all_extensions();
 
     if extensions.is_empty() {
         cliclack::outro(
@@ -682,10 +685,10 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
-        ExtensionConfigManager::set_enabled(
+        set_extension_enabled(
             &name_to_key(name),
             selected.iter().any(|s| s.as_str() == name),
-        )?;
+        );
     }
 
     cliclack::outro("Extension settings updated successfully")?;
@@ -768,7 +771,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
                 .unwrap_or_else(|| (extension.clone(), extension.clone()));
 
-            ExtensionConfigManager::set(ExtensionEntry {
+            set_extension(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
@@ -778,12 +781,12 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     available_tools: Vec::new(),
                 },
-            })?;
+            });
 
             cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
         }
         "stdio" => {
-            let extensions = ExtensionConfigManager::get_all_names()?;
+            let extensions = get_all_extension_names();
             let name: String = cliclack::input("What would you like to call this extension?")
                 .placeholder("my-extension")
                 .validate(move |input: &String| {
@@ -866,7 +869,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            ExtensionConfigManager::set(ExtensionEntry {
+            set_extension(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Stdio {
                     name: name.clone(),
@@ -879,12 +882,12 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            })?;
+            });
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
         "sse" => {
-            let extensions = ExtensionConfigManager::get_all_names()?;
+            let extensions = get_all_extension_names();
             let name: String = cliclack::input("What would you like to call this extension?")
                 .placeholder("my-remote-extension")
                 .validate(move |input: &String| {
@@ -962,7 +965,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            ExtensionConfigManager::set(ExtensionEntry {
+            set_extension(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Sse {
                     name: name.clone(),
@@ -974,12 +977,12 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            })?;
+            });
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
         "streamable_http" => {
-            let extensions = ExtensionConfigManager::get_all_names()?;
+            let extensions = get_all_extension_names();
             let name: String = cliclack::input("What would you like to call this extension?")
                 .placeholder("my-remote-extension")
                 .validate(move |input: &String| {
@@ -1082,7 +1085,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            ExtensionConfigManager::set(ExtensionEntry {
+            set_extension(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::StreamableHttp {
                     name: name.clone(),
@@ -1095,7 +1098,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            })?;
+            });
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
@@ -1106,7 +1109,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
-    let extensions = ExtensionConfigManager::get_all()?;
+    let extensions = get_all_extensions();
 
     // Create a list of extension names and their enabled status
     let mut extension_status: Vec<(String, bool)> = extensions
@@ -1151,7 +1154,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionConfigManager::remove(&name_to_key(name))?;
+        remove_extension(&name_to_key(name));
         let mut permission_manager = PermissionManager::default();
         permission_manager.remove_extension(&name_to_key(name));
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
@@ -1386,11 +1389,9 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
-    let mut extensions: Vec<String> = ExtensionConfigManager::get_all()
-        .unwrap_or_default()
+    let mut extensions: Vec<String> = get_enabled_extensions()
         .into_iter()
-        .filter(|ext| ext.enabled)
-        .map(|ext| ext.config.name().clone())
+        .map(|ext| ext.name().clone())
         .collect();
     extensions.push("platform".to_string());
 
@@ -1421,9 +1422,9 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Create the agent
     let agent = Agent::new();
-    let new_provider = create(&provider_name, model_config)?;
+    let new_provider = create(&provider_name, model_config).await?;
     agent.update_provider(new_provider).await?;
-    if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
+    if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())
             .await
@@ -1690,7 +1691,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                 }
             };
 
-            match create("openrouter", model_config) {
+            match create("openrouter", model_config).await {
                 Ok(provider) => {
                     // Simple test request
                     let test_result = provider
@@ -1706,13 +1707,13 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                             println!("✓ Configuration test passed!");
 
                             // Enable the developer extension by default if not already enabled
-                            let entries = ExtensionConfigManager::get_all()?;
+                            let entries = get_all_extensions();
                             let has_developer = entries
                                 .iter()
                                 .any(|e| e.config.name() == "developer" && e.enabled);
 
                             if !has_developer {
-                                match ExtensionConfigManager::set(ExtensionEntry {
+                                set_extension(ExtensionEntry {
                                     enabled: true,
                                     config: ExtensionConfig::Builtin {
                                         name: "developer".to_string(),
@@ -1724,12 +1725,8 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         description: "Developer extension".to_string(),
                                         available_tools: Vec::new(),
                                     },
-                                }) {
-                                    Ok(_) => println!("✓ Developer extension enabled"),
-                                    Err(e) => {
-                                        eprintln!("⚠️  Failed to enable developer extension: {}", e)
-                                    }
-                                }
+                                });
+                                println!("✓ Developer extension enabled");
                             }
 
                             cliclack::outro("OpenRouter setup complete! You can now use goose.")?;
@@ -1793,7 +1790,7 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                 }
             };
 
-            match create("tetrate", model_config) {
+            match create("tetrate", model_config).await {
                 Ok(provider) => {
                     // Simple test request
                     let test_result = provider
@@ -1809,13 +1806,13 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                             println!("✓ Configuration test passed!");
 
                             // Enable the developer extension by default if not already enabled
-                            let entries = ExtensionConfigManager::get_all()?;
+                            let entries = get_all_extensions();
                             let has_developer = entries
                                 .iter()
                                 .any(|e| e.config.name() == "developer" && e.enabled);
 
                             if !has_developer {
-                                match ExtensionConfigManager::set(ExtensionEntry {
+                                set_extension(ExtensionEntry {
                                     enabled: true,
                                     config: ExtensionConfig::Builtin {
                                         name: "developer".to_string(),
@@ -1827,12 +1824,8 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
                                         description: "Developer extension".to_string(),
                                         available_tools: Vec::new(),
                                     },
-                                }) {
-                                    Ok(_) => println!("✓ Developer extension enabled"),
-                                    Err(e) => {
-                                        eprintln!("⚠️  Failed to enable developer extension: {}", e)
-                                    }
-                                }
+                                });
+                                println!("✓ Developer extension enabled");
                             }
 
                             cliclack::outro("Tetrate Agent Router Service setup complete! You can now use goose.")?;
@@ -1925,7 +1918,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         .initial_value(true)
         .interact()?;
 
-    CustomProviderConfig::create_and_save(
+    create_custom_provider(
         provider_type,
         display_name.clone(),
         api_url,
@@ -1939,9 +1932,9 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
 }
 
 fn remove_provider() -> Result<(), Box<dyn Error>> {
-    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
+    let custom_providers_dir = goose::config::declarative_providers::custom_providers_dir();
     let custom_providers = if custom_providers_dir.exists() {
-        goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
+        goose::config::declarative_providers::load_custom_providers(&custom_providers_dir)?
     } else {
         Vec::new()
     };
@@ -1960,7 +1953,7 @@ fn remove_provider() -> Result<(), Box<dyn Error>> {
         .items(&provider_items)
         .interact()?;
 
-    CustomProviderConfig::remove(selected_id)?;
+    remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())
 }

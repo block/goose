@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
+import { createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { Conversation, Message, Role } from '../api';
+
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
@@ -32,6 +34,7 @@ type MessageEvent =
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -326,6 +329,11 @@ export function useMessageStream({
                     break;
                   }
 
+                  case 'UpdateConversation': {
+                    setMessages(parsedEvent.conversation);
+                    break;
+                  }
+
                   case 'Error': {
                     // Always throw the error so it gets caught and sets the error state
                     // This ensures the retry UI appears for ALL errors
@@ -382,6 +390,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
@@ -578,6 +587,7 @@ export function useMessageStream({
         id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
+        metadata: { userVisible: true, agentVisible: true },
         content: [
           {
             type: 'toolResponse' as const,
@@ -626,7 +636,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    session: session,
+    session,
     setError,
   };
 }

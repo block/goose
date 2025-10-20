@@ -2,11 +2,13 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
-use crate::config::custom_providers::CustomProviderConfig;
+use super::utils::{
+    get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
+};
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
@@ -30,9 +32,13 @@ use url::Url;
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600; // seconds
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
-pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
+pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 // Ollama can run many models, we only provide the default
-pub const OLLAMA_KNOWN_MODELS: &[&str] = &[OLLAMA_DEFAULT_MODEL];
+pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
+    OLLAMA_DEFAULT_MODEL,
+    "qwen3-coder:30b",
+    "qwen3-coder:480b-cloud",
+];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 
 #[derive(serde::Serialize)]
@@ -43,10 +49,8 @@ pub struct OllamaProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(OllamaProvider);
-
 impl OllamaProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OLLAMA_HOST")
@@ -91,7 +95,10 @@ impl OllamaProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
         // Parse and normalize the custom URL
@@ -208,7 +215,8 @@ impl Provider for OllamaProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -265,13 +273,14 @@ impl Provider for OllamaProvider {
         let model_config = self.model.clone();
 
         Ok(Box::pin(try_stream! {
+            let mut log = RequestLog::start(&model_config, &payload)?;
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| &f.usage))?;
                 yield (message, usage);
             }
         }))
