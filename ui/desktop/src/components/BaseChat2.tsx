@@ -94,7 +94,7 @@ function BaseChatContent({
       // todo: set to null instead and handle that in other places
       const emptyChat: ChatType = {
         sessionId: resumeSessionId,
-        title: 'Loading...',
+        name: 'Loading...',
         messageHistoryIndex: 0,
         messages: [],
         recipe: null,
@@ -107,7 +107,7 @@ function BaseChatContent({
           const conversation = session.conversation || [];
           const loadedChat: ChatType = {
             sessionId: session.id,
-            title: session.description || 'Untitled Chat',
+            name: session.name || 'Untitled Chat',
             messageHistoryIndex: 0,
             messages: conversation,
             recipe: null,

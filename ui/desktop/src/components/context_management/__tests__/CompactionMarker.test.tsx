@@ -10,7 +10,8 @@ const default_message: Message = {
   },
   id: '1',
   role: 'assistant',
-  created: 1000,content: []
+  created: 1000,
+  content: [],
 };
 
 describe('CompactionMarker', () => {

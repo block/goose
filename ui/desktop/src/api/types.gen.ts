@@ -675,11 +675,11 @@ export type Session = {
     accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
-    description: string;
     extension_data: ExtensionData;
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    name: string;
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
@@ -688,6 +688,7 @@ export type Session = {
     user_recipe_values?: {
         [key: string]: string;
     } | null;
+    user_set_name?: boolean;
     working_dir: string;
 };
 
@@ -869,11 +870,11 @@ export type UpdateScheduleRequest = {
     cron: string;
 };
 
-export type UpdateSessionDescriptionRequest = {
+export type UpdateSessionNameRequest = {
     /**
-     * Updated description (name) for the session (max 200 characters)
+     * Updated name for the session (max 200 characters)
      */
-    description: string;
+    name: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2318,44 +2319,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type UpdateSessionDescriptionData = {
-    body: UpdateSessionDescriptionRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/description';
-};
-
-export type UpdateSessionDescriptionErrors = {
-    /**
-     * Bad request - Description too long (max 200 characters)
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionDescriptionResponses = {
-    /**
-     * Session description updated successfully
-     */
-    200: unknown;
-};
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -2391,6 +2354,44 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type UpdateSessionNameData = {
+    body: UpdateSessionNameRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/name';
+};
+
+export type UpdateSessionNameErrors = {
+    /**
+     * Bad request - Name too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionNameResponses = {
+    /**
+     * Session name updated successfully
+     */
+    200: unknown;
+};
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;
