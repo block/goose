@@ -422,10 +422,6 @@ You can turn your current Goose session into a reusable recipe that includes the
   - The CLI can prompt users for required [extension secrets](/docs/guides/recipes/recipe-reference#extension-secrets)
   :::
 
-  :::tip Opening Recipes in Desktop
-  You can also open recipe files directly in goose desktop using `goose recipe open <file>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
-  :::
-
    </TabItem>
 </Tabs>
 
@@ -491,7 +487,7 @@ When someone clicks the link, it will open Goose Desktop with your recipe config
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
 
 - Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
-- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>`
+- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>` or open it directly in goose desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
 
 ## Schedule Recipe
 <Tabs groupId="interface">
