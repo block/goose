@@ -287,7 +287,7 @@ goose recipe deeplink my-recipe.yaml
 # Open a recipe in goose desktop
 goose recipe open my-recipe.yaml
 
-# Open a recipe by name (from configured recipe sources)
+# Open a recipe by name
 goose recipe open daily-standup
 
 # Get help about recipe commands
