@@ -156,26 +156,21 @@ export async function addToAgent(
   options: ToastServiceOptions = {},
   sessionId: string
 ): Promise<Response> {
-  // Create a copy to avoid mutating the original extension object
-  const extensionCopy: ExtensionConfig = { ...extension };
-
   try {
-    if (extensionCopy.type === 'stdio') {
-      extensionCopy.cmd = await replaceWithShims(extensionCopy.cmd);
+    if (extension.type === 'stdio') {
+      extension.cmd = await replaceWithShims(extension.cmd);
     }
 
-    extensionCopy.name = sanitizeName(extensionCopy.name);
+    extension.name = sanitizeName(extension.name);
 
-    return await extensionApiCall('/extensions/add', extensionCopy, options, sessionId);
+    return await extensionApiCall('/extensions/add', extension, options, sessionId);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error instanceof Error && error.message && error.message.includes('428')) {
       const enhancedError = new Error(
         'Failed to add extension. Goose Agent was still starting up. Please try again.'
       );
-      console.error(
-        `Failed to add extension ${extensionCopy.name} to agent: ${enhancedError.message}`
-      );
+      console.error(`Failed to add extension ${extension.name} to agent: ${enhancedError.message}`);
       throw enhancedError;
     }
     throw error;

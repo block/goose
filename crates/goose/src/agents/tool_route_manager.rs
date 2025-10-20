@@ -17,12 +17,6 @@ pub struct ToolRouteManager {
     router_disabled_override: Mutex<bool>,
 }
 
-impl Default for ToolRouteManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ToolRouteManager {
     pub fn new() -> Self {
         Self {
@@ -102,6 +96,9 @@ impl ToolRouteManager {
 
         // Wrap selector in Arc for the index manager methods
         let selector_arc = Arc::new(selector);
+
+        // First index platform tools
+        ToolRouterIndexManager::index_platform_tools(&selector_arc, extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;
