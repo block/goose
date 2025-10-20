@@ -19,7 +19,6 @@ import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { SystemNotificationInline } from './context_management/SystemNotificationInline';
-import { useContextManager } from './context_management/ContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -68,17 +67,10 @@ export default function ProgressiveMessageList({
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
-  // Try to use context manager, but don't require it for session history
-  let hasCompactionMarker: ((message: Message) => boolean) | undefined;
-
-  try {
-    const contextManager = useContextManager();
-    hasCompactionMarker = contextManager.hasCompactionMarker;
-  } catch {
-    // Context manager not available (e.g., in session history view)
-    // This is fine, we'll just skip compaction marker functionality
-    hasCompactionMarker = undefined;
-  }
+  // Helper to check if a message contains a system notification
+  const hasSystemNotification = (message: Message): boolean => {
+    return message.content.some((content) => content.type === 'systemNotification');
+  };
 
   // Simple progressive loading - start immediately when component mounts if needed
   useEffect(() => {
@@ -197,7 +189,7 @@ export default function ProgressiveMessageList({
           >
             {isUser ? (
               <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
+                {hasSystemNotification(message) ? (
                   <SystemNotificationInline message={message} />
                 ) : (
                   !hasOnlyToolResponses(message) && (
@@ -207,7 +199,7 @@ export default function ProgressiveMessageList({
               </>
             ) : (
               <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
+                {hasSystemNotification(message) ? (
                   <SystemNotificationInline message={message} />
                 ) : (
                   <GooseMessage
@@ -243,7 +235,6 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
-    hasCompactionMarker,
   ]);
 
   return (

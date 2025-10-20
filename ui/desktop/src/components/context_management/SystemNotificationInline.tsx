@@ -11,7 +11,9 @@ export const SystemNotificationInline: React.FC<SystemNotificationInlineProps> =
       content.type === 'systemNotification'
   );
 
-  const markerText = systemNotification?.msg || 'Conversation compacted';
+  if (!systemNotification?.msg) {
+    return null;
+  }
 
-  return <div className="text-xs text-gray-400 py-2 text-left">{markerText}</div>;
+  return <div className="text-xs text-gray-400 py-2 text-left">{systemNotification.msg}</div>;
 };

@@ -5,7 +5,6 @@ import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { View, ViewOptions } from '../utils/navigationUtils';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -56,9 +55,6 @@ function BaseChatContent({
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
-  // const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  // const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
-  // const { isCompacting, handleManualCompaction } = useContextManager();
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
 
@@ -227,8 +223,6 @@ function BaseChatContent({
   );
 
   const showPopularTopics = messages.length === 0;
-  // TODO(Douwe): get this from the backend
-  const isCompacting = false;
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
   return (
@@ -371,18 +365,9 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(messages.length === 0 || isCompacting) && !sessionLoadError && (
+          {messages.length === 0 && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  messages.length === 0
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
+              <LoadingGoose message={'loading conversation...'} chatState={chatState} />
             </div>
           )}
         </div>
@@ -455,9 +440,5 @@ function BaseChatContent({
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }

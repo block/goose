@@ -20,7 +20,6 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
@@ -114,7 +113,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   autoSubmit = false,
-  append,
+  append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -136,7 +135,6 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -520,9 +518,6 @@ export default function ChatInput({
 
     // Show alert when either there is registered token usage, or we know the limit
     if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
-      // in these conditions we want it to be present but disabled
-      const compactButtonDisabled = !numTokens || isCompacting;
-
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
@@ -531,12 +526,25 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled,
-        onCompact: () => {
-          // Hide the alert popup by dispatching a custom event that the popover can listen to
-          // Importantly, this leaves the alert so the dot still shows up, but hides the popover
+        compactButtonDisabled: !numTokens,
+        onCompact: async () => {
+          // Simple compact: just call the API endpoint and let the agent handle it
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append, sessionId || '');
+          try {
+            const { manageContext } = await import('../api');
+            const result = await manageContext({
+              body: {
+                messages: messages,
+                sessionId: sessionId || '',
+              },
+            });
+            // Update messages with the compacted version from the backend
+            if (result.data) {
+              setMessages(result.data.messages);
+            }
+          } catch (err) {
+            console.error('Manual compaction failed:', err);
+          }
         },
         compactIcon: <ScrollText size={12} />,
         autoCompactThreshold: autoCompactThreshold,
@@ -566,7 +574,6 @@ export default function ChatInput({
     tokenLimit,
     isTokenLimitLoaded,
     addAlert,
-    isCompacting,
     clearAlerts,
     autoCompactThreshold,
   ]);
@@ -937,7 +944,6 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
-    !isCompacting &&
     agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1094,7 +1100,6 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isCompacting &&
       agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1149,7 +1154,6 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isCompacting ||
     !agentIsReady ||
     isExtensionsLoading;
 
@@ -1394,17 +1398,15 @@ export default function ChatInput({
                 <p>
                   {isExtensionsLoading
                     ? 'Loading extensions...'
-                    : isCompacting
-                      ? 'Compacting conversation...'
-                      : isAnyImageLoading
-                        ? 'Waiting for images to save...'
-                        : isAnyDroppedFileLoading
-                          ? 'Processing dropped files...'
-                          : isRecording
-                            ? 'Recording...'
-                            : isTranscribing
-                              ? 'Transcribing...'
-                              : (chatContext?.agentWaitingMessage ?? 'Send')}
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>

@@ -28,7 +28,6 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ContextManagerProvider } from '../context_management/ContextManager';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Message, Session } from '../../api';
@@ -101,29 +100,27 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ContextManagerProvider>
-              <div className="max-w-4xl mx-auto w-full">
-                <SearchView>
-                  <ProgressiveMessageList
-                    messages={filteredMessages}
-                    chat={{
-                      sessionId: 'session-preview',
-                      messageHistoryIndex: filteredMessages.length,
-                    }}
-                    toolCallNotifications={new Map()}
-                    append={() => {}} // Read-only for session history
-                    appendMessage={(newMessage) => {
-                      // Read-only - do nothing
-                      console.log('appendMessage called in read-only session history:', newMessage);
-                    }}
-                    isUserMessage={isUserMessage} // Use the same function as BaseChat
-                    batchSize={15} // Same as BaseChat default
-                    batchDelay={30} // Same as BaseChat default
-                    showLoadingThreshold={30} // Same as BaseChat default
-                  />
-                </SearchView>
-              </div>
-            </ContextManagerProvider>
+            <div className="max-w-4xl mx-auto w-full">
+              <SearchView>
+                <ProgressiveMessageList
+                  messages={filteredMessages}
+                  chat={{
+                    sessionId: 'session-preview',
+                    messageHistoryIndex: filteredMessages.length,
+                  }}
+                  toolCallNotifications={new Map()}
+                  append={() => {}} // Read-only for session history
+                  appendMessage={(newMessage) => {
+                    // Read-only - do nothing
+                    console.log('appendMessage called in read-only session history:', newMessage);
+                  }}
+                  isUserMessage={isUserMessage} // Use the same function as BaseChat
+                  batchSize={15} // Same as BaseChat default
+                  batchDelay={30} // Same as BaseChat default
+                  showLoadingThreshold={30} // Same as BaseChat default
+                />
+              </SearchView>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />
