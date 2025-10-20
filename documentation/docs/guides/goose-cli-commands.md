@@ -497,7 +497,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
 
-The goose CLI theme is independent from the goose desktop theme.
+The Goose CLI theme is independent from the Goose Desktop theme.
 :::
 
 **Examples:**
