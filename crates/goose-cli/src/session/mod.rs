@@ -655,26 +655,11 @@ impl CliSession {
                         println!("{}", console::style("Summarizing conversation...").yellow());
                         output::show_thinking();
 
-                        // Get the provider for summarization
-                        let _provider = self.agent.provider().await?;
-
-                        // Get session metadata if available
-                        let session_metadata_for_compact =
-                            if let Some(ref session_id) = self.session_id {
-                                SessionManager::get_session(session_id, false).await.ok()
-                            } else {
-                                None
-                            };
-
-                        // Call the summarize_context method
-                        let (_, summarized_messages, _token_counts, summarization_usage) =
-                            goose::context_mgmt::check_and_compact_messages(
+                        let (summarized_messages, _token_counts, summarization_usage) =
+                            goose::context_mgmt::compact_messages(
                                 &self.agent,
-                                self.messages.messages(),
-                                true,
+                                &self.messages,
                                 false,
-                                None,
-                                session_metadata_for_compact.as_ref(),
                             )
                             .await?;
 
