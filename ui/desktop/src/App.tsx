@@ -28,6 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import { ChatStateProvider } from './contexts/ChatStateContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -78,7 +79,7 @@ const PairRouteWrapper = ({
   loadCurrentChat,
 }: {
   chat: ChatType;
-  setChat: (chat: ChatType) => void;
+  setChat: (chat: ChatType | ((prevChat: ChatType) => ChatType)) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   setAgentWaitingMessage: (msg: string | null) => void;
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
@@ -604,13 +605,15 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ChatStateProvider>
+      <DraftProvider>
+        <ModelAndProviderProvider>
+          <HashRouter>
+            <AppInner />
+          </HashRouter>
+          <AnnouncementModal />
+        </ModelAndProviderProvider>
+      </DraftProvider>
+    </ChatStateProvider>
   );
 }

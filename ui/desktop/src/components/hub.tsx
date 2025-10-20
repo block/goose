@@ -21,6 +21,10 @@ import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { startAgent } from '../api';
+import { useChatState } from '../contexts/ChatStateContext';
+import { createDebugLogger } from '../utils/debugLogger';
+
+const logger = createDebugLogger('Hub');
 
 export default function Hub({
   setView,
@@ -33,6 +37,8 @@ export default function Hub({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) {
+  const { setLastActiveSessionId } = useChatState();
+
   const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
@@ -46,6 +52,8 @@ export default function Hub({
           throwOnError: true,
         });
         const session = newAgent.data;
+        logger.newChat('Starting new chat from Hub, clearing last active session');
+        setLastActiveSessionId(null);
         setView('pair', {
           disableAnimation: true,
           initialMessage: combinedTextFromInput,
@@ -54,6 +62,8 @@ export default function Hub({
       } else {
         // Navigate to pair page with the message to be submitted
         // Pair will handle creating the new chat session
+        logger.newChat('Starting new chat from Hub, clearing last active session');
+        setLastActiveSessionId(null);
         resetChat();
         setView('pair', {
           disableAnimation: true,

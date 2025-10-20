@@ -23,9 +23,13 @@ import { scanRecipe } from '../recipe';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
+import { useChatState } from '../contexts/ChatStateContext';
+import { createDebugLogger } from '../utils/debugLogger';
+
+const logger = createDebugLogger('BaseChat2');
 
 interface BaseChatProps {
-  setChat: (chat: ChatType) => void;
+  setChat: (chat: ChatType | ((prevChat: ChatType) => ChatType)) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
@@ -37,6 +41,7 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
+  setChat,
   setIsGoosehintsModalOpen,
   renderHeader,
   customChatInputProps = {},
@@ -61,14 +66,38 @@ function BaseChatContent({
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
+  // Get chat state from context
+  const { getCachedSession, updateSessionCache, lastActiveSessionId, setLastActiveSessionId } =
+    useChatState();
+
+  // Resolve which session to use: explicit sessionId prop, or fallback to last active session
+  const [resolvedSessionId, setResolvedSessionId] = useState(sessionId);
+
+  useEffect(() => {
+    if (!sessionId && lastActiveSessionId) {
+      logger.tracking('No sessionId provided, loading last active session', lastActiveSessionId);
+      setResolvedSessionId(lastActiveSessionId);
+    } else if (sessionId) {
+      setResolvedSessionId(sessionId);
+    }
+  }, [sessionId, lastActiveSessionId]);
+
   const onStreamFinish = useCallback(() => {}, []);
 
-  const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
-    useChatStream({
-      sessionId,
-      onStreamFinish,
-      initialMessage,
-    });
+  const {
+    session,
+    messages,
+    chatState,
+    handleSubmit,
+    stopStreaming,
+    sessionLoadError,
+    loadedFromCache,
+  } = useChatStream({
+    sessionId: resolvedSessionId,
+    onStreamFinish,
+    initialMessage,
+    sessionCache: getCachedSession,
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -89,6 +118,37 @@ function BaseChatContent({
   });
 
   const recipe = session?.recipe;
+
+  // Update global session cache when session/messages change (but NOT when loaded from cache)
+  useEffect(() => {
+    // Only update cache if we got fresh data from the server, not from cache
+    if (session && resolvedSessionId && !loadedFromCache) {
+      updateSessionCache(resolvedSessionId, {
+        session,
+        messages,
+        cachedAt: Date.now(),
+      });
+    }
+  }, [resolvedSessionId, session, messages, loadedFromCache, updateSessionCache]);
+
+  // Track the last active session
+  useEffect(() => {
+    if (resolvedSessionId && session) {
+      logger.tracking('Setting last active session', resolvedSessionId);
+      setLastActiveSessionId(resolvedSessionId);
+    }
+  }, [resolvedSessionId, session, setLastActiveSessionId]);
+
+  // Update parent chat state when session/messages change
+  useEffect(() => {
+    setChat((prevChat) => ({
+      ...prevChat,
+      sessionId,
+      title: session?.description || 'No Session',
+      messages,
+      recipe,
+    }));
+  }, [sessionId, session, messages, recipe, setChat]);
 
   useEffect(() => {
     if (!recipe) return;

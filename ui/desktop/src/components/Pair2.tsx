@@ -4,7 +4,7 @@ import { ChatType } from '../types/chat';
 import BaseChat2 from './BaseChat2';
 
 interface PairProps {
-  setChat: (chat: ChatType) => void;
+  setChat: (chat: ChatType | ((prevChat: ChatType) => ChatType)) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   sessionId: string;
   initialMessage?: string;

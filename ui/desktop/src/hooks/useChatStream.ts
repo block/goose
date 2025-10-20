@@ -3,38 +3,24 @@ import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage } from '../types/message';
+import { CachedSession } from '../types/chat';
+import { createSessionLogger, createMessagesLogger } from '../utils/debugLogger';
 
 const TextDecoder = globalThis.TextDecoder;
 
-// Debug logging - set to false in production
-const DEBUG_CHAT_STREAM = true;
+// Create namespaced loggers
+const sessionLogger = createSessionLogger('useChatStream');
+const messagesLogger = createMessagesLogger('useChatStream');
 
+// Combine into a single log object for convenience
 const log = {
-  session: (action: string, sessionId: string, details?: Record<string, unknown>) => {
-    if (!DEBUG_CHAT_STREAM) return;
-    console.log(`[useChatStream:session] ${action}`, {
-      sessionId: sessionId.slice(0, 8),
-      ...details,
-    });
-  },
-  messages: (action: string, count: number, details?: Record<string, unknown>) => {
-    if (!DEBUG_CHAT_STREAM) return;
-    console.log(`[useChatStream:messages] ${action}`, {
-      count,
-      ...details,
-    });
-  },
-  stream: (action: string, details?: Record<string, unknown>) => {
-    if (!DEBUG_CHAT_STREAM) return;
-    console.log(`[useChatStream:stream] ${action}`, details);
-  },
+  session: sessionLogger.session,
+  messages: messagesLogger.messages,
+  stream: sessionLogger.stream,
   state: (newState: ChatState, details?: Record<string, unknown>) => {
-    if (!DEBUG_CHAT_STREAM) return;
-    console.log(`[useChatStream:state] → ${newState}`, details);
+    sessionLogger.state(`→ ${newState}`, details);
   },
-  error: (context: string, error: unknown) => {
-    console.error(`[useChatStream:error] ${context}`, error);
-  },
+  error: sessionLogger.error,
 };
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -63,6 +49,7 @@ interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
   initialMessage?: string;
+  sessionCache: (sessionId: string) => CachedSession | undefined;
 }
 
 interface UseChatStreamReturn {
@@ -72,6 +59,7 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  loadedFromCache: boolean; // Indicates if current data came from cache
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -210,17 +198,19 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
   initialMessage,
+  sessionCache,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const [loadedFromCache, setLoadedFromCache] = useState<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
-  console.log(`useChatStream render #${renderCountRef.current}, ${session?.id}`);
+  sessionLogger.log(`render #${renderCountRef.current}`, { sessionId: session?.id });
 
   const setMessagesAndLog = useCallback((newMessages: Message[], logContext: string) => {
     log.messages(logContext, newMessages.length, {
@@ -248,14 +238,54 @@ export function useChatStream({
 
     // Reset state when sessionId changes
     log.session('loading', sessionId);
-    setMessagesAndLog([], 'session-reset');
-    setSession(undefined);
     setSessionLoadError(undefined);
-    setChatState(ChatState.Thinking);
+
+    // Check cache first
+    const cachedData = sessionCache(sessionId);
+
+    // Enhanced cache debugging
+    sessionLogger.cacheCheck({
+      'Session ID': sessionId.slice(0, 8),
+      'Full Session ID': sessionId,
+      'Has Cached Data': !!cachedData,
+      Timestamp: new Date().toISOString(),
+    });
+
+    if (cachedData) {
+      const cacheAge = Date.now() - cachedData.cachedAt;
+      const cacheDetails = {
+        messageCount: cachedData.messages.length,
+        cachedAt: new Date(cachedData.cachedAt).toISOString(),
+        ageMs: cacheAge,
+        ageSec: (cacheAge / 1000).toFixed(2),
+        sessionDescription: cachedData.session.description,
+        lastMessageRole: cachedData.messages[cachedData.messages.length - 1]?.role,
+      };
+
+      sessionLogger.cacheHit(cacheDetails);
+      log.session('cache-hit', sessionId, cacheDetails);
+
+      // Immediately display cached data
+      setSession(cachedData.session);
+      setMessagesAndLog(cachedData.messages, 'load-from-cache');
+      setChatState(ChatState.Idle);
+      setLoadedFromCache(true); // Mark as loaded from cache
+      log.state(ChatState.Idle, { reason: 'loaded from cache' });
+
+      // Still load in background to ensure backend is ready and data is fresh
+      // but don't show loading state
+    } else {
+      sessionLogger.cacheMiss('Session not in cache or cache empty');
+
+      // No cache - show loading state
+      setMessagesAndLog([], 'session-reset');
+      setSession(undefined);
+      setChatState(ChatState.Thinking);
+      setLoadedFromCache(false); // Mark as NOT from cache
+      log.state(ChatState.Thinking, { reason: 'session load start' });
+    }
 
     let cancelled = false;
-
-    log.state(ChatState.Thinking, { reason: 'session load start' });
 
     (async () => {
       try {
@@ -272,10 +302,14 @@ export function useChatStream({
         log.session('loaded', sessionId, {
           messageCount: session?.conversation?.length || 0,
           description: session?.description,
+          fromCache: !!cachedData,
         });
 
-        setSession(session);
-        setMessagesAndLog(session?.conversation || [], 'load-session');
+        // Only update state if we didn't have cache (avoid overwriting fresh cache with same data)
+        if (!cachedData) {
+          setSession(session);
+          setMessagesAndLog(session?.conversation || [], 'load-session');
+        }
 
         log.state(ChatState.Idle, { reason: 'session load complete' });
         setChatState(ChatState.Idle);
@@ -293,7 +327,7 @@ export function useChatStream({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, setMessagesAndLog]);
+  }, [sessionId, sessionCache, setMessagesAndLog]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
@@ -373,5 +407,6 @@ export function useChatStream({
     chatState,
     handleSubmit,
     stopStreaming,
+    loadedFromCache,
   };
 }
