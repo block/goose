@@ -65,7 +65,8 @@ fn create_tasks_from_params(
             .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
 
         let recipe = build_recipe_from_template(
-            recipe_file,
+            recipe_file.content,
+            &recipe_file.parent_dir,
             task_command_param
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
