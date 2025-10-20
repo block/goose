@@ -331,9 +331,14 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
-        let name: String = row
-            .try_get("name")
-            .or_else(|_| row.try_get("description"))?;
+        let name: String = {
+            let name_val: String = row.try_get("name").unwrap_or_default();
+            if !name_val.is_empty() {
+                name_val
+            } else {
+                row.try_get("description").unwrap_or_default()
+            }
+        };
 
         let user_set_name = row.try_get("user_set_name").unwrap_or(false);
 
@@ -656,7 +661,7 @@ impl SessionStorage {
             4 => {
                 sqlx::query(
                     r#"
-                    ALTER TABLE sessions RENAME COLUMN description TO name
+                    ALTER TABLE sessions ADD COLUMN name TEXT DEFAULT ''
                 "#,
                 )
                 .execute(&self.pool)
