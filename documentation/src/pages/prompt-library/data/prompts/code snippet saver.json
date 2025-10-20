@@ -1,7 +1,7 @@
 {
   "id": "code-snippet-saver",
   "title": "Code Snippet Saver",
-  "description": "Save useful code snippets with descriptions so you can quickly recall and reuse them later across projects",
+  "description": "Save useful code snippets with descriptions and tags so you can quickly recall and reuse them later across projects",
   "category": "productivity",
   "job": "engineering",
   "example_prompt": "Save this retry logic snippet: async function retry(fn, retries=3) { for(let i=0; i<retries; i++) { try { return await fn(); } catch(e) { if(i===retries-1) throw e; } } }",
