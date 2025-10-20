@@ -13,78 +13,6 @@
     "version": "1.11.0"
   },
   "paths": {
-    "/agent/add_sub_recipes": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "add_sub_recipes",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddSubRecipesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Added sub recipes to agent successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddSubRecipesResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          }
-        }
-      }
-    },
-    "/agent/prompt": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "extend_prompt",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExtendPromptRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extended system prompt successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtendPromptResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          }
-        }
-      }
-    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -117,45 +45,6 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/agent/session_config": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "update_session_config",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SessionConfigRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session config updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
           },
           "500": {
             "description": "Internal server error"
@@ -265,6 +154,35 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_from_session": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_from_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFromSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Update agent from session data successfully"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
           }
         }
       }
@@ -1886,6 +1804,57 @@
         ]
       }
     },
+    "/sessions/{session_id}/description": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_description",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionDescriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session description updated successfully"
+          },
+          "400": {
+            "description": "Bad request - Description too long (max 200 characters)"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -1913,57 +1882,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/{session_id}/name": {
-      "put": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "update_session_name",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSessionNameRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session name updated successfully"
-          },
-          "400": {
-            "description": "Bad request - Name too long (max 200 characters)"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -2011,16 +1929,37 @@
         },
         "responses": {
           "200": {
-            "description": "Session user recipe values updated successfully"
+            "description": "Session user recipe values updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSessionUserRecipeValuesResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
           },
           "404": {
-            "description": "Session not found"
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2053,35 +1992,6 @@
   },
   "components": {
     "schemas": {
-      "AddSubRecipesRequest": {
-        "type": "object",
-        "required": [
-          "sub_recipes",
-          "session_id"
-        ],
-        "properties": {
-          "session_id": {
-            "type": "string"
-          },
-          "sub_recipes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SubRecipe"
-            }
-          }
-        }
-      },
-      "AddSubRecipesResponse": {
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          }
-        }
-      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -2523,32 +2433,6 @@
         "properties": {
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ExtendPromptRequest": {
-        "type": "object",
-        "required": [
-          "extension",
-          "session_id"
-        ],
-        "properties": {
-          "extension": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "ExtendPromptResponse": {
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
           }
         }
       },
@@ -4077,7 +3961,7 @@
         "required": [
           "id",
           "working_dir",
-          "name",
+          "description",
           "created_at",
           "updated_at",
           "extension_data",
@@ -4111,6 +3995,9 @@
             "type": "string",
             "format": "date-time"
           },
+          "description": {
+            "type": "string"
+          },
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
           },
@@ -4125,9 +4012,6 @@
           "message_count": {
             "type": "integer",
             "minimum": 0
-          },
-          "name": {
-            "type": "string"
           },
           "output_tokens": {
             "type": "integer",
@@ -4162,29 +4046,7 @@
             },
             "nullable": true
           },
-          "user_set_name": {
-            "type": "boolean"
-          },
           "working_dir": {
-            "type": "string"
-          }
-        }
-      },
-      "SessionConfigRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "response": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Response"
-              }
-            ],
-            "nullable": true
-          },
-          "session_id": {
             "type": "string"
           }
         }
@@ -4647,6 +4509,17 @@
           }
         }
       },
+      "UpdateFromSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateProviderRequest": {
         "type": "object",
         "required": [
@@ -4688,15 +4561,15 @@
           }
         }
       },
-      "UpdateSessionNameRequest": {
+      "UpdateSessionDescriptionRequest": {
         "type": "object",
         "required": [
-          "name"
+          "description"
         ],
         "properties": {
-          "name": {
+          "description": {
             "type": "string",
-            "description": "Updated name for the session (max 200 characters)"
+            "description": "Updated description (name) for the session (max 200 characters)"
           }
         }
       },
@@ -4712,6 +4585,17 @@
             "additionalProperties": {
               "type": "string"
             }
+          }
+        }
+      },
+      "UpdateSessionUserRecipeValuesResponse": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },

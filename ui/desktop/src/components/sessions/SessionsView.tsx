@@ -70,14 +70,13 @@ const SessionsView: React.FC = () => {
         selectedSession || {
           id: initialSessionId || '',
           conversation: [],
-          name: 'Loading...',
+          description: 'Loading...',
           working_dir: '',
           message_count: 0,
           total_tokens: 0,
           created_at: '',
           updated_at: '',
           extension_data: {},
-          user_set_name: false,
         }
       }
       isLoading={isLoadingSession}
