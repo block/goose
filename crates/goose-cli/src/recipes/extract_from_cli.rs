@@ -240,7 +240,7 @@ settings:
   temperature: 0.7
 sub_recipes:
 - path: existing_sub_recipe.yaml
-  name: existing_sub_recipe        
+  name: existing_sub_recipe
 response:
   json_schema:
     type: object
@@ -248,10 +248,18 @@ response:
       result:
         type: string
 "#;
+        let sub_recipe_content = r#"
+title: existing_sub_recipe
+description: An existing sub recipe
+instructions: sub recipe instructions
+prompt: sub recipe prompt
+"#;
         let temp_dir = tempfile::tempdir().unwrap();
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+        let sub_recipe_path: std::path::PathBuf = temp_dir.path().join("existing_sub_recipe.yaml");
 
         std::fs::write(&recipe_path, test_recipe_content).unwrap();
+        std::fs::write(&sub_recipe_path, sub_recipe_content).unwrap();
         let canonical_recipe_path = recipe_path.canonicalize().unwrap();
         (temp_dir, canonical_recipe_path)
     }
