@@ -80,6 +80,19 @@
       "submittedDate": "2025-10-16",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Deep Dive into goose's Extension System and Model Context Protocol (MCP)",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/deep-dive-into-gooses-extension-system-and-model-context-protocol-mcp-3ehl",
+      "thumbnail": "https://i.imgur.com/uim8eHi.png",
+      "submittedDate": "2025-10-21",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
