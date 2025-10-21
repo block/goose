@@ -86,8 +86,15 @@ export default function TunnelSection() {
   const getQRCodeData = () => {
     if (!tunnelStatus.info) return '';
 
+    // Use the actual tunnel URL (works for both Tailscale and Lapstone)
+    // For Tailscale: uses ipv4 if available, otherwise falls back to url
+    // For Lapstone: always uses the public Cloudflare URL
+    const tunnelUrl = tunnelStatus.info.ipv4
+      ? `http://${tunnelStatus.info.ipv4}:${tunnelStatus.info.port}`
+      : tunnelStatus.info.url;
+
     const configJson = JSON.stringify({
-      url: `http://${tunnelStatus.info.ipv4}`,
+      url: tunnelUrl,
       secret: tunnelStatus.info.secret,
     });
     const urlEncodedConfig = encodeURIComponent(configJson);

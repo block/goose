@@ -10,6 +10,10 @@ import { loadSettings, saveSettings } from './settings';
 import { getBinaryPath } from './pathUtils';
 import { findAvailablePort, checkServerStatus } from '../goosed';
 import { createClient, createConfig } from '../api/client';
+import { startLapstoneTunnel, stopLapstoneTunnel } from './lapstone-tunnel';
+
+// Tunnel mode configuration - set to true to use Lapstone (default), false for Tailscale
+const USE_LAPSTONE_TUNNEL = process.env.GOOSE_USE_TAILSCALE !== 'true';
 
 export interface TunnelInfo {
   url: string;
@@ -199,7 +203,21 @@ export async function startTunnel(): Promise<TunnelInfo> {
       throw new Error('Goosed server failed to start in time');
     }
 
-    log.info('Goosed is ready, starting Tailscale tunnel...');
+    log.info(
+      `Goosed is ready, starting tunnel (mode: ${USE_LAPSTONE_TUNNEL ? 'Lapstone' : 'Tailscale'})...`
+    );
+
+    // Choose tunnel implementation based on mode
+    if (USE_LAPSTONE_TUNNEL) {
+      // Use Lapstone tunnel (default)
+      currentTunnelInfo = startLapstoneTunnel(port, secret, goosedProcess.pid || 0);
+      currentState = 'running';
+      log.info('Lapstone tunnel started successfully:', currentTunnelInfo);
+      return currentTunnelInfo;
+    }
+
+    // Use Tailscale tunnel
+    log.info('Starting Tailscale tunnel...');
 
     // Create temp output file path
     const timestamp = Date.now();
@@ -264,6 +282,9 @@ export async function startTunnel(): Promise<TunnelInfo> {
 }
 
 export function stopTunnel(): void {
+  // Stop Lapstone tunnel if active
+  stopLapstoneTunnel();
+
   // Stop the tailscale tunnel process
   if (tunnelProcess) {
     log.info('Stopping tunnel process');

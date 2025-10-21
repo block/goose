@@ -17,6 +17,7 @@ export interface Settings {
   schedulingEngine: SchedulingEngine;
   enableWakelock: boolean;
   tunnelSecret?: string;
+  tunnelAgentId?: string;
 }
 
 // Constants
