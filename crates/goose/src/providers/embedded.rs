@@ -451,6 +451,40 @@ pub struct EmbeddedProvider {
 }
 
 impl EmbeddedProvider {
+    /// Enumerate available GGUF models in ~/.models directory
+    /// This is a static method that doesn't require a provider instance
+    pub fn enumerate_models() -> Result<Vec<String>> {
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let models_dir = home_dir.join(".models");
+
+        if !models_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let entries = std::fs::read_dir(&models_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to read models directory: {}", e))?;
+
+        let mut models = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "gguf" {
+                        if let Some(file_stem) = path.file_stem() {
+                            if let Some(model_name) = file_stem.to_str() {
+                                models.push(model_name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        models.sort();
+        Ok(models)
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -469,9 +503,32 @@ impl EmbeddedProvider {
                 .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
             let models_dir = home_dir.join(".models");
 
-            // If model_name already ends with .gguf, use it directly
-            // Otherwise, try to find a matching file
-            let model_file = if model_name.ends_with(".gguf") {
+            // Special case: if model_name is "embedded" (the default),
+            // just pick the first available .gguf file
+            let model_file = if model_name == "embedded" {
+                // Find the first .gguf file in the directory
+                if let Ok(entries) = std::fs::read_dir(&models_dir) {
+                    let first_gguf = entries
+                        .flatten()
+                        .map(|e| e.path())
+                        .find(|p| p.is_file() && p.extension().is_some_and(|ext| ext == "gguf"));
+
+                    if let Some(gguf_path) = first_gguf {
+                        tracing::info!("Using first available GGUF model: {:?}", gguf_path);
+                        gguf_path
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "No GGUF models found in ~/.models/\nPlease add GGUF files to ~/.models/"
+                        ));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Could not read models directory: {:?}",
+                        models_dir
+                    ));
+                }
+            } else if model_name.ends_with(".gguf") {
+                // If model_name already ends with .gguf, use it directly
                 models_dir.join(model_name)
             } else {
                 // Try with .gguf extension
@@ -484,12 +541,50 @@ impl EmbeddedProvider {
                 }
             };
 
-            // Verify the file exists
+            // Verify the file exists (but provide helpful error message)
             if !model_file.exists() {
-                return Err(anyhow::anyhow!(
-                    "Model file not found: {}. Please ensure the GGUF file exists in ~/.models/ or set EMBEDDED_MODEL_PATH",
-                    model_file.display()
-                ));
+                // Get list of available models for the error message
+                let available_models = if models_dir.exists() {
+                    std::fs::read_dir(&models_dir).ok().and_then(|entries| {
+                        let models: Vec<String> = entries
+                            .flatten()
+                            .filter_map(|e| {
+                                let path = e.path();
+                                if path.is_file()
+                                    && path.extension().is_some_and(|ext| ext == "gguf")
+                                {
+                                    path.file_stem()
+                                        .and_then(|s| s.to_str())
+                                        .map(|s| s.to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        if models.is_empty() {
+                            None
+                        } else {
+                            Some(models)
+                        }
+                    })
+                } else {
+                    None
+                };
+
+                let error_msg = if let Some(models) = available_models {
+                    format!(
+                        "Model file not found: {}.\n\nAvailable models in ~/.models:\n  {}\n\nPlease use one of the available models or add your GGUF file to ~/.models/",
+                        model_file.display(),
+                        models.join("\n  ")
+                    )
+                } else {
+                    format!(
+                        "Model file not found: {}.\n\nNo GGUF models found in ~/.models/\nPlease add GGUF files to ~/.models/ or set EMBEDDED_MODEL_PATH",
+                        model_file.display()
+                    )
+                };
+
+                return Err(anyhow::anyhow!(error_msg));
             }
 
             model_file.to_string_lossy().to_string()
@@ -926,13 +1021,76 @@ impl Provider for EmbeddedProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        // Get the models directory (~/.models)
+        let home_dir = match dirs::home_dir() {
+            Some(dir) => dir,
+            None => {
+                tracing::warn!("Could not determine home directory for model enumeration");
+                return Ok(None);
+            }
+        };
+
+        let models_dir = home_dir.join(".models");
+
+        // Check if directory exists
+        if !models_dir.exists() {
+            tracing::debug!("Models directory {:?} does not exist", models_dir);
+            return Ok(None);
+        }
+
+        // Scan for .gguf files
+        let entries = match std::fs::read_dir(&models_dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                tracing::warn!("Failed to read models directory {:?}: {}", models_dir, e);
+                return Ok(None);
+            }
+        };
+
+        let mut models = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            // Only include files with .gguf extension
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "gguf" {
+                        // Get the file name without extension
+                        if let Some(file_stem) = path.file_stem() {
+                            if let Some(model_name) = file_stem.to_str() {
+                                models.push(model_name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort for consistent ordering
+        models.sort();
+
+        if models.is_empty() {
+            tracing::debug!("No GGUF models found in {:?}", models_dir);
+            Ok(None)
+        } else {
+            tracing::info!(
+                "Found {} GGUF model(s) in {:?}: {:?}",
+                models.len(),
+                models_dir,
+                models
+            );
+            Ok(Some(models))
+        }
+    }
+
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -982,7 +1140,6 @@ impl Provider for EmbeddedProvider {
             });
 
             let response_model = get_model(&response);
-            super::utils::emit_debug_trace(model_config, &emulation_payload, &response, &usage);
             Ok((augmented_message, ProviderUsage::new(response_model, usage)))
         } else {
             // Use native tool calling (current path)
@@ -1009,7 +1166,6 @@ impl Provider for EmbeddedProvider {
             });
 
             let response_model = get_model(&response);
-            super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
             Ok((message, ProviderUsage::new(response_model, usage)))
         }
     }
@@ -1062,7 +1218,6 @@ impl Provider for EmbeddedProvider {
             .await?;
         let response = handle_status_openai_compat(response).await?;
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let model_config = self.model.clone();
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
@@ -1079,15 +1234,11 @@ impl Provider for EmbeddedProvider {
                 if use_emulation {
                     // In emulation mode, collect text for tool execution later
                     if let Some(ref msg) = message {
-                        super::utils::emit_debug_trace(&model_config, &payload, msg, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                         collected_text.push_str(&msg.as_concat_text());
                     }
                     last_usage = usage;
                 } else {
                     // In native mode, yield directly
-                    if let Some(ref msg) = message {
-                        super::utils::emit_debug_trace(&model_config, &payload, msg, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
-                    }
                     yield (message, usage);
                 }
             }
