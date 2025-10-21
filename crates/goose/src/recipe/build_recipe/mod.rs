@@ -15,8 +15,13 @@ pub enum RecipeError {
     MissingParams { parameters: Vec<String> },
     #[error("Template rendering failed: {source}")]
     TemplateRendering { source: anyhow::Error },
-    #[error("Recipe parsing failed: {source}")]
-    RecipeParsing { source: anyhow::Error },
+    #[error("Recipe parsing failed: {source}\n\nRaw recipe content:\n{content}")]
+    RecipeParsing {
+        source: anyhow::Error,
+        content: String,
+    },
+    #[error("Unknown sub-recipe path: {path}")]
+    UnknownSubRecipePath { path: String },
 }
 
 fn render_recipe_template<F>(
@@ -65,8 +70,11 @@ where
         });
     }
 
-    let mut recipe = Recipe::from_content(&rendered_content)
-        .map_err(|source| RecipeError::RecipeParsing { source })?;
+    let mut recipe =
+        Recipe::from_content(&rendered_content).map_err(|source| RecipeError::RecipeParsing {
+            source,
+            content: rendered_content.clone(),
+        })?;
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
@@ -127,8 +135,8 @@ fn resolve_sub_recipe_path(
         parent_recipe_dir
             .join(sub_recipe_path)
             .to_str()
-            .ok_or_else(|| RecipeError::RecipeParsing {
-                source: anyhow::anyhow!("Invalid sub-recipe path: {}", sub_recipe_path),
+            .ok_or_else(|| RecipeError::UnknownSubRecipePath {
+                path: sub_recipe_path.to_string(),
             })?
             .to_string()
     };
