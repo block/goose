@@ -25,7 +25,8 @@ impl PromptManager {
             system_prompt_override: None,
             system_prompt_extras: Vec::new(),
             // Use the fixed current date time so that prompt cache can be used.
-            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
+            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
         }
     }
 
@@ -58,6 +59,8 @@ impl PromptManager {
                 false,
             ));
         }
+        // Stable tool ordering is important for multi session prompt caching.
+        extensions_info.sort_by(|a, b| a.name.cmp(&b.name));
 
         let sanitized_extensions_info: Vec<ExtensionInfo> = extensions_info
             .into_iter()
