@@ -4,6 +4,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
+use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 
@@ -190,8 +191,12 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = crate::config::Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or(GooseMode::Auto);
+        let filtered_tools = if goose_mode == GooseMode::Chat {
+            &[]
+        } else {
+            tools
+        };
 
         let payload = create_request(
             &self.model,

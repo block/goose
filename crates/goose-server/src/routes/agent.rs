@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::config::PermissionManager;
+use goose::config::{GooseMode, PermissionManager};
 
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -262,7 +262,7 @@ async fn get_tools(
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
-    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or(GooseMode::Auto);
     let agent = state.get_agent_for_route(query.session_id).await?;
     let permission_manager = PermissionManager::default();
 
@@ -273,14 +273,12 @@ async fn get_tools(
         .map(|tool| {
             let permission = permission_manager
                 .get_user_permission(&tool.name)
-                .or_else(|| {
-                    if goose_mode == "smart_approve" {
+                .or_else(|| match goose_mode {
+                    GooseMode::SmartApprove => {
                         permission_manager.get_smart_approve_permission(&tool.name)
-                    } else if goose_mode == "approve" {
-                        Some(PermissionLevel::AskBefore)
-                    } else {
-                        None
                     }
+                    GooseMode::Approve => Some(PermissionLevel::AskBefore),
+                    _ => None,
                 });
 
             ToolInfo::new(

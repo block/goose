@@ -14,7 +14,9 @@ use goose::config::extensions::{
     name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
 use goose::config::permission::PermissionLevel;
-use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, PermissionManager};
+use goose::config::{
+    Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode, PermissionManager,
+};
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, providers};
@@ -1244,45 +1246,41 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 
     let mode = cliclack::select("Which goose mode would you like to configure?")
         .item(
-            "auto",
+            GooseMode::Auto,
             "Auto Mode",
             "Full file modification, extension usage, edit, create and delete files freely"
         )
         .item(
-            "approve",
+            GooseMode::Approve,
             "Approve Mode",
             "All tools, extensions and file modifications will require human approval"
         )
         .item(
-            "smart_approve",
+            GooseMode::SmartApprove,
             "Smart Approve Mode",
             "Editing, creating, deleting files and using extensions will require human approval"
         )
         .item(
-            "chat",
+            GooseMode::Chat,
             "Chat Mode",
             "Engage with the selected provider without using tools, extensions, or file modification"
         )
         .interact()?;
 
+    config.set_param("GOOSE_MODE", mode)?;
     match mode {
-        "auto" => {
-            config.set_param("GOOSE_MODE", Value::String("auto".to_string()))?;
+        GooseMode::Auto => {
             cliclack::outro("Set to Auto Mode - full file modification enabled")?;
         }
-        "approve" => {
-            config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
+        GooseMode::Approve => {
             cliclack::outro("Set to Approve Mode - all tools and modifications require approval")?;
         }
-        "smart_approve" => {
-            config.set_param("GOOSE_MODE", Value::String("smart_approve".to_string()))?;
+        GooseMode::SmartApprove => {
             cliclack::outro("Set to Smart Approve Mode - modifications require approval")?;
         }
-        "chat" => {
-            config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
+        GooseMode::Chat => {
             cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
         }
-        _ => unreachable!(),
     };
     Ok(())
 }

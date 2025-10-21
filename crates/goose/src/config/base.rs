@@ -2,7 +2,7 @@ use crate::config::paths::Paths;
 use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::OnceCell;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
@@ -596,7 +596,10 @@ impl Config {
     /// Returns a ConfigError if:
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
-    pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+    pub fn set_param<V>(&self, key: &str, value: V) -> Result<(), ConfigError>
+    where
+        V: Serialize,
+    {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
 
@@ -604,7 +607,7 @@ impl Config {
         let mut values = self.load_values()?;
 
         // Modify values
-        values.insert(key.to_string(), value);
+        values.insert(key.to_string(), serde_json::to_value(value)?);
 
         // Save all values using the atomic write approach
         self.save_values(values)

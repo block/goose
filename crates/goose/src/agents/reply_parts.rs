@@ -6,6 +6,7 @@ use futures::stream::StreamExt;
 use tracing::debug;
 
 use super::super::agents::Agent;
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -41,7 +42,8 @@ impl Agent {
         let mut tools = self.list_tools_for_router().await;
 
         let config = crate::config::Config::global();
-        let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
+        let is_autonomous =
+            config.get_param("GOOSE_MODE").unwrap_or(GooseMode::Auto) == GooseMode::Auto;
 
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {

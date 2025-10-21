@@ -1,9 +1,11 @@
 use chrono::Utc;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tools::llm_search_tool_prompt;
+use crate::config::GooseMode;
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
 
@@ -17,6 +19,16 @@ impl Default for PromptManager {
     fn default() -> Self {
         PromptManager::new()
     }
+}
+
+#[derive(Serialize)]
+struct SystemPromptContext {
+    extensions: Vec<ExtensionInfo>,
+    tool_selection_strategy: Option<String>,
+    current_date_time: String,
+    suggest_disable: String,
+    goose_mode: GooseMode,
+    is_autonomous: bool,
 }
 
 impl PromptManager {
@@ -70,7 +82,6 @@ impl PromptManager {
         model_name: Option<&str>,
         router_enabled: bool,
     ) -> String {
-        let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
 
         // Add frontend instructions to extensions_info to simplify json rendering
@@ -90,38 +101,21 @@ impl PromptManager {
             })
             .collect();
 
-        context.insert(
-            "extensions",
-            serde_json::to_value(sanitized_extensions_info).unwrap(),
-        );
-
-        if router_enabled {
-            context.insert(
-                "tool_selection_strategy",
-                Value::String(llm_search_tool_prompt()),
-            );
-        }
-
-        context.insert(
-            "current_date_time",
-            Value::String(self.current_date_timestamp.clone()),
-        );
-
-        // Add the suggestion about disabling extensions if flag is true
-        context.insert(
-            "suggest_disable",
-            Value::String(suggest_disable_extensions_prompt.to_string()),
-        );
-
-        // Add the mode to the context for conditional rendering
         let config = Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        context.insert("goose_mode", Value::String(goose_mode.clone()));
-        context.insert("is_autonomous", Value::Bool(goose_mode == "auto"));
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or(GooseMode::Auto);
 
         // First check the global store, and only if it's not available, fall back to the provided model_name
         let model_to_use: Option<String> =
             get_current_model().or_else(|| model_name.map(|s| s.to_string()));
+
+        let context = SystemPromptContext {
+            extensions: sanitized_extensions_info,
+            tool_selection_strategy: router_enabled.then(llm_search_tool_prompt),
+            current_date_time: self.current_date_timestamp.clone(),
+            suggest_disable: suggest_disable_extensions_prompt.to_string(),
+            goose_mode,
+            is_autonomous: goose_mode == GooseMode::Auto,
+        };
 
         // Conditionally load the override prompt or the global system prompt
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
@@ -145,7 +139,7 @@ impl PromptManager {
         };
 
         let mut system_prompt_extras = self.system_prompt_extras.clone();
-        if goose_mode == "chat" {
+        if goose_mode == GooseMode::Chat {
             system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),

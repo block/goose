@@ -1,6 +1,6 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
+use crate::config::{GooseMode, PermissionManager};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
-    mode: Arc<Mutex<String>>,
+    mode: Arc<Mutex<GooseMode>>,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
     pub permission_manager: Arc<Mutex<PermissionManager>>,
@@ -20,7 +20,7 @@ pub struct PermissionInspector {
 
 impl PermissionInspector {
     pub fn new(
-        mode: String,
+        mode: GooseMode,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
     ) -> Self {
@@ -33,7 +33,7 @@ impl PermissionInspector {
     }
 
     pub fn with_permission_manager(
-        mode: String,
+        mode: GooseMode,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
         permission_manager: Arc<Mutex<PermissionManager>>,
@@ -47,7 +47,7 @@ impl PermissionInspector {
     }
 
     /// Update the mode of this permission inspector
-    pub async fn update_mode(&self, new_mode: String) {
+    pub async fn update_mode(&self, new_mode: GooseMode) {
         let mut mode = self.mode.lock().await;
         *mode = new_mode;
     }
@@ -140,10 +140,10 @@ impl ToolInspector for PermissionInspector {
                 let tool_name = &tool_call.name;
 
                 // Handle different modes
-                let action = if *mode == "chat" {
+                let action = if *mode == GooseMode::Chat {
                     // In chat mode, all tools are skipped (handled elsewhere)
                     continue;
-                } else if *mode == "auto" {
+                } else if *mode == GooseMode::Auto {
                     // In auto mode, all tools are approved
                     InspectionAction::Allow
                 } else {
@@ -177,7 +177,7 @@ impl ToolInspector for PermissionInspector {
 
                 let reason = match &action {
                     InspectionAction::Allow => {
-                        if *mode == "auto" {
+                        if *mode == GooseMode::Auto {
                             "Auto mode - all tools approved".to_string()
                         } else if self.readonly_tools.contains(tool_name.as_ref()) {
                             "Tool marked as read-only".to_string()
