@@ -49,7 +49,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Role,
     ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -910,7 +910,6 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Check if this is a manual compaction request
         let is_manual_compact = unfixed_conversation.messages().last().map_or(false, |msg| {
             msg.content.iter().any(|c| {
                 if let MessageContent::Text(text) = c {
@@ -921,9 +920,7 @@ impl Agent {
             })
         });
 
-        let compaction_inline_msg = if is_manual_compact {
-            None // Manual compact doesn't need inline message, goes straight to thinking
-        } else {
+        if !is_manual_compact {
             let session_metadata = if let Some(session_config) = &session {
                 SessionManager::get_session(&session_config.id, false)
                     .await
@@ -945,57 +942,23 @@ impl Agent {
                     .reply_internal(unfixed_conversation, session, cancel_token)
                     .await;
             }
+        }
 
-            let config = crate::config::Config::global();
-            let threshold = config
-                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-            let threshold_percentage = (threshold * 100.0) as u32;
-
-            let compaction_msg = format!(
-                "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                threshold_percentage
-            );
-
-            Some(compaction_msg)
-        };
-
-        // Prepare conversation for compaction
-        let conversation_to_compact = if is_manual_compact {
-            let filtered_messages: Vec<Message> = unfixed_conversation
-                .messages()
-                .iter()
-                .filter_map(|msg| {
-                    let filtered_content: Vec<MessageContent> = msg
-                        .content
-                        .iter()
-                        .filter(|c| {
-                            if let MessageContent::Text(text) = c {
-                                text.text.trim() != "/compact"
-                            } else {
-                                true
-                            }
-                        })
-                        .cloned()
-                        .collect();
-
-                    if filtered_content.is_empty() {
-                        None
-                    } else {
-                        let mut filtered_msg = msg.clone();
-                        filtered_msg.content = filtered_content;
-                        Some(filtered_msg)
-                    }
-                })
-                .collect();
-            Conversation::new_unvalidated(filtered_messages)
-        } else {
-            unfixed_conversation
-        };
+        let conversation_to_compact = unfixed_conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            // Send optional inline message (for auto-compact)
-            if let Some(inline_msg) = compaction_inline_msg {
+            if !is_manual_compact {
+                let config = crate::config::Config::global();
+                let threshold = config
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                let threshold_percentage = (threshold * 100.0) as u32;
+
+                let inline_msg = format!(
+                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                    threshold_percentage
+                );
+
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
                         SystemNotificationType::InlineMessage,
@@ -1004,7 +967,6 @@ impl Agent {
                 );
             }
 
-            // Send thinking message
             yield AgentEvent::Message(
                 Message::assistant().with_system_notification(
                     SystemNotificationType::ThinkingMessage,
@@ -1012,26 +974,22 @@ impl Agent {
                 )
             );
 
-            // Perform compaction
             match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
                 Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
-                    // Save to session
                     if let Some(session_to_store) = &session {
                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
                     }
 
-                    // Yield history replaced
                     yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
-                    // Continue with reply for auto-compact, or send completion for manual-compact
-                    if is_manual_compact {
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::InlineMessage,
-                                "Compaction complete",
-                            )
-                        );
-                    } else {
+                    yield AgentEvent::Message(
+                        Message::assistant().with_system_notification(
+                            SystemNotificationType::InlineMessage,
+                            "Compaction complete",
+                        )
+                    );
+
+                    if !is_manual_compact {
                         let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
                         while let Some(event) = reply_stream.next().await {
                             yield event?;
