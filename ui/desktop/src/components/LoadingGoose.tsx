@@ -6,13 +6,24 @@ import { ChatState } from '../types/chatState';
 interface LoadingGooseProps {
   message?: string;
   chatState?: ChatState;
+  isCompacting?: boolean;
+  isLoadingConversation?: boolean;
 }
 
-const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps) => {
+const LoadingGoose = ({
+  message,
+  chatState = ChatState.Idle,
+  isCompacting = false,
+  isLoadingConversation = false,
+}: LoadingGooseProps) => {
   // Determine the appropriate message based on state
   const getLoadingMessage = () => {
     if (message) return message; // Custom message takes priority
 
+    if (isCompacting) return 'goose is compacting the conversation...';
+    if (isLoadingConversation && chatState === ChatState.Thinking) {
+      return 'loading conversation...';
+    }
     if (chatState === ChatState.Thinking) return 'goose is thinking…';
     if (chatState === ChatState.Streaming) return 'goose is working on it…';
     if (chatState === ChatState.WaitingForUserInput) return 'goose is waiting…';

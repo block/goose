@@ -63,12 +63,19 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
-    useChatStream({
-      sessionId,
-      onStreamFinish,
-      initialMessage,
-    });
+  const {
+    session,
+    messages,
+    chatState,
+    handleSubmit,
+    stopStreaming,
+    sessionLoadError,
+    isCompacting,
+  } = useChatStream({
+    sessionId,
+    onStreamFinish,
+    initialMessage,
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -168,8 +175,6 @@ function BaseChatContent({
 
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
-  // TODO(Douwe): get this from the backend
-  const isCompacting = false;
 
   const chat: ChatType = {
     messageHistoryIndex: 0,
@@ -181,14 +186,6 @@ function BaseChatContent({
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
-  // Map chatState to LoadingGoose message
-  const getLoadingMessage = (): string | undefined => {
-    if (isCompacting) return 'goose is compacting the conversation...';
-    if (messages.length === 0 && chatState === ChatState.Thinking) {
-      return 'loading conversation...';
-    }
-    return undefined;
-  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -260,7 +257,11 @@ function BaseChatContent({
 
           {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
+              <LoadingGoose
+                chatState={chatState}
+                isCompacting={isCompacting}
+                isLoadingConversation={messages.length === 0}
+              />
             </div>
           )}
         </div>

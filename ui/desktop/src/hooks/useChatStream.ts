@@ -73,6 +73,7 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  isCompacting: boolean;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -377,6 +378,9 @@ export function useChatStream({
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
 
+  // TODO(Douwe): get this from the backend
+  const isCompacting = false;
+
   console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
 
   return {
@@ -386,5 +390,6 @@ export function useChatStream({
     chatState,
     handleSubmit,
     stopStreaming,
+    isCompacting,
   };
 }
