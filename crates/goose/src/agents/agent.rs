@@ -1398,9 +1398,7 @@ impl Agent {
         match mode {
             Some("foreground") => GooseMode::Chat,
             Some("background") => GooseMode::Auto,
-            _ => config
-                .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| GooseMode::Auto),
+            _ => config.get_param("GOOSE_MODE").unwrap_or(GooseMode::Auto),
         }
     }
 
