@@ -13,7 +13,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
@@ -103,13 +103,39 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          activeProviders.forEach(({ metadata, name }) => {
-            if (metadata.known_models) {
-              metadata.known_models.forEach((model) => {
+          const modelPromises = activeProviders.map(async (p) => {
+            try {
+              const models = await getProviderModels(p.name);
+              return { provider: p, models, error: null };
+            } catch (error) {
+              return { provider: p, models: null, error };
+            }
+          });
+
+          const results = await Promise.all(modelPromises);
+
+          // Process results and build options
+          results.forEach(({ provider: p, models, error }) => {
+            if (error) {
+              console.error(`Error fetching models for provider ${p.name}:`, error);
+            }
+
+            // Use dynamically fetched models if available
+            if (models && models.length > 0) {
+              models.forEach((modelName) => {
+                options.push({
+                  value: modelName,
+                  label: `${modelName} (${p.metadata.display_name})`,
+                  provider: p.name,
+                });
+              });
+            } else if (p.metadata.known_models && p.metadata.known_models.length > 0) {
+              // Fallback to known_models if no models were fetched or on error
+              p.metadata.known_models.forEach((model) => {
                 options.push({
                   value: model.name,
-                  label: `${model.name} (${metadata.display_name})`,
-                  provider: name,
+                  label: `${model.name} (${p.metadata.display_name})`,
+                  provider: p.name,
                 });
               });
             }
@@ -128,7 +154,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
 
   // If current models are not in the list (e.g., previously set to custom), switch to custom mode
   useEffect(() => {
