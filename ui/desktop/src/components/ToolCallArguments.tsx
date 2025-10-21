@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
+import { useToolOutputContext, formatHotkey } from '../contexts/ToolOutputContext';
 
 export type ToolCallArgumentValue =
   | string
@@ -16,15 +17,33 @@ interface ToolCallArgumentsProps {
 
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const { isExpandAll, hotkey, setIsHotkeyActive } = useToolOutputContext();
 
   const toggleKey = (key: string) => {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // Update expanded keys when global expand state changes
+  useEffect(() => {
+    if (isExpandAll) {
+      // Expand all keys that need expansion
+      const allExpandableKeys = Object.keys(args).filter(
+        key => typeof args[key] === 'string' && (args[key] as string).length > 60
+      );
+      setExpandedKeys(prev => ({
+        ...prev,
+        ...Object.fromEntries(allExpandableKeys.map(key => [key, true]))
+      }));
+    } else {
+      // Collapse all
+      setExpandedKeys({});
+    }
+  }, [isExpandAll, args]);
+
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     if (typeof value === 'string') {
       const needsExpansion = value.length > 60;
-      const isExpanded = expandedKeys[key];
+      const isExpanded = isExpandAll || expandedKeys[key];
 
       if (!needsExpansion) {
         return (
@@ -58,6 +77,9 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <button
                   onClick={() => toggleKey(key)}
                   className={`text-left text-textPlaceholder ${isExpanded ? '' : 'truncate min-w-0'}`}
+                  title={isExpanded ? 'Click to collapse' : `Click to expand (or press ${formatHotkey(hotkey)} to expand all)`}
+                  onMouseEnter={() => setIsHotkeyActive(true)}
+                  onMouseLeave={() => setIsHotkeyActive(false)}
                 >
                   {value}
                 </button>

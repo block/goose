@@ -120,7 +120,11 @@ enum SessionCommand {
         )]
         working_dir: Option<PathBuf>,
 
-        #[arg(short = 'l', long = "limit", help = "Limit the number of results")]
+        #[arg(
+            short = 'l',
+            long = "limit",
+            help = "Limit the number of results"
+        )]
         limit: Option<usize>,
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
@@ -132,7 +136,11 @@ enum SessionCommand {
             help = "Session ID to be removed (optional)"
         )]
         id: Option<String>,
-        #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
+        #[arg(
+            short,
+            long,
+            help = "Regex for removing matched sessions (optional)"
+        )]
         regex: Option<String>,
     },
     #[command(about = "Export a session to Markdown format")]
@@ -162,7 +170,10 @@ enum SessionCommand {
 enum SchedulerCommand {
     #[command(about = "Add a new scheduled job")]
     Add {
-        #[arg(long, help = "Unique ID for the job")]
+        #[arg(
+            long,
+            help = "Unique ID for the job"
+        )]
         id: String,
         #[arg(
             long,
@@ -180,22 +191,34 @@ enum SchedulerCommand {
     List {},
     #[command(about = "Remove a scheduled job by ID")]
     Remove {
-        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
+        #[arg(
+            long,
+            help = "ID of the job to remove"
+        )] // Changed from positional to named --id
         id: String,
     },
     /// List sessions created by a specific schedule
     #[command(about = "List sessions created by a specific schedule")]
     Sessions {
         /// ID of the schedule
-        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
+        #[arg(
+            long,
+            help = "ID of the schedule"
+        )] // Explicitly make it --id
         id: String,
-        #[arg(long, help = "Maximum number of sessions to return")]
+        #[arg(
+            long,
+            help = "Maximum number of sessions to return"
+        )]
         limit: Option<usize>,
     },
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
         /// ID of the schedule to run
-        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
+        #[arg(
+            long,
+            help = "ID of the schedule to run"
+        )] // Explicitly make it --id
         id: String,
     },
     /// Check status of Temporal services (temporal scheduler only)
@@ -213,7 +236,11 @@ enum SchedulerCommand {
 pub enum BenchCommand {
     #[command(name = "init-config", about = "Create a new starter-config")]
     InitConfig {
-        #[arg(short, long, help = "filename with extension for generated config")]
+        #[arg(
+            short,
+            long,
+            help = "filename with extension for generated config"
+        )]
         name: String,
     },
 
@@ -239,13 +266,21 @@ pub enum BenchCommand {
 
     #[command(name = "eval-model", about = "Run an eval of model")]
     EvalModel {
-        #[arg(short, long, help = "A serialized config file for the model only.")]
+        #[arg(
+            short,
+            long,
+            help = "A serialized config file for the model only."
+        )]
         config: String,
     },
 
     #[command(name = "exec-eval", about = "run a single eval")]
     ExecEval {
-        #[arg(short, long, help = "A serialized config file for the eval only.")]
+        #[arg(
+            short,
+            long,
+            help = "A serialized config file for the eval only."
+        )]
         config: String,
     },
 
@@ -269,7 +304,9 @@ enum RecipeCommand {
     #[command(about = "Validate a recipe")]
     Validate {
         /// Recipe name to get recipe file to validate
-        #[arg(help = "recipe name to get recipe file or full path to the recipe file to validate")]
+        #[arg(
+            help = "recipe name to get recipe file or full path to the recipe file to validate"
+        )]
         recipe_name: String,
     },
 
@@ -287,7 +324,9 @@ enum RecipeCommand {
     #[command(about = "Open a recipe in Goose Desktop")]
     Open {
         /// Recipe name to get recipe file to open
-        #[arg(help = "recipe name or full path to the recipe file")]
+        #[arg(
+            help = "recipe name or full path to the recipe file"
+        )]
         recipe_name: String,
     },
 
@@ -323,7 +362,11 @@ enum Command {
     #[command(about = "Display goose information")]
     Info {
         /// Show verbose information including current configuration
-        #[arg(short, long, help = "Show verbose information including config.yaml")]
+        #[arg(
+            short,
+            long,
+            help = "Show verbose information including configuration details"
+        )]
         verbose: bool,
     },
 
@@ -682,7 +725,11 @@ enum Command {
         canary: bool,
 
         /// Enforce to re-configure goose during update
-        #[arg(short, long, help = "Enforce to re-configure goose during update")]
+        #[arg(
+            short,
+            long,
+            help = "Enforce to re-configure goose during update"
+        )]
         reconfigure: bool,
     },
 
@@ -714,11 +761,17 @@ enum Command {
         host: String,
 
         /// Open browser automatically
-        #[arg(long, help = "Open browser automatically when server starts")]
+        #[arg(
+            long,
+            help = "Open browser automatically when server starts"
+        )]
         open: bool,
 
         /// Authentication token for both Basic Auth (password) and Bearer token
-        #[arg(long, help = "Authentication token to secure the web interface")]
+        #[arg(
+            long,
+            help = "Authentication token to secure the web interface"
+        )]
         auth_token: Option<String>,
     },
 }
