@@ -43,6 +43,7 @@ interface UpdaterEvent {
 // Define the API types in a single place
 type ElectronAPI = {
   platform: string;
+  arch: string;
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
@@ -112,8 +113,9 @@ type ElectronAPI = {
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
   // Recipe warning functions
   closeWindow: () => void;
-  hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
-  recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
+  openUrl: (url: string) => Promise<void>;
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
 };
 
@@ -124,6 +126,7 @@ type AppConfigAPI = {
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
+  arch: process.arch,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => {
     if (!config || Object.keys(config).length === 0) {
@@ -243,9 +246,11 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('get-update-state');
   },
   closeWindow: () => ipcRenderer.send('close-window'),
-  hasAcceptedRecipeBefore: (recipe: Recipe) =>
-    ipcRenderer.invoke('has-accepted-recipe-before', recipe),
-  recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
+  openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
+  recordRecipeHash: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
 };
