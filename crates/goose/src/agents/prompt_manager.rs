@@ -1,3 +1,5 @@
+#[cfg(test)]
+use chrono::DateTime;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::Value;
@@ -40,6 +42,16 @@ impl PromptManager {
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
+        PromptManager {
+            system_prompt_override: None,
+            system_prompt_extras: Vec::new(),
+            // Use the fixed current date time so that prompt cache can be used.
+            current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
 
@@ -138,6 +150,8 @@ impl PromptManager {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_snapshot;
+
     use super::*;
 
     #[test]
@@ -247,5 +261,39 @@ mod tests {
         assert!(!result.contains('\u{E0043}'));
         assert!(result.contains("Extension help"));
         assert!(result.contains("hidden instructions"));
+    }
+
+    #[test]
+    fn test_basic() {
+        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+
+        let system_prompt = manager.build_system_prompt(
+            vec![],
+            None,
+            Value::String("".to_string()),
+            "gpt-4o",
+            false,
+        );
+
+        assert_snapshot!(system_prompt)
+    }
+
+    #[test]
+    fn test_one_extension() {
+        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+
+        let system_prompt = manager.build_system_prompt(
+            vec![ExtensionInfo::new(
+                "test",
+                "how to use this extension",
+                true,
+            )],
+            None,
+            Value::String("".to_string()),
+            "gpt-4o",
+            true,
+        );
+
+        assert_snapshot!(system_prompt)
     }
 }
