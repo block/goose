@@ -67,6 +67,7 @@ function BaseChatContent({
     useChatStream({
       sessionId,
       onStreamFinish,
+      initialMessage,
     });
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -86,12 +87,6 @@ function BaseChatContent({
     localOutputTokens: 0,
     session,
   });
-
-  useEffect(() => {
-    if (initialMessage && session && messages.length == 0) {
-      handleSubmit(initialMessage);
-    }
-  }, [initialMessage, session, messages, handleSubmit]);
 
   const recipe = session?.recipe;
 
@@ -171,7 +166,8 @@ function BaseChatContent({
     </>
   );
 
-  const showPopularTopics = messages.length === 0;
+  const showPopularTopics =
+    messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
   // TODO(Douwe): get this from the backend
   const isCompacting = false;
 
@@ -184,6 +180,15 @@ function BaseChatContent({
   };
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
+
+  // Map chatState to LoadingGoose message
+  const getLoadingMessage = (): string | undefined => {
+    if (isCompacting) return 'goose is compacting the conversation...';
+    if (messages.length === 0 && chatState === ChatState.Thinking) {
+      return 'loading conversation...';
+    }
+    return undefined;
+  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -255,16 +260,7 @@ function BaseChatContent({
 
           {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  messages.length === 0
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
+              <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
             </div>
           )}
         </div>

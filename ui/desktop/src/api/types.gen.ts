@@ -729,13 +729,7 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionInsights = {
-    /**
-     * Total number of sessions
-     */
     totalSessions: number;
-    /**
-     * Total tokens used across all sessions
-     */
     totalTokens: number;
 };
 
