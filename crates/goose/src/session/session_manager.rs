@@ -635,7 +635,7 @@ impl SessionStorage {
     }
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
-        // Lock the mutex to prevent concurrent session creation race conditions
+        // Mutex to prevent concurrent session creation race conditions
         let _guard = self.create_session_mutex.lock().await;
 
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
