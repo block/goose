@@ -49,7 +49,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Role,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;

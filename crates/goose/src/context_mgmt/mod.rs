@@ -1,5 +1,5 @@
 use crate::conversation::message::MessageMetadata;
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
