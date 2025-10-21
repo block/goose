@@ -5,6 +5,7 @@ import { getApiUrl } from '../config';
 import { createUserMessage } from '../types/message';
 
 const TextDecoder = globalThis.TextDecoder;
+const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
 // Debug logging - set to false in production
 const DEBUG_CHAT_STREAM = true;
@@ -218,6 +219,12 @@ export function useChatStream({
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    if (session) {
+      resultsCache.set(sessionId, { session, messages });
+    }
+  }, [sessionId, session, messages]);
+
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
   console.log(`useChatStream render #${renderCountRef.current}, ${session?.id}`);
@@ -366,10 +373,16 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
+  const cached = resultsCache.get(sessionId);
+  const maybe_cached_messages = session ? messages : cached?.messages || [];
+  const maybe_cached_session = session ?? cached?.session;
+
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
+
   return {
     sessionLoadError,
-    messages,
-    session,
+    messages: maybe_cached_messages,
+    session: maybe_cached_session,
     chatState,
     handleSubmit,
     stopStreaming,
