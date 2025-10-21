@@ -40,7 +40,7 @@ describe('Extension Manager', () => {
 
   describe('activateExtension', () => {
     it('should successfully activate extension', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
 
       await activateExtension({
         addToConfig: mockAddToConfig,
@@ -78,7 +78,7 @@ describe('Extension Manager', () => {
 
     it('should remove from agent if config fails', async () => {
       const configError = new Error('Config failed');
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
       mockAddToConfig.mockRejectedValue(configError);
 
       await expect(
@@ -101,7 +101,7 @@ describe('Extension Manager', () => {
 
   describe('addToAgentOnStartup', () => {
     it('should successfully add extension on startup', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
@@ -118,7 +118,7 @@ describe('Extension Manager', () => {
     });
 
     it('should successfully add extension on startup with custom toast options', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
@@ -140,7 +140,7 @@ describe('Extension Manager', () => {
       mockAddToAgent
         .mockRejectedValueOnce(error428)
         .mockRejectedValueOnce(error428)
-        .mockResolvedValue({} as Response);
+        .mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
         addToConfig: mockAddToConfig,
@@ -174,7 +174,7 @@ describe('Extension Manager', () => {
 
   describe('updateExtension', () => {
     it('should update extension without name change', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
       mockAddToConfig.mockResolvedValue(undefined);
       mockToastService.success = vi.fn();
 
@@ -204,8 +204,8 @@ describe('Extension Manager', () => {
     });
 
     it('should handle name change by removing old and adding new', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
-      mockRemoveFromAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
+      mockRemoveFromAgent.mockResolvedValue(undefined);
       mockRemoveFromConfig.mockResolvedValue(undefined);
       mockAddToConfig.mockResolvedValue(undefined);
       mockToastService.success = vi.fn();
@@ -265,7 +265,7 @@ describe('Extension Manager', () => {
 
   describe('toggleExtension', () => {
     it('should toggle extension on successfully', async () => {
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
       mockAddToConfig.mockResolvedValue(undefined);
 
       await toggleExtension({
@@ -280,7 +280,7 @@ describe('Extension Manager', () => {
     });
 
     it('should toggle extension off successfully', async () => {
-      mockRemoveFromAgent.mockResolvedValue({} as Response);
+      mockRemoveFromAgent.mockResolvedValue(undefined);
       mockAddToConfig.mockResolvedValue(undefined);
 
       await toggleExtension({
@@ -315,7 +315,7 @@ describe('Extension Manager', () => {
 
     it('should remove from agent if config update fails when toggling on', async () => {
       const configError = new Error('Config failed');
-      mockAddToAgent.mockResolvedValue({} as Response);
+      mockAddToAgent.mockResolvedValue(undefined);
       mockAddToConfig.mockRejectedValue(configError);
 
       await expect(
@@ -353,7 +353,7 @@ describe('Extension Manager', () => {
 
   describe('deleteExtension', () => {
     it('should delete extension successfully', async () => {
-      mockRemoveFromAgent.mockResolvedValue({} as Response);
+      mockRemoveFromAgent.mockResolvedValue(undefined);
       mockRemoveFromConfig.mockResolvedValue(undefined);
 
       await deleteExtension({

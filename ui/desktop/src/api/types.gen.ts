@@ -4,6 +4,11 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
+    session_id: string;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -584,6 +589,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -898,6 +908,68 @@ export type UpsertConfigQuery = {
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
+
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/add_extension';
+};
+
+export type AgentAddExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
+
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/remove_extension';
+};
+
+export type AgentRemoveExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
