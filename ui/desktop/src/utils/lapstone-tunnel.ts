@@ -1,7 +1,6 @@
 import WebSocket from 'ws';
 import * as http from 'http';
 import * as crypto from 'crypto';
-import * as os from 'os';
 import { Buffer } from 'buffer';
 import log from './logger';
 import { loadSettings, saveSettings } from './settings';
@@ -23,22 +22,15 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let pingInterval: ReturnType<typeof setInterval> | null = null;
 let healthCheckInterval: ReturnType<typeof setInterval> | null = null;
-let networkMonitorInterval: ReturnType<typeof setInterval> | null = null;
 let currentPort: number = 0;
 let currentAgentId: string = '';
 let isRunning: boolean = false;
-let lastNetworkSnapshot: NetworkSnapshot | null = null;
+let lastPongReceived: number = Date.now();
 
 // Monitoring configuration
-const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds - end-to-end check
-const NETWORK_MONITOR_INTERVAL = 10000; // 10 seconds - interface check
-const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds
-
-interface NetworkSnapshot {
-  interfaceNames: string[];
-  ipAddresses: string[];
-  vpnActive: boolean;
-}
+const PING_INTERVAL = 20000; // 20 seconds - send ping to keep connection alive
+const HEALTH_CHECK_INTERVAL = 25000; // 25 seconds - check if pong received
+const PONG_TIMEOUT = 30000; // 30 seconds - if no pong after this, connection is dead
 
 function generateAgentId(): string {
   return crypto.randomBytes(16).toString('hex');
@@ -184,131 +176,52 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
   req.end();
 }
 
-// eslint-disable-next-line no-undef
-function detectVPN(interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]>): boolean {
-  const names = Object.keys(interfaces);
-  const vpnPatterns = [
-    /^utun/, // macOS VPN
-    /^tun/, // OpenVPN, WireGuard
-    /^tap/, // OpenVPN
-    /^wg/, // WireGuard
-    /^ppp/, // PPTP, L2TP
-    /^ipsec/, // IPSec
-  ];
-
-  return names.some((name) => vpnPatterns.some((pattern) => pattern.test(name)));
-}
-
-function getNetworkSnapshot(): NetworkSnapshot {
-  const interfaces = os.networkInterfaces();
-
-  const active = Object.entries(interfaces).filter(
-    ([_, addrs]) => addrs !== undefined && addrs.some((a) => !a.internal)
-  );
-
-  return {
-    interfaceNames: active.map(([name]) => name).sort(),
-    ipAddresses: active
-      .flatMap(([_, addrs]) => addrs!.filter((a) => !a.internal).map((a) => a.address))
-      .sort(),
-    vpnActive: detectVPN(interfaces),
-  };
-}
-
-function networkChanged(prev: NetworkSnapshot, curr: NetworkSnapshot): boolean {
-  // Check if interface list changed
-  if (JSON.stringify(prev.interfaceNames) !== JSON.stringify(curr.interfaceNames)) {
-    log.info('Network interfaces changed:', {
-      before: prev.interfaceNames,
-      after: curr.interfaceNames,
-    });
-    return true;
-  }
-
-  // Check if IPs changed
-  if (JSON.stringify(prev.ipAddresses) !== JSON.stringify(curr.ipAddresses)) {
-    log.info('IP addresses changed:', {
-      before: prev.ipAddresses,
-      after: curr.ipAddresses,
-    });
-    return true;
-  }
-
-  // Check if VPN status changed
-  if (prev.vpnActive !== curr.vpnActive) {
-    log.info(`VPN ${curr.vpnActive ? 'connected' : 'disconnected'}`);
-    return true;
-  }
-
-  return false;
-}
-
-function startNetworkMonitoring(): void {
-  if (networkMonitorInterval) clearInterval(networkMonitorInterval);
-
-  lastNetworkSnapshot = getNetworkSnapshot();
-  log.info('Network monitoring started:', lastNetworkSnapshot);
-
-  networkMonitorInterval = setInterval(() => {
-    if (!isRunning || !lastNetworkSnapshot) return;
-
-    const currentSnapshot = getNetworkSnapshot();
-
-    if (networkChanged(lastNetworkSnapshot, currentSnapshot)) {
-      log.warn('Network change detected, restarting tunnel immediately');
-      lastNetworkSnapshot = currentSnapshot;
-      restartTunnel();
-    }
-  }, NETWORK_MONITOR_INTERVAL);
-}
-
-async function checkTunnelHealth(): Promise<boolean> {
-  const publicUrl = `${WORKER_URL}/tunnel/${currentAgentId}`;
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
-
-    const response = await fetch(publicUrl, {
-      method: 'GET',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    // Any response < 500 is considered healthy (200, 400, 401, 404, etc.)
-    if (response.status >= 500) {
-      log.warn(`Tunnel health check failed: HTTP ${response.status}, restarting immediately`);
-      return false;
-    }
-
-    log.info(`Tunnel health check passed: HTTP ${response.status}`);
-    return true;
-  } catch (err) {
-    // Network errors, timeouts, etc.
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    log.warn(`Tunnel health check error: ${message}, restarting immediately`);
+function checkTunnelHealth(): boolean {
+  // Check if WebSocket is connected
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    log.warn('Tunnel health check failed: WebSocket not connected');
     return false;
   }
+
+  // Check if we received a pong recently (within timeout period)
+  const timeSinceLastPong = Date.now() - lastPongReceived;
+  if (timeSinceLastPong > PONG_TIMEOUT) {
+    log.warn(`Tunnel health check failed: No pong received for ${timeSinceLastPong}ms`);
+    return false;
+  }
+
+  log.info('Tunnel health check passed: WebSocket alive and responsive');
+  return true;
 }
 
 function startHealthChecks(): void {
   if (healthCheckInterval) clearInterval(healthCheckInterval);
 
-  healthCheckInterval = setInterval(async () => {
+  healthCheckInterval = setInterval(() => {
     if (!isRunning) return;
 
-    const healthy = await checkTunnelHealth();
+    try {
+      const healthy = checkTunnelHealth();
 
-    if (!healthy) {
+      if (!healthy) {
+        restartTunnel();
+      }
+    } catch (err) {
+      // Health check threw an error - log and restart
+      log.error('Health check error:', err);
       restartTunnel();
     }
   }, HEALTH_CHECK_INTERVAL);
 
   // Run initial health check after a short delay (give WS time to fully connect)
-  setTimeout(async () => {
-    if (isRunning) {
-      await checkTunnelHealth();
+  setTimeout(() => {
+    if (!isRunning) return;
+
+    try {
+      checkTunnelHealth();
+    } catch (err) {
+      // Initial health check failed - just log it, interval will retry
+      log.error('Initial health check error:', err);
     }
   }, 5000);
 }
@@ -351,13 +264,21 @@ function connect(port: number, agentId: string): void {
     const publicUrl = WORKER_URL.replace(/\/$/, '') + `/tunnel/${agentId}`;
     log.info(`✓ Public URL: ${publicUrl}`);
 
-    // Send keepalive ping every 20 seconds to prevent DO hibernation
+    // Reset pong tracking
+    lastPongReceived = Date.now();
+
+    // Send keepalive ping every 20 seconds to keep connection alive and detect dead connections
     if (pingInterval) clearInterval(pingInterval);
     pingInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.ping();
       }
-    }, 20000);
+    }, PING_INTERVAL);
+  });
+
+  ws.on('pong', () => {
+    // Update last pong received time
+    lastPongReceived = Date.now();
   });
 
   ws.on('message', async (data) => {
@@ -385,7 +306,6 @@ export function startLapstoneTunnel(port: number, secret: string, goosedPid: num
   const publicUrl = `${WORKER_URL}/tunnel/${agentId}`;
 
   connect(port, agentId);
-  startNetworkMonitoring();
   startHealthChecks();
 
   return {
@@ -408,12 +328,9 @@ export function stopLapstoneTunnel(): void {
   if (reconnectTimeout) clearTimeout(reconnectTimeout);
   if (pingInterval) clearInterval(pingInterval);
   if (healthCheckInterval) clearInterval(healthCheckInterval);
-  if (networkMonitorInterval) clearInterval(networkMonitorInterval);
 
   if (ws) {
     ws.close();
     ws = null;
   }
-
-  lastNetworkSnapshot = null;
 }
