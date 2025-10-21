@@ -40,7 +40,7 @@ Before saving recipes, it's important to understand where they can be stored and
 ## Storing Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 **Save New Recipe:**
 
@@ -60,7 +60,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
     When you [create a recipe](/docs/guides/recipes/recipe-reference), it gets saved to:
 
@@ -74,7 +74,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 ### Importing Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
     Import a recipe using its deeplink or YAML file:
 
     **Import via Recipe Link:**
@@ -96,7 +96,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
     Importing JSON recipe files isn't currently supported.
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     Recipe import is only available in Goose Desktop.
   </TabItem>
 </Tabs>
@@ -104,7 +104,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 ## Finding Your Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 **Access Recipe Library:**
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -113,7 +113,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 4. Each recipe shows its title, description, and whether it's global or local
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
 To find and configure your saved recipes:
 
@@ -139,7 +139,7 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
 ## Using Saved Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
 2. Click `Recipes`
@@ -149,7 +149,7 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
    - Click `Preview` to see the recipe details first, then click **Load Recipe** to run it
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
 Once you've located your recipe file, [run the recipe](/docs/guides/recipes/session-recipes#run-a-recipe) or [open it in goose desktop](/docs/guides/goose-cli-commands#recipe).
 
