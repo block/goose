@@ -18,10 +18,10 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
+
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -344,11 +344,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
-        super::routes::agent::add_sub_recipes,
-        super::routes::agent::extend_prompt,
+        super::routes::agent::update_from_session,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
-        super::routes::agent::update_session_config,
         super::routes::reply::confirm_permission,
         super::routes::reply::reply,
         super::routes::context::manage_context,
@@ -400,6 +398,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionDescriptionRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
+        super::routes::session::UpdateSessionUserRecipeValuesResponse,
         Message,
         MessageContent,
         MessageMetadata,
@@ -420,8 +419,7 @@ derive_utoipa!(Icon as IconSchema);
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ContextLengthExceeded,
-        SummarizationRequested,
+        ConversationCompacted,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
@@ -480,16 +478,12 @@ derive_utoipa!(Icon as IconSchema);
         goose::recipe::SubRecipe,
         goose::agents::types::RetryConfig,
         goose::agents::types::SuccessCheck,
-        super::routes::agent::AddSubRecipesRequest,
-        super::routes::agent::AddSubRecipesResponse,
-        super::routes::agent::ExtendPromptRequest,
-        super::routes::agent::ExtendPromptResponse,
         super::routes::agent::UpdateProviderRequest,
-        super::routes::agent::SessionConfigRequest,
         super::routes::agent::GetToolsQuery,
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
+        super::routes::agent::UpdateFromSessionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]

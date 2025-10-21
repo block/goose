@@ -67,6 +67,10 @@ This log contains general application-level logging including:
 * Token usage statistics as well as token counts (input, output, total)
 * LLM information (model names, versions)
 
+When [prompt injection detection](/docs/guides/security/prompt-injection-detection) is enabled, logs also include:
+* Security findings with unique IDs (format: `SEC-{uuid}`)
+* User decisions (allow/deny) associated with finding IDs
+
 
 ### Desktop Application Log
 
