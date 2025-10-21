@@ -270,11 +270,30 @@ mod tests {
     }
 
     #[test]
-    fn test_snapshot() {
+    fn test_basic() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
         let system_prompt =
             manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
+
+        assert_snapshot!(system_prompt)
+    }
+
+    #[test]
+    fn test_one_extension() {
+        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+
+        let system_prompt = manager.build_system_prompt(
+            vec![ExtensionInfo::new(
+                "test",
+                "how to use this extension",
+                true,
+            )],
+            None,
+            Value::String("".to_string()),
+            None,
+            true,
+        );
 
         assert_snapshot!(system_prompt)
     }
