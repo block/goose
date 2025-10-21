@@ -94,11 +94,17 @@ const PairRouteWrapper = ({
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
+  // Determine which session ID to use:
+  // 1. From route state (when navigating from Hub with a new session)
+  // 2. From URL params (when resuming a session)
+  // 3. From the existing chat state (when navigating to Pair directly)
+  const sessionId = routeState.resumeSessionId || resumeSessionId || chat.sessionId;
+
   return process.env.ALPHA ? (
     <Pair2
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      sessionId={routeState.resumeSessionId || resumeSessionId || ''} // TODO(Douwe) one of them should be set now
+      sessionId={sessionId}
       initialMessage={initialMessage}
     />
   ) : (
