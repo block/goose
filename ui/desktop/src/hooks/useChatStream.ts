@@ -3,6 +3,7 @@ import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage } from '../types/message';
+import { useContextManager } from '../components/context_management/ContextManager';
 
 const TextDecoder = globalThis.TextDecoder;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -73,7 +74,6 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
-  isCompacting: boolean;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -219,6 +219,7 @@ export function useChatStream({
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { isCompacting } = useContextManager();
 
   useEffect(() => {
     if (session) {
@@ -378,18 +379,14 @@ export function useChatStream({
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
 
-  // TODO(Douwe): get this from the backend
-  const isCompacting = false;
-
-  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages);
 
   return {
     sessionLoadError,
     messages: maybe_cached_messages,
     session: maybe_cached_session,
-    chatState,
+    chatState: isCompacting ? ChatState.Compacting : chatState,
     handleSubmit,
     stopStreaming,
-    isCompacting,
   };
 }

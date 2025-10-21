@@ -63,19 +63,12 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const {
-    session,
-    messages,
-    chatState,
-    handleSubmit,
-    stopStreaming,
-    sessionLoadError,
-    isCompacting,
-  } = useChatStream({
-    sessionId,
-    onStreamFinish,
-    initialMessage,
-  });
+  const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
+    useChatStream({
+      sessionId,
+      onStreamFinish,
+      initialMessage,
+    });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -255,13 +248,9 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
+          {chatState !== ChatState.Idle && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                chatState={chatState}
-                isCompacting={isCompacting}
-                isLoadingConversation={messages.length === 0}
-              />
+              <LoadingGoose chatState={chatState} isLoadingConversation={messages.length === 0} />
             </div>
           )}
         </div>
