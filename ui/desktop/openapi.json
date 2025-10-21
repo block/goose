@@ -852,50 +852,6 @@
         }
       }
     },
-    "/context/manage": {
-      "post": {
-        "tags": [
-          "Context Management"
-        ],
-        "operationId": "manage_context",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ContextManageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Context managed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContextManageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/handle_openrouter": {
       "post": {
         "tags": [
@@ -2160,52 +2116,6 @@
             ]
           }
         ]
-      },
-      "ContextManageRequest": {
-        "type": "object",
-        "description": "Request payload for context management operations",
-        "required": [
-          "messages",
-          "sessionId"
-        ],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "description": "Collection of messages to be managed"
-          },
-          "sessionId": {
-            "type": "string",
-            "description": "Optional session ID for session-specific agent"
-          }
-        }
-      },
-      "ContextManageResponse": {
-        "type": "object",
-        "description": "Response from context management operations",
-        "required": [
-          "messages",
-          "tokenCounts"
-        ],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "description": "Processed messages after the operation"
-          },
-          "tokenCounts": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "description": "Token counts for each processed message"
-          }
-        }
       },
       "Conversation": {
         "type": "array",

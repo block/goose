@@ -67,34 +67,6 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-/**
- * Request payload for context management operations
- */
-export type ContextManageRequest = {
-    /**
-     * Collection of messages to be managed
-     */
-    messages: Array<Message>;
-    /**
-     * Optional session ID for session-specific agent
-     */
-    sessionId: string;
-};
-
-/**
- * Response from context management operations
- */
-export type ContextManageResponse = {
-    /**
-     * Processed messages after the operation
-     */
-    messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
-};
-
 export type Conversation = Array<Message>;
 
 export type CreateRecipeRequest = {
@@ -1570,37 +1542,6 @@ export type ConfirmPermissionResponses = {
      */
     200: unknown;
 };
-
-export type ManageContextData = {
-    body: ContextManageRequest;
-    path?: never;
-    query?: never;
-    url: '/context/manage';
-};
-
-export type ManageContextErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ManageContextResponses = {
-    /**
-     * Context managed successfully
-     */
-    200: ContextManageResponse;
-};
-
-export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
