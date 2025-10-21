@@ -94,12 +94,18 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(_) => None,
+                Err(error) => {
+                    // For errors, create a text content block with the error message
+                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                        "The tool call returned the following error:\n{}",
+                        error
+                    ))])
+                }
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
                     .tool_use_id(tool_res.id.to_string())
-                    .status(if content.is_some() {
+                    .status(if tool_res.tool_result.is_ok() {
                         bedrock::ToolResultStatus::Success
                     } else {
                         bedrock::ToolResultStatus::Error

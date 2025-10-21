@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -492,13 +492,14 @@ impl Provider for ClaudeCodeProvider {
             "system": system,
             "messages": messages.len()
         });
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = json!({
             "lines": json_lines.len(),
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,

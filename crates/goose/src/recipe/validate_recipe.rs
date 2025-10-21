@@ -1,22 +1,22 @@
 use crate::recipe::read_recipe_file_content::RecipeFile;
-use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_for_preview};
+use crate::recipe::template_recipe::parse_recipe_content;
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
 };
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-pub fn validate_recipe_parameters(
+pub fn parse_and_validate_parameters(
     recipe_file_content: &str,
     recipe_dir_str: Option<String>,
-) -> Result<Option<Vec<RecipeParameter>>> {
+) -> Result<Recipe> {
     let (recipe_template, template_variables) =
         parse_recipe_content(recipe_file_content, recipe_dir_str)?;
-    let recipe_parameters = recipe_template.parameters;
-    validate_optional_parameters(&recipe_parameters)?;
-    validate_parameters_in_template(&recipe_parameters, &template_variables)?;
-    Ok(recipe_parameters)
+    let recipe_parameters = &recipe_template.parameters;
+    validate_optional_parameters(recipe_parameters)?;
+    validate_parameters_in_template(recipe_parameters, &template_variables)?;
+    Ok(recipe_template)
 }
 
 fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
@@ -40,8 +40,8 @@ pub fn validate_recipe_template_from_content(
     recipe_content: &str,
     recipe_dir: Option<String>,
 ) -> Result<Recipe> {
-    validate_recipe_parameters(recipe_content, recipe_dir.clone())?;
-    let recipe = render_recipe_for_preview(recipe_content, recipe_dir, &HashMap::new())?;
+    parse_and_validate_parameters(recipe_content, recipe_dir.clone())?;
+    let (recipe, _) = parse_recipe_content(recipe_content, recipe_dir)?;
 
     validate_prompt_or_instructions(&recipe)?;
     if let Some(response) = &recipe.response {
@@ -152,5 +152,49 @@ fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Re
         Ok(())
     } else {
         Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_recipe_template_from_content_success() {
+        let recipe_content = r#"
+version: 1.0.0
+title: Test Recipe
+description: A test recipe for validation
+instructions: Test instructions with {{ user_role }}
+prompt: |
+  {% if user_role in ["Director, Account Management", "Senior Director, Account Management"] %}
+  - Focus on strategic planning and organizational performance
+  {% else %}
+  - Provide foundational account management guidance
+  {% endif %}
+parameters:
+  - key: user_role
+    input_type: string
+    requirement: required
+    description: A test parameter
+"#;
+
+        let result = validate_recipe_template_from_content(recipe_content, None);
+        if let Err(e) = &result {
+            eprintln!("Validation error: {}", e);
+            eprintln!("Error chain:");
+            let mut source = e.source();
+            while let Some(err) = source {
+                eprintln!("  Caused by: {}", err);
+                source = err.source();
+            }
+        }
+        assert!(result.is_ok(), "Validation failed: {:?}", result.err());
+
+        let recipe = result.unwrap();
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe for validation");
+        assert!(recipe.instructions.is_some());
+        println!("Recipe: {:?}", recipe.prompt);
     }
 }

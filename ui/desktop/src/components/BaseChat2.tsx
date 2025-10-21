@@ -98,7 +98,7 @@ function BaseChatContent({
         messageHistoryIndex: 0,
         messages: [],
         recipe: null,
-        recipeParameters: null,
+        recipeParameterValues: null,
       };
       setChat(emptyChat);
 
@@ -111,7 +111,7 @@ function BaseChatContent({
             messageHistoryIndex: 0,
             messages: conversation,
             recipe: null,
-            recipeParameters: null,
+            recipeParameterValues: null,
           };
 
           setChat(loadedChat);
