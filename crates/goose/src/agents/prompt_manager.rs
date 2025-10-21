@@ -273,8 +273,13 @@ mod tests {
     fn test_basic() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
-        let system_prompt =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
+        let system_prompt = manager.build_system_prompt(
+            vec![],
+            None,
+            Value::String("".to_string()),
+            "gpt-4o",
+            false,
+        );
 
         assert_snapshot!(system_prompt)
     }
@@ -291,7 +296,7 @@ mod tests {
             )],
             None,
             Value::String("".to_string()),
-            None,
+            "gpt-4o",
             true,
         );
 
