@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use rmcp::service::ClientInitializeError;
+use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
 };
@@ -40,6 +40,7 @@ use rmcp::model::{
     ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
+use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
@@ -238,7 +239,11 @@ impl ExtensionManager {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
-            context: Mutex::new(PlatformExtensionContext { session_id: None }),
+            context: Mutex::new(PlatformExtensionContext {
+                session_id: None,
+                extension_manager: None,
+                tool_route_manager: None,
+            }),
         }
     }
 
@@ -451,9 +456,13 @@ impl ExtensionManager {
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
-                let def = PLATFORM_EXTENSIONS.get(name.as_str()).ok_or_else(|| {
-                    ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
-                })?;
+                // Normalize the name to match the key used in PLATFORM_EXTENSIONS
+                let normalized_key = normalize(name.clone());
+                let def = PLATFORM_EXTENSIONS
+                    .get(normalized_key.as_str())
+                    .ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
+                    })?;
                 let context = self.get_context().await;
                 (def.client_factory)(context)
             }
@@ -937,7 +946,12 @@ impl ExtensionManager {
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
                 .map(|call| call.content)
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+                .map_err(|e| match e {
+                    ServiceError::McpError(error_data) => error_data,
+                    _ => {
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
+                    }
+                })
         };
 
         Ok(ToolCallResult {
