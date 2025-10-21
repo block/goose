@@ -288,9 +288,11 @@ impl Provider for OllamaProvider {
 
     /// Fetch the list of available models from Ollama
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.response_get("api/tags").await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to fetch models: {}", e))
-        })?;
+        let response = self
+            .api_client
+            .response_get("api/tags")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(ProviderError::RequestFailed(format!(
