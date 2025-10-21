@@ -29,7 +29,7 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

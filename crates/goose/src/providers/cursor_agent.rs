@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -433,7 +433,8 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,

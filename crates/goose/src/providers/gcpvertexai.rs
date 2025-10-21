@@ -21,7 +21,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::emit_debug_trace;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
@@ -518,7 +518,8 @@ impl Provider for GcpVertexAIProvider {
         let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(model_config, &request, &response, &usage);
+        let mut log = RequestLog::start(model_config, &request)?;
+        log.write(&response, Some(&usage))?;
 
         // Convert response to message
         let message = response_to_message(response, context)?;

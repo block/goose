@@ -31,6 +31,7 @@ interface CreateScheduleModalProps {
   onSubmit: (payload: NewSchedulePayload) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
+  initialDeepLink?: string | null;
 }
 
 // Interface for clean extension in YAML
@@ -264,6 +265,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   onSubmit,
   isLoadingExternally,
   apiErrorExternally,
+  initialDeepLink,
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('file');
@@ -323,16 +325,12 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   );
 
   useEffect(() => {
-    // Check for pending deep link when modal opens
-    if (isOpen) {
-      const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
-      if (pendingDeepLink) {
-        localStorage.removeItem('pendingScheduleDeepLink');
-        setSourceType('deeplink');
-        handleDeepLinkChange(pendingDeepLink);
-      }
+    // Check for initial deep link from props when modal opens
+    if (isOpen && initialDeepLink) {
+      setSourceType('deeplink');
+      handleDeepLinkChange(initialDeepLink);
     }
-  }, [isOpen, handleDeepLinkChange]);
+  }, [isOpen, initialDeepLink, handleDeepLinkChange]);
 
   const resetForm = () => {
     setScheduleId('');
