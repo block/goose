@@ -16,7 +16,7 @@ Files should be named either:
 - `recipe.yaml`/`recipe.json` 
 - `<recipe_name>.yaml`/`<recipe_name>.json`
 
-After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goose-cli-commands) to run or validate the files and to manage recipe sharing.
+After creating recipe files, you can use the [`goose recipe` subcommands](/docs/guides/goose-cli-commands#recipe) to validate, share, and open your recipes.
 
 ### CLI and Desktop Formats
 
