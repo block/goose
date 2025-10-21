@@ -50,6 +50,9 @@ const MAX_IMAGE_SIZE_MB = 5;
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
+// Manual compact trigger message - must match backend constant
+const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
+
 interface ModelLimit {
   pattern: string;
   context_limit: number;
@@ -528,10 +531,8 @@ export default function ChatInput({
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
-          // Trigger normal submission with "/compact" command
-          // The server will handle it through the streaming endpoint
           const customEvent = new CustomEvent('submit', {
-            detail: { value: '/compact' },
+            detail: { value: MANUAL_COMPACT_TRIGGER },
           }) as unknown as React.FormEvent;
 
           handleSubmit(customEvent);

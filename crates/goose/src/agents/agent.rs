@@ -68,6 +68,7 @@ use crate::session::SessionManager;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "Goose is compacting the conversation...";
+const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -910,10 +911,10 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let is_manual_compact = unfixed_conversation.messages().last().map_or(false, |msg| {
+        let is_manual_compact = unfixed_conversation.messages().last().is_some_and(|msg| {
             msg.content.iter().any(|c| {
                 if let MessageContent::Text(text) = c {
-                    text.text.trim() == "/compact"
+                    text.text.trim() == MANUAL_COMPACT_TRIGGER
                 } else {
                     false
                 }
