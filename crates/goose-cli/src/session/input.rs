@@ -3,6 +3,7 @@ use anyhow::Result;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
+use std::io::{IsTerminal, Write};
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -77,6 +78,9 @@ pub fn get_input(
             _ => return Err(e.into()),
         },
     };
+
+    // Clear the rustyline prompt line so we can replace it with the vertical line version
+    clear_prompt_line();
 
     // Add valid input to history (history saving to file is handled in the Session::interactive method)
     if !input.trim().is_empty() {
@@ -269,6 +273,54 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     };
 
     Some(InputResult::Plan(options))
+}
+
+/// Clears the rustyline prompt line using ANSI escape codes.
+/// This allows us to replace the "( O)>" prompt with the vertical line version "│".
+///
+/// Only clears when stdout is a terminal. When output is redirected (non-terminal),
+/// no clearing is performed to avoid ANSI codes in the output.
+///
+/// On Windows, prompt clearing is skipped to avoid potential compatibility issues
+/// with ANSI escape sequences in various Windows terminal environments.
+///
+/// ANSI sequence (sent as single atomic write):
+/// - \x1B[1A - Move cursor up one line (to the line with the prompt)
+/// - \x1B[2K - Clear entire line
+/// - \r - Move cursor to beginning of line
+fn clear_prompt_line() {
+    // Skip on Windows to avoid ANSI compatibility issues
+    if cfg!(target_os = "windows") {
+        return;
+    }
+
+    if std::io::stdout().is_terminal() {
+        // Send all ANSI codes in a single print to reduce race conditions
+        print!("\x1B[1A\x1B[2K\r");
+        if let Err(e) = std::io::stdout().flush() {
+            // Log flush failure but don't panic - prompt clearing is not critical
+            tracing::debug!("Failed to flush prompt clear codes: {}", e);
+        }
+    }
+}
+
+/// Clears the prompt line by writing ANSI codes to the provided writer.
+/// This is the testable version that allows injecting a writer for tests.
+///
+/// # Arguments
+/// * `writer` - The writer to send ANSI codes to (typically stdout)
+/// * `is_terminal` - Whether the output is a terminal (if false, no codes are written)
+///
+/// Returns Ok(()) on success, or an io::Error if writing fails.
+#[cfg(test)]
+pub(crate) fn clear_prompt_line_with_writer<W: Write>(writer: &mut W, is_terminal: bool) -> std::io::Result<()> {
+    if is_terminal {
+        write!(writer, "\x1B[1A")?;  // Move cursor up one line
+        write!(writer, "\x1B[2K")?;  // Clear entire line
+        write!(writer, "\r")?;       // Move cursor to beginning of line
+        writer.flush()?;
+    }
+    Ok(())
 }
 
 /// Generates the input prompt string for the CLI interface.
