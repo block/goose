@@ -138,7 +138,7 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.9.3",
-    "vite": "^7.1.5",
+    "vite": "^7.1.11",
     "vitest": "^3.2.4"
   },
   "keywords": [],
