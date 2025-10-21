@@ -70,9 +70,7 @@ where
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
-            if let Ok(resolved_path) = resolve_sub_recipe_path(&sub_recipe.path, recipe_dir) {
-                sub_recipe.path = resolved_path;
-            }
+            sub_recipe.path = resolve_sub_recipe_path(&sub_recipe.path, recipe_dir)?;
         }
     }
 
@@ -122,18 +120,17 @@ fn resolve_sub_recipe_path(
     parent_recipe_dir: &Path,
 ) -> Result<String, RecipeError> {
     let path = if Path::new(sub_recipe_path).is_absolute() {
-        sub_recipe_path.to_string()
+        Path::new(sub_recipe_path).to_path_buf()
     } else {
-        parent_recipe_dir
-            .join(sub_recipe_path)
-            .to_str()
-            .ok_or_else(|| RecipeError::RecipeParsing {
-                source: anyhow::anyhow!("Invalid sub-recipe path: {}", sub_recipe_path),
-            })?
-            .to_string()
+        parent_recipe_dir.join(sub_recipe_path)
     };
+    if !path.exists() {
+        return Err(RecipeError::RecipeParsing {
+            source: anyhow::anyhow!("Sub-recipe file does not exist: {}", path.display()),
+        });
+    }
 
-    Ok(path)
+    Ok(path.display().to_string())
 }
 
 #[cfg(test)]
