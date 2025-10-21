@@ -99,9 +99,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 ),
                 Err(error) => {
                     // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(
-                        format!("The tool call returned the following error:\n{}", error)
-                    )])
+                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                        "The tool call returned the following error:\n{}",
+                        error
+                    ))])
                 }
             };
             bedrock::ContentBlock::ToolResult(
