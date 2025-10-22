@@ -172,24 +172,34 @@ Session removal is permanent and cannot be undone. Goose will show which session
 ---
 
 #### session export [options]
-Export a session to Markdown format for sharing, documentation, or archival purposes.
+Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
 - **`-i, --id <id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
 - **`-p, --path <path>`**: Export a specific session by file path
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
+- **`--format <format>`**: Output format: `markdown`, `json`, `yaml`. Default is `markdown`
+
+**Export Formats:**
+- **`json`**: Complete session backup preserving all data including conversation history, metadata, and settings
+- **`yaml`**: Complete session backup in YAML format
+- **`markdown`**: Default format that creates a formatted, readable version of the conversation for documentation and sharing
 
 **Usage:**
 ```bash
-# Export specific session to file
+# Interactive export
+goose session export
+
+# Export specific session as JSON for backup
+goose session export --name my-session --format json --output session-backup.json
+
+# Export specific session as readable markdown
 goose session export --name my-session --output session.md
 
-# Export specific session to stdout
-goose session export --name my-session
-
-# Interactive export (prompts for session selection)
-goose session export
+# Export to stdout in different formats
+goose session export --id 20250305_113223 --format json
+goose session export --name my-session --format yaml
 
 # Export session by path
 goose session export --path ./my-session.jsonl --output exported.md

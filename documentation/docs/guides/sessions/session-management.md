@@ -5,7 +5,7 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2 } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
@@ -324,22 +324,47 @@ You can resume a CLI session in Desktop.
     </TabItem>
 </Tabs>
 
-## Export Sessions
-
-Export sessions to Markdown to share with your team, create documentation, archive conversations, or review them in a readable format.
+## Import Sessions
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
-        Session export is currently only available through the CLI.
-    </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        Export sessions using the `export` subcommand:
+    <TabItem value="ui" label="Goose Desktop" default>
+        Import complete sessions from JSON files to restore, share, or migrate sessions between Goose instances. Importing creates a new session with a new ID rather than overwriting existing sessions.
 
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Click the <Upload className="inline" size={16} /> `Import Session` button in the top-right corner
+        4. Select a `.json` session file that was previously exported from goose
+        5. The session will be imported with a new session ID
+        6. A success notification will confirm the import
+
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        Session import is currently only available through the Desktop app.
+    </TabItem>
+</Tabs>
+
+## Export Sessions
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+        Export complete sessions as JSON files for backup, sharing, migration, or archival. Exported files preserve all session data including conversation history, metadata, and settings.
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Find the session you want to export
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Download className="inline" size={16} /> button that appears
+        6. The session will be downloaded as a `.json` file named after the session description
+
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        Export sessions for backup, sharing, migration, or documentation purposes. You can export as JSON files to preserve complete session data including conversation history, metadata, and settings, or as Markdown files to get a formatted, readable version of the conversation.
+
+        From your terminal, run the [`session export`](/docs/guides/goose-cli-commands#session-export-options) subcommand:
+        
         ```bash
-        # Interactive export - prompts you to select a session
         goose session export
         ```
-        
-        For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
+
     </TabItem>
 </Tabs>
