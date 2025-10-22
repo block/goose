@@ -1341,6 +1341,8 @@ impl Agent {
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
+        let (extension_count, tool_count) =
+            self.extension_manager.get_extension_and_tool_counts().await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1356,11 +1358,7 @@ impl Agent {
             .builder(model_name)
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
-            .with_disable_extensions_prompt(
-                self.extension_manager
-                    .suggest_disable_extensions_prompt()
-                    .await,
-            )
+            .with_extension_and_tool_counts(extension_count, tool_count)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;

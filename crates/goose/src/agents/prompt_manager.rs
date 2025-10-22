@@ -11,6 +11,9 @@ use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
 
+const MAX_EXTENSIONS: usize = 5;
+const MAX_TOOLS: usize = 50;
+
 pub struct PromptManager {
     system_prompt_override: Option<String>,
     system_prompt_extras: Vec<String>,
@@ -29,10 +32,13 @@ struct SystemPromptContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_selection_strategy: Option<String>,
     current_date_time: String,
-    suggest_disable: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extension_tool_limits: Option<(usize, usize)>,
     goose_mode: String,
     is_autonomous: bool,
     enable_subagents: bool,
+    max_extensions: usize,
+    max_tools: usize,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
@@ -41,7 +47,7 @@ pub struct SystemPromptBuilder<'a, M> {
 
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
-    suggest_disable_extensions_prompt: Value,
+    extension_tool_count: Option<(usize, usize)>,
     router_enabled: bool,
 }
 
@@ -63,8 +69,12 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn with_disable_extensions_prompt(mut self, prompt: Value) -> Self {
-        self.suggest_disable_extensions_prompt = prompt;
+    pub fn with_extension_and_tool_counts(
+        mut self,
+        extension_count: usize,
+        tool_count: usize,
+    ) -> Self {
+        self.extension_tool_count = Some((extension_count, tool_count));
         self
     }
 
@@ -100,14 +110,20 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .get_param("GOOSE_MODE")
             .unwrap_or_else(|_| Cow::from("auto"));
 
+        let extension_tool_limits = self
+            .extension_tool_count
+            .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS);
+
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
             tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
-            suggest_disable: self.suggest_disable_extensions_prompt.to_string(),
+            extension_tool_limits,
             goose_mode: goose_mode.to_string(),
             is_autonomous: goose_mode == "auto",
             enable_subagents: should_enabled_subagents(self.model_name.as_str()),
+            max_extensions: MAX_EXTENSIONS,
+            max_tools: MAX_TOOLS,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
@@ -182,7 +198,7 @@ impl PromptManager {
 
             extensions_info: vec![],
             frontend_instructions: None,
-            suggest_disable_extensions_prompt: Value::Null,
+            extension_tool_count: None,
             router_enabled: false,
         }
     }
@@ -315,11 +331,17 @@ mod tests {
         let system_prompt = manager
             .builder("gpt-4o")
             .with_extension(ExtensionInfo::new(
-                "<test extension name>",
-                "<instructions on how to use this extension>",
+                "extension_A",
+                "<instructions on how to use extension A>",
                 true,
             ))
+            .with_extension(ExtensionInfo::new(
+                "extension_B",
+                "<instructions on how to use extension B (no resources)>",
+                false,
+            ))
             .with_router_enabled(true)
+            .with_extension_and_tool_counts(MAX_EXTENSIONS + 1, MAX_TOOLS + 1)
             .build();
 
         assert_snapshot!(system_prompt)

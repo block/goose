@@ -549,7 +549,7 @@ impl ExtensionManager {
         Ok(())
     }
 
-    pub async fn suggest_disable_extensions_prompt(&self) -> Value {
+    pub async fn get_extension_and_tool_counts(&self) -> (usize, usize) {
         let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
@@ -558,27 +558,7 @@ impl ExtensionManager {
             .map(|tools| tools.len())
             .unwrap_or(0);
 
-        // Check if either condition is met
-        const MIN_EXTENSIONS: usize = 5;
-        const MIN_TOOLS: usize = 50;
-
-        if enabled_extensions_count > MIN_EXTENSIONS || total_tools > MIN_TOOLS {
-            Value::String(format!(
-                "The user currently has enabled {} extensions with a total of {} tools. \
-                Since this exceeds the recommended limits ({} extensions or {} tools), \
-                you should ask the user if they would like to disable some extensions for this session.\n\n\
-                Use the search_available_extensions tool to find extensions available to disable. \
-                You should only disable extensions found from the search_available_extensions tool. \
-                List all the extensions available to disable in the response. \
-                Explain that minimizing extensions helps with the recall of the correct tools to use.",
-                enabled_extensions_count,
-                total_tools,
-                MIN_EXTENSIONS,
-                MIN_TOOLS,
-            ))
-        } else {
-            Value::String(String::new()) // Empty string if under limits
-        }
+        (enabled_extensions_count, total_tools)
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
