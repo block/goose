@@ -49,7 +49,7 @@ impl SecurityManager {
         if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!(
                 gauge.goose.prompt_injection_scanner_enabled = 0,
-                "🔓 Security scanning disabled - returning empty results"
+                "🔓 Security scanning disabled"
             );
             return Ok(vec![]);
         }
