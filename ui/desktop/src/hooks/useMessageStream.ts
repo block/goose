@@ -330,6 +330,8 @@ export function useMessageStream({
                   }
 
                   case 'UpdateConversation': {
+                    // Synchronize local variable with compacted conversation
+                    currentMessages = parsedEvent.conversation;
                     setMessages(parsedEvent.conversation);
                     break;
                   }

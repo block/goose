@@ -176,6 +176,8 @@ async function streamFromResponse(
             }
             case 'UpdateConversation': {
               log.messages('conversation-update', event.conversation.length);
+              // Synchronize local variable with compacted conversation
+              currentMessages = event.conversation;
               // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(event.conversation);
               break;
