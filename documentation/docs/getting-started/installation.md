@@ -317,7 +317,7 @@ You can change your LLM provider and/or model or update your API key at any time
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    1. Click the sidebar toggle button (☰) in the top-left corner to open the navigation menu
     2. Click the `Settings` button on the sidebar.
     3. Click the `Models` tab.
     4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider).
@@ -385,7 +385,7 @@ While core configurations are shared between interfaces, extensions have flexibi
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
         Navigate to shared configurations through:
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        1. Click the sidebar toggle button (☰) in the top-left corner to open the navigation menu
         2. Click the `Settings` button on the sidebar.
     </TabItem>
     <TabItem value="cli" label="goose CLI">
