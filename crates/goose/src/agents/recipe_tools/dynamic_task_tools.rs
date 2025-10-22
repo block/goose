@@ -81,9 +81,6 @@ pub struct TaskParameter {
     pub retry: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<String>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<String>>,
 
     /// If true, return only the last message from the subagent (default: false, returns full conversation)
@@ -115,7 +112,7 @@ pub fn create_dynamic_task_tool() -> Tool {
 
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, activities. Arrays for multiple tasks.".to_string(),
         input_schema,
     ).annotate(ToolAnnotations {
         title: Some("Create Dynamic Tasks".to_string()),
@@ -227,7 +224,6 @@ pub fn task_params_to_inline_recipe(
     builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
     builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
     builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
-    builder = apply_if_ok(builder, task_param.get("context"), RecipeBuilder::context);
     builder = apply_if_ok(
         builder,
         task_param.get("activities"),

@@ -52,9 +52,6 @@ pub struct Recipe {
     pub extensions: Option<Vec<ExtensionConfig>>, // a list of extensions to enable
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<String>>, // any additional context
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<Settings>, // settings for the recipe
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -204,7 +201,6 @@ pub struct RecipeBuilder {
     // Optional fields
     prompt: Option<String>,
     extensions: Option<Vec<ExtensionConfig>>,
-    context: Option<Vec<String>>,
     settings: Option<Settings>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
@@ -242,7 +238,6 @@ impl Recipe {
             instructions: None,
             prompt: None,
             extensions: None,
-            context: None,
             settings: None,
             activities: None,
             author: None,
@@ -317,11 +312,6 @@ impl RecipeBuilder {
         self
     }
 
-    pub fn context(mut self, context: Vec<String>) -> Self {
-        self.context = Some(context);
-        self
-    }
-
     pub fn settings(mut self, settings: Settings) -> Self {
         self.settings = Some(settings);
         self
@@ -372,7 +362,6 @@ impl RecipeBuilder {
             instructions: self.instructions,
             prompt: self.prompt,
             extensions: self.extensions,
-            context: self.context,
             settings: self.settings,
             activities: self.activities,
             author: self.author,
@@ -711,7 +700,6 @@ isGlobal: true"#;
             instructions: Some("clean instructions".to_string()),
             prompt: Some("clean prompt".to_string()),
             extensions: None,
-            context: None,
             settings: None,
             activities: Some(vec!["clean activity 1".to_string()]),
             author: None,

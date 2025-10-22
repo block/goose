@@ -141,18 +141,8 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
 
-        // Build initial conversation with context if provided
-        let mut initial_messages = Vec::new();
-
-        // Add context as initial messages if provided
-        if let Some(context_items) = recipe.context {
-            for context in context_items {
-                initial_messages.push(Message::user().with_text(context));
-            }
-        }
-
-        // Add the main instruction
-        initial_messages.push(Message::user().with_text(text_instruction.clone()));
+        // Build initial conversation
+        let initial_messages = vec![Message::user().with_text(text_instruction.clone())];
 
         let mut conversation = Conversation::new_unvalidated(initial_messages);
 
