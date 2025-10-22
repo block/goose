@@ -49,145 +49,62 @@ The Todo extension is already enabled by default when Goose is installed.
 
 ## Example Usage
 
-In this example, I'll ask goose to help me add comprehensive error handling to an existing Python API. This demonstrates how the Todo extension helps goose stay organized during focused development work.
+In this example, I'm going to have Goose help me fix formatting inconsistencies in documentation files. This demonstrates how the TODO extension helps Goose stay organized when working through systematic improvements.
 
-### goose Prompt
-
-```
-I have a Python FastAPI application with basic CRUD operations, but it lacks proper error handling. Please add comprehensive error handling, input validation, and logging throughout the API endpoints. The app has 5 endpoints: create user, get user, update user, delete user, and list users.
-```
-
-### goose Output
+### Goose Prompt
 
 ```
-**Step 1: Analysis & Planning**
+I need to update our documentation to fix formatting inconsistencies between two tutorial files. There are several sections that don't match the expected pattern. Can you help me systematically work through these issues and track our progress?
+```
 
-goose first analyzes the existing API and creates a focused improvement plan:
+### Goose Output
 
-## FastAPI Error Handling Enhancement
+```md
+I'll help you fix the documentation inconsistencies systematically. Let me break this down into organized tasks and track our progress.
 
-### Phase 1: Code Analysis
-- [ ] Review existing endpoints
-  - [ ] Analyze current error handling patterns
-  - [ ] Identify missing validation
-  - [ ] Document current response formats
-  - [ ] List potential error scenarios
-- [ ] Plan error handling strategy
-  - [ ] Define custom exception classes
-  - [ ] Design error response format
-  - [ ] Choose logging approach
+## Fix Documentation Tutorial Inconsistencies
 
-### Phase 2: Custom Exceptions & Middleware
-- [ ] Create custom exception classes
-  - [ ] UserNotFoundError
-  - [ ] ValidationError
-  - [ ] DatabaseError
-- [ ] Implement global exception handler
-- [ ] Add request/response logging middleware
+### Missing Components (vs Reference Pattern)
+- [x] Add video embed at the top
+- [x] Add LLM info box in Example Usage section  
+- [x] Remove extra sections not in reference pattern
 
-### Phase 3: Endpoint Updates
-- [ ] Update user endpoints with proper error handling
-  - [ ] POST /users (create user)
-  - [ ] GET /users/{id} (get user)
-  - [ ] PUT /users/{id} (update user)
-  - [ ] DELETE /users/{id} (delete user)
-  - [ ] GET /users (list users)
-- [ ] Add input validation with Pydantic
-- [ ] Implement proper HTTP status codes
+### Configuration Section Issues
+- [x] Change terminology to match reference format
+- [x] Fix CLI configuration section format
+  - [x] Show exact command flow
+  - [x] Include proper menu output with syntax highlighting
+  - [x] Remove vague instructions
 
-### Phase 4: Testing & Documentation
-- [ ] Add error handling tests
-- [ ] Update API documentation
-- [ ] Test error scenarios
-- [ ] Verify logging works correctly
+### Introduction/Description Issues
+- [x] Simplify intro paragraph to match reference style
+- [x] Fix tutorial description line to match pattern
+- [x] Fix capitalization consistency throughout
 
-As goose works through the error handling implementation, it updates the Todo to show progress:
+### Example Structure Issues
+- [x] Simplify example to match reference format
+  - [x] Use clear "Prompt" and "Output" sections
+  - [x] Add timing information
+  - [x] Show actual response in proper code blocks
+- [x] Use focused, achievable example
+- [x] Show clear before/after states
 
-## FastAPI Error Handling Enhancement - IN PROGRESS
+### Formatting Consistency
+- [x] Ensure code blocks use proper syntax highlighting
+- [x] Match tone and structure of reference
+- [x] Use consistent terminology throughout
+- [x] Fix capitalization issues
 
-### Phase 1: Code Analysis ✅
-- [x] Review existing endpoints
-  - [x] Analyze current error handling patterns (basic try/catch only)
-  - [x] Identify missing validation (no input validation on POST/PUT)
-  - [x] Document current response formats (inconsistent error responses)
-  - [x] List potential error scenarios (database errors, validation, not found)
-- [x] Plan error handling strategy
-  - [x] Define custom exception classes (3 main types identified)
-  - [x] Design error response format (standardized JSON structure)
-  - [x] Choose logging approach (structured logging with correlation IDs)
+## Documentation Update Complete! ✅
 
-### Phase 2: Custom Exceptions & Middleware 🚧
-- [x] Create custom exception classes
-  - [x] UserNotFoundError
-  - [x] ValidationError
-  - [ ] DatabaseError (IN PROGRESS)
-- [ ] Implement global exception handler
-- [ ] Add request/response logging middleware
+All tutorial inconsistencies have been resolved:
 
-### Phase 3: Endpoint Updates
-- [ ] Update user endpoints with proper error handling
-  - [x] POST /users (create user) - added validation
-  - [ ] GET /users/{id} (get user)
-  - [ ] PUT /users/{id} (update user)
-  - [ ] DELETE /users/{id} (delete user)
-  - [ ] GET /users (list users)
-- [ ] Add input validation with Pydantic
-- [ ] Implement proper HTTP status codes
+✅ **Structure aligned** - Matches reference pattern exactly
+✅ **Components added** - Video embed, info boxes, proper tabs  
+✅ **Terminology fixed** - Consistent language throughout
+✅ **Example updated** - Simple, focused, with clear timing
+✅ **CLI instructions** - Exact command flow with highlighting
+✅ **Formatting consistent** - Proper code blocks and syntax
 
-### Phase 4: Testing & Documentation
-- [ ] Add error handling tests
-- [ ] Update API documentation
-- [ ] Test error scenarios
-- [ ] Verify logging works correctly
-
-### Completed This Session
-- [x] Created custom exception hierarchy
-- [x] Implemented UserNotFoundError and ValidationError classes
-- [x] Added comprehensive validation to POST /users endpoint
-- [x] Designed standardized error response format
-- [x] Set up structured logging configuration
-
-### Next Session Goals
-- [ ] Complete DatabaseError exception class
-- [ ] Implement global exception handler
-- [ ] Update remaining 4 endpoints
-
-**Step 3: Project Completion**
-
-Final Todo state showing the completed error handling enhancement:
-
-## FastAPI Error Handling Enhancement - COMPLETED ✅
-
-### Phase 1: Code Analysis ✅
-- [x] Complete analysis of existing API and error handling gaps
-
-### Phase 2: Custom Exceptions & Middleware ✅
-- [x] Created comprehensive custom exception classes
-- [x] Implemented global exception handler with proper HTTP status mapping
-- [x] Added request/response logging middleware with correlation IDs
-
-### Phase 3: Endpoint Updates ✅
-- [x] Updated all 5 user endpoints with proper error handling
-- [x] Added comprehensive input validation with Pydantic models
-- [x] Implemented consistent HTTP status codes and error responses
-
-### Phase 4: Testing & Documentation ✅
-- [x] Added 95% test coverage for error scenarios
-- [x] Updated OpenAPI documentation with error response schemas
-- [x] Verified logging works correctly across all endpoints
-
-### Enhancement Results
-- **Endpoints updated**: 5/5
-- **Custom exceptions created**: 3
-- **Test coverage**: 95% (up from 60%)
-- **Error response consistency**: 100%
-- **Average response time**: Improved by 15% due to better error handling
-
-### Deliverables
-- [x] Robust error handling across all API endpoints
-- [x] Comprehensive test suite for error scenarios
-- [x] Updated API documentation with error schemas
-- [x] Structured logging with correlation tracking
-- [x] Developer guide for extending error handling
-
+The documentation now follows a consistent pattern and provides a clear, organized experience for users.
 ```
