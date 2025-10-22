@@ -700,6 +700,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             "Use an extension that comes with goose",
         )
         .item(
+            "lsp",
+            "Language Server (LSP)",
+            "Connect to a Language Server Protocol server",
+        )
+        .item(
             "stdio",
             "Command-line Extension",
             "Run a local command or script",
@@ -1098,6 +1103,168 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             });
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
+        }
+        "lsp" => {
+            use goose::lsp::server_info::get_lsp_server_info;
+
+            let lsp_servers: Vec<(&str, &str, &str)> = vec![
+                (
+                    "typescript",
+                    "TypeScript/JavaScript",
+                    "Code intelligence for TypeScript and JavaScript",
+                ),
+                (
+                    "python",
+                    "Python",
+                    "Code intelligence for Python (Pyright/pylsp)",
+                ),
+                ("rust", "Rust", "Code intelligence for Rust (rust-analyzer)"),
+                ("go", "Go", "Code intelligence for Go (gopls)"),
+                ("java", "Java", "Code intelligence for Java (Eclipse JDT)"),
+                ("custom", "Custom LSP", "Configure a custom Language Server"),
+            ];
+
+            let selected_id = cliclack::select("Which language server would you like to add?")
+                .items(&lsp_servers)
+                .interact()?;
+
+            if selected_id == "custom" {
+                let extensions = get_all_extension_names();
+                let name: String =
+                    cliclack::input("What would you like to call this LSP extension?")
+                        .placeholder("my-lsp")
+                        .validate(move |input: &String| {
+                            if input.is_empty() {
+                                Err("Please enter a name")
+                            } else if extensions.contains(input) {
+                                Err("An extension with this name already exists")
+                            } else {
+                                Ok(())
+                            }
+                        })
+                        .interact()?;
+
+                let language_id: String = cliclack::input("What is the language ID?")
+                    .placeholder("mylang")
+                    .interact()?;
+
+                let cmd: String = cliclack::input("What command should be run?")
+                    .placeholder("mylang-language-server")
+                    .interact()?;
+
+                let args_input: String =
+                    cliclack::input("Command arguments (space-separated, optional):")
+                        .placeholder("--stdio")
+                        .required(false)
+                        .interact()?;
+
+                let args: Vec<String> = if args_input.is_empty() {
+                    vec![]
+                } else {
+                    args_input.split_whitespace().map(String::from).collect()
+                };
+
+                let root_patterns_input: String =
+                    cliclack::input("Root patterns (comma-separated):")
+                        .placeholder("package.json,.git")
+                        .interact()?;
+
+                let root_patterns: Vec<String> = root_patterns_input
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+
+                let timeout: u64 = cliclack::input("Timeout (seconds):")
+                    .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                    .validate(|input: &String| match input.parse::<u64>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid timeout"),
+                    })
+                    .interact()?;
+
+                let description = format!("LSP extension for {}", language_id);
+
+                set_extension(ExtensionEntry {
+                    enabled: true,
+                    config: ExtensionConfig::Lsp {
+                        name: name.clone(),
+                        description,
+                        language_id,
+                        cmd,
+                        args,
+                        envs: Envs::new(HashMap::new()),
+                        env_keys: vec![],
+                        root_patterns,
+                        instructions: None,
+                        timeout: Some(timeout),
+                        bundled: Some(false),
+                        available_tools: Vec::new(),
+                    },
+                });
+
+                cliclack::outro(format!("Added {} LSP extension", style(name).green()))?;
+            } else {
+                let server_info = get_lsp_server_info(selected_id)
+                    .ok_or_else(|| format!("LSP server '{}' not found", selected_id))?;
+
+                let (cmd, args) = match (server_info.command_fn)() {
+                    Ok(result) => result,
+                    Err(e) => {
+                        cliclack::outro(style(format!("Error: {}", e)).red())?;
+                        return Ok(());
+                    }
+                };
+
+                let extensions = get_all_extension_names();
+                let default_name = format!("{}-lsp", selected_id);
+                let name: String = cliclack::input("Extension name:")
+                    .placeholder(&default_name)
+                    .default_input(&default_name)
+                    .validate(move |input: &String| {
+                        if input.is_empty() {
+                            Err("Please enter a name")
+                        } else if extensions.contains(input) {
+                            Err("An extension with this name already exists")
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .interact()?;
+
+                let timeout: u64 = cliclack::input("Timeout (seconds):")
+                    .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                    .default_input(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                    .validate(|input: &String| match input.parse::<u64>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid timeout"),
+                    })
+                    .interact()?;
+
+                set_extension(ExtensionEntry {
+                    enabled: true,
+                    config: ExtensionConfig::Lsp {
+                        name: name.clone(),
+                        description: server_info.name.to_string(),
+                        language_id: server_info.id.to_string(),
+                        cmd,
+                        args,
+                        envs: Envs::new(HashMap::new()),
+                        env_keys: vec![],
+                        root_patterns: server_info
+                            .root_patterns
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect(),
+                        instructions: None,
+                        timeout: Some(timeout),
+                        bundled: Some(false),
+                        available_tools: Vec::new(),
+                    },
+                });
+
+                cliclack::outro(format!("Added {} LSP extension", style(name).green()))?;
+            }
         }
         _ => unreachable!(),
     };

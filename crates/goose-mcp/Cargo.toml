@@ -77,6 +77,7 @@ libc = "0.2"
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
 tokio-util = "0.7.16"
+lsp-types = "0.95"
 
 
 [dev-dependencies]

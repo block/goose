@@ -100,6 +100,10 @@ ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
+# LSP support
+lsp-types = "0.95"
+which = "7.0"
+
 oauth2 = "5.0.0"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
