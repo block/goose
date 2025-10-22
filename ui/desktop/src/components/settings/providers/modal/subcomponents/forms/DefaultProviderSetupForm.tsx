@@ -1,16 +1,37 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
-import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
+import { useConfig } from '../../../../../ConfigContext';
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
 
 type ValidationErrors = Record<string, string>;
 
+export interface ConfigInput {
+  value?: string;
+  serverHasValue: boolean;
+}
+
 interface DefaultProviderSetupFormProps {
-  configValues: Record<string, string>;
-  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  configValues: Record<string, ConfigInput>;
+  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, ConfigInput>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
 }
+
+const envToPrettyName = (envVar: string) => {
+  const wordReplacements: { [w: string]: string } = {
+    Api: 'API',
+    Aws: 'AWS',
+    Gcp: 'GCP',
+  };
+
+  return envVar
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => wordReplacements[word] || word)
+    .join(' ')
+    .trim();
+};
 
 export default function DefaultProviderSetupForm({
   configValues,
@@ -25,71 +46,46 @@ export default function DefaultProviderSetupForm({
   const [isLoading, setIsLoading] = useState(true);
   const { read } = useConfig();
 
-  console.log('configValues default form', configValues);
-
-  // Initialize values when the component mounts or provider changes
   const loadConfigValues = useCallback(async () => {
     setIsLoading(true);
-    const newValues = { ...configValues };
+    const values: { [k: string]: ConfigInput } = {};
 
-    // Try to load actual values from config for each parameter that is not secret
     for (const parameter of parameters) {
-      try {
-        // Check if there's a stored value in the config system
-        const configKey = `${parameter.name}`;
-        const configResponse = await read(configKey, parameter.secret || false);
+      const configKey = `${parameter.name}`;
+      const configValue = (await read(configKey, parameter.secret || false)) as string;
 
-        if (configResponse) {
-          newValues[parameter.name] = parameter.secret ? 'true' : String(configResponse);
-        } else if (
-          parameter.default !== undefined &&
-          parameter.default !== null &&
-          !configValues[parameter.name]
-        ) {
-          // Fall back to default value if no config value exists
-          newValues[parameter.name] = String(parameter.default);
+      if (configValue) {
+        if (parameter.secret) {
+          values[parameter.name] = { serverHasValue: true };
+        } else {
+          values[parameter.name] = { value: configValue, serverHasValue: true };
         }
-      } catch (error) {
-        console.error(`Failed to load config for ${parameter.name}:`, error);
-        // Fall back to default if read operation fails
-        if (
-          parameter.default !== undefined &&
-          parameter.default !== null &&
-          !configValues[parameter.name]
-        ) {
-          newValues[parameter.name] = String(parameter.default);
-        }
+      } else if (parameter.default !== undefined && parameter.default !== null) {
+        values[parameter.name] = { value: configValue, serverHasValue: false };
       }
     }
 
-    // Update state with loaded values
     setConfigValues((prev) => ({
       ...prev,
-      ...newValues,
+      ...values,
     }));
     setIsLoading(false);
-  }, [configValues, parameters, read, setConfigValues]);
+  }, [parameters, read, setConfigValues]);
 
   useEffect(() => {
     loadConfigValues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter parameters to only show required ones
-  const requiredParameters = useMemo(() => {
-    return parameters.filter((param) => param.required === true);
-  }, [parameters]);
+  const parametersToRender = [...parameters];
 
-  // TODO: show all params, not just required ones
-  // const allParameters = useMemo(() => {
-  //   return parameters;
-  // }, [parameters]);
-
-  // Helper function to generate appropriate placeholder text
   const getPlaceholder = (parameter: ConfigKey): string => {
-    // If default is defined and not null, show it
+    if (parameter.secret && configValues[parameter.name]?.serverHasValue) {
+      return 'Leave blank to keep existing value';
+    }
+
     if (parameter.default !== undefined && parameter.default !== null) {
-      return `Default: ${parameter.default}`;
+      return parameter.default;
     }
 
     const name = parameter.name.toLowerCase();
@@ -99,38 +95,41 @@ export default function DefaultProviderSetupForm({
 
     return parameter.name
       .replace(/_/g, ' ')
-      .replace(/([A-Z])/g, ' $1')
       .replace(/^./, (str) => str.toUpperCase())
       .trim();
   };
 
-  // helper for custom labels
-  const getFieldLabel = (parameter: ConfigKey): string => {
+  const getFieldLabel = (parameter: ConfigKey) => {
     const name = parameter.name.toLowerCase();
     if (name.includes('api_key')) return 'API Key';
     if (name.includes('api_url') || name.includes('host')) return 'API Host';
     if (name.includes('models')) return 'Models';
 
-    return parameter.name
-      .replace(/_/g, ' ')
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (str) => str.toUpperCase())
-      .trim();
+    let parameter_name = parameter.name.toUpperCase();
+    if (parameter_name.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
+      parameter_name = parameter_name.slice(provider.name.length + 1);
+    }
+    let pretty = envToPrettyName(parameter_name);
+    return (
+      <span>
+        <span>{pretty}</span>
+        <span className="text-sm font-light ml-2">({parameter.name})</span>
+      </span>
+    );
   };
 
   if (isLoading) {
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
-  console.log('required params', requiredParameters);
   return (
     <div className="mt-4 space-y-4">
-      {requiredParameters.length === 0 ? (
+      {parametersToRender.length === 0 ? (
         <div className="text-center text-gray-500">
-          No required configuration for this provider.
+          No configuration parameters for this provider.
         </div>
       ) : (
-        requiredParameters.map((parameter) => (
+        parametersToRender.map((parameter) => (
           <div key={parameter.name}>
             <label className="block text-sm font-medium text-textStandard mb-1">
               {getFieldLabel(parameter)}
@@ -138,13 +137,20 @@ export default function DefaultProviderSetupForm({
             </label>
             <Input
               type={parameter.secret ? 'password' : 'text'}
-              value={configValues[parameter.name] || ''}
+              value={parameter.secret ? undefined : configValues[parameter.name]?.value || ''}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 console.log(`Setting ${parameter.name} to:`, e.target.value);
-                setConfigValues((prev) => ({
-                  ...prev,
-                  [parameter.name]: e.target.value,
-                }));
+                setConfigValues((prev) => {
+                  const newValue = prev[parameter.name] || {
+                    value: undefined,
+                    serverHasValue: false,
+                  };
+                  newValue.value = e.target.value;
+                  return {
+                    ...prev,
+                    [parameter.name]: newValue,
+                  };
+                });
               }}
               placeholder={getPlaceholder(parameter)}
               className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
