@@ -26,6 +26,7 @@ impl Default for PromptManager {
 #[derive(Serialize)]
 struct SystemPromptContext {
     extensions: Vec<ExtensionInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tool_selection_strategy: Option<String>,
     current_date_time: String,
     suggest_disable: String,
