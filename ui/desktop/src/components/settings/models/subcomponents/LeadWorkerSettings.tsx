@@ -5,6 +5,7 @@ import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import { fetchModelsForProviders } from '../modelInterface';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
 
 interface LeadWorkerSettingsProps {
@@ -103,38 +104,17 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          const modelPromises = activeProviders.map(async (p) => {
-            try {
-              const models = await getProviderModels(p.name);
-              return { provider: p, models, error: null };
-            } catch (error) {
-              return { provider: p, models: null, error };
-            }
-          });
-
-          const results = await Promise.all(modelPromises);
-
-          // Process results and build options
+          const results = await fetchModelsForProviders(activeProviders, getProviderModels);
           results.forEach(({ provider: p, models, error }) => {
             if (error) {
-              console.error(`Error fetching models for provider ${p.name}:`, error);
+              console.error(error);
             }
 
-            // Use dynamically fetched models if available
             if (models && models.length > 0) {
               models.forEach((modelName) => {
                 options.push({
                   value: modelName,
                   label: `${modelName} (${p.metadata.display_name})`,
-                  provider: p.name,
-                });
-              });
-            } else if (p.metadata.known_models && p.metadata.known_models.length > 0) {
-              // Fallback to known_models if no models were fetched or on error
-              p.metadata.known_models.forEach((model) => {
-                options.push({
-                  value: model.name,
-                  label: `${model.name} (${p.metadata.display_name})`,
                   provider: p.name,
                 });
               });

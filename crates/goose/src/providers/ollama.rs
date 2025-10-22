@@ -286,7 +286,6 @@ impl Provider for OllamaProvider {
         }))
     }
 
-    /// Fetch the list of available models from Ollama
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
