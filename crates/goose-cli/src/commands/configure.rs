@@ -481,7 +481,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     .interact()?
                 {
                     if key.secret {
-                        if !try_store_secret(&config, &key.name, env_value)? {
+                        if !try_store_secret(config, &key.name, env_value)? {
                             return Ok(false);
                         }
                     } else {
@@ -523,7 +523,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                 };
 
                                 if key.secret {
-                                    if !try_store_secret(&config, &key.name, value)? {
+                                    if !try_store_secret(config, &key.name, value)? {
                                         return Ok(false);
                                     }
                                 } else {
