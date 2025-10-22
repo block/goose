@@ -1,4 +1,3 @@
-import { gsap } from 'gsap';
 import SplitType from 'split-type';
 import { useEffect, useRef } from 'react';
 
@@ -110,6 +109,7 @@ export class TextAnimator {
   textElement: HTMLElement;
   splitter!: TextSplitter;
   originalChars!: string[];
+  activeAnimations: globalThis.Animation[] = [];
 
   constructor(textElement: HTMLElement) {
     if (!textElement || !(textElement instanceof HTMLElement)) {
@@ -134,63 +134,76 @@ export class TextAnimator {
 
     chars.forEach((char, position) => {
       const initialHTML = char.innerHTML;
-      let repeatCount = 0;
 
-      // Set initial state
-      gsap.set(char, {
-        opacity: 1,
-        display: 'inline-block',
-        position: 'relative',
-      });
+      char.style.opacity = '1';
+      char.style.display = 'inline-block';
+      char.style.position = 'relative';
 
-      gsap.fromTo(
-        char,
+      const animation = char.animate(
+        [
+          {
+            // 0%
+            opacity: 1,
+            color: '#666',
+            fontFamily: 'Cash Sans Mono',
+            fontWeight: '300',
+          },
+          {
+            // 50%
+            opacity: 0.5,
+            color: '#999',
+          },
+          {
+            // 100%
+            opacity: 1,
+            color: 'inherit',
+            fontFamily: 'inherit',
+            fontWeight: 'inherit',
+          },
+        ],
         {
-          opacity: 1,
-        },
-        {
-          duration: 0.1, // Increased duration
-          ease: 'power2.out',
-          onStart: () => {
-            gsap.set(char, {
-              fontFamily: 'Cash Sans Mono',
-              fontWeight: 300,
-              color: '#666', // Add color change
-            });
-          },
-          onComplete: () => {
-            gsap.set(char, {
-              innerHTML: initialHTML,
-              color: '',
-              fontFamily: '',
-              opacity: 1,
-            });
-          },
-          repeat: 2, // Reduced repeats
-          onRepeat: () => {
-            repeatCount++;
-            if (repeatCount === 1) {
-              gsap.set(char, {
-                opacity: 0.5,
-                color: '#999',
-              });
-            }
-          },
-          repeatRefresh: true,
-          repeatDelay: 0.05, // Increased delay
-          delay: position * 0.03, // Reduced delay between chars
-          innerHTML: () => lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)],
-          opacity: 1,
+          duration: 300, // Total duration for all iterations
+          easing: 'ease-in-out',
+          delay: position * 30, // Stagger the start of each animation
+          iterations: 1, // We'll handle repeats manually to change innerHTML
         }
       );
+
+      this.activeAnimations.push(animation);
+
+      let iteration = 0;
+      const maxIterations = 2;
+
+      const animateCharacterChange = () => {
+        if (iteration < maxIterations) {
+          char.innerHTML = lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
+          setTimeout(animateCharacterChange, 100);
+          iteration++;
+        } else {
+          char.innerHTML = initialHTML;
+        }
+      };
+
+      setTimeout(animateCharacterChange, position * 30);
+
+      animation.onfinish = () => {
+        char.innerHTML = initialHTML;
+        char.style.color = '';
+        char.style.fontFamily = '';
+        char.style.opacity = '1';
+      };
     });
   }
 
   reset() {
+    this.activeAnimations.forEach((animation) => animation.cancel());
+    this.activeAnimations = [];
+
     const chars = this.splitter.getChars();
     chars.forEach((char, index) => {
-      gsap.killTweensOf(char);
-      char.innerHTML = this.originalChars[index];
+      if (this.originalChars[index]) {
+        char.innerHTML = this.originalChars[index];
+      }
     });
   }
 }
