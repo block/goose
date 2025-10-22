@@ -630,10 +630,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
             // Update config with new values only if the test succeeds
             config.set_param("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
             config.set_param("GOOSE_MODEL", Value::String(model.clone()))?;
-            cliclack::outro(format!(
-                "Configuration saved successfully to {}",
-                config.path()
-            ))?;
+            print_config_file_saved()?;
             Ok(true)
         }
         Err(e) => {
@@ -696,7 +693,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     let config = Config::global();
     cliclack::outro(format!(
-        "Extension settings updated successfully in {}",
+        "Extension settings saved successfully to {}",
         config.path()
     ))?;
     Ok(())
@@ -1558,7 +1555,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     cliclack::outro(format!(
         "Changes saved to {}",
-        permission_manager.get_config_path()
+        permission_manager.get_config_path().display()
     ))?;
 
     Ok(())

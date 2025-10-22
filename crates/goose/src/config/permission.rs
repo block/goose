@@ -92,8 +92,8 @@ impl PermissionManager {
     }
 
     /// Retrieves the config file path.
-    pub fn get_config_path(&self) -> String {
-        self.config_path.to_string_lossy().to_string()
+    pub fn get_config_path(&self) -> &Path {
+        &self.config_path
     }
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.
