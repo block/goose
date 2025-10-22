@@ -158,7 +158,7 @@ function BaseChatContent({
   const {
     recipe,
     recipeId,
-    recipeParameters,
+    recipeParameterValues,
     filteredParameters,
     initialPrompt,
     isParameterModalOpen,
@@ -329,7 +329,7 @@ function BaseChatContent({
                   append={(text: string) => appendWithTracking(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  parameterValues={recipeParameters || {}}
+                  parameterValues={recipeParameterValues || {}}
                 />
               </div>
             )}
@@ -357,7 +357,7 @@ function BaseChatContent({
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>
+                    <SearchView placeholder="Search conversation...">
                       <ProgressiveMessageList
                         messages={filteredMessages}
                         chat={chat}

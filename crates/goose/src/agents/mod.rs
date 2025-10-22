@@ -2,6 +2,7 @@ mod agent;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
+pub mod extension_manager_extension;
 pub mod final_output_tool;
 mod large_response_handler;
 pub mod mcp_client;

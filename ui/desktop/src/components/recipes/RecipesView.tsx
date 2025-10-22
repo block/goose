@@ -16,6 +16,7 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 
 export default function RecipesView() {
+  const setView = useNavigation();
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -27,7 +28,6 @@ export default function RecipesView() {
   // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const setView = useNavigation();
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedRecipeForSchedule, setSelectedRecipeForSchedule] = useState<Recipe | null>(null);
 
@@ -182,11 +182,8 @@ export default function RecipesView() {
   };
 
   const handleCreateScheduleFromRecipe = async (deepLink: string) => {
-    // Store the deeplink for the schedule modal to pick up
-    localStorage.setItem('pendingScheduleDeepLink', deepLink);
-
-    // Navigate to schedules view and open create modal
-    window.location.hash = '#/schedules';
+    // Navigate to schedules view with the deep link in state
+    setView('schedules', { pendingScheduleDeepLink: deepLink });
 
     setShowScheduleModal(false);
     setSelectedRecipeForSchedule(null);

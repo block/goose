@@ -712,7 +712,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose.
+                  View and search your past conversations with Goose. ⌘F/Ctrl+F to search.
                 </p>
               </div>
             </div>
@@ -725,6 +725,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onNavigate={handleSearchNavigation}
                     searchResults={searchResults}
                     className="relative"
+                    placeholder="Search history..."
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div

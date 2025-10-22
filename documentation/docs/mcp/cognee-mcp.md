@@ -27,7 +27,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="goose CLI" default>
 
 1. First, install Cognee:
 ```bash

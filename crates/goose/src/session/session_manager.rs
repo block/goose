@@ -351,8 +351,7 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(create_if_missing)
-            .busy_timeout(std::time::Duration::from_secs(5))
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            .busy_timeout(std::time::Duration::from_secs(5));
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(
@@ -628,7 +627,7 @@ impl SessionStorage {
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let session_id = sqlx::query_as(
+        Ok(sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, description, working_dir, extension_data)
                 VALUES (
@@ -649,13 +648,7 @@ impl SessionStorage {
         .bind(&description)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
-        .await?;
-
-        sqlx::query("PRAGMA wal_checkpoint")
-            .execute(&self.pool)
-            .await?;
-
-        Ok(session_id)
+        .await?)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {

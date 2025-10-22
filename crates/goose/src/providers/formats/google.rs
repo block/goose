@@ -130,7 +130,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .collect()
 }
 
-/// Convert internal Tool format to Google's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     tools
         .iter()
@@ -139,7 +138,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             parameters.insert("name".to_string(), json!(tool.name));
             parameters.insert("description".to_string(), json!(tool.description));
             let tool_input_schema = &tool.input_schema;
-            // Only add the parameters key if the tool schema has non-empty properties.
+
             if tool_input_schema
                 .get("properties")
                 .and_then(|v| v.as_object())

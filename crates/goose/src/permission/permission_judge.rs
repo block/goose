@@ -1,4 +1,4 @@
-use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
+use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
@@ -188,7 +188,7 @@ pub async fn check_tool_permissions(
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
-                if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
                     extension_request_ids.push(request.id.clone());
                 }
 
@@ -442,7 +442,7 @@ mod tests {
         let enable_extension = ToolRequest {
             id: "tool_3".to_string(),
             tool_call: Ok(CallToolRequestParam {
-                name: PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME.into(),
+                name: MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE.into(),
                 arguments: Some(object!({"action": "enable", "extension_name": "data_fetcher"})),
             }),
         };
@@ -472,57 +472,5 @@ mod tests {
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_3"));
         assert!(enable_extension_request_ids.iter().any(|id| id == "tool_3"));
-    }
-
-    #[tokio::test]
-    async fn test_check_tool_permissions_auto() {
-        // Setup mocks
-        let temp_file = NamedTempFile::new().unwrap();
-        let temp_path = temp_file.path();
-        let mut permission_manager = PermissionManager::new(temp_path);
-        let provider = create_mock_provider();
-
-        let tools_with_readonly_annotation: HashSet<String> =
-            vec!["file_reader".to_string()].into_iter().collect();
-        let tools_without_annotation: HashSet<String> =
-            vec!["data_fetcher".to_string()].into_iter().collect();
-
-        permission_manager.update_user_permission("file_reader", PermissionLevel::AlwaysAllow);
-        permission_manager
-            .update_smart_approve_permission("data_fetcher", PermissionLevel::AskBefore);
-
-        let tool_request_1 = ToolRequest {
-            id: "tool_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "file_reader".into(),
-                arguments: Some(object!({"path": "/path/to/file"})),
-            }),
-        };
-
-        let tool_request_2 = ToolRequest {
-            id: "tool_2".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "data_fetcher".into(),
-                arguments: Some(object!({"url": "http://example.com"})),
-            }),
-        };
-
-        let candidate_requests: Vec<ToolRequest> = vec![tool_request_1, tool_request_2];
-
-        // Call the function under test
-        let (result, _) = check_tool_permissions(
-            &candidate_requests,
-            "auto",
-            tools_with_readonly_annotation,
-            tools_without_annotation,
-            &mut permission_manager,
-            provider,
-        )
-        .await;
-
-        // Validate the result
-        assert_eq!(result.approved.len(), 2); // file_reader should be approved
-        assert_eq!(result.needs_approval.len(), 0); // data_fetcher should need approval
-        assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
     }
 }
