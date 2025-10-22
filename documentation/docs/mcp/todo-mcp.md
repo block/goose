@@ -5,22 +5,22 @@ description: Use Todo MCP Server as a goose Extension for Task Management
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import gooseBuiltinInstaller from '@site/src/components/gooseBuiltinInstaller';
 
 TThe Todo extension helps goose stay organized by breaking complex work into a checklist and keeping you updated as it completes each step.
 
-This tutorial will cover enabling and using the TODO MCP Server, which is a built-in Goose extension.
+This tutorial will cover enabling and using the Todo MCP Server, which is a built-in goose extension.
 
 ## Configuration
 
 :::info
-The Todo extension is already enabled by default when Goose is installed.
+The Todo extension is already enabled by default when goose is installed.
 :::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
-    extensionName="TODO"
+  <gooseBuiltinInstaller
+    extensionName="Todo"
     description="Manage complex tasks with structured checklists and progress tracking"
   />
   </TabItem>
@@ -49,15 +49,15 @@ The Todo extension is already enabled by default when Goose is installed.
 
 ## Example Usage
 
-In this example, I'm going to have Goose help me fix formatting inconsistencies in documentation files. This demonstrates how the TODO extension helps Goose stay organized when working through systematic improvements.
+In this example, I'm going to have goose help me fix formatting inconsistencies in documentation files. This demonstrates how the Todo extension helps goose stay organized when working through systematic improvements.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 I need to update our documentation to fix formatting inconsistencies between two tutorial files. There are several sections that don't match the expected pattern. Can you help me systematically work through these issues and track our progress?
 ```
 
-### Goose Output
+### goose Output
 
 ```md
 I'll help you fix the documentation inconsistencies systematically. Let me break this down into organized tasks and track our progress.
