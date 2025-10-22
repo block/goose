@@ -1,5 +1,7 @@
 version: "1.0.0"
 title: "Refactor Function"
+author:
+  contact: Better-Boy
 description: "Refactor a specific function to improve code quality"
 instructions: |
   You are a code quality expert. Your task is to:
