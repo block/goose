@@ -25,12 +25,12 @@ async fn diagnostics(Path(session_id): Path<String>) -> impl IntoResponse {
             let filename = format!("attachment; filename=\"diagnostics_{}.zip\"", session_id);
             let headers = [
                 (
-                    axum::http::header::CONTENT_TYPE,
+                    http::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/zip"),
                 ),
                 (
-                    axum::http::header::CONTENT_DISPOSITION,
-                    HeaderValue::from_str(&filename).unwrap(),
+                    http::header::CONTENT_DISPOSITION,
+                    HeaderValue::from_str(&filename).map_err(|e| StatusCode::BAD_REQUEST)?,
                 ),
             ];
 
