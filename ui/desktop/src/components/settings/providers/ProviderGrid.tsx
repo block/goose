@@ -67,7 +67,7 @@ function ProviderCards({
 
   const openModal = useCallback(
     (provider: ProviderDetails) => setConfiguringProvider(provider),
-    [setConfiguringProvider]
+    []
   );
 
   const configureProviderViaModal = useCallback(

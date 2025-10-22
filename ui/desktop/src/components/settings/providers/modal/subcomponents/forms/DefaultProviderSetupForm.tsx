@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext';
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
 
 type ValidationErrors = Record<string, string>;
 
@@ -44,6 +45,7 @@ export default function DefaultProviderSetupForm({
     [provider.metadata.config_keys]
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [optionalExpanded, setOptionalExpanded] = useState(false);
   const { read } = useConfig();
 
   const loadConfigValues = useCallback(async () => {
@@ -76,8 +78,6 @@ export default function DefaultProviderSetupForm({
     loadConfigValues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const parametersToRender = [...parameters];
 
   const getPlaceholder = (parameter: ConfigKey): string => {
     if (parameter.secret && configValues[parameter.name]?.serverHasValue) {
@@ -122,49 +122,75 @@ export default function DefaultProviderSetupForm({
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
+  const renderParametersList = (parameters: ConfigKey[]) => {
+    return parameters.map((parameter) => (
+      <div key={parameter.name}>
+        <label className="block text-sm font-medium text-textStandard mb-1">
+          {getFieldLabel(parameter)}
+          {parameter.required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <Input
+          type={parameter.secret ? 'password' : 'text'}
+          value={parameter.secret ? undefined : configValues[parameter.name]?.value || ''}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setConfigValues((prev) => {
+              const newValue = prev[parameter.name] || {
+                value: undefined,
+                serverHasValue: false,
+              };
+              newValue.value = e.target.value;
+              return {
+                ...prev,
+                [parameter.name]: newValue,
+              };
+            });
+          }}
+          placeholder={getPlaceholder(parameter)}
+          className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+            validationErrors[parameter.name]
+              ? 'border-2 border-red-500'
+              : 'border border-borderSubtle hover:border-borderStandard'
+          } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
+          required={parameter.required}
+        />
+        {validationErrors[parameter.name] && (
+          <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
+        )}
+      </div>
+    ));
+  };
+
+  const requiredParameters = parameters.filter((p) => p.required);
+  const optionalParameters = parameters.filter((p) => !p.required);
+
+  const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${optionalParameters.length} options `;
   return (
     <div className="mt-4 space-y-4">
-      {parametersToRender.length === 0 ? (
+      {requiredParameters.length === 0 && optionalParameters.length === 0 ? (
         <div className="text-center text-gray-500">
           No configuration parameters for this provider.
         </div>
       ) : (
-        parametersToRender.map((parameter) => (
-          <div key={parameter.name}>
-            <label className="block text-sm font-medium text-textStandard mb-1">
-              {getFieldLabel(parameter)}
-              {parameter.required && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <Input
-              type={parameter.secret ? 'password' : 'text'}
-              value={parameter.secret ? undefined : configValues[parameter.name]?.value || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                console.log(`Setting ${parameter.name} to:`, e.target.value);
-                setConfigValues((prev) => {
-                  const newValue = prev[parameter.name] || {
-                    value: undefined,
-                    serverHasValue: false,
-                  };
-                  newValue.value = e.target.value;
-                  return {
-                    ...prev,
-                    [parameter.name]: newValue,
-                  };
-                });
-              }}
-              placeholder={getPlaceholder(parameter)}
-              className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
-                validationErrors[parameter.name]
-                  ? 'border-2 border-red-500'
-                  : 'border border-borderSubtle hover:border-borderStandard'
-              } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
-              required={parameter.required}
-            />
-            {validationErrors[parameter.name] && (
-              <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
-            )}
-          </div>
-        ))
+        <div>
+          <div>{renderParametersList(requiredParameters)}</div>
+          {optionalParameters.length > 0 && (
+            <Collapsible
+              open={optionalExpanded}
+              onOpenChange={setOptionalExpanded}
+              className="my-4 border-2 border-dashed border-secondary rounded-lg bg-secondary/10"
+            >
+              <CollapsibleTrigger className="m-3 w-full">
+                <div>
+                  <span className="text-sm">{expandCtaText}</span>
+                  <span className="text-sm">{optionalExpanded ? '↑' : '↓'}</span>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mx-3 mb-3">
+                {renderParametersList(optionalParameters)}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </div>
       )}
     </div>
   );

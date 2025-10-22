@@ -74,7 +74,9 @@ export default function ProviderConfigurationModal({
     }
 
     const toSubmit = Object.fromEntries(
-      Object.entries(configValues).map(([k, entry]) => [k, entry.value || ''])
+      Object.entries(configValues)
+        .filter(([_k, entry]) => !entry.serverHasValue || !!entry.value)
+        .map(([k, entry]) => [k, entry.value || ''])
     );
 
     await providerConfigSubmitHandler(upsert, provider, toSubmit);
