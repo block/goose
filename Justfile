@@ -239,12 +239,17 @@ lint-ui:
 # make GUI with latest binary
 make-ui:
     @just release-binary
+    cd ui/desktop && APPLE_IDENTITY="" APPLE_ID="" APPLE_ID_PASSWORD="" APPLE_APP_SPECIFIC_PASSWORD="" APPLE_TEAM_ID="" npm run bundle:default
+
+# make GUI with signing and notarization (requires Apple Developer credentials)
+make-ui-signed:
+    @just release-binary
     cd ui/desktop && npm run bundle:default
 
 # make GUI with latest binary and alpha features enabled
 make-ui-alpha:
     @just release-binary
-    cd ui/desktop && npm run bundle:alpha
+    cd ui/desktop && APPLE_IDENTITY="" APPLE_ID="" APPLE_ID_PASSWORD="" APPLE_APP_SPECIFIC_PASSWORD="" APPLE_TEAM_ID="" npm run bundle:alpha
 
 # make GUI with latest Windows binary
 make-ui-windows:
