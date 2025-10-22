@@ -12,8 +12,8 @@ import { deleteRecipe, RecipeManifestResponse, startAgent } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink, Recipe } from '../../recipe';
-import { useNavigation } from '../../hooks/useNavigation';
 import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
+import { useNavigation } from '../../hooks/useNavigation';
 
 export default function RecipesView() {
   const setView = useNavigation();

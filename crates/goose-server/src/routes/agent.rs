@@ -31,17 +31,6 @@ use std::sync::Arc;
 use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ExtendPromptRequest {
-    extension: String,
-    session_id: String,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct ExtendPromptResponse {
-    success: bool,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
     session_id: String,
 }

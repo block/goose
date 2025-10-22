@@ -379,13 +379,15 @@ export function useChatStream({
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
 
-  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages);
+  const effectiveChatState = isCompacting ? ChatState.Compacting : chatState;
+
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, effectiveChatState);
 
   return {
     sessionLoadError,
     messages: maybe_cached_messages,
     session: maybe_cached_session,
-    chatState: isCompacting ? ChatState.Compacting : chatState,
+    chatState: effectiveChatState,
     handleSubmit,
     stopStreaming,
   };
