@@ -1,5 +1,4 @@
 use anstream::println;
-use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
@@ -26,14 +25,6 @@ pub enum Theme {
 }
 
 impl Theme {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Theme::Light => "GitHub",
-            Theme::Dark => "zenburn",
-            Theme::Ansi => "base16",
-        }
-    }
-
     fn from_config_str(val: &str) -> Self {
         if val.eq_ignore_ascii_case("light") {
             Theme::Light
@@ -163,12 +154,25 @@ pub fn set_thinking_message(s: &String) {
 
 pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
+    let mut has_tool_content = false;
 
     for content in &message.content {
         match content {
-            MessageContent::Text(text) => print_markdown(&text.text, theme),
-            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::Text(text) => {
+                // Add spacing before final text if we've rendered tool content
+                if has_tool_content {
+                    println!();
+                }
+                print_markdown(&text.text, theme, 2, false)
+            },
+            MessageContent::ToolRequest(req) => {
+                has_tool_content = true;
+                render_tool_request(req, theme, debug)
+            },
+            MessageContent::ToolResponse(resp) => {
+                has_tool_content = true;
+                render_tool_response(resp, theme, debug)
+            },
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
@@ -177,13 +181,13 @@ pub fn render_message(message: &Message, debug: bool) {
                     && std::io::stdout().is_terminal()
                 {
                     println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
+                    print_markdown(&thinking.thinking, theme, 2, true);
                 }
             }
             MessageContent::RedactedThinking(_) => {
                 // For redacted thinking, print thinking was redacted
                 println!("\n{}", style("Thinking:").dim().italic());
-                print_markdown("Thinking was redacted", theme);
+                print_markdown("Thinking was redacted", theme, 2, true);
             }
             MessageContent::ConversationCompacted(summarization) => {
                 println!("\n{}", style(&summarization.msg).yellow());
@@ -241,6 +245,17 @@ pub fn render_exit_plan_mode() {
     println!("\n{}\n", style("Exiting plan mode.").green().bold());
 }
 
+pub fn render_user_input(text: &str) {
+    // Split the text into lines and prefix each with a vertical line
+    let lines: Vec<&str> = text.lines().collect();
+    println!(); // Add spacing before user input
+    for line in lines {
+        println!("{} {}", style("│").dim(), line);
+    }
+    println!(); // Add spacing after user input
+    println!(); // Add extra spacing before chain-of-thought
+}
+
 pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
@@ -254,7 +269,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "todo__read" | "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => print_markdown(&e.to_string(), theme, 2, true),
     }
 }
 
@@ -286,11 +301,11 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 if debug {
                     println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
-                    print_markdown(&text.text, theme);
+                    print_markdown(&text.text, theme, 4, true);
                 }
             }
         }
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => print_markdown(&e.to_string(), theme, 4, true),
     }
 }
 
@@ -396,9 +411,9 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     if let Some(args) = &call.arguments {
         if let Some(Value::String(path)) = args.get("path") {
             println!(
-                "{}: {}",
+                "    {}: {}",
                 style("path").dim(),
-                style(shorten_path(path, debug)).green()
+                style(shorten_path(path, debug)).dim()
             );
         }
 
@@ -411,17 +426,15 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
                 }
             }
             if !other_args.is_empty() {
-                print_params(&Some(other_args), 0, debug);
+                print_params(&Some(other_args), 1, debug);
             }
         }
     }
-    println!();
 }
 
 fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
-    print_params(&call.arguments, 0, debug);
-    println!();
+    print_params(&call.arguments, 1, debug);
 }
 
 fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
@@ -437,50 +450,50 @@ fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
             _ => None,
         })
     {
-        println!("{}:", style("task_parameters").dim());
+        println!("    {}:", style("task_parameters").dim());
         for task_param in task_parameters.iter() {
-            println!("    -");
+            println!("        -");
 
             if let Some(param_obj) = task_param.as_object() {
                 for (key, value) in param_obj {
                     match value {
                         Value::String(s) => {
                             // For strings, print the full content without truncation
-                            println!("        {}: {}", style(key).dim(), style(s).green());
+                            println!("            {}: {}", style(key).dim(), style(s).dim());
                         }
                         Value::Array(arr) => {
                             // For arrays, print each item on its own line
-                            println!("        {}:", style(key).dim());
+                            println!("            {}:", style(key).dim());
                             for item in arr {
                                 if let Value::String(s) = item {
-                                    println!("            - {}", style(s).green());
+                                    println!("                - {}", style(s).dim());
                                 } else if let Value::Object(_) = item {
                                     // For objects in arrays, print them with indentation
-                                    print!("            - ");
+                                    print!("                - ");
                                     if let Value::Object(obj) = item {
-                                        print_params(&Some(obj.clone()), 3, debug);
+                                        print_params(&Some(obj.clone()), 4, debug);
                                     }
                                 } else {
                                     println!(
-                                        "            - {}",
-                                        style(format!("{}", item)).green()
+                                        "                - {}",
+                                        style(format!("{}", item)).dim()
                                     );
                                 }
                             }
                         }
                         Value::Object(_) => {
                             // For objects, print them with proper indentation
-                            println!("        {}:", style(key).dim());
+                            println!("            {}:", style(key).dim());
                             if let Value::Object(obj) = value {
-                                print_params(&Some(obj.clone()), 2, debug);
+                                print_params(&Some(obj.clone()), 3, debug);
                             }
                         }
                         _ => {
                             // For other types (numbers, booleans, null)
                             println!(
-                                "        {}: {}",
+                                "            {}: {}",
                                 style(key).dim(),
-                                style(format!("{}", value)).green()
+                                style(format!("{}", value)).dim()
                             );
                         }
                     }
@@ -488,8 +501,6 @@ fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
             }
         }
     }
-
-    println!();
 }
 
 fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
@@ -498,59 +509,96 @@ fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     // For todo tools, always show the full content without redaction
     if let Some(args) = &call.arguments {
         if let Some(Value::String(content)) = args.get("content") {
-            println!("{}: {}", style("content").dim(), style(content).green());
+            println!("    {}: {}", style("content").dim(), style(content).dim());
         } else {
             // For todo__read, there are no arguments
             // Just print an empty line for consistency
         }
     }
-    println!();
 }
 
 fn render_default_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
-    print_params(&call.arguments, 0, debug);
-    println!();
+    print_params(&call.arguments, 1, debug);
 }
 
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParam) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
-    let tool_header = format!(
-        "─── {} | {} ──────────────────────────",
-        style(parts.first().unwrap_or(&"unknown")),
-        style(
-            parts
-                .split_first()
-                .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-                .unwrap_or_else(|| "unknown".to_string())
-        )
-        .magenta()
-        .dim(),
-    );
+    let tool_name = parts
+        .split_first()
+        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
+        .unwrap_or_else(|| "unknown".to_string());
+
     println!();
-    println!("{}", tool_header);
+    println!("  {} {}",
+        style("•").dim(),
+        style(tool_name).dim()
+    );
 }
 
-// Respect NO_COLOR, as https://crates.io/crates/console already does
-pub fn env_no_color() -> bool {
-    // if NO_COLOR is defined at all disable colors
-    std::env::var_os("NO_COLOR").is_none()
+/// Strip markdown syntax to show clean text without formatting markers
+fn strip_markdown(content: &str) -> String {
+    let mut result = content.to_string();
+
+    // Remove bold/italic markers (**text** or *text*)
+    result = result.replace("**", "");
+    result = result.replace("*", "");
+
+    // Remove headers (## Header -> Header)
+    let lines: Vec<String> = result
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("# ") {
+                trimmed.trim_start_matches('#').trim_start().to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+    result = lines.join("\n");
+
+    // Remove list markers (- item or * item)
+    result = result
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("- ") {
+                format!("{}{}", " ".repeat(line.len() - trimmed.len()), trimmed.trim_start_matches("- "))
+            } else if trimmed.starts_with("* ") {
+                format!("{}{}", " ".repeat(line.len() - trimmed.len()), trimmed.trim_start_matches("* "))
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    result
 }
 
-fn print_markdown(content: &str, theme: Theme) {
+fn print_markdown(content: &str, _theme: Theme, indent_spaces: usize, is_dimmed: bool) {
+    // Strip markdown syntax for cleaner output
+    let clean_content = strip_markdown(content);
+
     if std::io::stdout().is_terminal() {
-        bat::PrettyPrinter::new()
-            .input(bat::Input::from_bytes(content.as_bytes()))
-            .theme(theme.as_str())
-            .colored_output(env_no_color())
-            .language("Markdown")
-            .wrapping_mode(WrappingMode::NoWrapping(true))
-            .print()
-            .unwrap();
+        // Add indentation and apply dimming line by line to preserve styling
+        let indent = " ".repeat(indent_spaces);
+        for line in clean_content.lines() {
+            if is_dimmed {
+                println!("{}", style(format!("{}{}", indent, line)).dim());
+            } else {
+                println!("{}{}", indent, line);
+            }
+        }
     } else {
-        print!("{}", content);
+        // Add indentation for non-terminal output as well
+        let indent = " ".repeat(indent_spaces);
+        for line in clean_content.lines() {
+            println!("{}{}", indent, line);
+        }
     }
 }
 
@@ -568,12 +616,11 @@ fn print_value(value: &Value, debug: bool, reserve_width: usize) {
         .map(|(_h, w)| (w as usize).saturating_sub(reserve_width));
     let formatted = match value {
         Value::String(s) => match (max_width, debug) {
-            (Some(w), false) if s.len() > w => style(safe_truncate(s, w)),
-            _ => style(s.to_string()),
-        }
-        .green(),
-        Value::Number(n) => style(n.to_string()).yellow(),
-        Value::Bool(b) => style(b.to_string()).yellow(),
+            (Some(w), false) if s.len() > w => style(safe_truncate(s, w)).dim(),
+            _ => style(s.to_string()).dim(),
+        },
+        Value::Number(n) => style(n.to_string()).dim(),
+        Value::Bool(b) => style(b.to_string()).dim(),
         Value::Null => style("null".to_string()).dim(),
         _ => unreachable!(),
     };
