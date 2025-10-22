@@ -25,34 +25,22 @@ extension_name. You should only enable extensions found from the search_availabl
 If Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load
 new ones.
 
-
 Because you dynamically load extensions, your conversation history may refer
 to interactions with extensions that are not currently active. The currently
 active extensions are below. Each of these extensions provides tools that are
 in your tool specification.
 
 
-
 ## extension_A
-
 
 extension_A supports resources, you can use platform__read_resource,
 and platform__list_resources on this extension.
-
 ### Instructions
 <instructions on how to use extension A>
-
-
 ## extension_B
-
 
 ### Instructions
 <instructions on how to use extension B (no resources)>
-
-
-
-
-
 
 # Suggestion
 
@@ -64,8 +52,6 @@ Use the search_available_extensions tool to find extensions available to disable
 You should only disable extensions found from the search_available_extensions tool.
 List all the extensions available to disable in the response.
 Explain that minimizing extensions helps with the recall of the correct tools to use.
-
-
 
 # LLM Tool Selection Instructions
     Important: the user has opted to dynamically enable tools, so although an extension could be enabled, \
@@ -82,7 +68,6 @@ Explain that minimizing extensions helps with the recall of the correct tools to
     - list_resources
     
 
-
 # sub agents
 
 Execute self contained tasks where step-by-step visibility is not important through subagents.
@@ -94,7 +79,6 @@ Execute self contained tasks where step-by-step visibility is not important thro
 - Provide all needed context — subagents cannot see your context
 - Use extension filters to limit resource access
 - Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
-  
 
 # Response Guidelines
 
