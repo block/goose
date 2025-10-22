@@ -1096,7 +1096,7 @@ mod tests {
                 StatusCode::BAD_REQUEST,
                 None,
                 ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request. Message: Unknown error".to_string(),
+                    "Request failed with status: 400 Bad Request".to_string(),
                 ),
             ),
             // TOO_MANY_REQUESTS
