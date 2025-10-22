@@ -29,6 +29,7 @@ export default function TunnelSection() {
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [tunnelMode, setTunnelMode] = useState<TunnelMode>('lapstone');
+  const [showOtherOptions, setShowOtherOptions] = useState(false);
 
   // Load tunnel mode preference on mount
   useEffect(() => {
@@ -147,6 +148,7 @@ export default function TunnelSection() {
             <div className="space-y-2">
               <h3 className="text-text-default text-xs">Tunnel Mode</h3>
               <div className="flex flex-col space-y-2">
+                {/* Primary option: Cloudflare */}
                 <button
                   onClick={() => handleTunnelModeChange('lapstone')}
                   className={`flex items-center space-x-2 p-2 rounded border transition-colors ${
@@ -167,30 +169,48 @@ export default function TunnelSection() {
                     )}
                   </div>
                   <span className="text-xs font-normal cursor-pointer">
-                    Lapstone (Cloudflare Tunnel) - Recommended
+                    Tunnel via Cloudflare - <strong>Recommended</strong>
                   </span>
                 </button>
-                <button
-                  onClick={() => handleTunnelModeChange('tailscale')}
-                  className={`flex items-center space-x-2 p-2 rounded border transition-colors ${
-                    tunnelMode === 'tailscale'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      tunnelMode === 'tailscale'
-                        ? 'border-blue-500'
-                        : 'border-gray-400 dark:border-gray-500'
-                    }`}
+
+                {/* Expandable "Other" section */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowOtherOptions(!showOtherOptions)}
+                    className="flex items-center space-x-2 text-xs text-text-muted hover:text-text-default transition-colors"
                   >
-                    {tunnelMode === 'tailscale' && (
-                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    {showOtherOptions ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
                     )}
-                  </div>
-                  <span className="text-xs font-normal cursor-pointer">Tailscale</span>
-                </button>
+                    <span>Other</span>
+                  </button>
+
+                  {showOtherOptions && (
+                    <button
+                      onClick={() => handleTunnelModeChange('tailscale')}
+                      className={`flex items-center space-x-2 p-2 rounded border transition-colors ml-4 ${
+                        tunnelMode === 'tailscale'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          tunnelMode === 'tailscale'
+                            ? 'border-blue-500'
+                            : 'border-gray-400 dark:border-gray-500'
+                        }`}
+                      >
+                        {tunnelMode === 'tailscale' && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        )}
+                      </div>
+                      <span className="text-xs font-normal cursor-pointer">Tailscale</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
