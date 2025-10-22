@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { createUserMessage, getThinkingMessage, hasCompletedToolCalls } from '../types/message';
 import { Conversation, Message, Role } from '../api';
 
 import { getSession, Session } from '../api';
@@ -307,13 +307,7 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
-                    const hasThinkingMessage = newMessage.content.some(
-                      (content) =>
-                        content.type === 'systemNotification' &&
-                        content.notificationType === 'thinkingMessage'
-                    );
-
-                    if (hasThinkingMessage) {
+                    if (getThinkingMessage(newMessage)) {
                       mutateChatState(ChatState.Thinking);
                     }
 
