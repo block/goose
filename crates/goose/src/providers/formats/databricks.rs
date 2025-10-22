@@ -625,7 +625,7 @@ pub fn create_request(
             }
         }
 
-        // o1 models use max_completion_tokens instead of max_tokens
+        // open ai reasoning models use max_completion_tokens instead of max_tokens
         if let Some(tokens) = model_config.max_tokens {
             let key = if is_openai_reasoning_model {
                 "max_completion_tokens"
