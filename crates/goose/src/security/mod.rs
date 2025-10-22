@@ -47,12 +47,18 @@ impl SecurityManager {
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
         if !self.is_prompt_injection_detection_enabled() {
-            tracing::debug!("🔓 Security scanning disabled - returning empty results");
+            tracing::debug!(
+                gauge.goose.prompt_injection_scanner_enabled = 0,
+                "🔓 Security scanning disabled - returning empty results"
+            );
             return Ok(vec![]);
         }
 
         let scanner = self.scanner.get_or_init(|| {
-            tracing::info!("Security scanner initialized and enabled");
+            tracing::info!(
+                gauge.goose.prompt_injection_scanner_enabled = 1,
+                "🔓 Security scanner initialized and enabled"
+            );
             PromptInjectionScanner::new()
         });
 
@@ -87,6 +93,9 @@ impl SecurityManager {
                     let finding_id = format!("SEC-{}", Uuid::new_v4().simple());
 
                     tracing::warn!(
+                        counter.goose.prompt_injection_finding = 1,
+                        gauge.goose.prompt_injection_confidence_score = analysis_result.confidence,
+                        above_threshold = true,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
@@ -106,6 +115,9 @@ impl SecurityManager {
                     });
                 } else if analysis_result.is_malicious {
                     tracing::warn!(
+                        counter.goose.prompt_injection_finding = 1,
+                        gauge.goose.prompt_injection_confidence_score = analysis_result.confidence,
+                        above_threshold = false,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
@@ -126,6 +138,7 @@ impl SecurityManager {
         }
 
         tracing::info!(
+            counter.goose.prompt_injection_analysis_performed = 1,
             "🔍 Security analysis complete - found {} security issues in current tool requests",
             results.len()
         );
