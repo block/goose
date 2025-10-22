@@ -81,7 +81,7 @@ There’s:
 - **Wild Goose Case** – showcasing cool community projects
 - **Great Goose Off** - same task, same time limit, but different prompts, MCP servers, and strategies
 
-You’ll find those livestreams on our [YouTube channel](https://www.youtube.com/@blockopensource/streams), and upcoming ones on the Discord calendar. Plus, if you prefer documentation, the [Goose docs](https://block.github.io/goose/) and [blog](https://block.github.io/goose/blog) are constantly being updated with new guides, tips, and tutorials.
+You’ll find those livestreams on our [YouTube channel](https://www.youtube.com/@goose-oss/streams), and upcoming ones on the Discord calendar. Plus, if you prefer documentation, the [Goose docs](https://block.github.io/goose/) and [blog](https://block.github.io/goose/blog) are constantly being updated with new guides, tips, and tutorials.
 
 ---
 

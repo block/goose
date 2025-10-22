@@ -2,6 +2,13 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: true
+        default: 'main'
+        type: string
 
 name: Live Provider Tests
 
@@ -13,6 +20,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Check for code changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
@@ -26,10 +35,12 @@ jobs:
     name: Build Release Binary
     runs-on: goose
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Activate hermit and set CARGO_HOME
         run: |
@@ -74,6 +85,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Download Binary
         uses: actions/download-artifact@v4

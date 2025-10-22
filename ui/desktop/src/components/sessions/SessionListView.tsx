@@ -589,7 +589,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
     });
 
-    // Render skeleton loader for session items with variations
     const SessionSkeleton = React.memo(({ variant = 0 }: { variant?: number }) => {
       const titleWidths = ['w-3/4', 'w-2/3', 'w-4/5', 'w-1/2'];
       const pathWidths = ['w-32', 'w-28', 'w-36', 'w-24'];

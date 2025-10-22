@@ -1,5 +1,6 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use crate::providers::formats::google as gemini_schema;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
@@ -276,9 +277,7 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
         }
 
         let parameters = if is_gemini {
-            let mut cleaned_schema = tool.input_schema.as_ref().clone();
-            cleaned_schema.remove("$schema");
-            json!(cleaned_schema)
+            gemini_schema::process_map(tool.input_schema.as_ref(), None)
         } else {
             json!(tool.input_schema)
         };

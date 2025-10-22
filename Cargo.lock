@@ -2634,6 +2634,7 @@ dependencies = [
  "futures",
  "include_dir",
  "indoc",
+ "insta",
  "jsonschema",
  "jsonwebtoken",
  "keyring",
@@ -3543,6 +3544,17 @@ checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "block-padding",
  "generic-array",
+]
+
+[[package]]
+name = "insta"
+version = "1.43.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46fdb647ebde000f43b5b53f773c30cf9b0cb4300453208713fa38b2c70935a0"
+dependencies = [
+ "console",
+ "once_cell",
+ "similar",
 ]
 
 [[package]]
