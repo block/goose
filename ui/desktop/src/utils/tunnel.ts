@@ -12,8 +12,20 @@ import { findAvailablePort, checkServerStatus } from '../goosed';
 import { createClient, createConfig } from '../api/client';
 import { startLapstoneTunnel, stopLapstoneTunnel } from './lapstone-tunnel';
 
-// Tunnel mode configuration - set to true to use Lapstone (default), false for Tailscale
-const USE_LAPSTONE_TUNNEL = process.env.GOOSE_USE_TAILSCALE !== 'true';
+export type TunnelMode = 'lapstone' | 'tailscale';
+
+// Get tunnel mode from settings (default: lapstone)
+function getTunnelMode(): TunnelMode {
+  const settings = loadSettings();
+  return settings.tunnelMode || 'lapstone';
+}
+
+// Set tunnel mode in settings
+export function setTunnelMode(mode: TunnelMode): void {
+  const settings = loadSettings();
+  settings.tunnelMode = mode;
+  saveSettings(settings);
+}
 
 export interface TunnelInfo {
   url: string;
@@ -111,10 +123,10 @@ export async function startTunnel(): Promise<TunnelInfo> {
   currentState = 'starting';
 
   try {
-    // Get the script path - it's in src/bin (same as uvx, jbang, etc.)
+    // Get the script path - it's in src/bin (dev) or bin (packaged)
     let scriptPath: string;
     if (app.isPackaged) {
-      scriptPath = path.join(process.resourcesPath, 'src', 'bin', 'tailscale-tunnel.sh');
+      scriptPath = path.join(process.resourcesPath, 'bin', 'tailscale-tunnel.sh');
     } else {
       scriptPath = path.resolve(app.getAppPath(), 'src', 'bin', 'tailscale-tunnel.sh');
     }
@@ -203,12 +215,12 @@ export async function startTunnel(): Promise<TunnelInfo> {
       throw new Error('Goosed server failed to start in time');
     }
 
-    log.info(
-      `Goosed is ready, starting tunnel (mode: ${USE_LAPSTONE_TUNNEL ? 'Lapstone' : 'Tailscale'})...`
-    );
+    // Get tunnel mode from settings
+    const tunnelMode = getTunnelMode();
+    log.info(`Goosed is ready, starting tunnel (mode: ${tunnelMode})...`);
 
     // Choose tunnel implementation based on mode
-    if (USE_LAPSTONE_TUNNEL) {
+    if (tunnelMode === 'lapstone') {
       // Use Lapstone tunnel (default)
       currentTunnelInfo = startLapstoneTunnel(port, secret, goosedProcess.pid || 0);
       currentState = 'running';

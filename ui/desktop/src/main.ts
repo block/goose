@@ -1251,6 +1251,27 @@ ipcMain.handle('get-tunnel-status', async () => {
   }
 });
 
+ipcMain.handle('get-tunnel-mode', async () => {
+  try {
+    const { loadSettings } = await import('./utils/settings');
+    const settings = loadSettings();
+    return settings.tunnelMode || 'lapstone';
+  } catch (error) {
+    console.error('Error getting tunnel mode:', error);
+    return 'lapstone';
+  }
+});
+
+ipcMain.handle('set-tunnel-mode', async (_event, mode: string) => {
+  try {
+    const { setTunnelMode } = await import('./utils/tunnel');
+    setTunnelMode(mode as 'lapstone' | 'tailscale');
+  } catch (error) {
+    console.error('Error setting tunnel mode:', error);
+    throw error;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
   const dialogOptions: OpenDialogOptions = {
