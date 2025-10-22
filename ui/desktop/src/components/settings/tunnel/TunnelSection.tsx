@@ -132,7 +132,7 @@ export default function TunnelSection() {
         <CardHeader className="pb-0">
           <CardTitle className="mb-1">Remote Access</CardTitle>
           <CardDescription>
-            Enable remote access to goose via Tailscale tunnel for mobile devices
+            Enable remote access to goose from mobile devices using secure tunneling
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4 space-y-4">
