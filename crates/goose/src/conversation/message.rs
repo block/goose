@@ -714,7 +714,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        Message, MessageContent, MessageMetadata, SystemNotificationType,
+        Message, MessageContent, MessageMetadata,
     };
     use crate::conversation::*;
     use rmcp::model::{
