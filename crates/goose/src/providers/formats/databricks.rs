@@ -515,11 +515,13 @@ pub fn create_request(
     let model_name = model_config.model_name.to_string();
     let is_o1 = model_name.starts_with("o1") || model_name.starts_with("goose-o1");
     let is_o3 = model_name.starts_with("o3") || model_name.starts_with("goose-o3");
+    let is_gpt_5 = model_name.starts_with("gpt-5") || model_name.starts_with("goose-gpt-5");
+    let is_openai_reasoning_model = is_o1 || is_o3 || is_gpt_5;
     let is_claude_sonnet =
         model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
 
     // Only extract reasoning effort for O1/O3 models
-    let (model_name, reasoning_effort) = if is_o1 || is_o3 {
+    let (model_name, reasoning_effort) = if is_openai_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
@@ -539,7 +541,7 @@ pub fn create_request(
     };
 
     let system_message = DatabricksMessage {
-        role: if is_o1 || is_o3 {
+        role: if is_openai_reasoning_model {
             "developer"
         } else {
             "system"
@@ -613,8 +615,8 @@ pub fn create_request(
             .unwrap()
             .insert("temperature".to_string(), json!(2));
     } else {
-        // o1, o3 models currently don't support temperature
-        if !is_o1 && !is_o3 {
+        // open ai reasoning models currently don't support temperature
+        if !is_openai_reasoning_model {
             if let Some(temp) = model_config.temperature {
                 payload
                     .as_object_mut()
@@ -625,7 +627,7 @@ pub fn create_request(
 
         // o1 models use max_completion_tokens instead of max_tokens
         if let Some(tokens) = model_config.max_tokens {
-            let key = if is_o1 || is_o3 {
+            let key = if is_openai_reasoning_model {
                 "max_completion_tokens"
             } else {
                 "max_tokens"
