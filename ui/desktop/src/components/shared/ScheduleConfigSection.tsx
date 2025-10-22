@@ -34,6 +34,9 @@ export const ScheduleConfigSection: React.FC<ScheduleConfigSectionProps> = ({
 }) => {
   // Generate schedule ID from recipe title
   const generateScheduleId = (title: string): string => {
+    if (!title || title.trim() === '') {
+      return 'untitled-recipe';
+    }
     return title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')

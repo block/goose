@@ -15,26 +15,30 @@ export type RecipeParameter = z.infer<typeof parameterSchema>;
 
 // Main recipe form schema
 export const recipeFormSchema = z.object({
+  // REQUIRED FIELDS
   title: z
     .string()
     .min(1, 'Title is required')
     .min(3, 'Title must be at least 3 characters')
     .max(100, 'Title must be 100 characters or less'),
 
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .min(10, 'Description must be at least 10 characters')
-    .max(500, 'Description must be 500 characters or less'),
-
   instructions: z
     .string()
     .min(1, 'Instructions are required')
     .min(20, 'Instructions must be at least 20 characters'),
 
-  prompt: z.string().optional(),
+  // OPTIONAL FIELDS
+  description: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.length >= 10, {
+      message: 'Description must be at least 10 characters if provided',
+    })
+    .refine((val) => !val || val.length <= 500, {
+      message: 'Description must be 500 characters or less',
+    }),
 
-  activities: z.array(z.string()).default([]),
+  prompt: z.string().optional(),
 
   parameters: z.array(parameterSchema).default([]),
 

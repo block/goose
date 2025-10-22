@@ -372,7 +372,7 @@ export default function CreateEditRecipeModal({
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
-      <div className="bg-background-default border border-borderSubtle rounded-lg w-[90vw] max-w-4xl h-[90vh] flex flex-col">
+      <div className="bg-background-default border border-borderSubtle rounded-lg w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div className="flex items-center gap-3">
@@ -381,12 +381,12 @@ export default function CreateEditRecipeModal({
             </div>
             <div>
               <h1 className="text-xl font-medium text-textProminent">
-                {isCreateMode ? 'Create Recipe' : 'View/edit recipe'}
+                {isCreateMode ? 'Create Command' : 'View/edit command'}
               </h1>
               <p className="text-textSubtle text-sm">
                 {isCreateMode
-                  ? 'Create a new recipe to define agent behavior and capabilities.'
-                  : "You can edit the recipe below to change the agent's behavior in a new session."}
+                  ? 'Create a new command to define agent behavior and capabilities.'
+                  : "You can edit the command below to change the agent's behavior in a new session."}
               </p>
             </div>
           </div>
@@ -401,17 +401,15 @@ export default function CreateEditRecipeModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <RecipeFormFields form={form} />
+        <div className="flex-1 overflow-y-auto px-6 py-4 pb-6">
+          <RecipeFormFields 
+            form={form}
+            recipeTitle={title}
+            scheduleConfig={scheduleConfig || undefined}
+            onScheduleConfigChange={setScheduleConfig}
+          />
 
-          {/* Schedule Configuration Section */}
-          <div className="mt-6">
-            <ScheduleConfigSection
-              recipeTitle={title}
-              value={scheduleConfig || undefined}
-              onChange={setScheduleConfig}
-            />
-          </div>
+
 
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
@@ -480,7 +478,7 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save Recipe'}
+              {isSaving ? 'Saving...' : 'Save Command'}
             </Button>
             <Button
               onClick={handleSaveAndRunRecipeClick}
@@ -490,7 +488,7 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Play className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save & Run Recipe'}
+              {isSaving ? 'Saving...' : 'Save & Run Command'}
             </Button>
           </div>
         </div>
