@@ -40,7 +40,7 @@ Before saving recipes, it's important to understand where they can be stored and
 ## Storing Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 **Save New Recipe:**
 
@@ -60,7 +60,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
     When you [create a recipe](/docs/guides/recipes/recipe-reference), it gets saved to:
 
@@ -74,7 +74,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 ### Importing Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
     Import a recipe using its deeplink or YAML file:
 
     **Import via Recipe Link:**
@@ -96,28 +96,119 @@ When you modify and save a recipe with a new name, a new recipe and new link are
     Importing JSON recipe files isn't currently supported.
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     Recipe import is only available in Goose Desktop.
   </TabItem>
 </Tabs>
 
-## Finding Your Recipes
+## Finding Available Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 **Access Recipe Library:**
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-2. Click `Recipes`
-3. Browse the list of your saved recipes  
-4. Each recipe shows its title, description, and whether it's global or local
+2. Click `Recipes` to view your Recipe Library
+3. Browse your available recipes, which show:
+   - Recipe title and description
+   - Last modified date
+   - Whether they're stored globally or locally
+
+:::info Desktop vs CLI Recipe Discovery
+The Desktop Recipe Library displays all recipes you've explicitly saved or imported. It doesn't automatically discover recipe files from your filesystem like the CLI does.
+:::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
-To find and configure your saved recipes:
+Use the `goose recipe list` command to find all available recipes from multiple sources:
 
-**Browse recipe directories:**
+**Basic Usage**
+
+```bash
+# List all available recipes
+goose recipe list
+
+# Show detailed information including titles and full paths
+goose recipe list --verbose
+
+# Output in JSON format for automation
+goose recipe list --format json
+```
+
+**Recipe Discovery Process**
+
+Goose searches for recipes in the following locations (in order):
+
+1. **Current directory**: `.` (looks for `*.yaml` and `*.json` files)
+2. **Custom paths**: Directories specified in [`GOOSE_RECIPE_PATH`](/docs/guides/environment-variables#recipe-configuration) environment variable
+3. **Global recipe library**: `~/.config/goose/recipes/` (or equivalent on your OS)
+4. **Local project recipes**: `./.goose/recipes/`
+5. **GitHub repository**: If [`GOOSE_RECIPE_GITHUB_REPO`](/docs/guides/environment-variables#recipe-configuration) environment variable is configured
+
+**Example Output**
+
+*Default text format:*
+```bash
+$ goose recipe list
+Available recipes:
+goose-self-test - A comprehensive meta-testing recipe - local: ./goose-self-test.yaml
+hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose/recipes/hello-world.yaml
+job-finder - Find software engineering positions - local: ~/.config/goose/recipes/job-finder.yaml
+```
+
+*Verbose mode:*
+```bash
+$ goose recipe list --verbose
+Available recipes:
+  goose-self-test - A comprehensive meta-testing recipe - local: ./goose-self-test.yaml
+    Title: Goose Self-Testing Integration Suite
+    Path: ./goose-self-test.yaml
+  hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose/recipes/hello-world.yaml
+    Title: Hello World Recipe
+    Path: /Users/username/.config/goose/recipes/hello-world.yaml
+```
+
+*JSON format for automation:*
+```json
+[
+  {
+    "name": "goose-self-test",
+    "source": "Local",
+    "path": "./goose-self-test.yaml",
+    "title": "Goose Self-Testing Integration Suite",
+    "description": "A comprehensive meta-testing recipe"
+  },
+  {
+    "name": "hello-world",
+    "source": "GitHub",
+    "path": "recipes/hello-world.yaml",
+    "title": "Hello World Recipe",
+    "description": "A sample recipe demonstrating basic usage"
+  }
+]
+```
+
+**Configuring Recipe Sources**
+
+Add custom recipe directories:
+```bash
+export GOOSE_RECIPE_PATH="/path/to/my/recipes:/path/to/team/recipes"
+goose recipe list
+```
+
+Configure GitHub recipe repository:
+```bash
+export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
+goose recipe list
+```
+
+See the [Environment Variables Guide](/docs/guides/environment-variables#recipe-configuration) for more configuration options.
+
+**Manual Directory Browsing (Advanced)**
+
+If you need to browse recipe directories manually:
+
 ```bash
 # List recipes in default global location
 ls ~/.config/goose/recipes/
@@ -126,11 +217,11 @@ ls ~/.config/goose/recipes/
 ls .goose/recipes/
 
 # Search for all recipe files
-find . -name "*.md" -path "*/recipes/*"
+find . -name "*.yaml" -path "*/recipes/*" -o -name "*.json" -path "*/recipes/*"
 ```
 
 :::tip
-Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-recipe-location) to organize recipes in specific directories or access recipes from a shared GitHub repository.
+The `goose recipe list` command is the recommended way to find recipes as it automatically searches all configured sources and provides consistent formatting.
 :::
 
   </TabItem>
@@ -139,7 +230,7 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
 ## Using Saved Recipes
 
 <Tabs groupId="interface">
-  <TabItem value="desktop" label="Goose Desktop" default>
+  <TabItem value="desktop" label="goose Desktop" default>
 
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
 2. Click `Recipes`
@@ -149,7 +240,7 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
    - Click `Preview` to see the recipe details first, then click **Load Recipe** to run it
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
 Once you've located your recipe file, [run the recipe](/docs/guides/recipes/session-recipes#run-a-recipe) or [open it in goose desktop](/docs/guides/goose-cli-commands#recipe).
 

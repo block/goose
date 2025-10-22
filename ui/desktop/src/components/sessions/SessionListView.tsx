@@ -587,7 +587,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
     });
 
-    // Render skeleton loader for session items with variations
     const SessionSkeleton = React.memo(({ variant = 0 }: { variant?: number }) => {
       const titleWidths = ['w-3/4', 'w-2/3', 'w-4/5', 'w-1/2'];
       const pathWidths = ['w-32', 'w-28', 'w-36', 'w-24'];
@@ -711,7 +710,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose.
+                  View and search your past conversations with Goose. ⌘F/Ctrl+F to search.
                 </p>
               </div>
             </div>
@@ -724,6 +723,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onNavigate={handleSearchNavigation}
                     searchResults={searchResults}
                     className="relative"
+                    placeholder="Search history..."
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div

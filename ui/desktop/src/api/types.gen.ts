@@ -605,6 +605,7 @@ export type Response = {
 };
 
 export type ResumeAgentRequest = {
+    load_model_and_extensions: boolean;
     session_id: string;
 };
 
@@ -708,13 +709,7 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionInsights = {
-    /**
-     * Total number of sessions
-     */
     totalSessions: number;
-    /**
-     * Total tokens used across all sessions
-     */
     totalTokens: number;
 };
 
