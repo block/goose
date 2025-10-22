@@ -199,6 +199,130 @@ fn detect_platform_defaults() -> PlatformDefaults {
 
 const LLAMA_CPP_VERSION: &str = "b6765";
 
+/// Downloadable model definition
+#[derive(Debug, Clone)]
+struct DownloadableModel {
+    /// Model name (without .gguf extension)
+    name: &'static str,
+    /// HuggingFace repository (e.g., "mradermacher/gpt-oss-20b-GGUF")
+    repo: &'static str,
+    /// File name in the repository
+    filename: &'static str,
+}
+
+/// List of built-in downloadable models that are always available
+const DOWNLOADABLE_MODELS: &[DownloadableModel] = &[
+    DownloadableModel {
+        name: "gpt-oss-20b-Q3_K_M",
+        repo: "mradermacher/gpt-oss-20b-GGUF",
+        filename: "gpt-oss-20b.Q3_K_M.gguf",
+    },
+    DownloadableModel {
+        name: "qwen2.5-7b-instruct-q3_k_m",
+        repo: "bartowski/Qwen2.5-7B-Instruct-GGUF",
+        filename: "Qwen2.5-7B-Instruct-Q3_K_M.gguf",
+    },
+];
+
+/// Check if a model name matches a downloadable model
+fn find_downloadable_model(model_name: &str) -> Option<&'static DownloadableModel> {
+    DOWNLOADABLE_MODELS
+        .iter()
+        .find(|m| m.name == model_name || m.name.eq_ignore_ascii_case(model_name))
+}
+
+/// Check if a model file exists in ~/.models
+fn model_file_exists(model_name: &str) -> bool {
+    if let Some(home_dir) = dirs::home_dir() {
+        let models_dir = home_dir.join(".models");
+        let model_path = models_dir.join(format!("{}.gguf", model_name));
+        model_path.exists()
+    } else {
+        false
+    }
+}
+
+/// Download a model from HuggingFace to ~/.models
+async fn download_model(model: &DownloadableModel) -> Result<PathBuf> {
+    let home_dir =
+        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    let models_dir = home_dir.join(".models");
+    std::fs::create_dir_all(&models_dir)?;
+
+    let target_path = models_dir.join(format!("{}.gguf", model.name));
+
+    // Check if already downloaded
+    if target_path.exists() {
+        tracing::info!("Model {} already downloaded", model.name);
+        return Ok(target_path);
+    }
+
+    let url = format!(
+        "https://huggingface.co/{}/resolve/main/{}",
+        model.repo, model.filename
+    );
+
+    tracing::info!(
+        "Downloading model {} from HuggingFace (this may take a while, model size ~3-12GB)...",
+        model.name
+    );
+    tracing::info!("URL: {}", url);
+
+    // Download with progress tracking
+    let response = reqwest::get(&url).await?;
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to download model: HTTP {}. URL: {}",
+            response.status(),
+            url
+        ));
+    }
+
+    let total_size = response.content_length();
+    if let Some(size) = total_size {
+        tracing::info!(
+            "Download size: {:.2} GB",
+            size as f64 / (1024.0 * 1024.0 * 1024.0)
+        );
+    }
+
+    // Download to temporary file first
+    let temp_path = models_dir.join(format!(".{}.gguf.tmp", model.name));
+    let mut file = tokio::fs::File::create(&temp_path).await?;
+    let mut stream = response.bytes_stream();
+
+    let mut downloaded: u64 = 0;
+    let mut last_log_percent = 0;
+
+    while let Some(chunk_result) = futures::StreamExt::next(&mut stream).await {
+        let chunk = chunk_result?;
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+        downloaded += chunk.len() as u64;
+
+        // Log progress every 10%
+        if let Some(total) = total_size {
+            let percent = (downloaded * 100 / total) as u32;
+            if percent >= last_log_percent + 10 {
+                tracing::info!("Download progress: {}%", percent);
+                last_log_percent = percent;
+            }
+        }
+    }
+
+    tokio::io::AsyncWriteExt::flush(&mut file).await?;
+    drop(file);
+
+    // Rename to final location
+    tokio::fs::rename(&temp_path, &target_path).await?;
+
+    tracing::info!(
+        "Model {} downloaded successfully to {:?}",
+        model.name,
+        target_path
+    );
+    Ok(target_path)
+}
+
 /// Downloads and extracts llama-server to cache directory, returns path to binary
 async fn ensure_llama_server_binary() -> Result<PathBuf> {
     let cache_dir = dirs::cache_dir()
@@ -453,27 +577,28 @@ pub struct EmbeddedProvider {
 impl EmbeddedProvider {
     /// Enumerate available GGUF models in ~/.models directory
     /// This is a static method that doesn't require a provider instance
+    /// Includes both downloaded models and downloadable models (marked with suffix)
     pub fn enumerate_models() -> Result<Vec<String>> {
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
         let models_dir = home_dir.join(".models");
 
-        if !models_dir.exists() {
-            return Ok(Vec::new());
-        }
-
-        let entries = std::fs::read_dir(&models_dir)
-            .map_err(|e| anyhow::anyhow!("Failed to read models directory: {}", e))?;
-
         let mut models = Vec::new();
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(extension) = path.extension() {
-                    if extension == "gguf" {
-                        if let Some(file_stem) = path.file_stem() {
-                            if let Some(model_name) = file_stem.to_str() {
-                                models.push(model_name.to_string());
+
+        // Scan for existing .gguf files in ~/.models
+        if models_dir.exists() {
+            let entries = std::fs::read_dir(&models_dir)
+                .map_err(|e| anyhow::anyhow!("Failed to read models directory: {}", e))?;
+
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(extension) = path.extension() {
+                        if extension == "gguf" {
+                            if let Some(file_stem) = path.file_stem() {
+                                if let Some(model_name) = file_stem.to_str() {
+                                    models.push(model_name.to_string());
+                                }
                             }
                         }
                     }
@@ -481,10 +606,23 @@ impl EmbeddedProvider {
             }
         }
 
+        // Add downloadable models to the list
+        for downloadable in DOWNLOADABLE_MODELS {
+            // Check if model is already downloaded
+            if !model_file_exists(downloadable.name) {
+                // Mark as downloadable
+                models.push(format!("{} (to-download)", downloadable.name));
+            } else if !models.contains(&downloadable.name.to_string()) {
+                // Already downloaded but not in list
+                models.push(downloadable.name.to_string());
+            }
+        }
+
         models.sort();
         Ok(models)
     }
 
+    #[allow(clippy::too_many_lines)]
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -503,9 +641,29 @@ impl EmbeddedProvider {
                 .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
             let models_dir = home_dir.join(".models");
 
-            // Special case: if model_name is "embedded" (the default),
+            // Check if this is a downloadable model (with or without "(to-download)" suffix)
+            let clean_model_name = model_name.trim_end_matches(" (to-download)");
+            let effective_model_name: &str = if let Some(downloadable) =
+                find_downloadable_model(clean_model_name)
+            {
+                let model_path_candidate = models_dir.join(format!("{}.gguf", downloadable.name));
+                if !model_path_candidate.exists() {
+                    tracing::info!(
+                        "Model {} is not downloaded, starting download...",
+                        downloadable.name
+                    );
+                    download_model(downloadable).await?;
+                    // Model is now downloaded, continue with normal flow
+                }
+                // Use the clean name for further processing
+                clean_model_name
+            } else {
+                model_name
+            };
+
+            // Special case: if effective_model_name is "embedded" (the default),
             // just pick the first available .gguf file
-            let model_file = if model_name == "embedded" {
+            let model_file = if effective_model_name == "embedded" {
                 // Find the first .gguf file in the directory
                 if let Ok(entries) = std::fs::read_dir(&models_dir) {
                     let first_gguf = entries
@@ -527,17 +685,17 @@ impl EmbeddedProvider {
                         models_dir
                     ));
                 }
-            } else if model_name.ends_with(".gguf") {
-                // If model_name already ends with .gguf, use it directly
-                models_dir.join(model_name)
+            } else if effective_model_name.ends_with(".gguf") {
+                // If effective_model_name already ends with .gguf, use it directly
+                models_dir.join(effective_model_name)
             } else {
                 // Try with .gguf extension
-                let with_extension = models_dir.join(format!("{}.gguf", model_name));
+                let with_extension = models_dir.join(format!("{}.gguf", effective_model_name));
                 if with_extension.exists() {
                     with_extension
                 } else {
                     // Fall back to the name as-is
-                    models_dir.join(model_name)
+                    models_dir.join(effective_model_name)
                 }
             };
 
@@ -649,8 +807,8 @@ impl EmbeddedProvider {
             tool_calling_support: Arc::new(Mutex::new(None)),
         };
 
-        // Start the server process
-        provider.ensure_server_running().await?;
+        // Don't start the server here - it will be started lazily on first use
+        // This makes provider creation fast for operations like fetching model lists
 
         Ok(provider)
     }
@@ -1022,65 +1180,20 @@ impl Provider for EmbeddedProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Get the models directory (~/.models)
-        let home_dir = match dirs::home_dir() {
-            Some(dir) => dir,
-            None => {
-                tracing::warn!("Could not determine home directory for model enumeration");
-                return Ok(None);
-            }
-        };
-
-        let models_dir = home_dir.join(".models");
-
-        // Check if directory exists
-        if !models_dir.exists() {
-            tracing::debug!("Models directory {:?} does not exist", models_dir);
-            return Ok(None);
-        }
-
-        // Scan for .gguf files
-        let entries = match std::fs::read_dir(&models_dir) {
-            Ok(entries) => entries,
-            Err(e) => {
-                tracing::warn!("Failed to read models directory {:?}: {}", models_dir, e);
-                return Ok(None);
-            }
-        };
-
-        let mut models = Vec::new();
-        for entry in entries.flatten() {
-            let path = entry.path();
-
-            // Only include files with .gguf extension
-            if path.is_file() {
-                if let Some(extension) = path.extension() {
-                    if extension == "gguf" {
-                        // Get the file name without extension
-                        if let Some(file_stem) = path.file_stem() {
-                            if let Some(model_name) = file_stem.to_str() {
-                                models.push(model_name.to_string());
-                            }
-                        }
-                    }
+        // Use the static enumerate_models method which includes downloadable models
+        // This avoids needing to start the server just to list models
+        match Self::enumerate_models() {
+            Ok(models) => {
+                if models.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(models))
                 }
             }
-        }
-
-        // Sort for consistent ordering
-        models.sort();
-
-        if models.is_empty() {
-            tracing::debug!("No GGUF models found in {:?}", models_dir);
-            Ok(None)
-        } else {
-            tracing::info!(
-                "Found {} GGUF model(s) in {:?}: {:?}",
-                models.len(),
-                models_dir,
-                models
-            );
-            Ok(Some(models))
+            Err(e) => {
+                tracing::warn!("Failed to enumerate models: {}", e);
+                Ok(None)
+            }
         }
     }
 
