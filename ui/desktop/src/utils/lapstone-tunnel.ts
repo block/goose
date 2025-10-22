@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import * as http from 'http';
+import * as net from 'net';
 import * as crypto from 'crypto';
 import { Buffer } from 'buffer';
 import log from './logger';
@@ -20,17 +21,11 @@ interface TunnelMessage {
 
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-let pingInterval: ReturnType<typeof setInterval> | null = null;
-let healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 let currentPort: number = 0;
 let currentAgentId: string = '';
 let isRunning: boolean = false;
-let lastPongReceived: number = Date.now();
-
-// Monitoring configuration
-const PING_INTERVAL = 20000; // 20 seconds - send ping to keep connection alive
-const HEALTH_CHECK_INTERVAL = 25000; // 25 seconds - check if pong received
-const PONG_TIMEOUT = 30000; // 30 seconds - if no pong after this, connection is dead
+let lastActivityTime: number = Date.now();
+let idleCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 function generateAgentId(): string {
   return crypto.randomBytes(16).toString('hex');
@@ -176,75 +171,6 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
   req.end();
 }
 
-function checkTunnelHealth(): boolean {
-  // Check if WebSocket is connected
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    log.warn('Tunnel health check failed: WebSocket not connected');
-    return false;
-  }
-
-  // Check if we received a pong recently (within timeout period)
-  const timeSinceLastPong = Date.now() - lastPongReceived;
-  if (timeSinceLastPong > PONG_TIMEOUT) {
-    log.warn(`Tunnel health check failed: No pong received for ${timeSinceLastPong}ms`);
-    return false;
-  }
-
-  log.info('Tunnel health check passed: WebSocket alive and responsive');
-  return true;
-}
-
-function startHealthChecks(): void {
-  if (healthCheckInterval) clearInterval(healthCheckInterval);
-
-  healthCheckInterval = setInterval(() => {
-    if (!isRunning) return;
-
-    try {
-      const healthy = checkTunnelHealth();
-
-      if (!healthy) {
-        restartTunnel();
-      }
-    } catch (err) {
-      // Health check threw an error - log and restart
-      log.error('Health check error:', err);
-      restartTunnel();
-    }
-  }, HEALTH_CHECK_INTERVAL);
-
-  // Run initial health check after a short delay (give WS time to fully connect)
-  setTimeout(() => {
-    if (!isRunning) return;
-
-    try {
-      checkTunnelHealth();
-    } catch (err) {
-      // Initial health check failed - just log it, interval will retry
-      log.error('Initial health check error:', err);
-    }
-  }, 5000);
-}
-
-function restartTunnel(): void {
-  log.info('Restarting tunnel connection...');
-
-  // Close existing connection
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
-
-  // Clear intervals/timeouts (monitoring intervals will continue)
-  if (pingInterval) clearInterval(pingInterval);
-  if (reconnectTimeout) clearTimeout(reconnectTimeout);
-
-  // Reconnect with existing port and agent ID
-  if (isRunning) {
-    setTimeout(() => connect(currentPort, currentAgentId), 100);
-  }
-}
-
 function connect(port: number, agentId: string): void {
   currentPort = port;
   currentAgentId = agentId;
@@ -264,31 +190,34 @@ function connect(port: number, agentId: string): void {
     const publicUrl = WORKER_URL.replace(/\/$/, '') + `/tunnel/${agentId}`;
     log.info(`✓ Public URL: ${publicUrl}`);
 
-    // Reset pong tracking
-    lastPongReceived = Date.now();
+    // Enable TCP keepalive to detect dead connections faster
+    const socket = (ws as WebSocket & { _socket: net.Socket })._socket;
+    socket.setKeepAlive(true, 30000); // Send keepalive probe every 30s of idle
 
-    // Send keepalive ping every 20 seconds to keep connection alive and detect dead connections
-    if (pingInterval) clearInterval(pingInterval);
-    pingInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.ping();
+    // Update activity timestamp
+    lastActivityTime = Date.now();
+
+    // Start idle check - reconnect if no activity for 10 minutes
+    if (idleCheckInterval) clearInterval(idleCheckInterval);
+    idleCheckInterval = setInterval(() => {
+      const idleTime = Date.now() - lastActivityTime;
+      if (idleTime > 10 * 60 * 1000) {
+        // 10 minutes
+        log.warn('No activity for 10 minutes, reconnecting...');
+        ws?.close();
       }
-    }, PING_INTERVAL);
-  });
-
-  ws.on('pong', () => {
-    // Update last pong received time
-    lastPongReceived = Date.now();
+    }, 60000); // Check every minute
   });
 
   ws.on('message', async (data) => {
+    lastActivityTime = Date.now();
     const message = JSON.parse(data.toString());
     await handleRequest(message);
   });
 
   ws.on('close', () => {
     log.info('✗ Connection closed, reconnecting immediately...');
-    if (pingInterval) clearInterval(pingInterval);
+    if (idleCheckInterval) clearInterval(idleCheckInterval);
     // Reconnect immediately, not after 5 seconds
     if (isRunning) {
       reconnectTimeout = setTimeout(() => connect(currentPort, currentAgentId), 100);
@@ -306,7 +235,6 @@ export function startLapstoneTunnel(port: number, secret: string, goosedPid: num
   const publicUrl = `${WORKER_URL}/tunnel/${agentId}`;
 
   connect(port, agentId);
-  startHealthChecks();
 
   return {
     url: publicUrl,
@@ -326,8 +254,7 @@ export function stopLapstoneTunnel(): void {
   isRunning = false;
 
   if (reconnectTimeout) clearTimeout(reconnectTimeout);
-  if (pingInterval) clearInterval(pingInterval);
-  if (healthCheckInterval) clearInterval(healthCheckInterval);
+  if (idleCheckInterval) clearInterval(idleCheckInterval);
 
   if (ws) {
     ws.close();
