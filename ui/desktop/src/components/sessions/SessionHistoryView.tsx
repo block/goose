@@ -101,7 +101,7 @@ const SessionMessages: React.FC<{
             </div>
           ) : filteredMessages?.length > 0 ? (
             <div className="max-w-4xl mx-auto w-full">
-              <SearchView>
+              <SearchView placeholder="Search history...">
                 <ProgressiveMessageList
                   messages={filteredMessages}
                   chat={{

@@ -3693,9 +3693,13 @@
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
-          "session_id"
+          "session_id",
+          "load_model_and_extensions"
         ],
         "properties": {
+          "load_model_and_extensions": {
+            "type": "boolean"
+          },
           "session_id": {
             "type": "string"
           }
@@ -4021,13 +4025,11 @@
         "properties": {
           "totalSessions": {
             "type": "integer",
-            "description": "Total number of sessions",
             "minimum": 0
           },
           "totalTokens": {
             "type": "integer",
-            "format": "int64",
-            "description": "Total tokens used across all sessions"
+            "format": "int64"
           }
         }
       },

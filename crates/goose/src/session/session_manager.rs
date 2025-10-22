@@ -63,9 +63,7 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    /// Total number of sessions
     total_sessions: usize,
-    /// Total tokens used across all sessions
     total_tokens: i64,
 }
 
@@ -785,7 +783,9 @@ impl SessionStorage {
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
+        for (idx, (role_str, content_json, created_timestamp, metadata_json)) in
+            rows.into_iter().enumerate()
+        {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -799,6 +799,8 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
+            // TODO(Douwe): make id required
+            message = message.with_id(format!("msg_{}_{}", session_id, idx));
             messages.push(message);
         }
 
