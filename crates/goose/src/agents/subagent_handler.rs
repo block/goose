@@ -136,11 +136,10 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             }
         }
 
-        // Add FinalOutputTool if response schema is specified
         let has_response_schema = recipe.response.is_some();
-        if let Some(response) = recipe.response {
-            agent.add_final_output_tool(response).await;
-        }
+        agent
+            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .await;
 
         // Build initial conversation with context if provided
         let mut initial_messages = Vec::new();

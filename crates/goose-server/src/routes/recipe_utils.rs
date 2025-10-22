@@ -156,15 +156,13 @@ pub async fn apply_recipe_to_agent(
     recipe: &Recipe,
     include_final_output_tool: bool,
 ) -> Option<String> {
-    if let Some(sub_recipes) = &recipe.sub_recipes {
-        agent.add_sub_recipes(sub_recipes.clone()).await;
-    }
-
-    if include_final_output_tool {
-        if let Some(response) = &recipe.response {
-            agent.add_final_output_tool(response.clone()).await;
-        }
-    }
+    agent
+        .apply_recipe_components(
+            recipe.sub_recipes.clone(),
+            recipe.response.clone(),
+            include_final_output_tool,
+        )
+        .await;
 
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();

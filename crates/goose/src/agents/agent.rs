@@ -384,6 +384,23 @@ impl Agent {
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
     }
 
+    pub async fn apply_recipe_components(
+        &self,
+        sub_recipes: Option<Vec<SubRecipe>>,
+        response: Option<Response>,
+        include_final_output: bool,
+    ) {
+        if let Some(sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes).await;
+        }
+
+        if include_final_output {
+            if let Some(response) = response {
+                self.add_final_output_tool(response).await;
+            }
+        }
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
