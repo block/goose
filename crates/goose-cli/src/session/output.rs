@@ -202,7 +202,7 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
 }
 
 pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
-    if !std::io::stdout().is_terminal() {
+    if !should_use_colored_output() {
         println!("{}", text);
         return;
     }
@@ -535,16 +535,52 @@ fn print_tool_header(call: &CallToolRequestParam) {
 
 // Respect NO_COLOR, as https://crates.io/crates/console already does
 pub fn env_no_color() -> bool {
-    // if NO_COLOR is defined at all disable colors
-    std::env::var_os("NO_COLOR").is_none()
+    // if NO_COLOR is defined at all, disable colors
+    std::env::var_os("NO_COLOR").is_some()
+}
+
+/// Determines if we should attempt colored output based on terminal capabilities and environment
+fn should_use_colored_output() -> bool {
+    // Respect NO_COLOR environment variable (highest priority)
+    if env_no_color() {
+        return false;
+    }
+
+    // If stdout is a terminal, definitely use colors
+    if std::io::stdout().is_terminal() {
+        return true;
+    }
+
+    // If not a terminal, check if we're in a known good terminal environment
+    // that might still support colors even if is_terminal() returns false
+    if let Ok(term) = std::env::var("TERM") {
+        // Check for terminals that support colors
+        if term.contains("color") || term.contains("ansi") || term == "xterm" {
+            // Additional check for known good terminal programs
+            if let Ok(term_program) = std::env::var("TERM_PROGRAM") {
+                // macOS Terminal.app supports colors even when is_terminal() might return false
+                if term_program == "Apple_Terminal" {
+                    return true;
+                }
+            }
+
+            // For other terminals with color support, be more conservative
+            // Only enable if we have additional indicators
+            if std::env::var("COLORTERM").is_ok() {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 fn print_markdown(content: &str, theme: Theme) {
-    if std::io::stdout().is_terminal() {
+    if should_use_colored_output() {
         bat::PrettyPrinter::new()
             .input(bat::Input::from_bytes(content.as_bytes()))
             .theme(theme.as_str())
-            .colored_output(env_no_color())
+            .colored_output(!env_no_color())
             .language("Markdown")
             .wrapping_mode(WrappingMode::NoWrapping(true))
             .print()
