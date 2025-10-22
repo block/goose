@@ -2597,6 +2597,7 @@ dependencies = [
  "axum 0.8.1",
  "base64 0.21.7",
  "blake3",
+ "bytes",
  "chrono",
  "criterion",
  "ctor",

@@ -2081,12 +2081,10 @@
               }
             }
           }
-        ],
-        "description": "A request for user approval"
+        ]
       },
       "ApprovalResponse": {
         "type": "object",
-        "description": "A response to an approval request",
         "required": [
           "requestId",
           "action"

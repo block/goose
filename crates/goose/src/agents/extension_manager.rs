@@ -93,7 +93,6 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: Mutex<PlatformExtensionContext>,
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
-    approval_handler: Arc<Mutex<Option<Arc<dyn ApprovalHandler>>>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -251,16 +250,7 @@ impl ExtensionManager {
                 tool_route_manager: None,
             }),
             provider: Arc::new(Mutex::new(None)),
-            approval_handler: Arc::new(Mutex::new(None)),
         }
-    }
-
-    pub async fn set_approval_handler(&self, handler: Arc<dyn ApprovalHandler>) {
-        *self.approval_handler.lock().await = Some(handler);
-    }
-
-    pub async fn get_approval_handler(&self) -> Option<Arc<dyn ApprovalHandler>> {
-        self.approval_handler.lock().await.clone()
     }
 
     pub async fn set_context(&self, context: PlatformExtensionContext) {
@@ -348,9 +338,9 @@ impl ExtensionManager {
         let mut sampling_handler =
             ExtensionSamplingHandler::new(self.provider.clone(), sanitized_name.clone());
 
-        if let Some(approval_handler) = self.get_approval_handler().await {
-            sampling_handler = sampling_handler.with_approval_handler(approval_handler);
-        }
+        // Use the global approval state
+        let approval_handler = super::approval::ApprovalState::global().await;
+        sampling_handler = sampling_handler.with_approval_handler(approval_handler);
 
         let sampling_handler = Box::new(sampling_handler);
 

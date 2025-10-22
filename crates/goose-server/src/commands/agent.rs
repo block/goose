@@ -34,6 +34,7 @@ pub async fn run() -> Result<()> {
         .allow_headers(Any);
 
     let app = crate::routes::configure(app_state)
+        .await
         .layer(middleware::from_fn_with_state(
             secret_key.clone(),
             check_token,

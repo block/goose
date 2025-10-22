@@ -28,7 +28,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 }
 
 use super::agent::{tool_stream, ToolStream};
-use crate::agents::{Agent, SessionConfig};
+use crate::agents::{Agent, ApprovalHandler, SessionConfig};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::tool_inspection::get_security_finding_id_from_results;
 
@@ -77,28 +77,24 @@ impl Agent {
                     );
                     yield confirmation;
 
-                    // Use the unified approval handler system
-                    let approval_handler = self.extension_manager.get_approval_handler().await;
-                    let approval_action = if let Some(handler) = approval_handler {
-                        let session_id = session.as_ref()
-                            .map(|s| s.id.to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
-                        match handler.request_approval(
-                            session_id,
-                            crate::agents::approval::ApprovalType::ToolCall {
-                                tool_name: tool_call.name.to_string(),
-                                prompt: security_message,
-                                principal_type: "Tool".to_string(),
-                            }
-                        ).await {
-                            Ok(action) => Some(action),
-                            Err(e) => {
-                                tracing::error!("Approval handler error: {}", e);
-                                None
-                            }
+                    let approval_handler = crate::agents::approval::ApprovalState::global().await;
+                    let session_id = session.as_ref()
+                        .map(|s| s.id.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+
+                    let approval_action = match approval_handler.as_ref().request_approval(
+                        session_id,
+                        crate::agents::approval::ApprovalType::ToolCall {
+                            tool_name: tool_call.name.to_string(),
+                            prompt: security_message,
+                            principal_type: "Tool".to_string(),
                         }
-                    } else {
-                        None
+                    ).await {
+                        Ok(action) => Some(action),
+                        Err(e) => {
+                            tracing::error!("Approval handler error: {}", e);
+                            None
+                        }
                     };
 
                     if let Some(action) = approval_action {

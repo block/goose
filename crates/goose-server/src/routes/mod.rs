@@ -18,7 +18,10 @@ use std::sync::Arc;
 use axum::Router;
 
 // Function to configure all routes
-pub fn configure(state: Arc<crate::state::AppState>) -> Router {
+pub async fn configure(state: Arc<crate::state::AppState>) -> Router {
+    // Get the global approval state for the approval routes
+    let approval_state = goose::agents::approval::ApprovalState::global().await;
+
     Router::new()
         .merge(health::routes())
         .merge(reply::routes(state.clone()))
@@ -31,5 +34,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
-        .merge(approval::routes(state.approval_state.clone()))
+        .merge(approval::routes(approval_state))
 }

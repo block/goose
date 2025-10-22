@@ -7,12 +7,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::routes::approval::ApprovalState;
-
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
-    pub approval_state: Arc<ApprovalState>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
@@ -22,18 +19,12 @@ pub struct AppState {
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = AgentManager::instance().await?;
-        let approval_state = Arc::new(ApprovalState::new());
-
-        agent_manager
-            .set_approval_handler(approval_state.clone())
-            .await;
 
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
-            approval_state,
         }))
     }
 

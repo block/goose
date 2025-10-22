@@ -1,4 +1,3 @@
-use crate::agents::approval::ApprovalHandler;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
@@ -21,7 +20,6 @@ pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
     scheduler: Arc<dyn SchedulerTrait>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
-    approval_handler: Arc<RwLock<Option<Arc<dyn ApprovalHandler>>>>,
 }
 
 impl AgentManager {
@@ -49,7 +47,6 @@ impl AgentManager {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
             scheduler,
             default_provider: Arc::new(RwLock::new(None)),
-            approval_handler: Arc::new(RwLock::new(None)),
         };
 
         let _ = manager.configure_default_provider().await;
@@ -74,11 +71,6 @@ impl AgentManager {
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
         debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);
-    }
-
-    pub async fn set_approval_handler(&self, handler: Arc<dyn ApprovalHandler>) {
-        debug!("Setting approval handler on AgentManager");
-        *self.approval_handler.write().await = Some(handler);
     }
 
     pub async fn configure_default_provider(&self) -> Result<()> {
@@ -134,12 +126,6 @@ impl AgentManager {
             .await;
         if let Some(provider) = &*self.default_provider.read().await {
             agent.update_provider(Arc::clone(provider)).await?;
-        }
-        if let Some(handler) = &*self.approval_handler.read().await {
-            agent
-                .extension_manager
-                .set_approval_handler(Arc::clone(handler))
-                .await;
         }
 
         let mut sessions = self.sessions.write().await;

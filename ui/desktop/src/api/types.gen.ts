@@ -12,17 +12,11 @@ export type Annotations = {
 
 export type ApprovalAction = 'allow_once' | 'always_allow' | 'deny';
 
-/**
- * A request for user approval
- */
 export type ApprovalRequest = ApprovalType & {
     requestId: string;
     sessionId: string;
 };
 
-/**
- * A response to an approval request
- */
 export type ApprovalResponse = {
     action: ApprovalAction;
     requestId: string;
