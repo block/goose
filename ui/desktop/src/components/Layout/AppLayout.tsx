@@ -43,10 +43,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         navigate('/sessions');
         break;
       case 'schedules':
-        navigate('/schedules');
+        navigate('/commands', { state: { tab: 'scheduler' } });
         break;
       case 'recipes':
-        navigate('/recipes');
+        navigate('/commands', { state: { tab: 'recipes' } });
         break;
       case 'permission':
         navigate('/permission', { state: viewOptions });

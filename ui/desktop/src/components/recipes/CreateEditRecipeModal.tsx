@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 import { useNavigation } from '../../hooks/useNavigation';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';
+import { ScheduleConfigSection, ScheduleConfig } from '../shared/ScheduleConfigSection';
 import { RecipeFormData } from './shared/recipeFormSchema';
 import { toastSuccess, toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
@@ -83,6 +84,9 @@ export default function CreateEditRecipeModal({
   const [copied, setCopied] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(
+    recipe?.schedule || null
+  );
 
   // Initialize selected extensions for the recipe
   const [recipeExtensions] = useState<ExtensionConfig[]>(() => {
@@ -263,14 +267,48 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      // Save the recipe first
+      const saved_recipe_id = await saveRecipe(recipe, recipeId);
+
+      // If schedule is enabled, create the schedule
+      if (scheduleConfig && scheduleConfig.enabled) {
+        try {
+          // Import createSchedule if not already imported
+          const { createSchedule } = await import('../../schedule');
+          
+          // Get the recipe file path
+          const { getStorageDirectory } = await import('../../recipe/recipe_management');
+          const storageDir = await getStorageDirectory();
+          const recipeFilePath = `${storageDir}/${saved_recipe_id}.yaml`;
+
+          await createSchedule({
+            id: scheduleConfig.id,
+            recipe_source: recipeFilePath,
+            cron: scheduleConfig.cron,
+            execution_mode: scheduleConfig.execution_mode,
+          });
+
+          toastSuccess({
+            title: (recipe.title || '').trim(),
+            msg: `Recipe saved and scheduled successfully (${scheduleConfig.cronReadable})`,
+          });
+        } catch (scheduleError) {
+          console.error('Failed to create schedule:', scheduleError);
+          toastError({
+            title: 'Schedule Creation Failed',
+            msg: `Recipe was saved, but failed to create schedule: ${
+              scheduleError instanceof Error ? scheduleError.message : 'Unknown error'
+            }`,
+          });
+        }
+      } else {
+        toastSuccess({
+          title: (recipe.title || '').trim(),
+          msg: 'Recipe saved successfully',
+        });
+      }
 
       onClose(true);
-
-      toastSuccess({
-        title: (recipe.title || '').trim(),
-        msg: 'Recipe saved successfully',
-      });
     } catch (error) {
       console.error('Failed to save recipe:', error);
 
@@ -366,6 +404,15 @@ export default function CreateEditRecipeModal({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <RecipeFormFields form={form} />
 
+          {/* Schedule Configuration Section */}
+          <div className="mt-6">
+            <ScheduleConfigSection
+              recipeTitle={title}
+              value={scheduleConfig || undefined}
+              onChange={setScheduleConfig}
+            />
+          </div>
+
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
             <div className="w-full p-4 bg-bgSubtle rounded-lg mt-6">
@@ -455,7 +502,7 @@ export default function CreateEditRecipeModal({
         recipe={getCurrentRecipe()}
         onCreateSchedule={(deepLink) => {
           // Navigate to schedules view with the deep link in state
-          setView('schedules', { pendingScheduleDeepLink: deepLink });
+          setView('commands', { tab: 'scheduler', pendingScheduleDeepLink: deepLink });
           setIsScheduleModalOpen(false);
         }}
       />

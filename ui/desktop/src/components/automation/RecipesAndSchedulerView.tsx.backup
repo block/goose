@@ -1,0 +1,72 @@
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { FileText, Clock } from 'lucide-react';
+import RecipesView from '../recipes/RecipesView';
+import SchedulesView from '../schedule/SchedulesView';
+
+interface RecipesAndSchedulerViewProps {
+  onClose?: () => void;
+}
+
+type TabValue = 'recipes' | 'scheduler';
+
+export default function RecipesAndSchedulerView({ onClose }: RecipesAndSchedulerViewProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Determine initial tab from location state or default to recipes
+  const initialTab = (location.state as { tab?: TabValue })?.tab || 'recipes';
+  const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
+
+  // Update tab when location state changes (e.g., from deep links or navigation)
+  useEffect(() => {
+    const stateTab = (location.state as { tab?: TabValue })?.tab;
+    if (stateTab && stateTab !== activeTab) {
+      setActiveTab(stateTab);
+    }
+  }, [location.state, activeTab]);
+
+  // Handle tab change and update URL state
+  const handleTabChange = (value: string) => {
+    const newTab = value as TabValue;
+    setActiveTab(newTab);
+    // Update the location state without adding to history
+    navigate('/automation', { state: { ...location.state, tab: newTab }, replace: true });
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col h-full">
+        {/* Tab navigation bar - positioned absolutely over the content */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-background-medium/95 backdrop-blur-sm rounded-lg border border-border-default shadow-lg">
+          <TabsList className="bg-transparent h-10">
+            <TabsTrigger 
+              value="recipes" 
+              className="data-[state=active]:bg-background-default data-[state=active]:text-text-default px-6 rounded-md"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Recipes
+            </TabsTrigger>
+            <TabsTrigger 
+              value="scheduler"
+              className="data-[state=active]:bg-background-default data-[state=active]:text-text-default px-6 rounded-md"
+            >
+              <Clock className="w-4 h-4 mr-2" />
+              Scheduler
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab content - full height */}
+        <TabsContent value="recipes" className="flex-1 mt-0 h-full data-[state=inactive]:hidden">
+          <RecipesView />
+        </TabsContent>
+
+        <TabsContent value="scheduler" className="flex-1 mt-0 h-full data-[state=inactive]:hidden">
+          <SchedulesView onClose={onClose} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

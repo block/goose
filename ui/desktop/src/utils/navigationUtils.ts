@@ -13,14 +13,16 @@ export type View =
   | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions'
-  | 'schedules'
+  | 'schedules'  // Deprecated: use 'commands' instead
+  | 'recipes'    // Deprecated: use 'commands' instead
+  | 'commands'
   | 'sharedSession'
   | 'loading'
-  | 'recipes'
   | 'permission';
 
 // TODO(Douwe): check these for usage, especially key: string for resetChat
 export type ViewOptions = {
+  tab?: 'recipes' | 'scheduler';  // For commands view tab selection
   extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: unknown;
@@ -54,10 +56,15 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         navigate('/sessions', { state: options });
         break;
       case 'schedules':
-        navigate('/schedules', { state: options });
+        // Redirect to commands view with scheduler tab
+        navigate('/commands', { state: { ...options, tab: 'scheduler' } });
         break;
       case 'recipes':
-        navigate('/recipes', { state: options });
+        // Redirect to commands view with recipes tab
+        navigate('/commands', { state: { ...options, tab: 'recipes' } });
+        break;
+      case 'commands':
+        navigate('/commands', { state: options });
         break;
       case 'permission':
         navigate('/permission', { state: options });

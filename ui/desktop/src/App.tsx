@@ -143,6 +143,11 @@ const RecipesRoute = () => {
   return <RecipesView />;
 };
 
+const CommandsRoute = () => {
+  const navigate = useNavigate();
+  return <RecipesView />;
+};
+
 const PermissionRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -578,8 +583,8 @@ export function AppInner() {
               }
             />
             <Route path="sessions" element={<SessionsRoute />} />
-            <Route path="schedules" element={<SchedulesRoute />} />
-            <Route path="recipes" element={<RecipesRoute />} />
+            <Route path="commands" element={<CommandsRoute />} />
+            {/* <Route path="recipes" element={<RecipesRoute />} /> - Replaced by commands */}
             <Route
               path="shared-session"
               element={

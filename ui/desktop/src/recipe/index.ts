@@ -6,12 +6,21 @@ import {
 import type { RecipeParameter } from '../api';
 
 // Re-export OpenAPI types with frontend-specific additions
+// Re-export OpenAPI types with frontend-specific additions
 export type Parameter = RecipeParameter;
 export type Recipe = import('../api').Recipe & {
   // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
+  // Schedule configuration (frontend only, not persisted in recipe file)
+  schedule?: {
+    id: string;
+    cron: string;
+    cronReadable: string;
+    execution_mode: 'background' | 'foreground';
+    enabled: boolean;
+  };
   // TODO: Separate these from the raw recipe type
   // Legacy frontend properties (not in OpenAPI schema)
   profile?: string;

@@ -66,17 +66,10 @@ const menuItems: NavigationEntry[] = [
   { type: 'separator' },
   {
     type: 'item',
-    path: '/recipes',
-    label: 'Recipes',
+    path: '/commands',
+    label: 'Commands',
     icon: FileText,
-    tooltip: 'Browse your saved recipes',
-  },
-  {
-    type: 'item',
-    path: '/schedules',
-    label: 'Scheduler',
-    icon: Clock,
-    tooltip: 'Manage scheduled runs',
+    tooltip: 'Manage your commands and schedules',
   },
   {
     type: 'item',

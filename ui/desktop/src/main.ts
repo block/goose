@@ -665,8 +665,9 @@ const createChat = async (
     pair: '/pair',
     settings: '/settings',
     sessions: '/sessions',
-    schedules: '/schedules',
-    recipes: '/recipes',
+    schedules: '/commands',  // Redirects to commands with scheduler tab
+    recipes: '/commands',    // Redirects to commands with recipes tab
+    commands: '/commands',
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
     sharedSession: '/shared-session',
