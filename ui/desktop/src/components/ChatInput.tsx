@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -8,7 +8,6 @@ import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../api';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
@@ -27,6 +26,8 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
+import { DiagnosticsModal } from './ui/DownloadDiagnostics';
+import { Message } from '../api';
 
 interface QueuedMessage {
   id: string;
@@ -147,6 +148,8 @@ export default function ChatInput({
   const chatContext = useChatContext(); // This should always be available now
   const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
+
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   // Debug logging for draft context
   useEffect(() => {
@@ -1541,7 +1544,6 @@ export default function ChatInput({
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Attach button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1556,6 +1558,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
+
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1603,7 +1606,31 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
+          {sessionId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={() => setDiagnosticsOpen(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                >
+                  <Bug className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Generate diagnostics bundle</TooltipContent>
+            </Tooltip>
+          )}
         </div>
+
+        {sessionId && diagnosticsOpen && (
+          <DiagnosticsModal
+            isOpen={diagnosticsOpen}
+            onClose={() => setDiagnosticsOpen(false)}
+            sessionId={sessionId}
+          />
+        )}
 
         <MentionPopover
           ref={mentionPopoverRef}

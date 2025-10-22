@@ -1538,6 +1538,31 @@ export type ConfirmPermissionResponses = {
     200: unknown;
 };
 
+export type DiagnosticsData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
+    query?: never;
+    url: '/diagnostics/{session_id}';
+};
+
+export type DiagnosticsErrors = {
+    /**
+     * Failed to generate diagnostics
+     */
+    500: unknown;
+};
+
+export type DiagnosticsResponses = {
+    /**
+     * Diagnostics zip file
+     */
+    200: Blob | File;
+};
+
+export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
+
 export type StartOpenrouterSetupData = {
     body?: never;
     path?: never;

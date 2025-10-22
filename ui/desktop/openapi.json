@@ -852,6 +852,40 @@
         }
       }
     },
+    "/diagnostics/{session_id}": {
+      "get": {
+        "tags": [
+          "super::routes::status"
+        ],
+        "operationId": "diagnostics",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnostics zip file",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to generate diagnostics"
+          }
+        }
+      }
+    },
     "/handle_openrouter": {
       "post": {
         "tags": [
@@ -1928,7 +1962,7 @@
     "/status": {
       "get": {
         "tags": [
-          "super::routes::health"
+          "super::routes::status"
         ],
         "operationId": "status",
         "responses": {
