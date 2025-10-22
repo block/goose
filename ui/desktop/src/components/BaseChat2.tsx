@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
-import { getThinkingMessage } from '../utils/thinkingMessage';
+import { getThinkingMessage } from '../types/message';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -372,7 +372,7 @@ function BaseChatContent({
                 message={
                   messages.length === 0 && !sessionLoadError
                     ? 'loading conversation...'
-                    : getThinkingMessage(messages, chatState)
+                    : getThinkingMessage(messages[messages.length - 1])
                 }
                 chatState={chatState}
               />

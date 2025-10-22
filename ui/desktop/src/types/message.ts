@@ -70,3 +70,17 @@ export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   return toolRequests.length > 0;
 }
+
+export function getThinkingMessage(message: Message | undefined): string | undefined {
+  if (!message || message.role !== 'assistant') {
+    return undefined;
+  }
+
+  for (const content of message.content) {
+    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
+      return content.msg;
+    }
+  }
+
+  return undefined;
+}
