@@ -8,18 +8,11 @@ use crate::agents::subagent_task_config::TaskConfig;
 
 pub async fn process_task(
     task: &Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
+    _task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> TaskResult {
-    match get_task_result(
-        task.clone(),
-        task_execution_tracker,
-        task_config,
-        cancellation_token,
-    )
-    .await
-    {
+    match handle_recipe_task(task.clone(), task_config, cancellation_token).await {
         Ok(data) => TaskResult {
             task_id: task.id.clone(),
             status: TaskStatus::Completed,
@@ -33,15 +26,6 @@ pub async fn process_task(
             error: Some(error),
         },
     }
-}
-
-async fn get_task_result(
-    task: Task,
-    _task_execution_tracker: Arc<TaskExecutionTracker>,
-    task_config: TaskConfig,
-    cancellation_token: CancellationToken,
-) -> Result<Value, String> {
-    handle_recipe_task(task, task_config, cancellation_token).await
 }
 
 async fn handle_recipe_task(

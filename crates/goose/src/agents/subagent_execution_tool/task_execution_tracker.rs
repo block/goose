@@ -17,6 +17,8 @@ use crate::agents::subagent_execution_tool::utils::{count_by_status, get_task_na
 use crate::utils::is_token_cancelled;
 use tokio::sync::mpsc::Sender;
 
+const RECIPE_TASK_TYPE: &str = "recipe";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum DisplayMode {
     MultipleTasksOutput,
@@ -148,13 +150,15 @@ impl TaskExecutionTracker {
     async fn format_line(&self, task_info: Option<&TaskInfo>, line: &str) -> String {
         if let Some(task_info) = task_info {
             let task_name = get_task_name(task_info);
-            let task_type = "recipe";
             let metadata = format_task_metadata(task_info);
 
             if metadata.is_empty() {
-                format!("[{} ({})] {}", task_name, task_type, line)
+                format!("[{} ({})] {}", task_name, RECIPE_TASK_TYPE, line)
             } else {
-                format!("[{} ({}) {}] {}", task_name, task_type, metadata, line)
+                format!(
+                    "[{} ({}) {}] {}",
+                    task_name, RECIPE_TASK_TYPE, metadata, line
+                )
             }
         } else {
             line.to_string()
@@ -229,7 +233,7 @@ impl TaskExecutionTracker {
                         }
                     }),
                     current_output: task_info.current_output.clone(),
-                    task_type: "recipe".to_string(),
+                    task_type: RECIPE_TASK_TYPE.to_string(),
                     task_name: get_task_name(task_info).to_string(),
                     task_metadata: format_task_metadata(task_info),
                     error: task_info.error().cloned(),

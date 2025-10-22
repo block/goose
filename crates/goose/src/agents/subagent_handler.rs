@@ -12,7 +12,6 @@ use std::future::Future;
 use std::pin::Pin;
 use tracing::{debug, info};
 
-// Type alias for the complex return type
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 

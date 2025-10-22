@@ -20,9 +20,7 @@ pub enum ExecutionMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskPayload {
     pub recipe: Recipe,
-    #[serde(default)]
     pub return_last_only: bool,
-    #[serde(default)]
     pub sequential_when_repeated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_values: Option<HashMap<String, String>>,

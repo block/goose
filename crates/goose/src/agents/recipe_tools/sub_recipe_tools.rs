@@ -57,15 +57,13 @@ fn create_tasks_from_params(
     sub_recipe: &SubRecipe,
     command_params: &[std::collections::HashMap<String, String>],
 ) -> Result<Vec<Task>> {
+    let recipe_file = load_local_recipe_file(&sub_recipe.path)
+        .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
+
     let mut tasks = Vec::new();
-
     for task_command_param in command_params {
-        // Load the recipe file for each task (can't clone RecipeFile)
-        let recipe_file = load_local_recipe_file(&sub_recipe.path)
-            .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
-
         let recipe = build_recipe_from_template(
-            recipe_file.content,
+            recipe_file.content.clone(),
             &recipe_file.parent_dir,
             task_command_param
                 .iter()

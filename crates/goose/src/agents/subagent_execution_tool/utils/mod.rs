@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::agents::subagent_execution_tool::task_types::{TaskInfo, TaskStatus};
 
 pub fn get_task_name(task_info: &TaskInfo) -> &str {
-    // Return the recipe title (always present as it's a required field)
     &task_info.task.payload.recipe.title
 }
 
