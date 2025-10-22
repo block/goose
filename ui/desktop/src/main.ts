@@ -1598,6 +1598,215 @@ ipcMain.handle('show-message-box', async (_event, options) => {
   return dialog.showMessageBox(options);
 });
 
+// Log management handlers
+ipcMain.handle('get-log-size', async (event) => {
+  try {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      log.error('No window ID found for log size request');
+      return {
+        total_bytes: 0,
+        total_mb: 0.0,
+        total_gb: 0.0,
+        file_count: 0,
+        log_path: '',
+      };
+    }
+
+    const client = goosedClients.get(windowId);
+    if (!client) {
+      log.error('No goosed client found for window:', windowId);
+      return {
+        total_bytes: 0,
+        total_mb: 0.0,
+        total_gb: 0.0,
+        file_count: 0,
+        log_path: '',
+      };
+    }
+
+    await checkServerStatus(client);
+    const hostPort = client.getConfig().baseUrl;
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (SERVER_SECRET) {
+      headers['X-Secret-Key'] = SERVER_SECRET;
+    }
+
+    const response = await fetch(`${hostPort}/logs/size`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      log.error('Failed to get log size:', response.statusText);
+      return {
+        total_bytes: 0,
+        total_mb: 0.0,
+        total_gb: 0.0,
+        file_count: 0,
+        log_path: '',
+      };
+    }
+
+    return await response.json();
+  } catch (error) {
+    log.error('Error getting log size:', error);
+    return {
+      total_bytes: 0,
+      total_mb: 0.0,
+      total_gb: 0.0,
+      file_count: 0,
+      log_path: '',
+    };
+  }
+});
+
+ipcMain.handle('clear-logs', async (event) => {
+  try {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      return {
+        success: false,
+        files_cleared: 0,
+        bytes_cleared: 0,
+        mb_cleared: 0.0,
+        message: 'No window ID found',
+      };
+    }
+
+    const client = goosedClients.get(windowId);
+    if (!client) {
+      return {
+        success: false,
+        files_cleared: 0,
+        bytes_cleared: 0,
+        mb_cleared: 0.0,
+        message: 'No goosed client found',
+      };
+    }
+
+    await checkServerStatus(client);
+    const hostPort = client.getConfig().baseUrl;
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (SERVER_SECRET) {
+      headers['X-Secret-Key'] = SERVER_SECRET;
+    }
+
+    const response = await fetch(`${hostPort}/logs/clear`, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      log.error('Failed to clear logs:', response.statusText);
+      return {
+        success: false,
+        files_cleared: 0,
+        bytes_cleared: 0,
+        mb_cleared: 0.0,
+        message: `Failed to clear logs: ${response.statusText}`,
+      };
+    }
+
+    const result = await response.json();
+    log.info(`Logs cleared: ${result.files_cleared} files, ${result.mb_cleared.toFixed(2)} MB`);
+    return result;
+  } catch (error) {
+    log.error('Error clearing logs:', error);
+    return {
+      success: false,
+      files_cleared: 0,
+      bytes_cleared: 0,
+      mb_cleared: 0.0,
+      message: `Error clearing logs: ${error}`,
+    };
+  }
+});
+
+ipcMain.handle('get-log-path', async (event) => {
+  try {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      return '';
+    }
+
+    const client = goosedClients.get(windowId);
+    if (!client) {
+      return '';
+    }
+
+    await checkServerStatus(client);
+    const hostPort = client.getConfig().baseUrl;
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (SERVER_SECRET) {
+      headers['X-Secret-Key'] = SERVER_SECRET;
+    }
+
+    const response = await fetch(`${hostPort}/logs/path`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      log.error('Failed to get log path:', response.statusText);
+      return '';
+    }
+
+    const result = await response.json();
+    return result.log_path;
+  } catch (error) {
+    log.error('Error getting log path:', error);
+    return '';
+  }
+});
+
+ipcMain.handle('open-logs-folder', async (event) => {
+  try {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      log.error('No window ID found');
+      return;
+    }
+
+    const client = goosedClients.get(windowId);
+    if (!client) {
+      log.error('No goosed client found');
+      return;
+    }
+
+    await checkServerStatus(client);
+    const hostPort = client.getConfig().baseUrl;
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (SERVER_SECRET) {
+      headers['X-Secret-Key'] = SERVER_SECRET;
+    }
+
+    const response = await fetch(`${hostPort}/logs/path`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      log.error('Failed to get log path:', response.statusText);
+      return;
+    }
+
+    const result = await response.json();
+    const logPath = result.log_path;
+
+    if (logPath) {
+      await shell.openPath(logPath);
+      log.info('Opened logs folder:', logPath);
+    }
+  } catch (error) {
+    log.error('Error opening logs folder:', error);
+  }
+});
+
 ipcMain.handle('get-allowed-extensions', async () => {
   return await getAllowList();
 });

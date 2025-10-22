@@ -33,6 +33,22 @@ interface SaveDataUrlResponse {
   error?: string;
 }
 
+interface LogSizeInfo {
+  total_bytes: number;
+  total_mb: number;
+  total_gb: number;
+  file_count: number;
+  log_path: string;
+}
+
+interface ClearLogsResult {
+  success: boolean;
+  files_cleared: number;
+  bytes_cleared: number;
+  mb_cleared: number;
+  message?: string;
+}
+
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 interface UpdaterEvent {
@@ -115,6 +131,11 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  // Log management functions
+  getLogSize: () => Promise<LogSizeInfo>;
+  clearLogs: () => Promise<ClearLogsResult>;
+  getLogPath: () => Promise<string>;
+  openLogsFolder: () => Promise<void>;
 };
 
 type AppConfigAPI = {
@@ -248,6 +269,10 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  getLogSize: () => ipcRenderer.invoke('get-log-size') as Promise<LogSizeInfo>,
+  clearLogs: () => ipcRenderer.invoke('clear-logs') as unknown as Promise<ClearLogsResult>,
+  getLogPath: () => ipcRenderer.invoke('get-log-path') as Promise<string>,
+  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder') as Promise<void>,
 };
 
 const appConfigAPI: AppConfigAPI = {
