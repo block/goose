@@ -137,7 +137,7 @@ async fn run_truncate_test(
     let mut responses = Vec::new();
     while let Some(response_result) = reply_stream.next().await {
         match response_result {
-            Ok(AgentEvent::Message(response)) => responses.push(response),
+            Ok(AgentEvent::Message(response, _usage)) => responses.push(response),
             Ok(AgentEvent::McpNotification(n)) => {
                 println!("MCP Notification: {n:?}");
             }
@@ -632,7 +632,7 @@ mod final_output_tool_tests {
         let mut responses = Vec::new();
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
-                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(AgentEvent::Message(response, _usage)) => responses.push(response),
                 Ok(_) => {}
                 Err(e) => return Err(e),
             }
@@ -773,7 +773,7 @@ mod final_output_tool_tests {
         let mut count = 0;
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
-                Ok(AgentEvent::Message(response)) => {
+                Ok(AgentEvent::Message(response, _usage)) => {
                     responses.push(response);
                     count += 1;
                     if count >= 4 {
@@ -809,7 +809,7 @@ mod final_output_tool_tests {
         // Continue streaming to consume any remaining content, this lets us verify the provider saw the continuation message
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
-                Ok(AgentEvent::Message(_response)) => {
+                Ok(AgentEvent::Message(_response, _usage)) => {
                     break; // Stop after receiving the next message
                 }
                 Ok(_) => {}
@@ -930,7 +930,7 @@ mod retry_tests {
         let mut responses = Vec::new();
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
-                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(AgentEvent::Message(response, _usage)) => responses.push(response),
                 Ok(_) => {}
                 Err(e) => return Err(e),
             }
@@ -1096,7 +1096,7 @@ mod max_turns_tests {
         let mut responses = Vec::new();
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
-                Ok(AgentEvent::Message(response)) => {
+                Ok(AgentEvent::Message(response, _usage)) => {
                     if let Some(MessageContent::ToolConfirmationRequest(ref req)) =
                         response.content.first()
                     {

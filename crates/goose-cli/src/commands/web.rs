@@ -485,7 +485,7 @@ async fn process_message_streaming(
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {
-                    Ok(AgentEvent::Message(message)) => {
+                    Ok(AgentEvent::Message(message, _usage)) => {
                         SessionManager::add_message(&session_id, &message).await?;
 
                         for content in &message.content {

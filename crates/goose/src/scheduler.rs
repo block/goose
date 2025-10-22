@@ -1223,7 +1223,7 @@ async fn run_scheduled_job_internal(
                     tokio::task::yield_now().await;
 
                     match message_result {
-                        Ok(AgentEvent::Message(msg)) => {
+                        Ok(AgentEvent::Message(msg, _usage)) => {
                             if msg.role == rmcp::model::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }

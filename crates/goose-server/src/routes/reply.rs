@@ -126,6 +126,8 @@ impl IntoResponse for SseResponse {
 pub enum MessageEvent {
     Message {
         message: Message,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        token_state: Option<goose::session::session_manager::TokenState>,
     },
     Error {
         error: String,
@@ -296,13 +298,34 @@ pub async fn reply(
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
-                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                        Ok(Some(Ok(AgentEvent::Message(message, usage)))) => {
                             for content in &message.content {
                                 track_tool_telemetry(content, all_messages.messages());
                             }
 
                             all_messages.push(message.clone());
-                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+
+                            // Create token state if usage is available
+                            let token_state = if let Some(provider_usage) = usage {
+                                match SessionManager::get_session(&session_id, false).await {
+                                    Ok(session) => Some(goose::session::session_manager::TokenState {
+                                        input_tokens: provider_usage.usage.input_tokens,
+                                        output_tokens: provider_usage.usage.output_tokens,
+                                        total_tokens: provider_usage.usage.total_tokens,
+                                        accumulated_input_tokens: session.accumulated_input_tokens,
+                                        accumulated_output_tokens: session.accumulated_output_tokens,
+                                        accumulated_total_tokens: session.accumulated_total_tokens,
+                                    }),
+                                    Err(e) => {
+                                        tracing::warn!("Failed to fetch session for token state: {}", e);
+                                        None
+                                    }
+                                }
+                            } else {
+                                None
+                            };
+
+                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
