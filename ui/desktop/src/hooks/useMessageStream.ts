@@ -334,6 +334,7 @@ export function useMessageStream({
                   }
 
                   case 'UpdateConversation': {
+                    currentMessages = parsedEvent.conversation;
                     setMessages(parsedEvent.conversation);
                     break;
                   }
