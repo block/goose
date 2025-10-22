@@ -19,6 +19,8 @@ interface TunnelStatus {
   info: TunnelInfo | null;
 }
 
+type TunnelMode = 'lapstone' | 'tailscale';
+
 export default function TunnelSection() {
   const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus>({ state: 'idle', info: null });
   const [showQRModal, setShowQRModal] = useState(false);
@@ -26,6 +28,20 @@ export default function TunnelSection() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [tunnelMode, setTunnelMode] = useState<TunnelMode>('lapstone');
+
+  // Load tunnel mode preference on mount
+  useEffect(() => {
+    const loadTunnelMode = async () => {
+      try {
+        const mode = await window.electron.getTunnelMode();
+        setTunnelMode(mode as TunnelMode);
+      } catch (err) {
+        console.error('Error loading tunnel mode:', err);
+      }
+    };
+    loadTunnelMode();
+  }, []);
 
   // Check tunnel status on mount
   useEffect(() => {
@@ -64,6 +80,15 @@ export default function TunnelSection() {
     } catch (err) {
       console.error('Error stopping tunnel:', err);
       setError(err instanceof Error ? err.message : 'Failed to stop tunnel');
+    }
+  };
+
+  const handleTunnelModeChange = async (mode: TunnelMode) => {
+    try {
+      await window.electron.setTunnelMode(mode);
+      setTunnelMode(mode);
+    } catch (err) {
+      console.error('Error setting tunnel mode:', err);
     }
   };
 
@@ -114,6 +139,59 @@ export default function TunnelSection() {
           {error && (
             <div className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
               {error}
+            </div>
+          )}
+
+          {/* Tunnel Mode Selector - only shown when tunnel is not running */}
+          {tunnelStatus.state === 'idle' && (
+            <div className="space-y-2">
+              <h3 className="text-text-default text-xs">Tunnel Mode</h3>
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={() => handleTunnelModeChange('lapstone')}
+                  className={`flex items-center space-x-2 p-2 rounded border transition-colors ${
+                    tunnelMode === 'lapstone'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      tunnelMode === 'lapstone'
+                        ? 'border-blue-500'
+                        : 'border-gray-400 dark:border-gray-500'
+                    }`}
+                  >
+                    {tunnelMode === 'lapstone' && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    )}
+                  </div>
+                  <span className="text-xs font-normal cursor-pointer">
+                    Lapstone (Cloudflare Tunnel) - Recommended
+                  </span>
+                </button>
+                <button
+                  onClick={() => handleTunnelModeChange('tailscale')}
+                  className={`flex items-center space-x-2 p-2 rounded border transition-colors ${
+                    tunnelMode === 'tailscale'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      tunnelMode === 'tailscale'
+                        ? 'border-blue-500'
+                        : 'border-gray-400 dark:border-gray-500'
+                    }`}
+                  >
+                    {tunnelMode === 'tailscale' && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    )}
+                  </div>
+                  <span className="text-xs font-normal cursor-pointer">Tailscale</span>
+                </button>
+              </div>
             </div>
           )}
 

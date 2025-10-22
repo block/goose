@@ -126,6 +126,8 @@ type ElectronAPI = {
   }>;
   stopTunnel: () => Promise<void>;
   getTunnelStatus: () => Promise<{ state: string; info: unknown | null }>;
+  getTunnelMode: () => Promise<string>;
+  setTunnelMode: (mode: string) => Promise<void>;
 };
 
 type AppConfigAPI = {
@@ -262,6 +264,8 @@ const electronAPI: ElectronAPI = {
   startTunnel: () => ipcRenderer.invoke('start-tunnel'),
   stopTunnel: () => ipcRenderer.invoke('stop-tunnel'),
   getTunnelStatus: () => ipcRenderer.invoke('get-tunnel-status'),
+  getTunnelMode: () => ipcRenderer.invoke('get-tunnel-mode'),
+  setTunnelMode: (mode: string) => ipcRenderer.invoke('set-tunnel-mode', mode),
 };
 
 const appConfigAPI: AppConfigAPI = {

@@ -43,6 +43,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const supportsTunnel =
     window.electron.platform === 'darwin' || window.electron.platform === 'linux';
 
+  // Check if experimental features should be hidden
+  const hideExperimental = window.appConfig.get('GOOSE_HIDE_EXPERIMENTAL') === 'true';
+
   // Detect theme changes
   useEffect(() => {
     const updateTheme = () => {
@@ -400,8 +403,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      {/* Experimental Features - only show on macOS and Linux */}
-      {supportsTunnel && (
+      {/* Experimental Features - only show on macOS and Linux, and not hidden by env var */}
+      {supportsTunnel && !hideExperimental && (
         <Card className="rounded-lg">
           <CardHeader className="pb-0">
             <button
