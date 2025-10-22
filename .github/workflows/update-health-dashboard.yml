@@ -26,11 +26,12 @@ jobs:
     
     steps:
       - name: 'Download previous metrics'
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@688efa90a08f3552e7c1420c8313e215164e8b14
         with:
           name: health-metrics
           path: .
-        continue-on-error: true
+          workflow: update-health-dashboard.yml
+          if_no_artifact_found: ignore
         
       - name: 'Update Dashboard'
         uses: actions/github-script@v7

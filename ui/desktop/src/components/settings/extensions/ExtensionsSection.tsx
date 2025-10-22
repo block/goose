@@ -24,6 +24,7 @@ interface ExtensionSectionProps {
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
   onModalClose?: (extensionName: string) => void;
+  searchTerm?: string;
 }
 
 export default function ExtensionsSection({
@@ -35,6 +36,7 @@ export default function ExtensionsSection({
   customToggle,
   selectedExtensions = [],
   onModalClose,
+  searchTerm = '',
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -199,6 +201,7 @@ export default function ExtensionsSection({
           onToggle={handleExtensionToggle}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
+          searchTerm={searchTerm}
         />
 
         {!hideButtons && (

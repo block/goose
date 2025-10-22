@@ -7,7 +7,7 @@ import { substituteParameters } from '../utils/providerUtils';
 import { updateSessionUserRecipeValues } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
-import { toastSuccess } from '../toasts';
+import { toastError, toastSuccess } from '../toasts';
 
 export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   const [isParameterModalOpen, setIsParameterModalOpen] = useState(false);
@@ -181,7 +181,17 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
       }
       setIsParameterModalOpen(false);
     } catch (error) {
-      console.error('Failed to update system prompt with parameters:', error);
+      let error_message = 'unknown error';
+      if (typeof error === 'object' && error !== null && 'message' in error) {
+        error_message = error.message as string;
+      } else if (typeof error === 'string') {
+        error_message = error;
+      }
+      console.error('Failed to render recipe with parameters:', error);
+      toastError({
+        title: 'Recipe Rendering Failed',
+        msg: error_message,
+      });
     }
   };
 

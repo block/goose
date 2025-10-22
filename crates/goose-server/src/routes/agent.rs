@@ -14,7 +14,7 @@ use goose::config::{GooseMode, PermissionManager};
 use goose::config::Config;
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
-use goose::providers::create;
+use goose::providers::{create, create_with_named_model};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::{Session, SessionManager};
@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -67,6 +67,7 @@ pub struct StartAgentRequest {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
     session_id: String,
+    load_model_and_extensions: bool,
 }
 
 #[utoipa::path(
@@ -172,6 +173,7 @@ async fn start_agent(
     )
 )]
 async fn resume_agent(
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
     let session = SessionManager::get_session(&payload.session_id, true)
@@ -183,6 +185,74 @@ async fn resume_agent(
                 status: StatusCode::NOT_FOUND,
             }
         })?;
+
+    if payload.load_model_and_extensions {
+        let agent = state
+            .get_agent_for_route(payload.session_id)
+            .await
+            .map_err(|code| ErrorResponse {
+                message: "Failed to get agent for route".into(),
+                status: code,
+            })?;
+
+        let config = Config::global();
+
+        let provider_result = async {
+            let provider_name: String =
+                config
+                    .get_param("GOOSE_PROVIDER")
+                    .map_err(|_| ErrorResponse {
+                        message: "Could not configure agent: missing provider".into(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?;
+
+            let model: String = config.get_param("GOOSE_MODEL").map_err(|_| ErrorResponse {
+                message: "Could not configure agent: missing model".into(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
+
+            let provider = create_with_named_model(&provider_name, &model)
+                .await
+                .map_err(|_| ErrorResponse {
+                    message: "Could not configure agent: missing model".into(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })?;
+
+            agent
+                .update_provider(provider)
+                .await
+                .map_err(|e| ErrorResponse {
+                    message: format!("Could not configure agent: {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })
+        };
+
+        let extensions_result = async {
+            let enabled_configs = goose::config::get_enabled_extensions();
+            let agent_clone = agent.clone();
+
+            let extension_futures = enabled_configs
+                .into_iter()
+                .map(|config| {
+                    let config_clone = config.clone();
+                    let agent_ref = agent_clone.clone();
+
+                    async move {
+                        if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
+                            warn!("Failed to load extension {}: {}", config_clone.name(), e);
+                        }
+                        Ok::<_, ErrorResponse>(())
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            futures::future::join_all(extension_futures).await;
+            Ok::<(), ErrorResponse>(()) // Fixed type annotation
+        };
+
+        let (provider_result, _) = tokio::join!(provider_result, extensions_result);
+        provider_result?;
+    }
 
     Ok(Json(session))
 }
