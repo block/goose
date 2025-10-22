@@ -37,7 +37,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
       window.URL.revokeObjectURL(url);
 
       onClose();
-    } catch (error) {
+    } catch {
       toastError({
         title: 'Diagnostics Error',
         msg: 'Failed to download diagnostics',

@@ -322,7 +322,8 @@ derive_utoipa!(Icon as IconSchema);
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        super::routes::health::status,
+        super::routes::status::status,
+        super::routes::status::diagnostics,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,

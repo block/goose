@@ -6,7 +6,7 @@ use std::io::Write;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 
-pub async fn generate_diagnostics(session_id: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
     let logs_dir = Paths::in_state_dir("logs");
     let config_dir = Paths::config_dir();
     let config_path = config_dir.join("config.yaml");
@@ -31,7 +31,7 @@ pub async fn generate_diagnostics(session_id: &str) -> Result<Vec<u8>, Box<dyn s
 
         let mut log_files: Vec<_> = fs::read_dir(&logs_dir)?
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "jsonl"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "jsonl"))
             .collect();
 
         log_files.sort_by_key(|e| e.metadata().ok().and_then(|m| m.modified().ok()));
