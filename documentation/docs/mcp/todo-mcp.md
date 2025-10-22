@@ -8,6 +8,9 @@ import TabItem from '@theme/TabItem';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Todo extension helps goose stay organized by breaking complex work into a series of steps and keeping you updated as it completes each step.
+goose automatically knows to use the Todo extension if it has to do tasks that have 2 or more steps, involve multiple files/components, or have an uncertain scope.
+
+At the start of the task, goose will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
 
 This tutorial will cover enabling and using the Todo MCP Server, which is a built-in goose extension.
 
