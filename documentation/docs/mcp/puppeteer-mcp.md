@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server archived
 
-This tutorial covers how to add the [Puppeteer MCP Server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/puppeteer) as a Goose extension, enabling Goose to interact with websites - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
+This tutorial covers how to add the [Puppeteer MCP Server](https://www.pulsemcp.com/servers/merajmehrabi-puppeteer) as a Goose extension, enabling Goose to interact with websites - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
 
 :::tip TLDR
 <Tabs groupId="interface">

@@ -135,7 +135,7 @@ enum SessionCommand {
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
     },
-    #[command(about = "Export a session to Markdown format")]
+    #[command(about = "Export a session")]
     Export {
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -155,6 +155,16 @@ enum SessionCommand {
             default_value = "markdown"
         )]
         format: String,
+    },
+    #[command(name = "diagnostics")]
+    Diagnostics {
+        /// Session ID to generate diagnostics for
+        #[arg(short, long)]
+        session_id: String,
+
+        /// Output path for the diagnostics zip file (optional, defaults to current directory)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -845,6 +855,10 @@ pub async fn cli() -> Result<()> {
                         format,
                     )
                     .await?;
+                    Ok(())
+                }
+                Some(SessionCommand::Diagnostics { session_id, output }) => {
+                    crate::commands::session::handle_diagnostics(&session_id, output).await?;
                     Ok(())
                 }
                 None => {

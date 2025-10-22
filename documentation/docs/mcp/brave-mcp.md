@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server moved
 
-This tutorial will get you started with the [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
+This tutorial will get you started with the [Brave Search MCP Server](https://www.pulsemcp.com/servers/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
 
 :::tip TLDR
 <Tabs groupId="interface">

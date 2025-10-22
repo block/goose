@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
+import { getThinkingMessage } from '../types/message';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -168,8 +168,6 @@ function BaseChatContent({
 
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
-  // TODO(Douwe): get this from the backend
-  const isCompacting = false;
 
   const chat: ChatType = {
     messageHistoryIndex: 0,
@@ -183,11 +181,10 @@ function BaseChatContent({
 
   // Map chatState to LoadingGoose message
   const getLoadingMessage = (): string | undefined => {
-    if (isCompacting) return 'goose is compacting the conversation...';
     if (messages.length === 0 && chatState === ChatState.Thinking) {
       return 'loading conversation...';
     }
-    return undefined;
+    return getThinkingMessage(messages[messages.length - 1]);
   };
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -258,7 +255,8 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
+          {/* Fixed loading indicator at bottom left of chat container */}
+          {chatState !== ChatState.Idle && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
             </div>
@@ -282,7 +280,6 @@ function BaseChatContent({
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={(_m) => {}}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
@@ -331,9 +328,5 @@ function BaseChatContent({
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }
