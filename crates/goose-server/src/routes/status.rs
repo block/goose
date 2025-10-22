@@ -30,7 +30,7 @@ async fn diagnostics(Path(session_id): Path<String>) -> impl IntoResponse {
                 ),
                 (
                     http::header::CONTENT_DISPOSITION,
-                    HeaderValue::from_str(&filename).map_err(|e| StatusCode::BAD_REQUEST)?,
+                    HeaderValue::from_str(&filename).map_err(|_e| StatusCode::BAD_REQUEST)?,
                 ),
             ];
 
