@@ -318,8 +318,8 @@ You can change your LLM provider and/or model or update your API key at any time
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
     1. Click the sidebar toggle button (☰) in the top-left corner to open the navigation menu
-    2. Click the `Settings` button on the sidebar.
-    3. Click the `Models` tab.
+    2. Click the `Settings` tab on the sidebar
+    3. In the Settings tab, click on `Model Catalog` under the `AI` section
     4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider).
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -386,7 +386,8 @@ While core configurations are shared between interfaces, extensions have flexibi
     <TabItem value="ui" label="goose Desktop" default>
         Navigate to shared configurations through:
         1. Click the sidebar toggle button (☰) in the top-left corner to open the navigation menu
-        2. Click the `Settings` button on the sidebar.
+        2. Click the `Settings` tab on the sidebar to open the settings panel.
+        3. In the Settings tab, find the relevant section for the configuration you want to update.
     </TabItem>
     <TabItem value="cli" label="goose CLI">
         Use the following command to manage shared configurations:
