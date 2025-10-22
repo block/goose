@@ -1165,7 +1165,7 @@ impl Agent {
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
-                                    "Context limit reached. Attempting to compact and continue conversation...",
+                                    "Context limit reached. Compacting to continue conversation...",
                                 )
                             );
                             yield AgentEvent::Message(
