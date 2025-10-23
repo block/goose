@@ -123,29 +123,6 @@ export default function UpdateSection() {
     }
   };
 
-  const downloadAndInstallUpdate = async () => {
-    setUpdateStatus('downloading');
-    setProgress(0);
-
-    try {
-      const result = await window.electron.downloadUpdate();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to download update');
-      }
-
-      // The download progress and completion will be handled by updater events
-    } catch (error) {
-      console.error('Error downloading update:', error);
-      setUpdateInfo((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to download update',
-      }));
-      setUpdateStatus('error');
-      setTimeout(() => setUpdateStatus('idle'), 5000);
-    }
-  };
-
   const installUpdate = () => {
     window.electron.installUpdate();
   };
@@ -216,13 +193,6 @@ export default function UpdateSection() {
             Check for Updates
           </Button>
 
-          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
-            <Button onClick={downloadAndInstallUpdate} variant="secondary" size="sm">
-              <Download className="w-3 h-3 mr-1" />
-              Download Update
-            </Button>
-          )}
-
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">
               Install & Restart
@@ -247,12 +217,21 @@ export default function UpdateSection() {
         )}
 
         {/* Update information */}
-        {updateInfo.isUpdateAvailable && (
+        {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-muted mt-4 space-y-1">
-            <p>Update will be downloaded to your Downloads folder.</p>
-            <p className="text-xs text-amber-600">
-              Note: After downloading, you'll need to close the app and manually install the update.
+            <p>Update will be downloaded automatically in the background.</p>
+            <p className="text-xs text-green-600">
+              The update will be installed automatically when you quit the app.
             </p>
+          </div>
+        )}
+
+        {updateStatus === 'ready' && (
+          <div className="text-xs text-text-muted mt-4 space-y-1">
+            <p className="text-xs text-green-600">
+              Update is ready! It will be installed when you quit Goose.
+            </p>
+            <p className="text-xs text-text-muted">Or click "Install & Restart" to update now.</p>
           </div>
         )}
       </div>
