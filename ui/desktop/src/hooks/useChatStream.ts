@@ -146,7 +146,6 @@ async function streamFromResponse(
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
 
-              // Check if this is a compacting message (takes priority over thinking)
               if (getCompactingMessage(msg)) {
                 log.state(ChatState.Compacting, { reason: 'compacting notification' });
                 updateChatState(ChatState.Compacting);

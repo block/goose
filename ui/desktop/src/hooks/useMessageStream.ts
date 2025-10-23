@@ -312,7 +312,6 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
-                    // Check if this is a compacting message (takes priority over thinking)
                     if (getCompactingMessage(newMessage)) {
                       mutateChatState(ChatState.Compacting);
                     } else if (getThinkingMessage(newMessage)) {
