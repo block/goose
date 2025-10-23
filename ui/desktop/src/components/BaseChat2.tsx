@@ -4,7 +4,6 @@ import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -272,7 +271,6 @@ function BaseChatContent({
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={(_m) => {}}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
@@ -321,9 +319,5 @@ function BaseChatContent({
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }

@@ -3,7 +3,6 @@ import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage } from '../types/message';
-import { useContextManager } from '../components/context_management/ContextManager';
 
 const TextDecoder = globalThis.TextDecoder;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -177,6 +176,7 @@ async function streamFromResponse(
             }
             case 'UpdateConversation': {
               log.messages('conversation-update', event.conversation.length);
+              currentMessages = event.conversation;
               // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(event.conversation);
               break;
@@ -219,7 +219,6 @@ export function useChatStream({
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { isCompacting } = useContextManager();
 
   useEffect(() => {
     if (session) {
@@ -379,15 +378,13 @@ export function useChatStream({
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
 
-  const effectiveChatState = isCompacting ? ChatState.Compacting : chatState;
-
-  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, effectiveChatState);
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
 
   return {
     sessionLoadError,
     messages: maybe_cached_messages,
     session: maybe_cached_session,
-    chatState: effectiveChatState,
+    chatState,
     handleSubmit,
     stopStreaming,
   };

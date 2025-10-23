@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server archived 
 
-This tutorial covers how to add the [Google Drive MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
+This tutorial covers how to add the [Google Drive MCP Server](https://www.pulsemcp.com/servers/modelcontextprotocol-gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
 
 :::tip TLDR
 <Tabs groupId="interface">

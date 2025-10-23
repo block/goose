@@ -267,28 +267,38 @@ goose bench ...etc.
 ---
 
 #### recipe
-Used to validate recipe files, manage recipe sharing, and open recipes in goose desktop.
+Used to validate recipe files, manage recipe sharing, list available recipes, and open recipes in goose desktop.
 
 **Commands:**
-- `validate <FILE>`: Validate a recipe file
-- `deeplink <FILE>`: Generate a shareable link for a recipe file
-- `open <FILE>`: Open a recipe file directly in goose desktop
+- **`deeplink <RECIPE_NAME>`**: Generate a shareable link for a recipe file
+- **`list [OPTIONS]`**: List all available recipes from local directories and configured GitHub repositories
+  - **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
+  - **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
+- **`open <RECIPE_NAME>`**: Open a recipe file directly in goose desktop
+- **`validate <RECIPE_NAME>`**: Validate a recipe file
 
 **Usage:**
 ```bash
-goose recipe <COMMAND>
-
-# Validate a recipe file
-goose recipe validate my-recipe.yaml
-
 # Generate a shareable link
 goose recipe deeplink my-recipe.yaml
+
+# List all available recipes
+goose recipe list
+
+# List recipes with detailed information
+goose recipe list --verbose
+
+# List recipes in JSON format for automation
+goose recipe list --format json
 
 # Open a recipe in goose desktop
 goose recipe open my-recipe.yaml
 
 # Open a recipe by name
 goose recipe open my-recipe
+
+# Validate a recipe file
+goose recipe validate my-recipe.yaml
 
 # Get help about recipe commands
 goose recipe help

@@ -17,7 +17,6 @@
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { startAgent } from '../api';
@@ -65,35 +64,32 @@ export default function Hub({
   };
 
   return (
-    <ContextManagerProvider>
-      <div className="flex flex-col h-full bg-background-muted">
-        <div className="flex-1 flex flex-col mb-0.5">
-          <SessionInsights />
-        </div>
-
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          autoSubmit={false}
-          chatState={ChatState.Idle}
-          onStop={() => {}}
-          commandHistory={[]}
-          initialValue=""
-          setView={setView}
-          numTokens={0}
-          inputTokens={0}
-          outputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          setMessages={() => {}}
-          disableAnimation={false}
-          sessionCosts={undefined}
-          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-          isExtensionsLoading={isExtensionsLoading}
-          toolCount={0}
-        />
+    <div className="flex flex-col h-full bg-background-muted">
+      <div className="flex-1 flex flex-col mb-0.5">
+        <SessionInsights />
       </div>
-    </ContextManagerProvider>
+
+      <ChatInput
+        sessionId={null}
+        handleSubmit={handleSubmit}
+        autoSubmit={false}
+        chatState={ChatState.Idle}
+        onStop={() => {}}
+        commandHistory={[]}
+        initialValue=""
+        setView={setView}
+        numTokens={0}
+        inputTokens={0}
+        outputTokens={0}
+        droppedFiles={[]}
+        onFilesProcessed={() => {}}
+        messages={[]}
+        disableAnimation={false}
+        sessionCosts={undefined}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        isExtensionsLoading={isExtensionsLoading}
+        toolCount={0}
+      />
+    </div>
   );
 }

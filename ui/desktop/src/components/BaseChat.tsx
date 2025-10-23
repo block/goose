@@ -46,11 +46,11 @@ import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { RecipeHeader } from './RecipeHeader';
 import LoadingGoose from './LoadingGoose';
+import { getThinkingMessage } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { View, ViewOptions } from '../utils/navigationUtils';
-import { ContextManagerProvider, useContextManager } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -115,7 +115,6 @@ function BaseChatContent({
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
-  const { isCompacting, handleManualCompaction } = useContextManager();
 
   // Use shared chat engine
   const {
@@ -382,26 +381,12 @@ function BaseChatContent({
                           {error.message || 'Honk! Goose experienced an error while responding'}
                         </div>
 
-                        {/* Action buttons for all errors including token limit errors */}
+                        {/* Action button to retry last message */}
                         <div className="flex gap-2 mt-2">
                           <div
                             className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
                             onClick={async () => {
                               clearError();
-
-                              await handleManualCompaction(
-                                messages,
-                                setMessages,
-                                append,
-                                chat.sessionId
-                              );
-                            }}
-                          >
-                            Summarize Conversation
-                          </div>
-                          <div
-                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                            onClick={async () => {
                               // Find the last user message
                               const lastUserMessage = messages.reduceRight(
                                 (found, m) => found || (m.role === 'user' ? m : null),
@@ -432,15 +417,13 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
+          {(chatState !== ChatState.Idle || loadingChat) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 message={
                   loadingChat
                     ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
+                    : getThinkingMessage(messages[messages.length - 1])
                 }
                 chatState={chatState}
               />
@@ -465,7 +448,6 @@ function BaseChatContent({
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={setMessages}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
@@ -515,9 +497,5 @@ function BaseChatContent({
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }
