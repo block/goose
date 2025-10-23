@@ -73,14 +73,6 @@ impl SecurityManager {
         // Analyze each tool request
         for (i, tool_request) in tool_requests.iter().enumerate() {
             if let Ok(tool_call) = &tool_request.tool_call {
-                tracing::info!(
-                    tool_name = %tool_call.name,
-                    tool_index = i,
-                    tool_request_id = %tool_request.id,
-                    tool_args = ?tool_call.arguments,
-                    "🔍 Starting security analysis for current tool call"
-                );
-
                 let analysis_result = scanner
                     .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
@@ -126,7 +118,7 @@ impl SecurityManager {
                         "🔒 Security finding below threshold - logged but not blocking execution"
                     );
                 } else {
-                    tracing::debug!(
+                    tracing::info!(
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
