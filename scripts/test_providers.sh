@@ -15,7 +15,7 @@ fi
 SCRIPT_DIR=$(pwd)
 
 PROVIDERS=(
-  "openrouter:meta-llama/llama-3-70b-instruct:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
+  "anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo"
   "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
   "google:gemini-2.5-pro:gemini-2.5-pro:gemini-2.5-flash"
