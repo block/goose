@@ -1066,6 +1066,14 @@ impl ExtensionManager {
         for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
+                
+                // Skip non-toggleable extensions
+                if let ExtensionConfig::Platform { toggleable, .. } = &config {
+                    if toggleable == &Some(false) {
+                        continue;
+                    }
+                }
+                
                 let description = match &config {
                     ExtensionConfig::Builtin {
                         description,
@@ -1090,8 +1098,22 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> =
-            self.extensions.lock().await.keys().cloned().collect();
+        // Filter out non-toggleable extensions
+        let mut enabled_extensions: Vec<String> = vec![];
+        for extension in get_all_extensions() {
+            if extension.enabled {
+                let config = extension.config.clone();
+                
+                // Skip non-toggleable extensions
+                if let ExtensionConfig::Platform { toggleable, .. } = &config {
+                    if toggleable == &Some(false) {
+                        continue;
+                    }
+                }
+                
+                enabled_extensions.push(config.name());
+            }
+        }
 
         // Build output string
         if !disabled_extensions.is_empty() {

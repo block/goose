@@ -1,4 +1,5 @@
 use crate::agents::chatrecall_extension;
+use crate::agents::core_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
@@ -74,6 +75,17 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 toggleable: Some(true),
                 client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            "core",
+            PlatformExtensionDef {
+                name: core_extension::EXTENSION_NAME,
+                description: "Core extension providing essential resource management tools",
+                default_enabled: true,
+                toggleable: Some(false),
+                client_factory: |ctx| Box::new(core_extension::CoreClient::new(ctx).unwrap()),
             },
         );
 

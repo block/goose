@@ -56,21 +56,6 @@ pub struct ManageExtensionsParams {
     pub extension_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ReadResourceParams {
-    pub uri: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extension_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ListResourcesParams {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extension_name: Option<String>,
-}
-
-pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
-pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str = "search_available_extensions";
 pub const MANAGE_EXTENSIONS_TOOL_NAME: &str = "manage_extensions";
 pub const MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE: &str = "extensionmanager__manage_extensions";
@@ -102,21 +87,21 @@ impl ExtensionManagerClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(indoc! {r#"
+            instructions: Some(
+                indoc! {r#"
                 Extension Management
 
-                Use these tools to discover, enable, and disable extensions, as well as review resources.
+                Use these tools to discover, enable, and disable extensions.
 
                 Available tools:
                 - search_available_extensions: Find extensions available to enable/disable
                 - manage_extensions: Enable or disable extensions
-                - list_resources: List resources from extensions
-                - read_resource: Read specific resources from extensions
 
                 Use search_available_extensions when you need to find what extensions are available.
                 Use manage_extensions to enable or disable specific extensions by name.
-                Use list_resources and read_resource to work with extension data and resources.
-            "#}.to_string()),
+            "#}
+                .to_string(),
+            ),
         };
 
         Ok(Self { info, context })
@@ -290,63 +275,9 @@ impl ExtensionManagerClient {
         result
     }
 
-    async fn handle_list_resources(
-        &self,
-        arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
-        if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                let params = arguments
-                    .map(serde_json::Value::Object)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
-                match extension_manager
-                    .list_resources(params, tokio_util::sync::CancellationToken::default())
-                    .await
-                {
-                    Ok(content) => Ok(content),
-                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to list resources: {}", e.message),
-                    }),
-                }
-            } else {
-                Err(ExtensionManagerToolError::ManagerUnavailable)
-            }
-        } else {
-            Err(ExtensionManagerToolError::ManagerUnavailable)
-        }
-    }
-
-    async fn handle_read_resource(
-        &self,
-        arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
-        if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                let params = arguments
-                    .map(serde_json::Value::Object)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
-                match extension_manager
-                    .read_resource(params, tokio_util::sync::CancellationToken::default())
-                    .await
-                {
-                    Ok(content) => Ok(content),
-                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to read resource: {}", e.message),
-                    }),
-                }
-            } else {
-                Err(ExtensionManagerToolError::ManagerUnavailable)
-            }
-        } else {
-            Err(ExtensionManagerToolError::ManagerUnavailable)
-        }
-    }
-
     #[allow(clippy::too_many_lines)]
     async fn get_tools(&self) -> Vec<Tool> {
-        let mut tools = vec![
+        vec![
             Tool::new(
                 SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME.to_string(),
                 "Searches for additional extensions available to help complete tasks.
@@ -390,67 +321,7 @@ impl ExtensionManagerClient {
                 idempotent_hint: Some(false),
                 open_world_hint: Some(false),
             }),
-        ];
-
-        // Only add resource tools if extension manager supports resources
-        if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                if extension_manager.supports_resources().await {
-                    tools.extend([
-                        Tool::new(
-                            LIST_RESOURCES_TOOL_NAME.to_string(),
-                            indoc! {r#"
-            List resources from an extension(s).
-
-            Resources allow extensions to share data that provide context to LLMs, such as
-            files, database schemas, or application-specific information. This tool lists resources
-            in the provided extension, and returns a list for the user to browse. If no extension
-            is provided, the tool will search all extensions for the resource.
-        "#}.to_string(),
-                            Arc::new(
-                                serde_json::to_value(schema_for!(ListResourcesParams))
-                                    .expect("Failed to serialize schema")
-                                    .as_object()
-                                    .expect("Schema must be an object")
-                                    .clone()
-                            ),
-                        ).annotate(ToolAnnotations {
-                            title: Some("List resources".to_string()),
-                            read_only_hint: Some(true),
-                            destructive_hint: Some(false),
-                            idempotent_hint: Some(false),
-                            open_world_hint: Some(false),
-                        }),
-                        Tool::new(
-                            READ_RESOURCE_TOOL_NAME.to_string(),
-                            indoc! {r#"
-            Read a resource from an extension.
-
-            Resources allow extensions to share data that provide context to LLMs, such as
-            files, database schemas, or application-specific information. This tool searches for the
-            resource URI in the provided extension, and reads in the resource content. If no extension
-            is provided, the tool will search all extensions for the resource.
-        "#}.to_string(),
-                            Arc::new(
-                                serde_json::to_value(schema_for!(ReadResourceParams))
-                                    .expect("Failed to serialize schema")
-                                    .as_object()
-                                    .expect("Schema must be an object")
-                                    .clone()
-                            ),
-                        ).annotate(ToolAnnotations {
-                            title: Some("Read a resource".to_string()),
-                            read_only_hint: Some(true),
-                            destructive_hint: Some(false),
-                            idempotent_hint: Some(false),
-                            open_world_hint: Some(false),
-                        }),
-                    ]);
-                }
-            }
-        }
-
-        tools
+        ]
     }
 }
 
@@ -495,8 +366,6 @@ impl McpClientTrait for ExtensionManagerClient {
                 self.handle_search_available_extensions().await
             }
             MANAGE_EXTENSIONS_TOOL_NAME => self.handle_manage_extensions(arguments).await,
-            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await,
-            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await,
             _ => Err(ExtensionManagerToolError::UnknownTool {
                 tool_name: name.to_string(),
             }),
