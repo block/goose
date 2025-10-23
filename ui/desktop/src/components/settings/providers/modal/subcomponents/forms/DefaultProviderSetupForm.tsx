@@ -6,9 +6,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../..
 
 type ValidationErrors = Record<string, string>;
 
+type ConfigValue = string | { maskedValue: string };
 export interface ConfigInput {
+  serverValue?: ConfigValue;
   value?: string;
-  serverHasValue: boolean;
 }
 
 interface DefaultProviderSetupFormProps {
@@ -54,16 +55,12 @@ export default function DefaultProviderSetupForm({
 
     for (const parameter of parameters) {
       const configKey = `${parameter.name}`;
-      const configValue = (await read(configKey, parameter.secret || false)) as string;
+      const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
 
       if (configValue) {
-        if (parameter.secret) {
-          values[parameter.name] = { serverHasValue: true };
-        } else {
-          values[parameter.name] = { value: configValue, serverHasValue: true };
-        }
+        values[parameter.name] = { serverValue: configValue };
       } else if (parameter.default !== undefined && parameter.default !== null) {
-        values[parameter.name] = { value: configValue, serverHasValue: false };
+        values[parameter.name] = { value: parameter.default };
       }
     }
 
@@ -80,8 +77,11 @@ export default function DefaultProviderSetupForm({
   }, []);
 
   const getPlaceholder = (parameter: ConfigKey): string => {
-    if (parameter.secret && configValues[parameter.name]?.serverHasValue) {
-      return 'Leave blank to keep existing value';
+    if (parameter.secret) {
+      const serverValue = configValues[parameter.name]?.serverValue;
+      if (typeof serverValue === 'object' && 'maskedValue' in serverValue) {
+        return serverValue.maskedValue;
+      }
     }
 
     if (parameter.default !== undefined && parameter.default !== null) {
@@ -122,6 +122,15 @@ export default function DefaultProviderSetupForm({
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
+  function getRenderValue(parameter: ConfigKey): string | undefined {
+    if (parameter.secret) {
+      return undefined;
+    }
+
+    const entry = configValues[parameter.name];
+    return entry?.value || (entry?.serverValue as string) || '';
+  }
+
   const renderParametersList = (parameters: ConfigKey[]) => {
     return parameters.map((parameter) => (
       <div key={parameter.name}>
@@ -130,14 +139,11 @@ export default function DefaultProviderSetupForm({
           {parameter.required && <span className="text-red-500 ml-1">*</span>}
         </label>
         <Input
-          type={parameter.secret ? 'password' : 'text'}
-          value={parameter.secret ? undefined : configValues[parameter.name]?.value || ''}
+          type="text"
+          value={getRenderValue(parameter)}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             setConfigValues((prev) => {
-              const newValue = prev[parameter.name] || {
-                value: undefined,
-                serverHasValue: false,
-              };
+              const newValue = prev[parameter.name] || {};
               newValue.value = e.target.value;
               return {
                 ...prev,
@@ -160,20 +166,25 @@ export default function DefaultProviderSetupForm({
     ));
   };
 
-  const requiredParameters = parameters.filter((p) => p.required);
-  const optionalParameters = parameters.filter((p) => !p.required);
+  let aboveFoldParameters = parameters.filter((p) => p.required);
+  let belowFoldParameters = parameters.filter((p) => !p.required);
+  if (aboveFoldParameters.length === 0) {
+    aboveFoldParameters = belowFoldParameters;
+    belowFoldParameters = [];
+  }
 
-  const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${optionalParameters.length} options `;
+  const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${belowFoldParameters.length} options `;
+
   return (
     <div className="mt-4 space-y-4">
-      {requiredParameters.length === 0 && optionalParameters.length === 0 ? (
+      {aboveFoldParameters.length === 0 && belowFoldParameters.length === 0 ? (
         <div className="text-center text-gray-500">
           No configuration parameters for this provider.
         </div>
       ) : (
         <div>
-          <div>{renderParametersList(requiredParameters)}</div>
-          {optionalParameters.length > 0 && (
+          <div>{renderParametersList(aboveFoldParameters)}</div>
+          {belowFoldParameters.length > 0 && (
             <Collapsible
               open={optionalExpanded}
               onOpenChange={setOptionalExpanded}
@@ -186,7 +197,7 @@ export default function DefaultProviderSetupForm({
                 </div>
               </CollapsibleTrigger>
               <CollapsibleContent className="mx-3 mb-3">
-                {renderParametersList(optionalParameters)}
+                {renderParametersList(belowFoldParameters)}
               </CollapsibleContent>
             </Collapsible>
           )}

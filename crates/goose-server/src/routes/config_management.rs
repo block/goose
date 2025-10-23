@@ -147,7 +147,7 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
     }
 }
 
-const SECRET_MASK_SHOW_LEN: usize = 6;
+const SECRET_MASK_SHOW_LEN: usize = 8;
 
 fn mask_secret(secret: Value) -> String {
     let as_string = match secret {
@@ -779,10 +779,12 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        let response = result.unwrap();
+        let response = match result.unwrap().0 {
+            ConfigValueResponse::Value(value) => value,
+            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
+        };
 
-        let limits: Vec<goose::model::ModelLimitConfig> =
-            serde_json::from_value(response.0).unwrap();
+        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
         assert!(!limits.is_empty());
 
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");

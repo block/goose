@@ -62,7 +62,7 @@ export default function ProviderConfigurationModal({
       if (
         parameter.required &&
         !configValues[parameter.name]?.value &&
-        !configValues[parameter.name]?.serverHasValue
+        !configValues[parameter.name]?.serverValue
       ) {
         errors[parameter.name] = `${parameter.name} is required`;
       }
@@ -75,7 +75,7 @@ export default function ProviderConfigurationModal({
 
     const toSubmit = Object.fromEntries(
       Object.entries(configValues)
-        .filter(([_k, entry]) => !entry.serverHasValue || !!entry.value)
+        .filter(([_k, entry]) => !!entry.value)
         .map(([k, entry]) => [k, entry.value || ''])
     );
 
