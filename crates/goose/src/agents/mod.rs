@@ -1,4 +1,5 @@
 mod agent;
+pub mod core_extension;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
