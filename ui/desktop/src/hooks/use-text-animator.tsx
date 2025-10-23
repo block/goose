@@ -110,6 +110,7 @@ export class TextAnimator {
   splitter!: TextSplitter;
   originalChars!: string[];
   activeAnimations: globalThis.Animation[] = [];
+  activeTimeouts: ReturnType<typeof setTimeout>[] = [];
 
   constructor(textElement: HTMLElement) {
     if (!textElement || !(textElement instanceof HTMLElement)) {
@@ -124,7 +125,7 @@ export class TextAnimator {
     this.splitter = new TextSplitter(this.textElement, {
       splitTypeTypes: ['words', 'chars'],
     });
-    this.originalChars = this.splitter.getChars().map((char) => char.innerHTML);
+    this.originalChars = this.splitter.getChars().map((char) => char.textContent || '');
   }
 
   animate() {
@@ -133,7 +134,7 @@ export class TextAnimator {
     const chars = this.splitter.getChars();
 
     chars.forEach((char, position) => {
-      const initialHTML = char.innerHTML;
+      const initialText = char.textContent || '';
 
       char.style.opacity = '1';
       char.style.display = 'inline-block';
@@ -142,19 +143,16 @@ export class TextAnimator {
       const animation = char.animate(
         [
           {
-            // 0%
             opacity: 1,
             color: '#666',
             fontFamily: 'Cash Sans Mono',
             fontWeight: '300',
           },
           {
-            // 50%
             opacity: 0.5,
             color: '#999',
           },
           {
-            // 100%
             opacity: 1,
             color: 'inherit',
             fontFamily: 'inherit',
@@ -165,7 +163,7 @@ export class TextAnimator {
           duration: 300, // Total duration for all iterations
           easing: 'ease-in-out',
           delay: position * 30, // Stagger the start of each animation
-          iterations: 1, // We'll handle repeats manually to change innerHTML
+          iterations: 1,
         }
       );
 
@@ -176,18 +174,21 @@ export class TextAnimator {
 
       const animateCharacterChange = () => {
         if (iteration < maxIterations) {
-          char.innerHTML = lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
-          setTimeout(animateCharacterChange, 100);
+          char.textContent =
+            lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
+          const timeoutId = setTimeout(animateCharacterChange, 100);
+          this.activeTimeouts.push(timeoutId);
           iteration++;
         } else {
-          char.innerHTML = initialHTML;
+          char.textContent = initialText;
         }
       };
 
-      setTimeout(animateCharacterChange, position * 30);
+      const timeoutId = setTimeout(animateCharacterChange, position * 30);
+      this.activeTimeouts.push(timeoutId);
 
       animation.onfinish = () => {
-        char.innerHTML = initialHTML;
+        char.textContent = initialText;
         char.style.color = '';
         char.style.fontFamily = '';
         char.style.opacity = '1';
@@ -196,13 +197,19 @@ export class TextAnimator {
   }
 
   reset() {
+    // Clear all timeouts
+    this.activeTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+    this.activeTimeouts = [];
+
+    // Cancel all animations
     this.activeAnimations.forEach((animation) => animation.cancel());
     this.activeAnimations = [];
 
+    // Reset text content
     const chars = this.splitter.getChars();
     chars.forEach((char, index) => {
       if (this.originalChars[index]) {
-        char.innerHTML = this.originalChars[index];
+        char.textContent = this.originalChars[index];
       }
     });
   }
