@@ -224,8 +224,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
 
-    // Create model config with the requested model and temperature
-    let provider_model_config = goose::model::ModelConfig::new(&model_name)
+    let model_config = goose::model::ModelConfig::new(&model_name)
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to create model configuration: {}", e));
             process::exit(1);
@@ -243,7 +242,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         )
         .await;
 
-    let new_provider = match create(&provider_name, provider_model_config).await {
+    let new_provider = match create(&provider_name, model_config).await {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
