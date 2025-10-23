@@ -89,6 +89,7 @@ pub struct UpdateCustomProviderRequest {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MaskedSecret {
     pub masked_value: String,
 }
