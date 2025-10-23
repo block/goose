@@ -14,6 +14,11 @@ RUN apt-get update && \
     libdbus-1-dev \
     protobuf-compiler \
     libprotobuf-dev \
+    clang libclang-dev \
+    libegl1-mesa-dev \
+    libgbm-dev \
+    libpipewire-0.3-dev \
+    libwayland-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
