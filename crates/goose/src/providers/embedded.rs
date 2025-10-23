@@ -337,7 +337,11 @@ async fn ensure_llama_server_binary() -> Result<PathBuf> {
     } else {
         "llama-server"
     };
-    let binary_path = install_dir.join("build").join("bin").join(binary_name);
+    let binary_path = if cfg!(windows) {
+        install_dir.join(binary_name)
+    } else {
+        install_dir.join("build").join("bin").join(binary_name)
+    };
 
     // If cached binary exists, use it
     if binary_path.exists() {
