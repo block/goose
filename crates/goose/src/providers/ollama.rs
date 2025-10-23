@@ -285,6 +285,42 @@ impl Provider for OllamaProvider {
             }
         }))
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self
+            .api_client
+            .response_get("api/tags")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        // Sort alphabetically
+        model_names.sort();
+
+        Ok(Some(model_names))
+    }
 }
 
 impl OllamaProvider {
