@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool};
 use rmcp::object;
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -61,6 +61,15 @@ These tools help understand code structure, find issues, and navigate codebases 
         })
     }
 
+    async fn ensure_file_open(&self, path: &Path) -> anyhow::Result<()> {
+        let client = self.lsp_client.lock().await;
+        if !client.is_file_open(path).await {
+            client.text_document_did_open(path).await?;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        }
+        Ok(())
+    }
+
     async fn call_get_diagnostics(&self, args: Value) -> anyhow::Result<Vec<Content>> {
         let file_path = args
             .get("file_path")
@@ -68,13 +77,12 @@ These tools help understand code structure, find issues, and navigate codebases 
             .ok_or_else(|| anyhow!("Missing file_path parameter"))?;
 
         let path = PathBuf::from(file_path);
+        self.ensure_file_open(&path).await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
         let client = self.lsp_client.lock().await;
-        client.text_document_did_open(&path).await?;
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-        let diagnostics = client.get_diagnostics(&path);
+        let diagnostics = client.get_diagnostics(&path).await;
 
         let diag_text = if diagnostics.is_empty() {
             "No diagnostics found.".to_string()
@@ -123,10 +131,9 @@ These tools help understand code structure, find issues, and navigate codebases 
             .ok_or_else(|| anyhow!("Missing character parameter"))? as u32;
 
         let path = PathBuf::from(file_path);
+        self.ensure_file_open(&path).await?;
 
         let client = self.lsp_client.lock().await;
-        client.text_document_did_open(&path).await.ok();
-
         let hover = client.hover(&path, line, character).await?;
 
         let text = if let Some(hover) = hover {
@@ -167,10 +174,9 @@ These tools help understand code structure, find issues, and navigate codebases 
             .ok_or_else(|| anyhow!("Missing character parameter"))? as u32;
 
         let path = PathBuf::from(file_path);
+        self.ensure_file_open(&path).await?;
 
         let client = self.lsp_client.lock().await;
-        client.text_document_did_open(&path).await.ok();
-
         let result = client.goto_definition(&path, line, character).await?;
 
         let text = if let Some(result) = result {
@@ -230,10 +236,9 @@ These tools help understand code structure, find issues, and navigate codebases 
             .ok_or_else(|| anyhow!("Missing character parameter"))? as u32;
 
         let path = PathBuf::from(file_path);
+        self.ensure_file_open(&path).await?;
 
         let client = self.lsp_client.lock().await;
-        client.text_document_did_open(&path).await.ok();
-
         let references = client.find_references(&path, line, character).await?;
 
         let text = if let Some(references) = references {
@@ -292,90 +297,103 @@ impl McpClientTrait for LspMcpClient {
         _cancel_token: CancellationToken,
     ) -> Result<rmcp::model::ListToolsResult, Error> {
         let prefix = format!("{}_", self.config.name);
+        let mut tools = vec![];
+
+        tools.push(Tool::new(
+            format!("{}get_diagnostics", prefix),
+            "Get LSP diagnostics (errors, warnings) for a file".to_string(),
+            object!({
+                "type": "object",
+                "required": ["file_path"],
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to check"
+                    }
+                }
+            }),
+        ));
+
+        let client = self.lsp_client.lock().await;
+        let capabilities = client.get_capabilities().await;
+
+        if capabilities.hover_provider.is_some() {
+            tools.push(Tool::new(
+                format!("{}hover", prefix),
+                "Get hover information at a specific position in a file".to_string(),
+                object!({
+                    "type": "object",
+                    "required": ["file_path", "line", "character"],
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file"
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number (0-indexed)"
+                        },
+                        "character": {
+                            "type": "integer",
+                            "description": "Character position (0-indexed)"
+                        }
+                    }
+                }),
+            ));
+        }
+
+        if capabilities.definition_provider.is_some() {
+            tools.push(Tool::new(
+                format!("{}goto_definition", prefix),
+                "Navigate to the definition of a symbol".to_string(),
+                object!({
+                    "type": "object",
+                    "required": ["file_path", "line", "character"],
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file"
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number (0-indexed)"
+                        },
+                        "character": {
+                            "type": "integer",
+                            "description": "Character position (0-indexed)"
+                        }
+                    }
+                }),
+            ));
+        }
+
+        if capabilities.references_provider.is_some() {
+            tools.push(Tool::new(
+                format!("{}find_references", prefix),
+                "Find all references to a symbol".to_string(),
+                object!({
+                    "type": "object",
+                    "required": ["file_path", "line", "character"],
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file"
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number (0-indexed)"
+                        },
+                        "character": {
+                            "type": "integer",
+                            "description": "Character position (0-indexed)"
+                        }
+                    }
+                }),
+            ));
+        }
 
         Ok(rmcp::model::ListToolsResult {
-            tools: vec![
-                Tool::new(
-                    format!("{}get_diagnostics", prefix),
-                    "Get LSP diagnostics (errors, warnings) for a file".to_string(),
-                    object!({
-                        "type": "object",
-                        "required": ["file_path"],
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Path to the file to check"
-                            }
-                        }
-                    }),
-                ),
-                Tool::new(
-                    format!("{}hover", prefix),
-                    "Get hover information at a specific position in a file".to_string(),
-                    object!({
-                        "type": "object",
-                        "required": ["file_path", "line", "character"],
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Path to the file"
-                            },
-                            "line": {
-                                "type": "integer",
-                                "description": "Line number (0-indexed)"
-                            },
-                            "character": {
-                                "type": "integer",
-                                "description": "Character position (0-indexed)"
-                            }
-                        }
-                    }),
-                ),
-                Tool::new(
-                    format!("{}goto_definition", prefix),
-                    "Navigate to the definition of a symbol".to_string(),
-                    object!({
-                        "type": "object",
-                        "required": ["file_path", "line", "character"],
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Path to the file"
-                            },
-                            "line": {
-                                "type": "integer",
-                                "description": "Line number (0-indexed)"
-                            },
-                            "character": {
-                                "type": "integer",
-                                "description": "Character position (0-indexed)"
-                            }
-                        }
-                    }),
-                ),
-                Tool::new(
-                    format!("{}find_references", prefix),
-                    "Find all references to a symbol".to_string(),
-                    object!({
-                        "type": "object",
-                        "required": ["file_path", "line", "character"],
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Path to the file"
-                            },
-                            "line": {
-                                "type": "integer",
-                                "description": "Line number (0-indexed)"
-                            },
-                            "character": {
-                                "type": "integer",
-                                "description": "Character position (0-indexed)"
-                            }
-                        }
-                    }),
-                ),
-            ],
+            tools,
             next_cursor: None,
         })
     }

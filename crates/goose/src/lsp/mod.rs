@@ -1,5 +1,4 @@
 pub mod client;
-pub mod protocol;
 pub mod root_finder;
 pub mod server_info;
 pub mod types;
