@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
-import { createUserMessage } from '../types/message';
+import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
 const TextDecoder = globalThis.TextDecoder;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -101,6 +101,7 @@ async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
   updateMessages: (messages: Message[]) => void,
+  updateChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let chunkCount = 0;
@@ -144,6 +145,15 @@ async function streamFromResponse(
               messageEventCount++;
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
+
+              // Check if this is a compacting message (takes priority over thinking)
+              if (getCompactingMessage(msg)) {
+                log.state(ChatState.Compacting, { reason: 'compacting notification' });
+                updateChatState(ChatState.Compacting);
+              } else if (getThinkingMessage(msg)) {
+                log.state(ChatState.Thinking, { reason: 'thinking notification' });
+                updateChatState(ChatState.Thinking);
+              }
 
               // Only log every 10th message event to avoid spam
               if (messageEventCount % 10 === 0) {
@@ -342,6 +352,7 @@ export function useChatStream({
           response,
           currentMessages,
           (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
+          setChatState,
           onFinish
         );
 
