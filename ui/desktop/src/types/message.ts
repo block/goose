@@ -84,3 +84,20 @@ export function getThinkingMessage(message: Message | undefined): string | undef
 
   return undefined;
 }
+
+export function getCompactingMessage(message: Message | undefined): string | undefined {
+  if (!message || message.role !== 'assistant') {
+    return undefined;
+  }
+
+  for (const content of message.content) {
+    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
+      // Check if the message indicates compacting
+      if (content.msg === 'goose is compacting the conversation...') {
+        return content.msg;
+      }
+    }
+  }
+
+  return undefined;
+}
