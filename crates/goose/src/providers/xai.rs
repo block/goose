@@ -72,6 +72,10 @@ impl XaiProvider {
 
 #[async_trait]
 impl Provider for XaiProvider {
+    fn provider_name(&self) -> &str {
+        "xai"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "xai",

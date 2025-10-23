@@ -378,6 +378,10 @@ impl CursorAgentProvider {
 
 #[async_trait]
 impl Provider for CursorAgentProvider {
+    fn provider_name(&self) -> &str {
+        "cursor-agent"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "cursor-agent",

@@ -222,6 +222,10 @@ fn create_request_based_on_model(
 
 #[async_trait]
 impl Provider for OpenRouterProvider {
+    fn provider_name(&self) -> &str {
+        "openrouter"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "openrouter",

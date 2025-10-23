@@ -101,6 +101,7 @@ impl Agent {
     /// Stream a response from the LLM provider.
     /// Handles toolshim transformations if needed
     pub(crate) async fn stream_response_from_provider(
+        &self,
         provider: Arc<dyn Provider>,
         system_prompt: &str,
         messages: &[Message],

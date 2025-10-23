@@ -131,6 +131,10 @@ impl super::api_client::AuthProvider for NoAuth {
 
 #[async_trait]
 impl Provider for LiteLLMProvider {
+    fn provider_name(&self) -> &str {
+        "litellm"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "litellm",

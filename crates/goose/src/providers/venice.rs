@@ -183,6 +183,10 @@ impl VeniceProvider {
 
 #[async_trait]
 impl Provider for VeniceProvider {
+    fn provider_name(&self) -> &str {
+        "venice"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "venice",

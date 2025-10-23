@@ -277,6 +277,10 @@ impl SnowflakeProvider {
 
 #[async_trait]
 impl Provider for SnowflakeProvider {
+    fn provider_name(&self) -> &str {
+        "snowflake"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "snowflake",

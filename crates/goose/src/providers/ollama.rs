@@ -156,6 +156,10 @@ impl super::api_client::AuthProvider for NoAuth {
 
 #[async_trait]
 impl Provider for OllamaProvider {
+    fn provider_name(&self) -> &str {
+        "ollama"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "ollama",

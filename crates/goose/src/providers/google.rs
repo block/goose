@@ -71,6 +71,10 @@ impl GoogleProvider {
 
 #[async_trait]
 impl Provider for GoogleProvider {
+    fn provider_name(&self) -> &str {
+        "google"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "google",
