@@ -92,8 +92,10 @@ export function getCompactingMessage(message: Message | undefined): string | und
 
   for (const content of message.content) {
     if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
-      // Check if the message indicates compacting
-      if (content.msg === 'goose is compacting the conversation...') {
+      // Check if the message indicates compacting (more flexible than exact match)
+      // This catches variations like "goose is compacting the conversation...",
+      // "Compacting conversation", etc.
+      if (content.msg.toLowerCase().includes('compact')) {
         return content.msg;
       }
     }
