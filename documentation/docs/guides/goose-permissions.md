@@ -41,7 +41,7 @@ Goose’s permissions determine how much autonomy it has when modifying files, u
 Here's how to configure:
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 
     You can change modes before or during a session and it will take effect immediately.
 
@@ -58,7 +58,7 @@ Here's how to configure:
       </TabItem>
     </Tabs>   
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
     <Tabs groupId="method">
       <TabItem value="session" label="In Session" default>

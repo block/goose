@@ -31,6 +31,7 @@ interface CreateScheduleModalProps {
   onSubmit: (payload: NewSchedulePayload) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
+  initialDeepLink?: string | null;
 }
 
 // Interface for clean extension in YAML
@@ -59,8 +60,6 @@ interface CleanRecipe {
   prompt?: string;
   activities?: string[];
   extensions?: CleanExtension[];
-  goosehints?: string;
-  profile?: string;
   author?: {
     contact?: string;
     metadata?: string;
@@ -236,14 +235,6 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
     });
   }
 
-  if (recipe.goosehints) {
-    cleanRecipe.goosehints = recipe.goosehints;
-  }
-
-  if (recipe.profile) {
-    cleanRecipe.profile = recipe.profile;
-  }
-
   if (recipe.author) {
     cleanRecipe.author = {
       contact: recipe.author.contact || undefined,
@@ -267,6 +258,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   onSubmit,
   isLoadingExternally,
   apiErrorExternally,
+  initialDeepLink,
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('file');
@@ -326,16 +318,12 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   );
 
   useEffect(() => {
-    // Check for pending deep link when modal opens
-    if (isOpen) {
-      const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
-      if (pendingDeepLink) {
-        localStorage.removeItem('pendingScheduleDeepLink');
-        setSourceType('deeplink');
-        handleDeepLinkChange(pendingDeepLink);
-      }
+    // Check for initial deep link from props when modal opens
+    if (isOpen && initialDeepLink) {
+      setSourceType('deeplink');
+      handleDeepLinkChange(initialDeepLink);
     }
-  }, [isOpen, handleDeepLinkChange]);
+  }, [isOpen, initialDeepLink, handleDeepLinkChange]);
 
   const resetForm = () => {
     setScheduleId('');

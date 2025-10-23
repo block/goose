@@ -5,7 +5,7 @@ export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' }
 
 export function createUserMessage(text: string): Message {
   return {
-    id: generateId(),
+    id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [{ type: 'text', text }],
@@ -15,7 +15,7 @@ export function createUserMessage(text: string): Message {
 
 export function createToolErrorResponseMessage(id: string, error: string): Message {
   return {
-    id: generateId(),
+    id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [
@@ -32,7 +32,7 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
   };
 }
 
-function generateId(): string {
+export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
@@ -69,4 +69,18 @@ export function getToolConfirmationContent(
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   return toolRequests.length > 0;
+}
+
+export function getThinkingMessage(message: Message | undefined): string | undefined {
+  if (!message || message.role !== 'assistant') {
+    return undefined;
+  }
+
+  for (const content of message.content) {
+    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
+      return content.msg;
+    }
+  }
+
+  return undefined;
 }

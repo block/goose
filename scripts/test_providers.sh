@@ -3,19 +3,37 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
-echo "Building goose..."
-cargo build --release --bin goose
-echo ""
+if [ -z "$SKIP_BUILD" ]; then
+  echo "Building goose..."
+  cargo build --release --bin goose
+  echo ""
+else
+  echo "Skipping build (SKIP_BUILD is set)..."
+  echo ""
+fi
 
 SCRIPT_DIR=$(pwd)
 
 PROVIDERS=(
-  "openrouter:anthropic/claude-sonnet-4.5:google/gemini-flash-2.5:qwen/qwen3-coder"
+  "openrouter:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo"
-  "anthropic:claude-sonnet-4-0:claude-3-7-sonnet-latest"
+  "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
   "google:gemini-2.5-pro:gemini-2.5-pro:gemini-2.5-flash"
-  "databricks:databricks-claude-sonnet-4:gemini-2-5-flash:gpt-4o"
 )
+
+# In CI, only run Databricks tests if DATABRICKS_HOST and DATABRICKS_TOKEN are set
+# Locally, always run Databricks tests
+if [ -n "$CI" ]; then
+  if [ -n "$DATABRICKS_HOST" ] && [ -n "$DATABRICKS_TOKEN" ]; then
+    echo "✓ Including Databricks tests"
+    PROVIDERS+=("databricks:databricks-claude-sonnet-4:gemini-2-5-flash:gpt-4o")
+  else
+    echo "⚠️  Skipping Databricks tests (DATABRICKS_HOST and DATABRICKS_TOKEN required in CI)"
+  fi
+else
+  echo "✓ Including Databricks tests"
+  PROVIDERS+=("databricks:databricks-claude-sonnet-4:gemini-2-5-flash:gpt-4o")
+fi
 
 RESULTS=()
 

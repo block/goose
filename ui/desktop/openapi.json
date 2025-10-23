@@ -852,48 +852,38 @@
         }
       }
     },
-    "/context/manage": {
-      "post": {
+    "/diagnostics/{session_id}": {
+      "get": {
         "tags": [
-          "Context Management"
+          "super::routes::status"
         ],
-        "operationId": "manage_context",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ContextManageRequest"
-              }
+        "operationId": "diagnostics",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Context managed successfully",
+            "description": "Diagnostics zip file",
             "content": {
-              "application/json": {
+              "application/zip": {
                 "schema": {
-                  "$ref": "#/components/schemas/ContextManageResponse"
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
           "500": {
-            "description": "Internal server error"
+            "description": "Failed to generate diagnostics"
           }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
+        }
       }
     },
     "/handle_openrouter": {
@@ -1972,7 +1962,7 @@
     "/status": {
       "get": {
         "tags": [
-          "super::routes::health"
+          "super::routes::status"
         ],
         "operationId": "status",
         "responses": {
@@ -2161,67 +2151,10 @@
           }
         ]
       },
-      "ContextManageRequest": {
-        "type": "object",
-        "description": "Request payload for context management operations",
-        "required": [
-          "messages",
-          "sessionId"
-        ],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "description": "Collection of messages to be managed"
-          },
-          "sessionId": {
-            "type": "string",
-            "description": "Optional session ID for session-specific agent"
-          }
-        }
-      },
-      "ContextManageResponse": {
-        "type": "object",
-        "description": "Response from context management operations",
-        "required": [
-          "messages",
-          "tokenCounts"
-        ],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "description": "Processed messages after the operation"
-          },
-          "tokenCounts": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "description": "Token counts for each processed message"
-          }
-        }
-      },
       "Conversation": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
-        }
-      },
-      "ConversationCompacted": {
-        "type": "object",
-        "required": [
-          "msg"
-        ],
-        "properties": {
-          "msg": {
-            "type": "string"
-          }
         }
       },
       "CreateRecipeRequest": {
@@ -3215,7 +3148,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ConversationCompacted"
+                "$ref": "#/components/schemas/SystemNotificationContent"
               },
               {
                 "type": "object",
@@ -3226,7 +3159,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "conversationCompacted"
+                      "systemNotification"
                     ]
                   }
                 }
@@ -3787,9 +3720,13 @@
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
-          "session_id"
+          "session_id",
+          "load_model_and_extensions"
         ],
         "properties": {
+          "load_model_and_extensions": {
+            "type": "boolean"
+          },
           "session_id": {
             "type": "string"
           }
@@ -4115,13 +4052,11 @@
         "properties": {
           "totalSessions": {
             "type": "integer",
-            "description": "Total number of sessions",
             "minimum": 0
           },
           "totalTokens": {
             "type": "integer",
-            "format": "int64",
-            "description": "Total tokens used across all sessions"
+            "format": "int64"
           }
         }
       },
@@ -4266,6 +4201,28 @@
         "discriminator": {
           "propertyName": "type"
         }
+      },
+      "SystemNotificationContent": {
+        "type": "object",
+        "required": [
+          "notificationType",
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
+          },
+          "notificationType": {
+            "$ref": "#/components/schemas/SystemNotificationType"
+          }
+        }
+      },
+      "SystemNotificationType": {
+        "type": "string",
+        "enum": [
+          "thinkingMessage",
+          "inlineMessage"
+        ]
       },
       "TextContent": {
         "type": "object",
