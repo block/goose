@@ -8,7 +8,6 @@ interface LoadingGooseProps {
   chatState?: ChatState;
 }
 
-// Lookup table for messages based on ChatState
 const STATE_MESSAGES: Record<ChatState, string> = {
   [ChatState.LoadingConversation]: 'loading conversation...',
   [ChatState.Thinking]: 'goose is thinking…',
@@ -18,7 +17,6 @@ const STATE_MESSAGES: Record<ChatState, string> = {
   [ChatState.Idle]: 'goose is working on it…',
 };
 
-// Lookup table for icon components based on ChatState
 const STATE_ICONS: Record<ChatState, React.ReactNode> = {
   [ChatState.LoadingConversation]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
   [ChatState.Thinking]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
