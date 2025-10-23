@@ -1163,6 +1163,7 @@ mod extension_manager_tests {
                         .to_string(),
                 bundled: Some(true),
                 available_tools: vec![],
+                toggleable: Some(true),
             },
         };
         set_extension(todo_extension_entry);
@@ -1184,6 +1185,7 @@ mod extension_manager_tests {
             description: "Extension Manager".to_string(),
             bundled: Some(true),
             available_tools: vec![],
+            toggleable: Some(true),
         };
 
         agent
