@@ -290,10 +290,6 @@ export function useMessageStream({
 
                     // Update token state if present
                     if (parsedEvent.token_state) {
-                      console.log(
-                        '[useMessageStream] Received token_state:',
-                        parsedEvent.token_state
-                      );
                       setTokenState(parsedEvent.token_state);
                     }
 

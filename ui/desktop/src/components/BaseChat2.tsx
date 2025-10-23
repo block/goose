@@ -77,12 +77,6 @@ function BaseChatContent({
     initialMessage,
   });
 
-  console.log('[BaseChat2] Received from useChatStream:', {
-    tokenState,
-    session_accumulated: session?.accumulated_total_tokens,
-    timestamp: new Date().toISOString(),
-  });
-
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
@@ -287,31 +281,20 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={(() => {
-              const val =
-                tokenState?.accumulated_total_tokens ??
-                session?.accumulated_total_tokens ??
-                session?.total_tokens ??
-                undefined;
-              console.log('[BaseChat2] Passing numTokens to ChatInput:', val);
-              return val;
-            })()}
-            inputTokens={(() => {
-              const val =
-                tokenState?.accumulated_input_tokens ??
-                session?.accumulated_input_tokens ??
-                undefined;
-              console.log('[BaseChat2] Passing inputTokens to ChatInput:', val);
-              return val;
-            })()}
-            outputTokens={(() => {
-              const val =
-                tokenState?.accumulated_output_tokens ??
-                session?.accumulated_output_tokens ??
-                undefined;
-              console.log('[BaseChat2] Passing outputTokens to ChatInput:', val);
-              return val;
-            })()}
+            numTokens={
+              tokenState?.accumulated_total_tokens ??
+              session?.accumulated_total_tokens ??
+              session?.total_tokens ??
+              undefined
+            }
+            inputTokens={
+              tokenState?.accumulated_input_tokens ?? session?.accumulated_input_tokens ?? undefined
+            }
+            outputTokens={
+              tokenState?.accumulated_output_tokens ??
+              session?.accumulated_output_tokens ??
+              undefined
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
