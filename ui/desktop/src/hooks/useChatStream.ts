@@ -7,6 +7,37 @@ import { createUserMessage } from '../types/message';
 const TextDecoder = globalThis.TextDecoder;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+// Debug logging - set to false in production
+const DEBUG_CHAT_STREAM = true;
+
+const log = {
+  session: (action: string, sessionId: string, details?: Record<string, unknown>) => {
+    if (!DEBUG_CHAT_STREAM) return;
+    console.log(`[useChatStream:session] ${action}`, {
+      sessionId: sessionId.slice(0, 8),
+      ...details,
+    });
+  },
+  messages: (action: string, count: number, details?: Record<string, unknown>) => {
+    if (!DEBUG_CHAT_STREAM) return;
+    console.log(`[useChatStream:messages] ${action}`, {
+      count,
+      ...details,
+    });
+  },
+  stream: (action: string, details?: Record<string, unknown>) => {
+    if (!DEBUG_CHAT_STREAM) return;
+    console.log(`[useChatStream:stream] ${action}`, details);
+  },
+  state: (newState: ChatState, details?: Record<string, unknown>) => {
+    if (!DEBUG_CHAT_STREAM) return;
+    console.log(`[useChatStream:state] → ${newState}`, details);
+  },
+  error: (context: string, error: unknown) => {
+    console.error(`[useChatStream:error] ${context}`, error);
+  },
+};
+
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 interface TokenState {
@@ -91,9 +122,13 @@ async function streamFromResponse(
     const decoder = new TextDecoder();
     let currentMessages = initialMessages;
 
+    log.stream('reading-chunks');
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        log.stream('chunks-complete', {
+          totalMessages: currentMessages.length,
+        });
         break;
       }
 
@@ -114,6 +149,11 @@ async function streamFromResponse(
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
 
+              log.stream('message-chunk', {
+                messageId: msg.id?.slice(0, 8),
+                contentCount: msg.content.length,
+              });
+
               // Update token state if present
               if (event.token_state) {
                 updateTokenState(event.token_state);
@@ -123,18 +163,24 @@ async function streamFromResponse(
               break;
             }
             case 'Error': {
-              console.error('Stream event error:', event.error);
+              log.error('stream event error', event.error);
               onFinish('Stream error: ' + event.error);
               return;
             }
             case 'Finish': {
+              log.stream('finish-event', { reason: event.reason });
               onFinish();
               return;
             }
             case 'ModelChange': {
+              log.stream('model-change', {
+                model: event.model,
+                mode: event.mode,
+              });
               break;
             }
             case 'UpdateConversation': {
+              log.messages('conversation-update', event.conversation.length);
               currentMessages = event.conversation;
               updateMessages(event.conversation);
               break;
@@ -151,14 +197,14 @@ async function streamFromResponse(
             }
           }
         } catch (e) {
-          console.error('SSE parse failed:', e);
+          log.error('SSE parse failed', e);
           onFinish('Failed to parse SSE:' + e);
         }
       }
     }
   } catch (error) {
     if (error instanceof Error && error.name !== 'AbortError') {
-      console.error('Stream read error:', error);
+      log.error('stream read error', error);
       onFinish('Stream error:' + error);
     }
   }
@@ -183,7 +229,15 @@ export function useChatStream({
     }
   }, [sessionId, session, messages]);
 
-  const setMessagesAndLog = useCallback((newMessages: Message[]) => {
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  console.log(`useChatStream render #${renderCountRef.current}, ${session?.id}`);
+
+  const setMessagesAndLog = useCallback((newMessages: Message[], logContext: string) => {
+    log.messages(logContext, newMessages.length, {
+      lastMessageRole: newMessages[newMessages.length - 1]?.role,
+      lastMessageId: newMessages[newMessages.length - 1]?.id?.slice(0, 8),
+    });
     setMessages(newMessages);
     messagesRef.current = newMessages;
   }, []);
@@ -204,9 +258,11 @@ export function useChatStream({
     if (!sessionId) return;
 
     // Reset state when sessionId changes
-    setMessagesAndLog([]);
+    setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
+    log.session('loading', sessionId);
+    log.state(ChatState.Thinking, { reason: 'session load start' });
     setChatState(ChatState.Thinking);
 
     let cancelled = false;
@@ -224,13 +280,18 @@ export function useChatStream({
 
         const session = response.data;
         setSession(session);
-        setMessagesAndLog(session?.conversation || []);
+        log.session('loaded', sessionId, {
+          messageCount: session?.conversation?.length ?? 0,
+        });
+        setMessagesAndLog(session?.conversation || [], 'session-load');
+        log.state(ChatState.Idle, { reason: 'session load complete' });
         setChatState(ChatState.Idle);
       } catch (error) {
         if (cancelled) return;
 
-        console.error('Session load failed:', error);
+        log.error('session load failed', error);
         setSessionLoadError(error instanceof Error ? error.message : String(error));
+        log.state(ChatState.Idle, { reason: 'session load error' });
         setChatState(ChatState.Idle);
       }
     })();
@@ -243,12 +304,17 @@ export function useChatStream({
   const handleSubmit = useCallback(
     async (userMessage: string) => {
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
-      setMessagesAndLog(currentMessages);
+      log.messages('user-submit', messagesRef.current.length + 1, {
+        userMessage: userMessage.slice(0, 50),
+      });
+      setMessagesAndLog(currentMessages, 'user-submit');
+      log.state(ChatState.Streaming, { reason: 'user submit' });
       setChatState(ChatState.Streaming);
 
       abortControllerRef.current = new AbortController();
 
       try {
+        log.stream('request-start', { sessionId: sessionId.slice(0, 8) });
         const response = await fetch(getApiUrl('/reply'), {
           method: 'POST',
           headers: {
@@ -262,20 +328,26 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
+        log.stream('response-received', {
+          status: response.status,
+          ok: response.ok,
+        });
+
         await streamFromResponse(
           response,
           currentMessages,
-          (messages: Message[]) => setMessagesAndLog(messages),
+          (messages: Message[]) => setMessagesAndLog(messages, 'stream-update'),
           setTokenState,
           onFinish
         );
+        log.stream('stream-complete');
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
-          // Stream was aborted by user
+          log.stream('stream-aborted');
         } else {
           // Unexpected error during fetch setup (streamFromResponse handles its own errors)
-          console.error('Submit failed:', error);
+          log.error('submit failed', error);
           onFinish('Submit error: ' + (error instanceof Error ? error.message : String(error)));
         }
       }
@@ -285,18 +357,23 @@ export function useChatStream({
 
   useEffect(() => {
     if (initialMessage && session && messages.length === 0 && chatState === ChatState.Idle) {
+      log.messages('auto-submit-initial', 0, { initialMessage: initialMessage.slice(0, 50) });
       handleSubmit(initialMessage);
     }
   }, [initialMessage, session, messages.length, chatState, handleSubmit]);
 
   const stopStreaming = useCallback(() => {
+    log.stream('stop-requested');
     abortControllerRef.current?.abort();
+    log.state(ChatState.Idle, { reason: 'user stopped streaming' });
     setChatState(ChatState.Idle);
   }, []);
 
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
+
+  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
 
   return {
     sessionLoadError,
