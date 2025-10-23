@@ -60,7 +60,6 @@ interface CleanRecipe {
   activities?: string[];
   extensions?: CleanExtension[];
   goosehints?: string;
-  context?: string[];
   profile?: string;
   author?: {
     contact?: string;
@@ -239,10 +238,6 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
 
   if (recipe.goosehints) {
     cleanRecipe.goosehints = recipe.goosehints;
-  }
-
-  if (recipe.context && recipe.context.length > 0) {
-    cleanRecipe.context = recipe.context;
   }
 
   if (recipe.profile) {
