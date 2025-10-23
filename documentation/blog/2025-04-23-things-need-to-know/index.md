@@ -73,7 +73,7 @@ To help you manage this, there is a [Handling Rate Limits Guide](https://block.g
 
 This part matters more than most people realize.
 
-Goose has an entire community behind it—folks building, exploring, breaking things (and fixing them), and sharing everything they learn along the way. We hang out on [Discord](https://discord.gg/7GaTvbDwga), we answer questions in [GitHub Discussions](https://github.com/block/goose/discussions), and we host livestreams every week to show off what Goose can do and how to make it do more.
+Goose has an entire community behind it—folks building, exploring, breaking things (and fixing them), and sharing everything they learn along the way. We hang out on [Discord](https://discord.gg/goose-oss), we answer questions in [GitHub Discussions](https://github.com/block/goose/discussions), and we host livestreams every week to show off what Goose can do and how to make it do more.
 
 There’s:
 

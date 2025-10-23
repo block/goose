@@ -1026,7 +1026,7 @@ impl Agent {
                                     .record_tool_requests(&requests_to_record)
                                     .await;
 
-                                yield AgentEvent::Message(filtered_response.clone(), usage.clone());
+                                yield AgentEvent::Message(filtered_response.clone(), usage);
                                 tokio::task::yield_now().await;
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
