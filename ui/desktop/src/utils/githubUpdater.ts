@@ -106,13 +106,19 @@ export class GitHubUpdater {
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
 
-      const asset = release.assets.find((a) => a.name === assetName);
+      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName); // keeping comparisms to lower case becasue Goose vs goose
       if (asset) {
         downloadUrl = asset.browser_download_url;
         log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
         log.info(`GitHubUpdater: Download URL: ${downloadUrl}`);
       } else {
         log.warn(`GitHubUpdater: No matching asset found for ${assetName}`);
+      }
+
+      if (!downloadUrl) {
+        throw new Error(
+          `Update Available but no download URL found for platform: ${platform}, arch: ${arch}`
+        );
       }
 
       return {
