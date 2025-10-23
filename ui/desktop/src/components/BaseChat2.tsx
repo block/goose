@@ -252,7 +252,6 @@ function BaseChatContent({
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 chatState={chatState}
-                isLoadingConversation={messages.length === 0}
                 message={
                   messages.length > 0
                     ? getThinkingMessage(messages[messages.length - 1])

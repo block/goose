@@ -268,11 +268,11 @@ export function useChatStream({
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
-    setChatState(ChatState.Thinking);
+    setChatState(ChatState.LoadingConversation);
 
     let cancelled = false;
 
-    log.state(ChatState.Thinking, { reason: 'session load start' });
+    log.state(ChatState.LoadingConversation, { reason: 'session load start' });
 
     (async () => {
       try {

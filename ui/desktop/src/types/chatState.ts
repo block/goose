@@ -4,4 +4,5 @@ export enum ChatState {
   Streaming = 'streaming',
   WaitingForUserInput = 'waitingForUserInput',
   Compacting = 'compacting',
+  LoadingConversation = 'loadingConversation',
 }

@@ -6,21 +6,14 @@ import { ChatState } from '../types/chatState';
 interface LoadingGooseProps {
   message?: string;
   chatState?: ChatState;
-  isLoadingConversation?: boolean;
 }
 
-const LoadingGoose = ({
-  message,
-  chatState = ChatState.Idle,
-  isLoadingConversation = false,
-}: LoadingGooseProps) => {
+const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps) => {
   // Determine the appropriate message based on state
   const getLoadingMessage = () => {
     if (message) return message; // Custom message takes priority
 
-    if (isLoadingConversation && chatState === ChatState.Thinking) {
-      return 'loading conversation...';
-    }
+    if (chatState === ChatState.LoadingConversation) return 'loading conversation...';
     if (chatState === ChatState.Thinking) return 'goose is thinking…';
     if (chatState === ChatState.Streaming) return 'goose is working on it…';
     if (chatState === ChatState.WaitingForUserInput) return 'goose is waiting…';
@@ -36,7 +29,9 @@ const LoadingGoose = ({
         data-testid="loading-indicator"
         className="flex items-center gap-2 text-xs text-textStandard py-2"
       >
-        {chatState === ChatState.Thinking ? (
+        {chatState === ChatState.LoadingConversation ? (
+          <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />
+        ) : chatState === ChatState.Thinking ? (
           <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />
         ) : chatState === ChatState.Streaming ? (
           <FlyingBird className="flex-shrink-0" cycleInterval={150} />
