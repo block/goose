@@ -362,6 +362,33 @@ pub async fn apply_diff(
         )?;
     }
 
+    // Post-process all patched files to ensure trailing newlines
+    for patch in &patches {
+        let adjusted_base_dir = adjust_base_dir_for_overlap(&base_dir, &patch.file_path);
+        let file_path = adjusted_base_dir.join(&patch.file_path);
+
+        if file_path.exists() {
+            let content = std::fs::read_to_string(&file_path).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to read file for post-processing: {}", e),
+                    None,
+                )
+            })?;
+
+            if !content.ends_with('\n') {
+                let content_with_newline = format!("{}\n", content);
+                std::fs::write(&file_path, content_with_newline).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to add trailing newline: {}", e),
+                        None,
+                    )
+                })?;
+            }
+        }
+    }
+
     // Report any partial failures
     if !failed_hunks.is_empty() {
         let error_msg = format!(
@@ -765,7 +792,12 @@ pub async fn text_editor_replace(
         match editor.edit_code(&content, old_str, new_str).await {
             Ok(updated_content) => {
                 // Write the updated content directly
-                let normalized_content = normalize_line_endings(&updated_content);
+                let mut normalized_content = normalize_line_endings(&updated_content);
+
+                if !normalized_content.ends_with('\n') {
+                    normalized_content.push('\n');
+                }
+
                 std::fs::write(path, &normalized_content).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
@@ -811,7 +843,12 @@ pub async fn text_editor_replace(
     save_file_history(path, file_history)?;
 
     let new_content = content.replace(old_str, new_str);
-    let normalized_content = normalize_line_endings(&new_content);
+    let mut normalized_content = normalize_line_endings(&new_content);
+
+    if !normalized_content.ends_with('\n') {
+        normalized_content.push('\n');
+    }
+
     std::fs::write(path, &normalized_content).map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
