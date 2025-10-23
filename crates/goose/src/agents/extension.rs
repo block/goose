@@ -47,6 +47,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable a todo list for Goose so it can keep track of what it is doing",
                 default_enabled: true,
+                toggleable: Some(true),
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
             },
         );
@@ -71,6 +72,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
+                toggleable: Some(true),
                 client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
             },
         );
@@ -93,6 +95,7 @@ pub struct PlatformExtensionDef {
     pub name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
+    pub toggleable: Option<bool>,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }
 
@@ -278,6 +281,8 @@ pub enum ExtensionConfig {
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
+        #[serde(default)]
+        toggleable: Option<bool>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]

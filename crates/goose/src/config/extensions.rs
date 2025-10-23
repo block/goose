@@ -65,6 +65,7 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
                             description: def.description.to_string(),
                             bundled: Some(true),
                             available_tools: Vec::new(),
+                            toggleable: def.toggleable,
                         },
                         enabled: true,
                     },
