@@ -327,7 +327,7 @@ You can resume a CLI session in Desktop.
 ## Import Sessions
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         Import complete sessions from JSON files to restore, share, or migrate sessions between goose instances. Importing creates a new session with a new ID rather than overwriting existing sessions.
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -338,7 +338,7 @@ You can resume a CLI session in Desktop.
         6. A success notification will confirm the import
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         Session import is currently only available through the Desktop app.
     </TabItem>
 </Tabs>
