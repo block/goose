@@ -132,6 +132,7 @@ function BaseChatContent({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    tokenState,
     commandHistory,
     toolCallNotifications,
     sessionMetadata,
@@ -442,9 +443,13 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            numTokens={sessionTokenCount}
-            inputTokens={sessionInputTokens || localInputTokens}
-            outputTokens={sessionOutputTokens || localOutputTokens}
+            numTokens={tokenState?.accumulated_total_tokens ?? sessionTokenCount}
+            inputTokens={
+              tokenState?.accumulated_input_tokens ?? sessionInputTokens ?? localInputTokens
+            }
+            outputTokens={
+              tokenState?.accumulated_output_tokens ?? sessionOutputTokens ?? localOutputTokens
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}

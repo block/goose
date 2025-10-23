@@ -154,12 +154,24 @@ async fn stream_event(
     tx: &mpsc::Sender<String>,
     cancel_token: &CancellationToken,
 ) {
+    // Log token_state before serialization
+    if let MessageEvent::Message { ref token_state, .. } = event {
+        tracing::info!("[STREAM_EVENT] About to send Message with token_state: {:?}", token_state.is_some());
+        if let Some(ref ts) = token_state {
+            tracing::info!("[STREAM_EVENT] token_state values: accumulated_total={:?}", ts.accumulated_total_tokens);
+        }
+    }
+
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
             e
         )
     });
+
+    // Log first 500 chars of what we're actually sending
+    tracing::debug!("[STREAM_EVENT] Sending SSE: {}", &json.chars().take(500).collect::<String>());
+
     if tx.send(format!("data: {}\n\n", json)).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
@@ -305,24 +317,54 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            // Create token state if usage is available
-                            let token_state = if let Some(provider_usage) = usage {
-                                match SessionManager::get_session(&session_id, false).await {
-                                    Ok(session) => Some(goose::session::session_manager::TokenState {
-                                        input_tokens: provider_usage.usage.input_tokens,
-                                        output_tokens: provider_usage.usage.output_tokens,
-                                        total_tokens: provider_usage.usage.total_tokens,
+                            // Always fetch session and create token state so client has latest accumulated tokens
+                            let token_state = match SessionManager::get_session(&session_id, false).await {
+                                Ok(session) => {
+                                    // If we have new usage from this turn, use it; otherwise use current session values
+                                    let (input, output, total) = if let Some(ref provider_usage) = usage {
+                                        tracing::debug!(
+                                            "[TOKEN STATE] New usage from provider: input={:?}, output={:?}, total={:?}",
+                                            provider_usage.usage.input_tokens,
+                                            provider_usage.usage.output_tokens,
+                                            provider_usage.usage.total_tokens
+                                        );
+                                        (
+                                            provider_usage.usage.input_tokens,
+                                            provider_usage.usage.output_tokens,
+                                            provider_usage.usage.total_tokens,
+                                        )
+                                    } else {
+                                        tracing::debug!(
+                                            "[TOKEN STATE] No new usage, using session values: input={:?}, output={:?}, total={:?}",
+                                            session.input_tokens,
+                                            session.output_tokens,
+                                            session.total_tokens
+                                        );
+                                        (session.input_tokens, session.output_tokens, session.total_tokens)
+                                    };
+
+                                    let state = goose::session::session_manager::TokenState {
+                                        input_tokens: input,
+                                        output_tokens: output,
+                                        total_tokens: total,
                                         accumulated_input_tokens: session.accumulated_input_tokens,
                                         accumulated_output_tokens: session.accumulated_output_tokens,
                                         accumulated_total_tokens: session.accumulated_total_tokens,
-                                    }),
-                                    Err(e) => {
-                                        tracing::warn!("Failed to fetch session for token state: {}", e);
-                                        None
-                                    }
+                                    };
+
+                                    tracing::debug!(
+                                        "[TOKEN STATE] Sending to client: accumulated_total={:?}, accumulated_input={:?}, accumulated_output={:?}",
+                                        state.accumulated_total_tokens,
+                                        state.accumulated_input_tokens,
+                                        state.accumulated_output_tokens
+                                    );
+
+                                    Some(state)
+                                },
+                                Err(e) => {
+                                    tracing::warn!("Failed to fetch session for token state: {}", e);
+                                    None
                                 }
-                            } else {
-                                None
                             };
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;

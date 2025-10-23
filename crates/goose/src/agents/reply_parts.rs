@@ -257,6 +257,15 @@ impl Agent {
         usage: &ProviderUsage,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
+
+        tracing::info!(
+            "[UPDATE_SESSION_METRICS] Starting update for session {}: current turn tokens - input={:?}, output={:?}, total={:?}",
+            &session_id[..8],
+            usage.usage.input_tokens,
+            usage.usage.output_tokens,
+            usage.usage.total_tokens
+        );
+
         let session = SessionManager::get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
@@ -273,6 +282,13 @@ impl Agent {
         let accumulated_output =
             accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
 
+        tracing::info!(
+            "[UPDATE_SESSION_METRICS] Calculated accumulated tokens - input={:?}, output={:?}, total={:?}",
+            accumulated_input,
+            accumulated_output,
+            accumulated_total
+        );
+
         SessionManager::update_session(session_id)
             .schedule_id(session_config.schedule_id.clone())
             .total_tokens(usage.usage.total_tokens)
@@ -283,6 +299,8 @@ impl Agent {
             .accumulated_output_tokens(accumulated_output)
             .apply()
             .await?;
+
+        tracing::info!("[UPDATE_SESSION_METRICS] Successfully wrote to database for session {}", &session_id[..8]);
 
         Ok(())
     }

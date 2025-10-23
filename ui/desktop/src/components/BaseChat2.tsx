@@ -63,12 +63,25 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
-    useChatStream({
-      sessionId,
-      onStreamFinish,
-      initialMessage,
-    });
+  const {
+    session,
+    messages,
+    chatState,
+    handleSubmit,
+    stopStreaming,
+    sessionLoadError,
+    tokenState,
+  } = useChatStream({
+    sessionId,
+    onStreamFinish,
+    initialMessage,
+  });
+
+  console.log('[BaseChat2] Received from useChatStream:', {
+    tokenState,
+    session_accumulated: session?.accumulated_total_tokens,
+    timestamp: new Date().toISOString(),
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -274,9 +287,31 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={session?.total_tokens || undefined}
-            inputTokens={session?.input_tokens || undefined}
-            outputTokens={session?.output_tokens || undefined}
+            numTokens={(() => {
+              const val =
+                tokenState?.accumulated_total_tokens ??
+                session?.accumulated_total_tokens ??
+                session?.total_tokens ??
+                undefined;
+              console.log('[BaseChat2] Passing numTokens to ChatInput:', val);
+              return val;
+            })()}
+            inputTokens={(() => {
+              const val =
+                tokenState?.accumulated_input_tokens ??
+                session?.accumulated_input_tokens ??
+                undefined;
+              console.log('[BaseChat2] Passing inputTokens to ChatInput:', val);
+              return val;
+            })()}
+            outputTokens={(() => {
+              const val =
+                tokenState?.accumulated_output_tokens ??
+                session?.accumulated_output_tokens ??
+                undefined;
+              console.log('[BaseChat2] Passing outputTokens to ChatInput:', val);
+              return val;
+            })()}
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}

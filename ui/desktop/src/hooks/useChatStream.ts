@@ -40,6 +40,15 @@ const log = {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
+interface TokenState {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  accumulated_input_tokens?: number | null;
+  accumulated_output_tokens?: number | null;
+  accumulated_total_tokens?: number | null;
+}
+
 interface NotificationEvent {
   type: 'Notification';
   request_id: string;
@@ -52,7 +61,7 @@ interface NotificationEvent {
 }
 
 type MessageEvent =
-  | { type: 'Message'; message: Message }
+  | { type: 'Message'; message: Message; token_state?: TokenState | null }
   | { type: 'Error'; error: string }
   | { type: 'Ping' }
   | { type: 'Finish'; reason: string }
@@ -73,6 +82,7 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  tokenState?: TokenState;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -101,6 +111,7 @@ async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
   updateMessages: (messages: Message[]) => void,
+  updateTokenState: (tokenState?: TokenState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let chunkCount = 0;
@@ -136,8 +147,29 @@ async function streamFromResponse(
         const data = line.slice(6);
         if (data === '[DONE]') continue;
 
+        // Log EVERY raw SSE line to see what's actually coming
+        console.log('[RAW SSE LINE]:', data.substring(0, 500)); // First 500 chars
+
         try {
           const event = JSON.parse(data) as MessageEvent;
+
+          // Log parsed event type
+          console.log('[PARSED EVENT TYPE]:', event.type);
+
+          // Log RAW token_state from server to see if it's arriving
+          if (event.type === 'Message') {
+            console.log(
+              '[MESSAGE EVENT] has token_state?',
+              'token_state' in event,
+              event.token_state
+            );
+            if (event.token_state) {
+              console.log(
+                '[RAW SSE DATA] token_state from server:',
+                JSON.stringify(event.token_state)
+              );
+            }
+          }
 
           switch (event.type) {
             case 'Message': {
@@ -145,11 +177,29 @@ async function streamFromResponse(
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
 
+              // Update token state if present
+              if (event.token_state) {
+                console.log('[TOKEN STATE UPDATE] Received from server:', {
+                  accumulated_total: event.token_state.accumulated_total_tokens,
+                  accumulated_input: event.token_state.accumulated_input_tokens,
+                  accumulated_output: event.token_state.accumulated_output_tokens,
+                  current_total: event.token_state.total_tokens,
+                  messageRole: msg.role,
+                  timestamp: new Date().toISOString(),
+                });
+                console.log('[TOKEN STATE UPDATE] Calling updateTokenState...');
+                updateTokenState(event.token_state);
+                console.log('[TOKEN STATE UPDATE] updateTokenState called');
+              } else {
+                console.log('[TOKEN STATE MISSING]', { messageRole: msg.role });
+              }
+
               // Only log every 10th message event to avoid spam
               if (messageEventCount % 10 === 0) {
                 log.stream('message-chunk', {
                   eventCount: messageEventCount,
                   messageCount: currentMessages.length,
+                  tokenState: event.token_state,
                 });
               }
 
@@ -218,7 +268,15 @@ export function useChatStream({
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const [tokenState, setTokenState] = useState<TokenState>();
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  console.log('[useChatStream] RENDER with tokenState:', tokenState);
+
+  // Monitor tokenState changes
+  useEffect(() => {
+    console.log('[useChatStream useEffect] tokenState CHANGED to:', tokenState);
+  }, [tokenState]);
 
   useEffect(() => {
     if (session) {
@@ -342,6 +400,10 @@ export function useChatStream({
           response,
           currentMessages,
           (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
+          (newTokenState?: TokenState) => {
+            console.log('[useChatStream] setTokenState CALLED with:', newTokenState);
+            setTokenState(newTokenState);
+          },
           onFinish
         );
 
@@ -387,5 +449,6 @@ export function useChatStream({
     chatState,
     handleSubmit,
     stopStreaming,
+    tokenState,
   };
 }

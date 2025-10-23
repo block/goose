@@ -118,6 +118,13 @@ export default function ChatInput({
   append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
+  console.log('[ChatInput] RENDER with token props:', {
+    numTokens,
+    inputTokens,
+    outputTokens,
+    timestamp: new Date().toISOString(),
+  });
+
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
