@@ -71,7 +71,7 @@ impl SecurityManager {
         );
 
         // Analyze each tool request
-        for (i, tool_request) in tool_requests.iter().enumerate() {
+        for tool_request in tool_requests.iter() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 let analysis_result = scanner
                     .analyze_tool_call_with_context(tool_call, messages)
