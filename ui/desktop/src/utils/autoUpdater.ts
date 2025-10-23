@@ -9,6 +9,7 @@ import {
   dialog,
   Menu,
   MenuItemConstructorOptions,
+  Notification,
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -116,6 +117,10 @@ export function registerUpdateIpcHandlers() {
             lastUpdateState = { updateAvailable: true, latestVersion: result.latestVersion };
             updateTrayIcon(true);
             sendStatusToWindow('update-available', { version: result.latestVersion });
+
+            // Auto-download for GitHub fallback (matching autoDownload behavior)
+            log.info('Auto-downloading update via GitHub fallback...');
+            await githubAutoDownload(result.downloadUrl!, result.latestVersion!, 'manual check');
           } else {
             updateAvailable = false;
             lastUpdateState = { updateAvailable: false };
@@ -274,7 +279,7 @@ export function setupAutoUpdater(tray?: Tray) {
   }
 
   // Configure auto-updater settings
-  autoUpdater.autoDownload = false; // We'll trigger downloads manually
+  autoUpdater.autoDownload = true; // Automatically download updates when available
   autoUpdater.autoInstallOnAppQuit = true;
 
   // Enable updates in development mode for testing
@@ -331,7 +336,7 @@ export function setupAutoUpdater(tray?: Tray) {
 
         githubUpdater
           .checkForUpdates()
-          .then((result) => {
+          .then(async (result) => {
             if (result.error) {
               sendStatusToWindow('error', result.error);
             } else if (result.updateAvailable) {
@@ -346,6 +351,10 @@ export function setupAutoUpdater(tray?: Tray) {
               lastUpdateState = { updateAvailable: true, latestVersion: result.latestVersion };
               updateTrayIcon(true);
               sendStatusToWindow('update-available', { version: result.latestVersion });
+
+              // Auto-download for GitHub fallback (matching autoDownload behavior)
+              log.info('Auto-downloading update via GitHub fallback on startup...');
+              await githubAutoDownload(result.downloadUrl!, result.latestVersion!, 'on startup');
             } else {
               updateAvailable = false;
               lastUpdateState = { updateAvailable: false };
@@ -422,6 +431,10 @@ export function setupAutoUpdater(tray?: Tray) {
           updateAvailable = true;
           updateTrayIcon(true);
           sendStatusToWindow('update-available', { version: result.latestVersion });
+
+          // Auto-download for GitHub fallback (matching autoDownload behavior)
+          log.info('Auto-downloading update via GitHub fallback after error...');
+          await githubAutoDownload(result.downloadUrl!, result.latestVersion!, 'after error');
         } else {
           updateAvailable = false;
           updateTrayIcon(false);
@@ -452,6 +465,18 @@ export function setupAutoUpdater(tray?: Tray) {
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     log.info('Update downloaded:', info);
     sendStatusToWindow('update-downloaded', info);
+
+    // Show native notification
+    const notification = new Notification({
+      title: 'Update Ready',
+      body: `Version ${info.version} will be installed when you quit Goose. Click to install now.`,
+    });
+    notification.show();
+
+    // Optional: Add click handler to install immediately
+    notification.on('click', () => {
+      autoUpdater.quitAndInstall(false, true);
+    });
   });
 }
 
@@ -465,6 +490,39 @@ function sendStatusToWindow(event: string, data?: unknown) {
   windows.forEach((win) => {
     win.webContents.send('updater-event', { event, data } as UpdaterEvent);
   });
+}
+
+// centralize GitHub fallback auto-download logic.
+async function githubAutoDownload(
+  downloadUrl: string,
+  latestVersion: string,
+  contextLabel = ''
+): Promise<void> {
+  try {
+    const downloadResult = await githubUpdater.downloadUpdate(
+      downloadUrl,
+      latestVersion,
+      (percent) => {
+        sendStatusToWindow('download-progress', { percent });
+      }
+    );
+
+    if (downloadResult.success && downloadResult.downloadPath) {
+      githubUpdateInfo.downloadPath = downloadResult.downloadPath;
+      githubUpdateInfo.extractedPath = downloadResult.extractedPath;
+      sendStatusToWindow('update-downloaded', { version: latestVersion });
+    } else {
+      log.error(
+        `GitHub auto-download failed${contextLabel ? ` (${contextLabel})` : ''}:`,
+        downloadResult.error
+      );
+    }
+  } catch (downloadError) {
+    log.error(
+      `Error during GitHub auto-download${contextLabel ? ` (${contextLabel})` : ''}:`,
+      downloadError
+    );
+  }
 }
 
 function updateTrayIcon(hasUpdate: boolean) {
