@@ -1,4 +1,3 @@
----
 version: 1.0.0
 title: GitHub PR Summarizer
 description: >
@@ -15,12 +14,27 @@ instructions: |
      - A one-sentence TL;DR for each PR.
      - Extra context from commits/changes if descriptions are lacking.
 activities:
-  - "Use the GitHub extension to list open pull requests \
-     from the repo block/goose"
-  - "Send PR titles, descriptions, and commit messages \
-     to the Summarizer extension"
+  - "Use the GitHub extension to list open pull requests from the repo block/goose"
+  - "Send PR titles, descriptions, and commit messages to the Summarizer extension"
   - "Generate a summary that includes PR count and concise details of each PR"
+prompt: |
+  examine the git repository at {{github_repository}} and summarize open pull requests
+
+parameters:
+  - key: github_repository
+    input_type: string
+    requirement: required
+    description: "GitHub Repository URL"
 
 extensions:
-  - github
-  - summarizer
+  - type: streamable_http
+    name: github
+    uri: https://api.githubcopilot.com/mcp/
+    # for enterprise users, use this uri instead:
+    # uri: https://copilot-api.octocorp.ghe.com/mcp
+    headers: {
+      "Authorization": "Bearer ${input:github_mcp_pat}"
+    }
+    display_name: GitHub
+    timeout: 300
+    bundled: false
