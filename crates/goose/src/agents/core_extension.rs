@@ -27,6 +27,9 @@ pub enum CoreToolError {
     #[error("Extension manager not available")]
     ManagerUnavailable,
 
+    #[error("Tool route manager not available")]
+    ToolRouteManagerUnavailable,
+
     #[error("Operation failed: {message}")]
     OperationFailed { message: String },
 
@@ -47,8 +50,21 @@ pub struct ListResourcesParams {
     pub extension_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LlmSearchParams {
+    pub extension_name: String,
+    pub query: String,
+    #[serde(default = "default_k")]
+    pub k: usize,
+}
+
+fn default_k() -> usize {
+    5
+}
+
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
+pub const SEARCH_TOOLS_TOOL_NAME: &str = "search_tools";
 
 pub struct CoreClient {
     info: InitializeResult,
@@ -81,13 +97,15 @@ impl CoreClient {
                 indoc! {r#"
                 Core Extension
 
-                This extension provides essential resource management tools.
+                This extension provides essential resource management and tool discovery capabilities.
 
                 Available tools:
                 - list_resources: List resources from extensions
                 - read_resource: Read specific resources from extensions
+                - search_tools: Search for relevant tools based on user messages
 
                 Use list_resources and read_resource to work with extension data and resources.
+                Use search_tools to dynamically discover and retrieve the most relevant tools for a given task.
             "#}
                 .to_string(),
             ),
@@ -120,6 +138,33 @@ impl CoreClient {
             }
         } else {
             Err(CoreToolError::ManagerUnavailable)
+        }
+    }
+
+    async fn handle_llm_search(
+        &self,
+        arguments: Option<JsonObject>,
+    ) -> Result<Vec<Content>, CoreToolError> {
+        if let Some(weak_ref) = &self.context.tool_route_manager {
+            if let Some(tool_route_manager) = weak_ref.upgrade() {
+                match tool_route_manager
+                    .dispatch_route_search_tool(arguments.unwrap_or_default())
+                    .await
+                {
+                    Ok(tool_result) => tool_result.result.await.map_err(|e| {
+                        CoreToolError::OperationFailed {
+                            message: e.message.to_string(),
+                        }
+                    }),
+                    Err(e) => Err(CoreToolError::OperationFailed {
+                        message: e.message.to_string(),
+                    }),
+                }
+            } else {
+                Err(CoreToolError::ToolRouteManagerUnavailable)
+            }
+        } else {
+            Err(CoreToolError::ToolRouteManagerUnavailable)
         }
     }
 
@@ -211,6 +256,41 @@ impl CoreClient {
             }
         }
 
+        // Add search_tools tool if tool route manager is available
+        if let Some(weak_ref) = &self.context.tool_route_manager {
+            if weak_ref.upgrade().is_some() {
+                tools.push(
+                    Tool::new(
+                        SEARCH_TOOLS_TOOL_NAME.to_string(),
+                        indoc! {r#"
+            Searches for relevant tools based on the user's messages.
+            Format a query to search for the most relevant tools based on the user's messages.
+            Pay attention to the keywords in the user's messages, especially the last message and potential tools they are asking for.
+            This tool should be invoked when the user's messages suggest they are asking for a tool to be run.
+            Use the extension_name parameter to filter tools by the appropriate extension.
+            For example, if the user is asking to list the files in the current directory, you filter for the "developer" extension.
+            Example: {"User": "list the files in the current directory", "Query": "list files in current directory", "Extension Name": "developer", "k": 5}
+            Extension name is not optional, it is required.
+            The returned result will be a list of tool names, descriptions, and schemas from which you, the agent can select the most relevant tool to invoke.
+        "#}.to_string(),
+                        Arc::new(
+                            serde_json::to_value(schema_for!(LlmSearchParams))
+                                .expect("Failed to serialize schema")
+                                .as_object()
+                                .expect("Schema must be an object")
+                                .clone()
+                        ),
+                    ).annotate(ToolAnnotations {
+                        title: Some("LLM search for relevant tools".to_string()),
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(false),
+                        open_world_hint: Some(false),
+                    })
+                );
+            }
+        }
+
         tools
     }
 }
@@ -254,6 +334,7 @@ impl McpClientTrait for CoreClient {
         let result = match name {
             LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await,
             READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await,
+            SEARCH_TOOLS_TOOL_NAME => self.handle_llm_search(arguments).await,
             _ => Err(CoreToolError::UnknownTool {
                 tool_name: name.to_string(),
             }),
