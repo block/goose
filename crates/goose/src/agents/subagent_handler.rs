@@ -122,9 +122,26 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
         agent
-            .update_provider(task_config.provider)
+            .update_provider(task_config.provider.clone())
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
+
+        // Apply model override from recipe settings if present
+        // This handles model-only overrides (when provider is not changed)
+        if let Some(ref settings) = recipe.settings {
+            if settings.goose_provider.is_none()
+                && (settings.goose_model.is_some() || settings.temperature.is_some())
+            {
+                let mut model_config = task_config.provider.get_model_config();
+                if let Some(model) = &settings.goose_model {
+                    model_config.model_name = model.clone();
+                }
+                if let Some(temp) = settings.temperature {
+                    model_config = model_config.with_temperature(Some(temp));
+                }
+                agent.set_model_override(model_config).await;
+            }
+        }
 
         for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {

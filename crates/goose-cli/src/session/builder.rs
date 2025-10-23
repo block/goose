@@ -224,12 +224,32 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
 
-    let model_config = goose::model::ModelConfig::new(&model_name)
-        .unwrap_or_else(|e| {
+    // Check if we're doing a model-only override (no provider change)
+    let is_model_only_override = session_config.settings.as_ref().map_or(false, |s| {
+        s.goose_provider.is_none() && (s.goose_model.is_some() || s.temperature.is_some())
+    });
+
+    // For model-only overrides, create provider with default model, then apply override to agent
+    // For provider changes, create provider with the new model config
+    let provider_model_config = if is_model_only_override {
+        // Get the default model for this provider
+        let default_model = config
+            .get_param::<String>("GOOSE_MODEL")
+            .ok()
+            .expect("No model configured. Run 'goose configure' first");
+        goose::model::ModelConfig::new(&default_model).unwrap_or_else(|e| {
             output::render_error(&format!("Failed to create model configuration: {}", e));
             process::exit(1);
         })
-        .with_temperature(temperature);
+    } else {
+        // Use the full model config including overrides
+        goose::model::ModelConfig::new(&model_name)
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to create model configuration: {}", e));
+                process::exit(1);
+            })
+            .with_temperature(temperature)
+    };
 
     // Create the agent
     let agent: Agent = Agent::new();
@@ -242,7 +262,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         )
         .await;
 
-    let new_provider = match create(&provider_name, model_config).await {
+    let new_provider = match create(&provider_name, provider_model_config).await {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
@@ -277,6 +297,20 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             output::render_error(&format!("Failed to initialize agent: {}", e));
             process::exit(1);
         });
+
+    // Apply model-only override if needed
+    if is_model_only_override {
+        let override_config = goose::model::ModelConfig::new(&model_name)
+            .unwrap_or_else(|e| {
+                output::render_error(&format!(
+                    "Failed to create override model configuration: {}",
+                    e
+                ));
+                process::exit(1);
+            })
+            .with_temperature(temperature);
+        agent.set_model_override(override_config).await;
+    }
 
     // Handle session resolution and resuming
     let session_id: Option<String> = if session_config.no_session {

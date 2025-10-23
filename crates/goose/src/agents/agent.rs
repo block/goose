@@ -60,6 +60,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::model::ModelConfig;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionManager;
 
@@ -87,6 +88,7 @@ pub struct ToolCategorizeResult {
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
+    pub(super) model_config_override: Mutex<Option<ModelConfig>>,
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
@@ -162,6 +164,7 @@ impl Agent {
 
         Self {
             provider: Mutex::new(None),
+            model_config_override: Mutex::new(None),
             extension_manager: Arc::new(ExtensionManager::new()),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
@@ -357,6 +360,29 @@ impl Agent {
         match &*self.provider.lock().await {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
+        }
+    }
+
+    /// Set a model config override for this agent
+    pub async fn set_model_override(&self, model_config: ModelConfig) {
+        let mut override_lock = self.model_config_override.lock().await;
+        *override_lock = Some(model_config);
+    }
+
+    /// Clear any model config override
+    pub async fn clear_model_override(&self) {
+        let mut override_lock = self.model_config_override.lock().await;
+        *override_lock = None;
+    }
+
+    /// Get the effective model config (override or provider's default)
+    pub async fn effective_model_config(&self) -> Result<ModelConfig> {
+        let override_lock = self.model_config_override.lock().await;
+        if let Some(ref override_config) = *override_lock {
+            Ok(override_config.clone())
+        } else {
+            let provider = self.provider().await?;
+            Ok(provider.get_model_config())
         }
     }
 
@@ -973,7 +999,7 @@ impl Agent {
                     }
                 }
 
-                let mut stream = Self::stream_response_from_provider(
+                let mut stream = self.stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
                     conversation.messages(),
