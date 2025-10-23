@@ -186,4 +186,4 @@ After completing tutorials, you can:
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
-[discord]: https://discord.gg/block-opensource
+[discord]: https://discord.gg/goose-oss

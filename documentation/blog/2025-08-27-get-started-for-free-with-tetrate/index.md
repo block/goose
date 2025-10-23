@@ -64,7 +64,7 @@ Thank you to Tetrate for supporting open source and making AI development more a
 
 **What are you waiting for?** [Get started with Goose](/)
 
-*Got questions?* Explore our [docs](/docs/category/guides), browse the [blog](/blog), or join the conversation in our [Discord](https://discord.gg/block-opensource) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
+*Got questions?* Explore our [docs](/docs/category/guides), browse the [blog](/blog), or join the conversation in our [Discord](https://discord.gg/goose-oss) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
 
 <head>
   <meta property="og:title" content="Your First Goose Experience Is On Us" />

@@ -377,7 +377,7 @@ const config: Config = {
         },
 
         {
-          href: "https://discord.gg/block-opensource",
+          href: "https://discord.gg/goose-oss",
           label: "Discord",
           position: "right",
         },
@@ -412,7 +412,7 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/block-opensource",
+              href: "https://discord.gg/goose-oss",
             },
             {
               label: "YouTube",
