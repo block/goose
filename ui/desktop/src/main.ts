@@ -991,8 +991,6 @@ ipcMain.on('react-ready', () => {
     log.info('No pending deep link to process');
   }
 
-  // We don't need to handle pending deep links here anymore
-  // since we're handling them in the window creation flow
   log.info('React ready - window is prepared for deep links');
 });
 
@@ -1937,7 +1935,6 @@ async function appMain() {
       // Log the recipe for debugging
       console.log('Creating chat window with recipe:', recipe);
 
-      // Pass recipe as part of viewOptions when viewType is recipeEditor
       createChat(
         app,
         query,

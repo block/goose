@@ -68,7 +68,7 @@ const config: Config = {
         gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        } : undefined,
+        } : false,
       } satisfies Preset.Options,
     ],
   ],

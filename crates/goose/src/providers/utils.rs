@@ -3,16 +3,19 @@ use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::{OpenAIError, ProviderError};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::io::Read;
-use std::path::Path;
+use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -89,29 +92,24 @@ pub fn map_http_error_to_provider_error(
             ProviderError::ContextLengthExceeded(payload_str)
         }
         StatusCode::BAD_REQUEST => {
-            let mut error_msg = "Unknown error".to_string();
+            let base_msg = format!("Request failed with status: {}", status);
             if let Some(payload) = &payload {
                 let payload_str = payload.to_string();
                 if check_context_length_exceeded(&payload_str) {
                     ProviderError::ContextLengthExceeded(payload_str)
                 } else {
-                    if let Some(error) = payload.get("error") {
-                        error_msg = error
-                            .get("message")
+                    ProviderError::RequestFailed(
+                        payload
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .or_else(|| payload.get("message"))
                             .and_then(|m| m.as_str())
-                            .unwrap_or("Unknown error")
-                            .to_string();
-                    }
-                    ProviderError::RequestFailed(format!(
-                        "Request failed with status: {}. Message: {}",
-                        status, error_msg
-                    ))
+                            .map(|msg| format!("{}. Message: {}", base_msg, msg))
+                            .unwrap_or(base_msg),
+                    )
                 }
             } else {
-                ProviderError::RequestFailed(format!(
-                    "Request failed with status: {}. Message: {}",
-                    status, error_msg
-                ))
+                ProviderError::RequestFailed(base_msg)
             }
         }
         StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
@@ -452,40 +450,95 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace<T1, T2>(
-    model_config: &ModelConfig,
-    payload: &T1,
-    response: &T2,
-    usage: &Usage,
-) where
-    T1: ?Sized + Serialize,
-    T2: ?Sized + Serialize,
-{
-    let logs_dir = Paths::in_state_dir("logs");
+pub struct RequestLog {
+    writer: Option<BufWriter<File>>,
+    temp_path: PathBuf,
+}
 
-    if let Err(e) = std::fs::create_dir_all(&logs_dir) {
-        tracing::warn!("Failed to create logs directory: {}", e);
-        return;
+const LOGS_TO_KEEP: usize = 10;
+
+impl RequestLog {
+    pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
+    where
+        Payload: Serialize,
+    {
+        let logs_dir = Paths::in_state_dir("logs");
+        std::fs::create_dir_all(&logs_dir)?;
+
+        let request_id = Uuid::new_v4();
+        let temp_name = format!("llm_request.{request_id}.jsonl");
+        let temp_path = logs_dir.join(PathBuf::from(temp_name));
+
+        let mut writer = BufWriter::new(
+            File::options()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&temp_path)?,
+        );
+
+        let data = serde_json::json!({
+            "model_config": model_config,
+            "input": payload,
+        });
+        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
+
+        Ok(Self {
+            writer: Some(writer),
+            temp_path,
+        })
     }
 
-    let log_path = |i| logs_dir.join(format!("llm_request.{}.json", i));
-
-    for i in (0..4).rev() {
-        let _ = std::fs::rename(log_path(i), log_path(i + 1));
+    fn write_json(&mut self, line: &serde_json::Value) -> Result<()> {
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| anyhow!("logger is finished"))?;
+        writeln!(writer, "{}", serde_json::to_string(line)?)?;
+        Ok(())
     }
 
-    let data = serde_json::json!({
-        "model_config": model_config,
-        "input": payload,
-        "output": response,
-        "usage": usage,
-    });
+    pub fn error<E>(&mut self, error: E) -> Result<()>
+    where
+        E: Display,
+    {
+        self.write_json(&serde_json::json!({
+            "error": format!("{}", error),
+        }))
+    }
 
-    if let Err(e) = std::fs::write(
-        log_path(0),
-        serde_json::to_string_pretty(&data).unwrap_or_default(),
-    ) {
-        tracing::warn!("Failed to write log file: {}", e);
+    pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
+    where
+        Payload: Serialize,
+    {
+        self.write_json(&serde_json::json!({
+            "data": data,
+            "usage": usage,
+        }))
+    }
+
+    fn finish(&mut self) -> Result<()> {
+        if let Some(mut writer) = self.writer.take() {
+            writer.flush()?;
+            let logs_dir = Paths::in_state_dir("logs");
+            let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
+
+            for i in (0..LOGS_TO_KEEP - 1).rev() {
+                let _ = std::fs::rename(log_path(i), log_path(i + 1));
+            }
+
+            std::fs::rename(&self.temp_path, log_path(0))?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for RequestLog {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let _ = self.finish();
     }
 }
 
@@ -1043,7 +1096,7 @@ mod tests {
                 StatusCode::BAD_REQUEST,
                 None,
                 ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request. Message: Unknown error".to_string(),
+                    "Request failed with status: 400 Bad Request".to_string(),
                 ),
             ),
             // TOO_MANY_REQUESTS

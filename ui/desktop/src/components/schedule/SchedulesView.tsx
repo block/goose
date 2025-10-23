@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   listSchedules,
   createSchedule,
@@ -22,6 +23,7 @@ import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { ViewOptions } from '../../utils/navigationUtils';
 
 interface SchedulesViewProps {
   onClose?: () => void;
@@ -210,6 +212,7 @@ const ScheduleCard = React.memo<{
 ScheduleCard.displayName = 'ScheduleCard';
 
 const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
+  const location = useLocation();
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -219,6 +222,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pendingDeepLink, setPendingDeepLink] = useState<string | null>(null);
 
   // Individual loading states for each action to prevent double-clicks
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
@@ -257,15 +261,16 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     if (viewingScheduleId === null) {
       fetchSchedules();
 
-      // Check for pending deep link from recipe editor
-      const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
-      if (pendingDeepLink) {
-        localStorage.removeItem('pendingScheduleDeepLink');
+      // Check for pending deep link from navigation state
+      const locationState = location.state as ViewOptions | null;
+      if (locationState?.pendingScheduleDeepLink) {
+        setPendingDeepLink(locationState.pendingScheduleDeepLink);
         setIsCreateModalOpen(true);
-        // The CreateScheduleModal will handle the deep link
+        // Clear the state after reading it
+        window.history.replaceState({}, document.title);
       }
     }
-  }, [viewingScheduleId, fetchSchedules]);
+  }, [viewingScheduleId, fetchSchedules, location.state]);
 
   // Optimized periodic refresh - only refresh if not actively doing something
   useEffect(() => {
@@ -320,6 +325,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const handleCloseCreateModal = () => {
     setIsCreateModalOpen(false);
     setSubmitApiError(null);
+    setPendingDeepLink(null);
   };
 
   const handleOpenEditModal = (schedule: ScheduledJob) => {
@@ -648,6 +654,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         onSubmit={handleCreateScheduleSubmit}
         isLoadingExternally={isSubmitting}
         apiErrorExternally={submitApiError}
+        initialDeepLink={pendingDeepLink}
       />
       <EditScheduleModal
         isOpen={isEditModalOpen}
