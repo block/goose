@@ -325,6 +325,12 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
+    /// Returns the provider's registry name for recreation via factory::create
+    /// Returns "unknown" if provider cannot be recreated through the factory
+    fn provider_name(&self) -> &str {
+        "unknown"
+    }
+
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(

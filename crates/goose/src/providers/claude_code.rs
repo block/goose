@@ -446,6 +446,10 @@ impl ClaudeCodeProvider {
 
 #[async_trait]
 impl Provider for ClaudeCodeProvider {
+    fn provider_name(&self) -> &str {
+        "claude-code"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "claude-code",

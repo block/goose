@@ -121,26 +121,51 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             .get_or_create_agent(session.id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
-        agent
-            .update_provider(task_config.provider.clone())
-            .await
-            .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
-        // This handles model-only overrides (when provider is not changed)
-        if let Some(ref settings) = recipe.settings {
+        // Handle model-only overrides by recreating the provider
+        let provider_to_use = if let Some(ref settings) = recipe.settings {
             if settings.goose_provider.is_none()
                 && (settings.goose_model.is_some() || settings.temperature.is_some())
             {
-                let mut model_config = task_config.provider.get_model_config();
-                if let Some(model) = &settings.goose_model {
-                    model_config.model_name = model.clone();
+                let provider_name = task_config.provider.provider_name();
+                if provider_name != "unknown" {
+                    // Build new model config with overrides
+                    let mut model_config = task_config.provider.get_model_config();
+                    if let Some(model) = &settings.goose_model {
+                        model_config.model_name = model.clone();
+                    }
+                    if let Some(temp) = settings.temperature {
+                        model_config = model_config.with_temperature(Some(temp));
+                    }
+
+                    // Recreate provider with new config
+                    match crate::providers::create(provider_name, model_config).await {
+                        Ok(new_provider) => new_provider,
+                        Err(e) => {
+                            return Err(anyhow!(
+                                "Failed to recreate provider '{}': {}",
+                                provider_name,
+                                e
+                            ));
+                        }
+                    }
+                } else {
+                    // Provider can't be recreated, use original
+                    task_config.provider.clone()
                 }
-                if let Some(temp) = settings.temperature {
-                    model_config = model_config.with_temperature(Some(temp));
-                }
-                agent.set_model_override(model_config).await;
+            } else {
+                // No model override, use original provider
+                task_config.provider.clone()
             }
-        }
+        } else {
+            // No settings at all, use original provider
+            task_config.provider.clone()
+        };
+
+        agent
+            .update_provider(provider_to_use)
+            .await
+            .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
         for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {

@@ -172,6 +172,10 @@ impl BedrockProvider {
 
 #[async_trait]
 impl Provider for BedrockProvider {
+    fn provider_name(&self) -> &str {
+        "aws_bedrock"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "aws_bedrock",

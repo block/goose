@@ -108,10 +108,7 @@ impl Agent {
         tools: &[Tool],
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config_override = self.model_config_override.lock().await.clone();
-        let config = model_config_override
-            .clone()
-            .unwrap_or_else(|| provider.get_model_config());
+        let config = provider.get_model_config();
 
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
@@ -128,7 +125,7 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let stream_result = if provider.supports_streaming() && model_config_override.is_none() {
+        let stream_result = if provider.supports_streaming() {
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(
@@ -141,24 +138,13 @@ impl Agent {
             result
         } else {
             debug!("WAITING_LLM_START");
-            let complete_result = if let Some(ref override_config) = model_config_override {
-                provider
-                    .complete_with_model(
-                        override_config,
-                        system_prompt.as_str(),
-                        messages_for_provider.messages(),
-                        &tools,
-                    )
-                    .await
-            } else {
-                provider
-                    .complete(
-                        system_prompt.as_str(),
-                        messages_for_provider.messages(),
-                        &tools,
-                    )
-                    .await
-            };
+            let complete_result = provider
+                .complete(
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &tools,
+                )
+                .await;
             debug!("WAITING_LLM_END");
 
             match complete_result {

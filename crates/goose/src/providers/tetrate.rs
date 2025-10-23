@@ -130,6 +130,10 @@ impl TetrateProvider {
 
 #[async_trait]
 impl Provider for TetrateProvider {
+    fn provider_name(&self) -> &str {
+        "tetrate"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "tetrate",

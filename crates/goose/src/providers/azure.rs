@@ -111,6 +111,10 @@ impl AzureProvider {
 
 #[async_trait]
 impl Provider for AzureProvider {
+    fn provider_name(&self) -> &str {
+        "azure_openai"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "azure_openai",

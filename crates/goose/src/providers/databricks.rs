@@ -245,6 +245,10 @@ impl DatabricksProvider {
 
 #[async_trait]
 impl Provider for DatabricksProvider {
+    fn provider_name(&self) -> &str {
+        "databricks"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "databricks",

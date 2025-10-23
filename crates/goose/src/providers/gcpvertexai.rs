@@ -430,7 +430,10 @@ impl GcpVertexAIProvider {
 
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
-    /// Returns metadata about the GCP Vertex AI provider.
+    fn provider_name(&self) -> &str {
+        "gcp_vertex_ai"
+    }
+
     fn metadata() -> ProviderMetadata
     where
         Self: Sized,

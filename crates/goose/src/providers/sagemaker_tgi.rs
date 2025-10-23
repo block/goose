@@ -256,6 +256,10 @@ impl SageMakerTgiProvider {
 
 #[async_trait]
 impl Provider for SageMakerTgiProvider {
+    fn provider_name(&self) -> &str {
+        "sagemaker_tgi"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "sagemaker_tgi",

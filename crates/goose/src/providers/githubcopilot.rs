@@ -375,6 +375,10 @@ impl GithubCopilotProvider {
 
 #[async_trait]
 impl Provider for GithubCopilotProvider {
+    fn provider_name(&self) -> &str {
+        "github_copilot"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "github_copilot",

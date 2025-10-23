@@ -151,6 +151,10 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl Provider for AnthropicProvider {
+    fn provider_name(&self) -> &str {
+        "anthropic"
+    }
+
     fn metadata() -> ProviderMetadata {
         let models: Vec<ModelInfo> = ANTHROPIC_KNOWN_MODELS
             .iter()

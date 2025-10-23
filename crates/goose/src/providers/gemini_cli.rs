@@ -299,6 +299,10 @@ impl GeminiCliProvider {
 
 #[async_trait]
 impl Provider for GeminiCliProvider {
+    fn provider_name(&self) -> &str {
+        "gemini-cli"
+    }
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "gemini-cli",
