@@ -363,19 +363,16 @@ impl Agent {
         }
     }
 
-    /// Set a model config override for this agent
     pub async fn set_model_override(&self, model_config: ModelConfig) {
         let mut override_lock = self.model_config_override.lock().await;
         *override_lock = Some(model_config);
     }
 
-    /// Clear any model config override
     pub async fn clear_model_override(&self) {
         let mut override_lock = self.model_config_override.lock().await;
         *override_lock = None;
     }
 
-    /// Get the effective model config (override or provider's default)
     pub async fn effective_model_config(&self) -> Result<ModelConfig> {
         let override_lock = self.model_config_override.lock().await;
         if let Some(ref override_config) = *override_lock {

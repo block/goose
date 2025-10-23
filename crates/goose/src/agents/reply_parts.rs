@@ -108,7 +108,6 @@ impl Agent {
         tools: &[Tool],
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Check if we have a model override
         let model_config_override = self.model_config_override.lock().await.clone();
         let config = model_config_override
             .clone()
@@ -130,7 +129,6 @@ impl Agent {
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
         let stream_result = if provider.supports_streaming() && model_config_override.is_none() {
-            // Only stream if no override (for safety, matching ModelOverrideProvider behavior)
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(
@@ -144,7 +142,6 @@ impl Agent {
         } else {
             debug!("WAITING_LLM_START");
             let complete_result = if let Some(ref override_config) = model_config_override {
-                // Use complete_with_model when we have an override
                 provider
                     .complete_with_model(
                         override_config,
@@ -154,7 +151,6 @@ impl Agent {
                     )
                     .await
             } else {
-                // Use regular complete when no override
                 provider
                     .complete(
                         system_prompt.as_str(),

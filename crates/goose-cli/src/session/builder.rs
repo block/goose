@@ -224,7 +224,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
 
-    // Check if we're doing a model-only override (no provider change)
     let is_model_only_override = session_config.settings.as_ref().map_or(false, |s| {
         s.goose_provider.is_none() && (s.goose_model.is_some() || s.temperature.is_some())
     });
@@ -232,7 +231,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // For model-only overrides, create provider with default model, then apply override to agent
     // For provider changes, create provider with the new model config
     let provider_model_config = if is_model_only_override {
-        // Get the default model for this provider
         let default_model = config
             .get_param::<String>("GOOSE_MODEL")
             .ok()
@@ -298,7 +296,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    // Apply model-only override if needed
     if is_model_only_override {
         let override_config = goose::model::ModelConfig::new(&model_name)
             .unwrap_or_else(|e| {
