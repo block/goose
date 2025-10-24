@@ -280,14 +280,12 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.total_tokens ?? session?.total_tokens ?? undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
             accumulatedInputTokens={
-              tokenState?.accumulated_input_tokens ?? session?.accumulated_input_tokens ?? undefined
+              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
             }
             accumulatedOutputTokens={
-              tokenState?.accumulated_output_tokens ??
-              session?.accumulated_output_tokens ??
-              undefined
+              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
             }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing

@@ -127,7 +127,7 @@ pub enum MessageEvent {
     Message {
         message: Message,
         #[serde(skip_serializing_if = "Option::is_none")]
-        token_state: Option<goose::session::session_manager::TokenState>,
+        token_state: Option<goose::conversation::message::TokenState>,
     },
     Error {
         error: String,
@@ -308,7 +308,7 @@ pub async fn reply(
 
                             let token_state = match SessionManager::get_session(&session_id, false).await {
                                 Ok(session) => {
-                                    Some(goose::session::session_manager::TokenState {
+                                    Some(goose::conversation::message::TokenState {
                                         input_tokens: session.input_tokens,
                                         output_tokens: session.output_tokens,
                                         total_tokens: session.total_tokens,

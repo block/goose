@@ -443,12 +443,12 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            totalTokens={tokenState?.total_tokens ?? sessionTokenCount}
+            totalTokens={tokenState?.totalTokens ?? sessionTokenCount}
             accumulatedInputTokens={
-              tokenState?.accumulated_input_tokens ?? sessionInputTokens ?? localInputTokens
+              tokenState?.accumulatedInputTokens ?? sessionInputTokens ?? localInputTokens
             }
             accumulatedOutputTokens={
-              tokenState?.accumulated_output_tokens ?? sessionOutputTokens ?? localOutputTokens
+              tokenState?.accumulatedOutputTokens ?? sessionOutputTokens ?? localOutputTokens
             }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing

@@ -48,18 +48,6 @@ pub struct Session {
     pub message_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct TokenState {
-    /// Current turn token counts
-    pub input_tokens: Option<i32>,
-    pub output_tokens: Option<i32>,
-    pub total_tokens: Option<i32>,
-    /// Accumulated token counts across all turns
-    pub accumulated_input_tokens: Option<i32>,
-    pub accumulated_output_tokens: Option<i32>,
-    pub accumulated_total_tokens: Option<i32>,
-}
-
 pub struct SessionUpdateBuilder {
     session_id: String,
     name: Option<String>,

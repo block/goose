@@ -4274,6 +4274,43 @@
           }
         }
       },
+      "TokenState": {
+        "type": "object",
+        "properties": {
+          "accumulatedInputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Accumulated token counts across all turns",
+            "nullable": true
+          },
+          "accumulatedOutputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current turn token counts",
+            "nullable": true
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
       "Tool": {
         "type": "object",
         "required": [

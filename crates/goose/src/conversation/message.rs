@@ -711,6 +711,19 @@ impl Message {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenState {
+    /// Current turn token counts
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub total_tokens: Option<i32>,
+    /// Accumulated token counts across all turns
+    pub accumulated_input_tokens: Option<i32>,
+    pub accumulated_output_tokens: Option<i32>,
+    pub accumulated_total_tokens: Option<i32>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};

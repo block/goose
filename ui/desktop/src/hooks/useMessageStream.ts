@@ -6,7 +6,7 @@ import {
   getCompactingMessage,
   hasCompletedToolCalls,
 } from '../types/message';
-import { Conversation, Message, Role } from '../api';
+import { Conversation, Message, Role, TokenState } from '../api';
 
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
@@ -31,15 +31,6 @@ export interface NotificationEvent {
       [key: string]: JsonValue;
     };
   };
-}
-
-interface TokenState {
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-  total_tokens?: number | null;
-  accumulated_input_tokens?: number | null;
-  accumulated_output_tokens?: number | null;
-  accumulated_total_tokens?: number | null;
 }
 
 // Event types for SSE stream

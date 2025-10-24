@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-import { Conversation, Message, resumeAgent, Session } from '../api';
+import { Conversation, Message, resumeAgent, Session, TokenState } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
@@ -39,15 +39,6 @@ const log = {
 };
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-interface TokenState {
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-  total_tokens?: number | null;
-  accumulated_input_tokens?: number | null;
-  accumulated_output_tokens?: number | null;
-  accumulated_total_tokens?: number | null;
-}
 
 interface NotificationEvent {
   type: 'Notification';
