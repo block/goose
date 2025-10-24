@@ -1,8 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
-use crate::model::ModelConfig;
-use crate::providers::create;
 use crate::scheduler_factory::SchedulerFactory;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
@@ -10,7 +8,7 @@ use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 const DEFAULT_MAX_SESSION: usize = 100;
 
@@ -23,7 +21,7 @@ pub struct AgentManager {
 }
 
 impl AgentManager {
-    /// Reset the global singleton - ONLY for testing
+    #[cfg(test)]
     pub fn reset_for_test() {
         unsafe {
             // Cast away the const to get mutable access
@@ -34,7 +32,6 @@ impl AgentManager {
         }
     }
 
-    // Private constructor - prevents direct instantiation in production
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
         let schedule_file_path = Paths::data_dir().join("schedule.json");
 
@@ -48,8 +45,6 @@ impl AgentManager {
             scheduler,
             default_provider: Arc::new(RwLock::new(None)),
         };
-
-        let _ = manager.configure_default_provider().await;
 
         Ok(manager)
     }
@@ -71,39 +66,6 @@ impl AgentManager {
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
         debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);
-    }
-
-    pub async fn configure_default_provider(&self) -> Result<()> {
-        let provider_name = std::env::var("GOOSE_DEFAULT_PROVIDER")
-            .or_else(|_| std::env::var("GOOSE_PROVIDER__TYPE"))
-            .ok();
-
-        let model_name = std::env::var("GOOSE_DEFAULT_MODEL")
-            .or_else(|_| std::env::var("GOOSE_PROVIDER__MODEL"))
-            .ok();
-
-        if provider_name.is_none() || model_name.is_none() {
-            return Ok(());
-        }
-
-        if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
-            match ModelConfig::new(&model_name) {
-                Ok(model_config) => match create(&provider_name, model_config).await {
-                    Ok(provider) => {
-                        self.set_default_provider(provider).await;
-                        info!(
-                            "Configured default provider: {} with model: {}",
-                            provider_name, model_name
-                        );
-                    }
-                    Err(e) => {
-                        warn!("Failed to create default provider {}: {}", provider_name, e)
-                    }
-                },
-                Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
-            }
-        }
-        Ok(())
     }
 
     pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {

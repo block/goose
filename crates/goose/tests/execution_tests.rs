@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod execution_tests {
     use goose::execution::manager::AgentManager;
     use goose::execution::SessionExecutionMode;
@@ -145,37 +146,6 @@ mod execution_tests {
             );
         }
         assert_eq!(manager.session_count().await, 1);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_configure_default_provider() {
-        use std::env;
-
-        AgentManager::reset_for_test();
-
-        let original_provider = env::var("GOOSE_DEFAULT_PROVIDER").ok();
-        let original_model = env::var("GOOSE_DEFAULT_MODEL").ok();
-
-        env::set_var("GOOSE_DEFAULT_PROVIDER", "openai");
-        env::set_var("GOOSE_DEFAULT_MODEL", "gpt-4o-mini");
-
-        let manager = AgentManager::instance().await.unwrap();
-        let result = manager.configure_default_provider().await;
-
-        assert!(result.is_ok());
-
-        // Restore original env vars
-        if let Some(val) = original_provider {
-            env::set_var("GOOSE_DEFAULT_PROVIDER", val);
-        } else {
-            env::remove_var("GOOSE_DEFAULT_PROVIDER");
-        }
-        if let Some(val) = original_model {
-            env::set_var("GOOSE_DEFAULT_MODEL", val);
-        } else {
-            env::remove_var("GOOSE_DEFAULT_MODEL");
-        }
     }
 
     #[tokio::test]
