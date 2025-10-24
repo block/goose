@@ -1,0 +1,81 @@
+#!/bin/bash
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+if [ -z "$SKIP_BUILD" ]; then
+  echo "Building goose..."
+  cargo build --release --bin goose
+  echo ""
+else
+  echo "Skipping build (SKIP_BUILD is set)..."
+  echo ""
+fi
+
+SCRIPT_DIR=$(pwd)
+
+PROVIDERS=(
+  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
+  "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo:gpt-5"
+  "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
+  "google:gemini-2.5-pro:gemini-2.5-flash"
+  "tetrate:claude-sonnet-4-20250514"
+)
+
+# In CI, only run Databricks tests if DATABRICKS_HOST and DATABRICKS_TOKEN are set
+# Locally, always run Databricks tests
+if [ -n "$CI" ]; then
+  if [ -n "$DATABRICKS_HOST" ] && [ -n "$DATABRICKS_TOKEN" ]; then
+    echo "✓ Including Databricks tests"
+    PROVIDERS+=("databricks:databricks-claude-sonnet-4:gemini-2-5-flash:gpt-4o")
+  else
+    echo "⚠️  Skipping Databricks tests (DATABRICKS_HOST and DATABRICKS_TOKEN required in CI)"
+  fi
+else
+  echo "✓ Including Databricks tests"
+  PROVIDERS+=("databricks:databricks-claude-sonnet-4:gemini-2-5-flash:gpt-4o")
+fi
+
+RESULTS=()
+
+for provider_config in "${PROVIDERS[@]}"; do
+  IFS=':' read -ra PARTS <<< "$provider_config"
+  PROVIDER="${PARTS[0]}"
+  for i in $(seq 1 $((${#PARTS[@]} - 1))); do
+    MODEL="${PARTS[$i]}"
+    export GOOSE_PROVIDER="$PROVIDER"
+    export GOOSE_MODEL="$MODEL"
+    TESTDIR=$(mktemp -d)
+    echo "Provider: ${PROVIDER}"
+    echo "Model: ${MODEL}"
+    echo ""
+    TMPFILE=$(mktemp)
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Use the everything__sampleLLM tool to ask for a quote from The Great Gatsby" --with-extension "npx -y @modelcontextprotocol/server-everything" 2>&1) | tee "$TMPFILE"
+    echo ""
+    if grep -q "sampleLLM | everything" "$TMPFILE"; then
+      echo "✓ SUCCESS: MCP sampling test passed - sampleLLM tool called"
+      RESULTS+=("✓ MCP Sampling ${PROVIDER}: ${MODEL}")
+    else
+      echo "✗ FAILED: MCP sampling test failed - sampleLLM tool not called"
+      RESULTS+=("✗ MCP Sampling ${PROVIDER}: ${MODEL}")
+    fi
+    rm "$TMPFILE"
+    rm -rf "$TESTDIR"
+    echo "---"
+  done
+done
+
+echo ""
+echo "=== MCP Sampling Test Summary ==="
+for result in "${RESULTS[@]}"; do
+  echo "$result"
+done
+
+if echo "${RESULTS[@]}" | grep -q "✗"; then
+  echo ""
+  echo "Some MCP sampling tests failed!"
+  exit 1
+else
+  echo ""
+  echo "All MCP sampling tests passed!"
+fi
