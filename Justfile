@@ -104,12 +104,6 @@ copy-binary-windows:
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
     }"
-    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose.exe) { \
-        Write-Host 'Copying Windows goose CLI binary...'; \
-        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose.exe' -Destination './ui/desktop/src/bin/' -Force; \
-    } else { \
-        Write-Host 'Windows goose CLI binary not found.' -ForegroundColor Yellow; \
-    }"
 
 # Run UI with latest
 run-ui:
@@ -212,7 +206,6 @@ make-ui-windows:
         mkdir -p ./ui/desktop/src/bin && \
         echo "Copying Windows binary and DLLs..." && \
         cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
-        cp -f ./target/x86_64-pc-windows-gnu/release/goose.exe ./ui/desktop/src/bin/ 2>/dev/null || echo "goose CLI not found (optional)" && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
         echo "Starting Windows package build..." && \
         (cd ui/desktop && npm run bundle:windows) && \
