@@ -3,30 +3,7 @@ use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
 
-use crate::commands::acp::run_acp_agent;
-use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
-use crate::commands::info::handle_info;
-use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-// Import the new handlers from commands::schedule
-use crate::commands::schedule::{
-    handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
-    handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
-    handle_schedule_sessions,
-};
-use crate::commands::session::{handle_session_list, handle_session_remove};
-use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
-use goose::session::SessionManager;
-use goose_bench::bench_config::BenchRunConfig;
-use goose_bench::runners::bench_runner::BenchRunner;
-use goose_bench::runners::eval_runner::EvalRunner;
-use goose_bench::runners::metric_aggregator::MetricAggregator;
-use goose_bench::runners::model_runner::ModelRunner;
-use std::io::Read;
-use std::path::PathBuf;
+use crate::commands::log::LogCommand;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -310,45 +287,6 @@ enum RecipeCommand {
             help = "Show verbose information including recipe descriptions"
         )]
         verbose: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum LogCommand {
-    /// Show current log size and path
-    #[command(about = "Show current log size and path")]
-    Size,
-
-    /// Clear/archive log files
-    #[command(about = "Clear/archive log files")]
-    Clear,
-
-    /// Show current log configuration
-    #[command(about = "Show current log configuration")]
-    Config,
-
-    /// Set log configuration
-    #[command(about = "Set log configuration")]
-    Set {
-        /// Archive threshold in GB
-        #[arg(long, help = "Archive threshold in GB")]
-        archive_threshold_gb: Option<f64>,
-
-        /// Delete threshold in GB
-        #[arg(long, help = "Delete threshold in GB")]
-        delete_threshold_gb: Option<f64>,
-
-        /// Check interval in seconds
-        #[arg(long, help = "Check interval in seconds")]
-        check_interval_secs: Option<u64>,
-
-        /// Cooldown between actions in hours
-        #[arg(long, help = "Cooldown between actions in hours")]
-        cooldown_hours: Option<u64>,
-
-        /// Enable or disable auto-rotation
-        #[arg(long, help = "Enable or disable auto-rotation")]
-        auto_rotation: Option<bool>,
     },
 }
 

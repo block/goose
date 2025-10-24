@@ -363,7 +363,7 @@ pub async fn get_log_path(_state: State<AppState>) -> impl IntoResponse {
 /// Handler to get current log configuration
 pub async fn get_log_config(_state: State<AppState>) -> impl IntoResponse {
     let config = LOG_CONFIG.lock().await.clone();
-    (StatusCode::OK, Json(config))
+    (StatusCode::OK, Json(serde_json::to_value(config).unwrap()))
 }
 
 /// Handler to update log configuration
@@ -392,7 +392,7 @@ pub async fn update_log_config(
     let mut config = LOG_CONFIG.lock().await;
     *config = new_config;
     info!("Updated log configuration: {:?}", config);
-    (StatusCode::OK, Json(config.clone()))
+    (StatusCode::OK, Json(serde_json::to_value(config.clone()).unwrap()))
 }
 
 /// Configure log management routes
@@ -407,7 +407,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 
 /// Background monitor to automatically archive/delete logs according to thresholds.
 /// Runs periodically in a background task. Uses a 24-hour cooldown between archive/delete actions by default.
-pub fn start_log_monitor(state: Arc<AppState>) {
+pub fn start_log_monitor(_state: Arc<AppState>) {
     static LAST_ARCHIVE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
         Lazy::new(|| AsyncMutex::new(None));
     static LAST_DELETE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
@@ -431,7 +431,7 @@ pub fn start_log_monitor(state: Arc<AppState>) {
                     // Archive if over threshold and cooldown passed
                     if total_size >= config.archive_threshold_bytes {
                         let should_archive = {
-                            let mut last_archive = LAST_ARCHIVE.lock().await;
+                            let last_archive = LAST_ARCHIVE.lock().await;
                             match *last_archive {
                                 Some(last_time) => {
                                     last_time.elapsed().unwrap_or_default().as_secs() >= config.cooldown_secs
@@ -456,7 +456,7 @@ pub fn start_log_monitor(state: Arc<AppState>) {
                     // Delete if over delete threshold and cooldown passed
                     if total_size >= config.delete_threshold_bytes {
                         let should_delete = {
-                            let mut last_delete = LAST_DELETE.lock().await;
+                            let last_delete = LAST_DELETE.lock().await;
                             match *last_delete {
                                 Some(last_time) => {
                                     last_time.elapsed().unwrap_or_default().as_secs() >= config.cooldown_secs
@@ -481,67 +481,6 @@ pub fn start_log_monitor(state: Arc<AppState>) {
             }
 
             sleep(Duration::from_secs(config.check_interval_secs)).await;
-        }
-    });
-}
-
-    let state_clone = state.clone();
-
-    // Spawn background task
-    tokio::spawn(async move {
-        loop {
-            // Sleep at the end of loop; but do a check immediately first
-            match get_log_base_dir() {
-                Ok(log_dir) => {
-                    match compute_directory_size(&log_dir) {
-                        Ok((total_bytes, _file_count)) => {
-                            if total_bytes >= DELETE_THRESHOLD_BYTES {
-                                // Check cooldown
-                                let mut last_delete = LAST_DELETE.lock().await;
-                                let now = std::time::SystemTime::now();
-                                let should_run = match *last_delete {
-                                    Some(t) => now.duration_since(t).map(|d| d.as_secs() >= COOLDOWN_SECS).unwrap_or(true),
-                                    None => true,
-                                };
-
-                                if should_run {
-                                    info!("Log size >= delete threshold ({}) bytes. Running delete routine.", total_bytes);
-                                    if let Err(e) = delete_archives_then_logs(&log_dir) {
-                                        warn!("Failed to delete logs: {}", e);
-                                    } else {
-                                        *last_delete = Some(now);
-                                    }
-                                }
-                            } else if total_bytes >= ARCHIVE_THRESHOLD_BYTES {
-                                // Check cooldown for archive
-                                let mut last_archive = LAST_ARCHIVE.lock().await;
-                                let now = std::time::SystemTime::now();
-                                let should_run = match *last_archive {
-                                    Some(t) => now.duration_since(t).map(|d| d.as_secs() >= COOLDOWN_SECS).unwrap_or(true),
-                                    None => true,
-                                };
-
-                                if should_run {
-                                    info!("Log size >= archive threshold ({}) bytes. Running archive routine.", total_bytes);
-                                    if let Err(e) = archive_all_logs(&log_dir) {
-                                        warn!("Failed to archive logs: {}", e);
-                                    } else {
-                                        *last_archive = Some(now);
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            warn!("Failed to compute log size in monitor: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to get log base dir in monitor: {}", e);
-                }
-            }
-
-            sleep(Duration::from_secs(CHECK_INTERVAL_SECS)).await;
         }
     });
 }
@@ -610,7 +549,7 @@ async fn delete_archives_then_logs(log_base_dir: &Path) -> Result<()> {
                 }
                 // re-check size
                 let (current_bytes, _) = compute_directory_size(log_base_dir)?;
-                if current_bytes < DELETE_THRESHOLD_BYTES {
+                if current_bytes < LogConfig::default().delete_threshold_bytes {
                     break;
                 }
             }
