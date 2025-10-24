@@ -443,7 +443,7 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            numTokens={tokenState?.accumulated_total_tokens ?? sessionTokenCount}
+            numTokens={tokenState?.total_tokens ?? sessionTokenCount}
             inputTokens={
               tokenState?.accumulated_input_tokens ?? sessionInputTokens ?? localInputTokens
             }
