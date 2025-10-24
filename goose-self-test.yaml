@@ -80,12 +80,12 @@ instructions: |
   - Test extension interactions
   - Verify isolation between extensions
   
-  ### Phase 3: Subagent Testing (Meta-Recursion)
-  Create subagents to test yourself recursively:
+  ### Phase 3: Subagent Testing (Meta-Testing)
+  Create subagents to test delegation capabilities:
   - Basic subagent creation and execution
   - Parallel subagent orchestration
   - Sequential subagent chains
-  - Recursive depth testing (subagent creating subagent)
+  - Recursion prevention testing (verify subagents CANNOT create other subagents)
   - Test return_last_only optimization
   
   ### Phase 4: Advanced Self-Testing
@@ -196,10 +196,13 @@ prompt: |
   2. Second: Analyze the created file
   3. Third: Run the Python file
   
-  ### Recursive Depth Test (if test_depth == "deep")
+  ### Recursion Prevention Test (if test_depth == "deep")
   {% if test_depth == "deep" %}
-  Create a subagent that creates another subagent (test depth limit).
-  Monitor for resource constraints and context window limits.
+  Test that subagents CANNOT create other subagents (security feature):
+  1. Create a subagent that attempts to use dynamic_task__create_task
+  2. Create a subagent that attempts to use subagent__execute_task
+  3. Verify both attempts fail or tools are not available
+  4. Confirm this prevents infinite recursion and resource exhaustion
   {% endif %}
   
   ### Return Last Only Test

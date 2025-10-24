@@ -104,6 +104,7 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) autopilot: Mutex<AutoPilot>,
+    pub(super) is_subagent: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -178,6 +179,7 @@ impl Agent {
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
             autopilot: Mutex::new(AutoPilot::new()),
+            is_subagent: false,
         }
     }
 
@@ -664,6 +666,10 @@ impl Agent {
         Ok(())
     }
 
+    pub fn mark_as_subagent(&mut self) {
+        self.is_subagent = true;
+    }
+
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
@@ -675,7 +681,6 @@ impl Agent {
             // Add platform tools
             // TODO: migrate the manage schedule tool as well
             prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
-            // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
         }
 
@@ -686,6 +691,7 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
+
             prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
         }
 

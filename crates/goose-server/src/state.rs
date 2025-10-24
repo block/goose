@@ -46,7 +46,9 @@ impl AppState {
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {
-        self.agent_manager.get_or_create_agent(session_id).await
+        self.agent_manager
+            .get_or_create_agent(session_id, false)
+            .await
     }
 
     /// Get agent for route handlers - always uses Interactive mode and converts any error to 500
