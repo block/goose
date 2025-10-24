@@ -167,7 +167,7 @@ pub async fn check_if_compaction_needed(
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
     let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false // Auto-compact is disabled
+        false
     } else {
         usage_ratio > threshold
     };

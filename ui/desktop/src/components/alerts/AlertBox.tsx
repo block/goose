@@ -33,7 +33,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   );
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load the threshold from the backend when the component mounts
   useEffect(() => {
     const loadThreshold = async () => {
       try {
@@ -50,13 +49,11 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     loadThreshold();
   }, [read]);
 
-  // Use the loaded threshold if available, otherwise fall back to prop
   const currentThreshold = loadedThreshold !== null ? loadedThreshold : alert.autoCompactThreshold;
 
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
 
-    // Validate threshold value - force minimum of 1, maximum of 100
     let validThreshold = Math.max(1, Math.min(100, thresholdValue));
     if (validThreshold !== thresholdValue) {
       setThresholdValue(validThreshold);
@@ -198,7 +195,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
 
           <div className="flex justify-between w-full relative">
             {(() => {
-              // Find the closest dot to the threshold
               let closestDotIndex = -1;
               if (currentThreshold !== undefined && currentThreshold > 0 && currentThreshold <= 1) {
                 let minDistance = Infinity;
@@ -219,16 +215,15 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 const isActive = dotPosition <= progress;
                 const isThresholdDot = i === closestDotIndex;
 
-                // Determine the color based on progress percentage
                 const getProgressColor = () => {
                   if (progressPercentage <= 50) {
-                    return 'bg-green-500'; // Green for 0-50%
+                    return 'bg-green-500';
                   } else if (progressPercentage <= 75) {
-                    return 'bg-yellow-500'; // Yellow for 51-75%
+                    return 'bg-yellow-500';
                   } else if (progressPercentage <= 90) {
-                    return 'bg-orange-500'; // Orange for 76-90%
+                    return 'bg-orange-500';
                   } else {
-                    return 'bg-red-500'; // Red for 91-100%
+                    return 'bg-red-500';
                   }
                 };
 
