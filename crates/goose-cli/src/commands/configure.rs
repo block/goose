@@ -1193,11 +1193,6 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "goose recipe github repo",
             "goose will pull recipes from this repo if not found locally.",
         )
-        .item(
-            "scheduler",
-            "Scheduler Type",
-            "Choose between built-in cron scheduler or Temporal workflow engine",
-        )
         .interact()?;
 
     match setting_type {
@@ -1221,9 +1216,6 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "recipe" => {
             configure_recipe_dialog()?;
-        }
-        "scheduler" => {
-            configure_scheduler_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -1556,60 +1548,6 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
     } else {
         config.set_param(key_name, Value::String(input_value))?;
     }
-    Ok(())
-}
-
-fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
-    let config = Config::global();
-
-    // Check if GOOSE_SCHEDULER_TYPE is set as an environment variable
-    if std::env::var("GOOSE_SCHEDULER_TYPE").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_SCHEDULER_TYPE environment variable is set and will override the configuration here.");
-    }
-
-    // Get current scheduler type from config for display
-    let current_scheduler: String = config
-        .get_param("GOOSE_SCHEDULER_TYPE")
-        .unwrap_or_else(|_| "legacy".to_string());
-
-    println!(
-        "Current scheduler type: {}",
-        style(&current_scheduler).cyan()
-    );
-
-    let scheduler_type = cliclack::select("Which scheduler type would you like to use?")
-        .items(&[
-            ("legacy", "Built-in Cron (Default)", "Uses goose's built-in cron scheduler. Simple and reliable for basic scheduling needs."),
-            ("temporal", "Temporal", "Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.")
-        ])
-        .interact()?;
-
-    match scheduler_type {
-        "legacy" => {
-            config.set_param("GOOSE_SCHEDULER_TYPE", Value::String("legacy".to_string()))?;
-            cliclack::outro(
-                "Set to Built-in Cron scheduler - simple and reliable for basic scheduling",
-            )?;
-        }
-        "temporal" => {
-            config.set_param(
-                "GOOSE_SCHEDULER_TYPE",
-                Value::String("temporal".to_string()),
-            )?;
-            cliclack::outro(
-                "Set to Temporal scheduler - advanced workflow engine for complex scheduling",
-            )?;
-            println!();
-            println!("📋 {}", style("Note:").bold());
-            println!("  • Temporal scheduler requires Temporal CLI to be installed");
-            println!("  • macOS: brew install temporal");
-            println!("  • Linux/Windows: https://github.com/temporalio/cli/releases");
-            println!("  • If Temporal is unavailable, goose will automatically fall back to the built-in scheduler");
-            println!("  • The scheduling engines do not share the list of schedules");
-        }
-        _ => unreachable!(),
-    };
-
     Ok(())
 }
 

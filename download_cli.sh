@@ -250,41 +250,14 @@ else
   mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
-# Also move temporal-service and temporal CLI if they exist
+# Copy Windows runtime DLLs if they exist
 if [ "$OS" = "windows" ]; then
-  if [ -f "$EXTRACT_DIR/temporal-service.exe" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
-    mv "$EXTRACT_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal.exe" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal.exe"
-    mv "$EXTRACT_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal.exe"
-  fi
-  
-  # Copy Windows runtime DLLs if they exist
   for dll in "$EXTRACT_DIR"/*.dll; do
     if [ -f "$dll" ]; then
       echo "Moving Windows runtime DLL: $(basename "$dll")"
       mv "$dll" "$GOOSE_BIN_DIR/"
     fi
   done
-else
-  if [ -f "$EXTRACT_DIR/temporal-service" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-    mv "$EXTRACT_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal"
-    mv "$EXTRACT_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
-    chmod +x "$GOOSE_BIN_DIR/temporal"
-  fi
 fi
 
 # skip configuration for non-interactive installs e.g. automation, docker

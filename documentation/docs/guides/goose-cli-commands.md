@@ -326,10 +326,6 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
 
-**Temporal Commands (requires Temporal CLI):**
-- `services-status`: Check if any Temporal services are running
-- `services-stop`: Stop any running Temporal services
-
 **Options:**
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression)
