@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, getThinkingMessage, hasCompletedToolCalls } from '../types/message';
+import {
+  createUserMessage,
+  getThinkingMessage,
+  getCompactingMessage,
+  hasCompletedToolCalls,
+} from '../types/message';
 import { Conversation, Message, Role } from '../api';
 
 import { getSession, Session } from '../api';
@@ -307,7 +312,9 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
-                    if (getThinkingMessage(newMessage)) {
+                    if (getCompactingMessage(newMessage)) {
+                      mutateChatState(ChatState.Compacting);
+                    } else if (getThinkingMessage(newMessage)) {
                       mutateChatState(ChatState.Thinking);
                     }
 

@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
 title: Shareable Recipes
-description: "Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click"
+description: "Share a goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click"
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Bot } from 'lucide-react';
 
-Sometimes you finish a task in Goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
+Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
-You can turn your current Goose session into a reusable recipe that includes the tools, goals, and setup you're using right now and package it into a new Agent that others (or future you) can launch with a single click.
+You can turn your current goose session into a reusable recipe that includes the tools, goals, and setup you're using right now and package it into a new Agent that others (or future you) can launch with a single click.
 
 ## Create Recipe
 
