@@ -1199,10 +1199,10 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    if recipe.prompt.is_none() {
+    if recipe.prompt.as_ref().map_or(true, |s| s.trim().is_empty()) {
         let error_message = Message::assistant().with_text(format!(
             "Schedule Execution Failed\n\n\
-             This recipe does not have a 'prompt' field, which is required for scheduled execution.\n\n\
+             This recipe does not have a valid 'prompt' field, which is required for scheduled execution.\n\n\
              Recipe file: {}\n\n\
              To fix this issue, add a 'prompt' field to your recipe with the instructions you want the AI to execute.\n\
              Example:\n\
@@ -1232,7 +1232,7 @@ async fn run_scheduled_job_internal(
             })?;
 
         tracing::error!(
-            "[Job {}] Recipe '{}' has no prompt to execute. Created session {} with error message.",
+            "[Job {}] Recipe '{}' has no valid prompt to execute. Created session {} with error message.",
             job.id,
             job.source,
             session.id
