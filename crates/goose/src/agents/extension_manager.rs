@@ -13,6 +13,7 @@ use rmcp::transport::{
 };
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -176,7 +177,7 @@ impl Default for ExtensionManager {
     }
 }
 
-fn path_var_for_extensions() -> Result<String, crate::config::ConfigError> {
+fn path_var_for_extensions() -> Result<OsString, crate::config::ConfigError> {
     let mut paths: Vec<_> = env::var_os("PATH")
         .map(|p| env::split_paths(&p).collect())
         .unwrap_or_default();
@@ -191,9 +192,7 @@ fn path_var_for_extensions() -> Result<String, crate::config::ConfigError> {
     paths.extend(to_add.into_iter().map(PathBuf::from));
 
     Ok(env::join_paths(paths)
-        .map_err(|e| crate::config::ConfigError::DeserializeError(format!("{}", e)))?
-        .to_string_lossy()
-        .to_string())
+        .map_err(|e| crate::config::ConfigError::DeserializeError(format!("{}", e)))?)
 }
 
 async fn child_process_client(
