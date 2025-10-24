@@ -492,6 +492,43 @@ impl ExtensionManager {
 
                 Box::new(client)
             }
+            ExtensionConfig::Lsp {
+                name,
+                language_id,
+                cmd,
+                args,
+                envs,
+                env_keys,
+                root_patterns,
+                instructions,
+                ..
+            } => {
+                use crate::agents::lsp_extension::LspMcpClient;
+                use crate::lsp::LspConfig;
+
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+
+                let workspace_root = std::env::current_dir().map_err(|e| {
+                    ExtensionError::ConfigError(format!("Failed to get current directory: {}", e))
+                })?;
+
+                let lsp_config = LspConfig {
+                    name: name.clone(),
+                    language_id: language_id.clone(),
+                    cmd: cmd.clone(),
+                    args: args.clone(),
+                    envs: all_envs,
+                    root_patterns: root_patterns.clone(),
+                    workspace_root,
+                    instructions: instructions.clone(),
+                };
+
+                let lsp_client = LspMcpClient::new(lsp_config).await.map_err(|e| {
+                    ExtensionError::SetupError(format!("Failed to create LSP client: {}", e))
+                })?;
+
+                Box::new(lsp_client)
+            }
             ExtensionConfig::Frontend { .. } => {
                 return Err(ExtensionError::ConfigError(
                     "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
@@ -1082,7 +1119,8 @@ impl ExtensionManager {
                     | ExtensionConfig::StreamableHttp { description, .. }
                     | ExtensionConfig::Stdio { description, .. }
                     | ExtensionConfig::Frontend { description, .. }
-                    | ExtensionConfig::InlinePython { description, .. } => description,
+                    | ExtensionConfig::InlinePython { description, .. }
+                    | ExtensionConfig::Lsp { description, .. } => description,
                 };
                 disabled_extensions.push(format!("- {} - {}", config.name(), description));
             }

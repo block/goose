@@ -309,6 +309,34 @@ pub enum ExtensionConfig {
         #[serde(default)]
         available_tools: Vec<String>,
     },
+    /// Language Server Protocol extension via stdio
+    #[serde(rename = "lsp")]
+    Lsp {
+        /// The name used to identify this extension
+        name: String,
+        description: String,
+        /// Language ID for the LSP server (e.g., "typescript", "python", "rust")
+        language_id: String,
+        /// Command to execute
+        cmd: String,
+        /// Command arguments
+        args: Vec<String>,
+        #[serde(default)]
+        envs: Envs,
+        #[serde(default)]
+        env_keys: Vec<String>,
+        /// Patterns to find project root (e.g., ["package.json", "tsconfig.json"])
+        #[serde(default)]
+        root_patterns: Vec<String>,
+        /// Instructions for how to use the LSP tools
+        #[serde(default)]
+        instructions: Option<String>,
+        timeout: Option<u64>,
+        #[serde(default)]
+        bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
+    },
 }
 
 impl Default for ExtensionConfig {
@@ -438,6 +466,7 @@ impl ExtensionConfig {
             Self::Platform { name, .. } => name,
             Self::Frontend { name, .. } => name,
             Self::InlinePython { name, .. } => name,
+            Self::Lsp { name, .. } => name,
         }
         .to_string()
     }
@@ -461,6 +490,9 @@ impl ExtensionConfig {
                 available_tools, ..
             }
             | Self::InlinePython {
+                available_tools, ..
+            }
+            | Self::Lsp {
                 available_tools, ..
             }
             | Self::Frontend {
@@ -494,6 +526,9 @@ impl std::fmt::Display for ExtensionConfig {
             ExtensionConfig::InlinePython { name, code, .. } => {
                 write!(f, "InlinePython({}: {} chars)", name, code.len())
             }
+            ExtensionConfig::Lsp {
+                name, language_id, ..
+            } => write!(f, "Lsp({}: {})", name, language_id),
         }
     }
 }
