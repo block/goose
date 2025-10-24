@@ -197,9 +197,7 @@ mod tests {
         });
 
         let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert!(recipe.context.is_some());
         assert!(recipe.activities.is_some());
-        assert_eq!(recipe.context.unwrap(), vec!["context1", "context2"]);
         assert_eq!(recipe.activities.unwrap(), vec!["activity1", "activity2"]);
     }
 
@@ -278,7 +276,6 @@ mod tests {
         // Invalid fields should be ignored (None)
         assert!(recipe.settings.is_none());
         assert!(recipe.extensions.is_none());
-        assert!(recipe.context.is_none());
         assert!(recipe.activities.is_none());
     }
 
