@@ -1,4 +1,5 @@
 use crate::mcp_utils::ToolResult;
+use crate::providers::base::Provider;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -8,6 +9,13 @@ use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<Content>>)>>>;
+
+/// This is used when we want to share the agent's current provider
+/// There are a lot of components to this definition so breaking it down:
+/// `Arc` enables shared ownership across threads or async contexts
+/// `Mutex` ensures mutable access is synchronized
+/// `Option` represents that a provider may or may not be set
+pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
 
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
