@@ -2,7 +2,9 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
+use super::utils::{
+    get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
+};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -213,7 +215,8 @@ impl Provider for OllamaProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -270,16 +273,53 @@ impl Provider for OllamaProvider {
         let model_config = self.model.clone();
 
         Ok(Box::pin(try_stream! {
+            let mut log = RequestLog::start(&model_config, &payload)?;
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| &f.usage))?;
                 yield (message, usage);
             }
         }))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self
+            .api_client
+            .response_get("api/tags")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        // Sort alphabetically
+        model_names.sort();
+
+        Ok(Some(model_names))
     }
 }
 

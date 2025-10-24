@@ -130,13 +130,14 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
-debug-ui:
-	@echo "🚀 Starting goose frontend in external backend mode"
-	cd ui/desktop && \
-	export GOOSE_EXTERNAL_BACKEND=true && \
-	export GOOSE_EXTERNAL_PORT=3000 && \
-	npm install && \
-	npm run start-gui
+debug-ui *alpha:
+    @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
+    cd ui/desktop && \
+    export GOOSE_EXTERNAL_BACKEND=true && \
+    export GOOSE_EXTERNAL_PORT=3000 && \
+    {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
+    npm install && \
+    npm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}
 
 # Run UI with main process debugging enabled
 # To debug main process:

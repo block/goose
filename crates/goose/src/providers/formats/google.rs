@@ -130,7 +130,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .collect()
 }
 
-/// Convert internal Tool format to Google's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     tools
         .iter()
@@ -139,7 +138,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             parameters.insert("name".to_string(), json!(tool.name));
             parameters.insert("description".to_string(), json!(tool.description));
             let tool_input_schema = &tool.input_schema;
-            // Only add the parameters key if the tool schema has non-empty properties.
+
             if tool_input_schema
                 .get("properties")
                 .and_then(|v| v.as_object())
@@ -155,8 +154,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         .collect()
 }
 
-/// Get the accepted keys for a given parent key in the JSON schema.
-fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
+pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
     match parent_key {
         Some("properties") => vec![
             "anyOf",
@@ -179,7 +177,7 @@ fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
 /// Process a JSON map to filter out unsupported attributes, mirroring the logic
 /// from the official Google Gemini CLI.
 /// See: https://github.com/google-gemini/gemini-cli/blob/8a6509ffeba271a8e7ccb83066a9a31a5d72a647/packages/core/src/tools/tool-registry.ts#L356
-fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
+pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
     let accepted_keys = get_accepted_keys(parent_key);
     let filtered_map: Map<String, Value> = map
         .iter()

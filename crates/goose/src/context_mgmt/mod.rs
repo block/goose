@@ -93,14 +93,6 @@ pub async fn compact_messages(
         final_token_counts.push(0);
     }
 
-    // Add the compaction marker (user_visible=true, agent_visible=false)
-    let compaction_marker = Message::assistant()
-        .with_conversation_compacted("Conversation compacted and summarized")
-        .with_metadata(MessageMetadata::user_only());
-    let compaction_marker_tokens: usize = 0; // Not counted since agent_visible=false
-    final_messages.push(compaction_marker);
-    final_token_counts.push(compaction_marker_tokens);
-
     // Add the summary message (agent_visible=true, user_visible=false)
     let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
     // For token counting purposes, we use the output tokens (the actual summary content)
@@ -281,7 +273,9 @@ fn format_message_for_compacting(msg: &Message) -> String {
             }
             MessageContent::Thinking(thinking) => format!("thinking: {}", thinking.thinking),
             MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
-            MessageContent::ConversationCompacted(compact) => format!("compacted: {}", compact.msg),
+            MessageContent::SystemNotification(notification) => {
+                format!("system_notification: {}", notification.msg)
+            }
         })
         .collect();
 
