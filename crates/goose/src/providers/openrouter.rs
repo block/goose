@@ -257,7 +257,6 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create the base payload
         let payload = create_request_based_on_model(self, system, messages, tools).await?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
