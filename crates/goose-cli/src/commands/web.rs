@@ -290,7 +290,7 @@ async fn list_sessions() -> Json<serde_json::Value> {
                 session_info.push(serde_json::json!({
                     "name": session.id,
                     "path": session.id,
-                    "description": session.description,
+                    "description": session.name,
                     "message_count": session.message_count,
                     "working_dir": session.working_dir
                 }));

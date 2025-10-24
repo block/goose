@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 import { Conversation, Message, resumeAgent, Session } from '../api';
 import { getApiUrl } from '../config';
-import { createUserMessage } from '../types/message';
+import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
 const TextDecoder = globalThis.TextDecoder;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -112,6 +112,7 @@ async function streamFromResponse(
   initialMessages: Message[],
   updateMessages: (messages: Message[]) => void,
   updateTokenState: (tokenState?: TokenState) => void,
+  updateChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let chunkCount = 0;
@@ -155,6 +156,14 @@ async function streamFromResponse(
               messageEventCount++;
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
+
+              if (getCompactingMessage(msg)) {
+                log.state(ChatState.Compacting, { reason: 'compacting notification' });
+                updateChatState(ChatState.Compacting);
+              } else if (getThinkingMessage(msg)) {
+                log.state(ChatState.Thinking, { reason: 'thinking notification' });
+                updateChatState(ChatState.Thinking);
+              }
 
               // Only log every 10th message event to avoid spam
               if (messageEventCount % 10 === 0) {
@@ -275,11 +284,11 @@ export function useChatStream({
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
-    setChatState(ChatState.Thinking);
+    setChatState(ChatState.LoadingConversation);
 
     let cancelled = false;
 
-    log.state(ChatState.Thinking, { reason: 'session load start' });
+    log.state(ChatState.LoadingConversation, { reason: 'session load start' });
 
     (async () => {
       try {
@@ -295,7 +304,7 @@ export function useChatStream({
         const session = response.data;
         log.session('loaded', sessionId, {
           messageCount: session?.conversation?.length || 0,
-          description: session?.description,
+          name: session?.name,
         });
 
         setSession(session);
@@ -359,6 +368,7 @@ export function useChatStream({
           currentMessages,
           (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
           setTokenState,
+          setChatState,
           onFinish
         );
 

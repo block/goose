@@ -14,7 +14,7 @@ const TRUNCATED_DESC_LENGTH: usize = 60;
 pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
-        println!("- {} {}", session.id, session.description);
+        println!("- {} {}", session.id, session.name);
     }
 
     let should_delete = confirm("Are you sure you want to delete these sessions?")
@@ -46,10 +46,10 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.description
+                &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
             let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
@@ -155,10 +155,7 @@ pub async fn handle_session_list(
 
             println!("Available sessions:");
             for session in sessions {
-                let output = format!(
-                    "{} - {} - {}",
-                    session.id, session.description, session.updated_at
-                );
+                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
                 println!("{}", output);
             }
         }
@@ -189,7 +186,7 @@ pub async fn handle_session_export(
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.messages().to_vec(), &session.description)
+            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
         }
         _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
@@ -323,10 +320,10 @@ pub async fn prompt_interactive_session_selection() -> Result<String> {
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.description
+                &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 

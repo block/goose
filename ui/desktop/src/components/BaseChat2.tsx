@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
-import { getThinkingMessage } from '../types/message';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
@@ -23,6 +22,7 @@ import { scanRecipe } from '../recipe';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
+import { getThinkingMessage } from '../types/message';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
@@ -181,18 +181,11 @@ function BaseChatContent({
     messages,
     recipe,
     sessionId,
-    title: session?.description || 'No Session',
+    name: session?.name || 'No Session',
   };
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
-  // Map chatState to LoadingGoose message
-  const getLoadingMessage = (): string | undefined => {
-    if (messages.length === 0 && chatState === ChatState.Thinking) {
-      return 'loading conversation...';
-    }
-    return getThinkingMessage(messages[messages.length - 1]);
-  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -262,10 +255,16 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {/* Fixed loading indicator at bottom left of chat container */}
           {chatState !== ChatState.Idle && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
+              <LoadingGoose
+                chatState={chatState}
+                message={
+                  messages.length > 0
+                    ? getThinkingMessage(messages[messages.length - 1])
+                    : undefined
+                }
+              />
             </div>
           )}
         </div>
