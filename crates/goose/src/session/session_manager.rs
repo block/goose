@@ -431,6 +431,7 @@ impl SessionStorage {
             CREATE TABLE sessions (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
                 user_set_name BOOLEAN DEFAULT FALSE,
                 working_dir TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -711,7 +712,7 @@ impl SessionStorage {
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         let mut session = sqlx::query_as::<_, Session>(
             r#"
-        SELECT id, working_dir, name, user_set_name, created_at, updated_at, extension_data,
+        SELECT id, working_dir, name, description, user_set_name, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                schedule_id, recipe_json, user_recipe_values_json
@@ -928,7 +929,7 @@ impl SessionStorage {
     async fn list_sessions(&self) -> Result<Vec<Session>> {
         sqlx::query_as::<_, Session>(
             r#"
-        SELECT s.id, s.working_dir, s.name, s.user_set_name, s.created_at, s.updated_at, s.extension_data,
+        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                s.schedule_id, s.recipe_json, s.user_recipe_values_json,
