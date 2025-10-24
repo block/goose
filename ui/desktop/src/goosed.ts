@@ -28,8 +28,9 @@ export const findAvailablePort = (): Promise<number> => {
 
 // Check if goosed server is ready by polling the status endpoint
 export const checkServerStatus = async (client: Client): Promise<boolean> => {
-  const interval = 100;
-  const maxAttempts = 200;
+  const interval = 100; // ms
+  const maxAttempts = 1200; // 120s
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await status({ client, throwOnError: true });
