@@ -17,6 +17,11 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::state::AppState;
 
+/// Global log configuration, persisted to disk
+static LOG_CONFIG: Lazy<AsyncMutex<LogConfig>> = Lazy::new(|| {
+    AsyncMutex::new(LogConfig::default())
+});
+
 /// Response containing log directory size information
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -55,6 +60,35 @@ pub struct ClearLogsResponse {
 pub struct LogPathResponse {
     /// Log directory path
     pub log_path: String,
+}
+
+/// Log configuration settings
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct LogConfig {
+    /// Archive threshold in bytes (default 1 GiB)
+    pub archive_threshold_bytes: u64,
+    /// Delete threshold in bytes (default 5 GiB)
+    pub delete_threshold_bytes: u64,
+    /// Check interval in seconds (default 60)
+    pub check_interval_secs: u64,
+    /// Cooldown between actions in seconds (default 24 hours)
+    pub cooldown_secs: u64,
+    /// Whether auto-rotation is enabled
+    pub auto_rotation_enabled: bool,
+}
+
+/// Default log config
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            archive_threshold_bytes: 1 * 1024 * 1024 * 1024, // 1 GiB
+            delete_threshold_bytes: 5 * 1024 * 1024 * 1024,  // 5 GiB
+            check_interval_secs: 60,
+            cooldown_secs: 24 * 60 * 60, // 24 hours
+            auto_rotation_enabled: true,
+        }
+    }
 }
 
 /// Get the base log directory path
@@ -326,28 +360,130 @@ pub async fn get_log_path(_state: State<AppState>) -> impl IntoResponse {
     }
 }
 
+/// Handler to get current log configuration
+pub async fn get_log_config(_state: State<AppState>) -> impl IntoResponse {
+    let config = LOG_CONFIG.lock().await.clone();
+    (StatusCode::OK, Json(config))
+}
+
+/// Handler to update log configuration
+pub async fn update_log_config(
+    _state: State<AppState>,
+    Json(new_config): Json<LogConfig>,
+) -> impl IntoResponse {
+    // Validate config
+    if new_config.archive_threshold_bytes >= new_config.delete_threshold_bytes {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Archive threshold must be less than delete threshold"
+            })),
+        );
+    }
+    if new_config.check_interval_secs == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Check interval must be greater than 0"
+            })),
+        );
+    }
+
+    let mut config = LOG_CONFIG.lock().await;
+    *config = new_config;
+    info!("Updated log configuration: {:?}", config);
+    (StatusCode::OK, Json(config.clone()))
+}
+
 /// Configure log management routes
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/logs/size", get(get_log_size))
         .route("/logs/clear", post(clear_logs))
         .route("/logs/path", get(get_log_path))
+        .route("/logs/config", get(get_log_config).put(update_log_config))
         .with_state(state.as_ref().clone())
 }
 
 /// Background monitor to automatically archive/delete logs according to thresholds.
 /// Runs periodically in a background task. Uses a 24-hour cooldown between archive/delete actions by default.
 pub fn start_log_monitor(state: Arc<AppState>) {
-    // Default thresholds and intervals
-    const ARCHIVE_THRESHOLD_BYTES: u64 = 1_073_741_824; // 1 GiB
-    const DELETE_THRESHOLD_BYTES: u64 = 5_368_709_120; // 5 GiB
-    const CHECK_INTERVAL_SECS: u64 = 60; // 60 seconds
-    const COOLDOWN_SECS: u64 = 24 * 3600; // 24 hours
-
     static LAST_ARCHIVE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
         Lazy::new(|| AsyncMutex::new(None));
     static LAST_DELETE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
         Lazy::new(|| AsyncMutex::new(None));
+
+    tokio::spawn(async move {
+        info!("Starting log auto-rotation monitor");
+
+        loop {
+            // Get current config
+            let config = LOG_CONFIG.lock().await.clone();
+
+            if !config.auto_rotation_enabled {
+                sleep(Duration::from_secs(config.check_interval_secs)).await;
+                continue;
+            }
+
+            // Check if we should archive or delete
+            if let Ok(log_dir) = get_log_base_dir() {
+                if let Ok((total_size, _)) = compute_directory_size(&log_dir) {
+                    // Archive if over threshold and cooldown passed
+                    if total_size >= config.archive_threshold_bytes {
+                        let should_archive = {
+                            let mut last_archive = LAST_ARCHIVE.lock().await;
+                            match *last_archive {
+                                Some(last_time) => {
+                                    last_time.elapsed().unwrap_or_default().as_secs() >= config.cooldown_secs
+                                }
+                                None => true,
+                            }
+                        };
+
+                        if should_archive {
+                            info!("Log size {:.2} GB >= archive threshold {:.2} GB, archiving logs",
+                                  total_size as f64 / (1024.0 * 1024.0 * 1024.0),
+                                  config.archive_threshold_bytes as f64 / (1024.0 * 1024.0 * 1024.0));
+                            if let Err(e) = archive_all_logs(&log_dir).await {
+                                error!("Failed to archive logs: {}", e);
+                            } else {
+                                let mut last_archive = LAST_ARCHIVE.lock().await;
+                                *last_archive = Some(std::time::SystemTime::now());
+                            }
+                        }
+                    }
+
+                    // Delete if over delete threshold and cooldown passed
+                    if total_size >= config.delete_threshold_bytes {
+                        let should_delete = {
+                            let mut last_delete = LAST_DELETE.lock().await;
+                            match *last_delete {
+                                Some(last_time) => {
+                                    last_time.elapsed().unwrap_or_default().as_secs() >= config.cooldown_secs
+                                }
+                                None => true,
+                            }
+                        };
+
+                        if should_delete {
+                            info!("Log size {:.2} GB >= delete threshold {:.2} GB, deleting archived logs",
+                                  total_size as f64 / (1024.0 * 1024.0 * 1024.0),
+                                  config.delete_threshold_bytes as f64 / (1024.0 * 1024.0 * 1024.0));
+                            if let Err(e) = delete_archives_then_logs(&log_dir).await {
+                                error!("Failed to delete logs: {}", e);
+                            } else {
+                                let mut last_delete = LAST_DELETE.lock().await;
+                                *last_delete = Some(std::time::SystemTime::now());
+                            }
+                        }
+                    }
+                }
+            }
+
+            sleep(Duration::from_secs(config.check_interval_secs)).await;
+        }
+    });
+}
 
     let state_clone = state.clone();
 
@@ -411,7 +547,7 @@ pub fn start_log_monitor(state: Arc<AppState>) {
 }
 
 /// Archive all current logs (non-archived) into `archived/` folder. Returns error on failure.
-fn archive_all_logs(log_base_dir: &Path) -> Result<()> {
+async fn archive_all_logs(log_base_dir: &Path) -> Result<()> {
     let archive_dir = log_base_dir.join("archived");
     let log_files = find_log_files(log_base_dir)?;
 
@@ -428,7 +564,7 @@ fn archive_all_logs(log_base_dir: &Path) -> Result<()> {
 }
 
 /// Delete archives first, then non-archived logs if necessary until under threshold.
-fn delete_archives_then_logs(log_base_dir: &Path) -> Result<()> {
+async fn delete_archives_then_logs(log_base_dir: &Path) -> Result<()> {
     let archive_dir = log_base_dir.join("archived");
 
     // Collect archived files sorted by oldest first

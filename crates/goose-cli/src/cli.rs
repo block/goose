@@ -314,6 +314,45 @@ enum RecipeCommand {
 }
 
 #[derive(Subcommand)]
+enum LogCommand {
+    /// Show current log size and path
+    #[command(about = "Show current log size and path")]
+    Size,
+
+    /// Clear/archive log files
+    #[command(about = "Clear/archive log files")]
+    Clear,
+
+    /// Show current log configuration
+    #[command(about = "Show current log configuration")]
+    Config,
+
+    /// Set log configuration
+    #[command(about = "Set log configuration")]
+    Set {
+        /// Archive threshold in GB
+        #[arg(long, help = "Archive threshold in GB")]
+        archive_threshold_gb: Option<f64>,
+
+        /// Delete threshold in GB
+        #[arg(long, help = "Delete threshold in GB")]
+        delete_threshold_gb: Option<f64>,
+
+        /// Check interval in seconds
+        #[arg(long, help = "Check interval in seconds")]
+        check_interval_secs: Option<u64>,
+
+        /// Cooldown between actions in hours
+        #[arg(long, help = "Cooldown between actions in hours")]
+        cooldown_hours: Option<u64>,
+
+        /// Enable or disable auto-rotation
+        #[arg(long, help = "Enable or disable auto-rotation")]
+        auto_rotation: Option<bool>,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure goose settings
     #[command(about = "Configure goose settings")]
@@ -721,6 +760,13 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Manage log files and auto-rotation settings
+    #[command(about = "Manage log files and auto-rotation settings")]
+    Log {
+        #[command(subcommand)]
+        command: LogCommand,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -767,6 +813,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Log { .. }) => "log",
         None => "default_session",
     };
 
@@ -1239,6 +1286,10 @@ pub async fn cli() -> Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Log { command }) => {
+            crate::commands::log::handle_log(command).await?;
             return Ok(());
         }
         None => {
