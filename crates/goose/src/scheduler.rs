@@ -655,7 +655,8 @@ impl Scheduler {
                 schedule_sessions.push((session.id.clone(), session));
             }
         }
-        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
+        // Sort by created_at timestamp, newest first
+        schedule_sessions.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
 
         let result_sessions: Vec<(String, Session)> =
             schedule_sessions.into_iter().take(limit).collect();
