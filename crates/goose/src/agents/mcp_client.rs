@@ -1,21 +1,24 @@
-use rmcp::model::JsonObject;
+use crate::agents::types::SharedProvider;
+use rmcp::model::{Content, ErrorCode, JsonObject};
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
         CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
-        InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
-        ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
+        ClientRequest, CreateMessageRequestParam, CreateMessageResult, GetPromptRequest,
+        GetPromptRequestParam, GetPromptResult, Implementation, InitializeResult,
+        ListPromptsRequest, ListPromptsResult, ListResourcesRequest, ListResourcesResult,
+        ListToolsRequest, ListToolsResult, LoggingMessageNotification,
         LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
         ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
-        ReadResourceResult, RequestId, ServerNotification, ServerResult,
+        ReadResourceResult, RequestId, Role, SamplingMessage, ServerNotification, ServerResult,
     },
     service::{
-        ClientInitializeError, PeerRequestOptions, RequestHandle, RunningService, ServiceRole,
+        ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
+        ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, Peer, RoleClient, ServiceError, ServiceExt,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{sync::Arc, time::Duration};
@@ -76,12 +79,17 @@ pub trait McpClientTrait: Send + Sync {
 
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    provider: SharedProvider,
 }
 
 impl GooseClient {
-    pub fn new(handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>) -> Self {
+    pub fn new(
+        handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+        provider: SharedProvider,
+    ) -> Self {
         GooseClient {
             notification_handlers: handlers,
+            provider,
         }
     }
 }
@@ -127,10 +135,88 @@ impl ClientHandler for GooseClient {
             });
     }
 
+    async fn create_message(
+        &self,
+        params: CreateMessageRequestParam,
+        _context: RequestContext<RoleClient>,
+    ) -> Result<CreateMessageResult, ErrorData> {
+        let provider = self
+            .provider
+            .lock()
+            .await
+            .as_ref()
+            .ok_or(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Could not use provider",
+                None,
+            ))?
+            .clone();
+
+        let provider_ready_messages: Vec<crate::conversation::message::Message> = params
+            .messages
+            .iter()
+            .map(|msg| {
+                let base = match msg.role {
+                    Role::User => crate::conversation::message::Message::user(),
+                    Role::Assistant => crate::conversation::message::Message::assistant(),
+                };
+
+                match msg.content.as_text() {
+                    Some(text) => base.with_text(&text.text),
+                    None => base.with_content(msg.content.clone().into()),
+                }
+            })
+            .collect();
+
+        let system_prompt = params
+            .system_prompt
+            .as_deref()
+            .unwrap_or("You are a general-purpose AI agent called goose");
+
+        let (response, usage) = provider
+            .complete(system_prompt, &provider_ready_messages, &[])
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Unexpected error while completing the prompt",
+                    Some(Value::from(e.to_string())),
+                )
+            })?;
+
+        Ok(CreateMessageResult {
+            model: usage.model,
+            stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
+            message: SamplingMessage {
+                role: Role::Assistant,
+                // TODO(alexhancock): MCP sampling currently only supports one content on each SamplingMessage
+                // https://modelcontextprotocol.io/specification/draft/client/sampling#messages
+                // This doesn't mesh well with goose's approach which has Vec<MessageContent>
+                // There is a proposal to MCP which is agreed to go in the next version to have SamplingMessages support multiple content parts
+                // https://github.com/modelcontextprotocol/modelcontextprotocol/pull/198
+                // Until that is formalized, we can take the first message content from the provider and use it
+                content: if let Some(content) = response.content.first() {
+                    match content {
+                        crate::conversation::message::MessageContent::Text(text) => {
+                            Content::text(&text.text)
+                        }
+                        crate::conversation::message::MessageContent::Image(img) => {
+                            Content::image(&img.data, &img.mime_type)
+                        }
+                        // TODO(alexhancock) - Content::Audio? goose's messages don't currently have it
+                        _ => Content::text(""),
+                    }
+                } else {
+                    Content::text("")
+                },
+            },
+        })
+    }
+
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().build(),
+            capabilities: ClientCapabilities::builder().enable_sampling().build(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
@@ -155,6 +241,7 @@ impl McpClient {
     pub async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
+        provider: SharedProvider,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -163,7 +250,7 @@ impl McpClient {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(notification_subscribers.clone());
+        let client = GooseClient::new(notification_subscribers.clone(), provider);
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
         let server_info = client.peer_info().cloned();
