@@ -741,7 +741,7 @@ impl Config {
         Ok(())
     }
 
-    declare_param!(GOOSE_EXTENSIONS_PATHS, Vec<String>);
+    declare_param!(GOOSE_SEARCH_PATHS, Vec<String>);
 }
 
 /// Load init-config.yaml from workspace root if it exists.

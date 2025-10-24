@@ -35,6 +35,7 @@ use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::config::search_path::search_path_var;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
@@ -177,24 +178,6 @@ impl Default for ExtensionManager {
     }
 }
 
-fn path_var_for_extensions() -> Result<OsString, crate::config::ConfigError> {
-    let mut paths: Vec<_> = env::var_os("PATH")
-        .map(|p| env::split_paths(&p).collect())
-        .unwrap_or_default();
-
-    let to_add = Config::global()
-        .get_goose_extensions_paths()
-        .or_else(|err| match err {
-            crate::config::ConfigError::NotFound(_) => Ok(vec![]),
-            err => Err(err),
-        })?;
-
-    paths.extend(to_add.into_iter().map(PathBuf::from));
-
-    Ok(env::join_paths(paths)
-        .map_err(|e| crate::config::ConfigError::DeserializeError(format!("{}", e)))?)
-}
-
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -206,7 +189,7 @@ async fn child_process_client(
 
     command.env(
         "PATH",
-        path_var_for_extensions().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
+        search_path_var().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
     );
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
