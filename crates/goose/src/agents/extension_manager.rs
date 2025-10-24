@@ -12,9 +12,6 @@ use rmcp::transport::{
     TokioChildProcess,
 };
 use std::collections::HashMap;
-use std::env;
-use std::ffi::OsString;
-use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
