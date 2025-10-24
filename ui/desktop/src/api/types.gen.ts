@@ -63,39 +63,7 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-/**
- * Request payload for context management operations
- */
-export type ContextManageRequest = {
-    /**
-     * Collection of messages to be managed
-     */
-    messages: Array<Message>;
-    /**
-     * Optional session ID for session-specific agent
-     */
-    sessionId: string;
-};
-
-/**
- * Response from context management operations
- */
-export type ContextManageResponse = {
-    /**
-     * Processed messages after the operation
-     */
-    messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
-};
-
 export type Conversation = Array<Message>;
-
-export type ConversationCompacted = {
-    msg: string;
-};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -386,8 +354,8 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ConversationCompacted & {
-    type: 'conversationCompacted';
+}) | (SystemNotificationContent & {
+    type: 'systemNotification';
 });
 
 /**
@@ -759,6 +727,13 @@ export type SuccessCheck = {
     command: string;
     type: 'Shell';
 };
+
+export type SystemNotificationContent = {
+    msg: string;
+    notificationType: SystemNotificationType;
+};
+
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
 export type TextContent = {
     _meta?: {
@@ -1561,36 +1536,30 @@ export type ConfirmPermissionResponses = {
     200: unknown;
 };
 
-export type ManageContextData = {
-    body: ContextManageRequest;
-    path?: never;
+export type DiagnosticsData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
     query?: never;
-    url: '/context/manage';
+    url: '/diagnostics/{session_id}';
 };
 
-export type ManageContextErrors = {
+export type DiagnosticsErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
+     * Failed to generate diagnostics
      */
     500: unknown;
 };
 
-export type ManageContextResponses = {
+export type DiagnosticsResponses = {
     /**
-     * Context managed successfully
+     * Diagnostics zip file
      */
-    200: ContextManageResponse;
+    200: Blob | File;
 };
 
-export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

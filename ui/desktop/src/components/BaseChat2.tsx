@@ -4,7 +4,6 @@ import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -23,6 +22,7 @@ import { scanRecipe } from '../recipe';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
+import { getThinkingMessage } from '../types/message';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
@@ -168,8 +168,6 @@ function BaseChatContent({
 
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
-  // TODO(Douwe): get this from the backend
-  const isCompacting = false;
 
   const chat: ChatType = {
     messageHistoryIndex: 0,
@@ -181,14 +179,6 @@ function BaseChatContent({
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
-  // Map chatState to LoadingGoose message
-  const getLoadingMessage = (): string | undefined => {
-    if (isCompacting) return 'goose is compacting the conversation...';
-    if (messages.length === 0 && chatState === ChatState.Thinking) {
-      return 'loading conversation...';
-    }
-    return undefined;
-  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <h2>Warning: BaseChat2!</h2>
@@ -258,9 +248,16 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {(chatState !== ChatState.Idle || isCompacting) && !sessionLoadError && (
+          {chatState !== ChatState.Idle && !sessionLoadError && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={getLoadingMessage()} chatState={chatState} />
+              <LoadingGoose
+                chatState={chatState}
+                message={
+                  messages.length > 0
+                    ? getThinkingMessage(messages[messages.length - 1])
+                    : undefined
+                }
+              />
             </div>
           )}
         </div>
@@ -282,7 +279,6 @@ function BaseChatContent({
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={(_m) => {}}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
@@ -331,9 +327,5 @@ function BaseChatContent({
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }
