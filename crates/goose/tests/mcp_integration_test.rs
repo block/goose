@@ -203,7 +203,9 @@ async fn test_replayed_session(
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
-        extension_manager.add_extension(extension_config).await?;
+        extension_manager
+            .add_extension(extension_config, None)
+            .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
             let tool_call = CallToolRequestParam {

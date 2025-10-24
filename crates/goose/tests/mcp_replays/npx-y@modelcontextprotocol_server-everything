@@ -1,4 +1,4 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.0.0"}}}
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"sampling":{}},"clientInfo":{"name":"goose","version":"0.0.0"}}}
 STDERR: 2025-09-26 23:13:04 - Starting npx setup script.
 STDERR: 2025-09-26 23:13:04 - Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist.
 STDERR: 2025-09-26 23:13:04 - Changing to directory ~/.config/goose/mcp-hermit.
