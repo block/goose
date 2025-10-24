@@ -1,3 +1,4 @@
+mod chat_history_search;
 mod diagnostics;
 pub mod extension_data;
 mod legacy;
