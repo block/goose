@@ -19,7 +19,6 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
@@ -142,19 +141,7 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
-
-  // Draft functionality - get chat context and global draft context
-  // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
-  const chatContext = useChatContext(); // This should always be available now
-  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
-  const draftLoadedRef = useRef(false);
-
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-
-  // Debug logging for draft context
-  useEffect(() => {
-    // Debug logging removed - draft functionality is working correctly
-  }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -281,9 +268,6 @@ export default function ChatInput({
     setValue(initialValue);
     setDisplayValue(initialValue);
 
-    // Reset draft loaded flag when initialValue changes
-    draftLoadedRef.current = false;
-
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
@@ -312,38 +296,6 @@ export default function ChatInput({
       }, 0);
     }
   }, [recipeAccepted, initialPrompt, messages.length]);
-
-  // Draft functionality - load draft if no initial value or recipe
-  useEffect(() => {
-    // Reset draft loaded flag when context changes
-    draftLoadedRef.current = false;
-  }, [chatContext?.contextKey]);
-
-  useEffect(() => {
-    // Only load draft once and if conditions are met
-    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
-      const draftText = chatContext.draft || '';
-
-      if (draftText) {
-        setDisplayValue(draftText);
-        setValue(draftText);
-      }
-
-      // Always mark as loaded after checking, regardless of whether we found a draft
-      draftLoadedRef.current = true;
-    }
-  }, [chatContext, initialValue, recipe]);
-
-  // Save draft when user types (debounced)
-  const debouncedSaveDraft = useMemo(
-    () =>
-      debounce((value: string) => {
-        if (chatContext && chatContext.setDraft) {
-          chatContext.setDraft(value);
-        }
-      }, 500), // Save draft after 500ms of no typing
-    [chatContext]
-  );
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -636,13 +588,9 @@ export default function ChatInput({
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
-    setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
-    // Mark that the user has typed something
+    setDisplayValue(val);
+    updateValue(val);
     setHasUserTyped(true);
-
-    // Check for @ mention
     checkForMention(val, cursorPosition, evt.target);
   };
 
@@ -797,9 +745,8 @@ export default function ChatInput({
   useEffect(() => {
     return () => {
       debouncedAutosize.cancel?.();
-      debouncedSaveDraft.cancel?.();
     };
-  }, [debouncedAutosize, debouncedSaveDraft]);
+  }, [debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -938,7 +885,6 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
-    agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -992,11 +938,6 @@ export default function ChatInput({
         setIsInGlobalHistory(false);
         setHasUserTyped(false);
 
-        // Clear draft when message is sent
-        if (chatContext && chatContext.clearDraft) {
-          chatContext.clearDraft();
-        }
-
         // Clear both parent and local dropped files after processing
         if (onFilesProcessed && droppedFiles.length > 0) {
           onFilesProcessed();
@@ -1008,7 +949,6 @@ export default function ChatInput({
     },
     [
       allDroppedFiles,
-      chatContext,
       displayValue,
       droppedFiles.length,
       handleSubmit,
@@ -1094,7 +1034,6 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1148,7 +1087,6 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    !agentIsReady ||
     isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
@@ -1400,7 +1338,7 @@ export default function ChatInput({
                           ? 'Recording...'
                           : isTranscribing
                             ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                            : 'Send'}
                 </p>
               </TooltipContent>
             </Tooltip>
