@@ -19,13 +19,13 @@ This guide will cover enabling and using the Auto Visualiser MCP Server.
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Auto Visualiser"
     description="Automatically generate interactive data visualizations"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Run the `configure` command:
   ```sh

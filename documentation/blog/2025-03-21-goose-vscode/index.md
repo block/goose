@@ -51,7 +51,7 @@ The features don't end here. The team is actively exploring several exciting fea
 - **Potential VS Code sidebar integration for Goose chat** - Andrew showed a quick preview of an early prototype showing Goose running directly inside VS Code.
 
 # Community and Contributing
-The project is open source, and welcomes contributions from the community. If you'd like to support the project or directly contribute to it, you can check out [the VSCode MCP repo on GitHub](https://github.com/block/vscode-mcp), or [join the Block Open Source Discord](https://discord.gg/block-opensource) if you'd like to ask the team any questions or start discussions.
+The project is open source, and welcomes contributions from the community. If you'd like to support the project or directly contribute to it, you can check out [the VSCode MCP repo on GitHub](https://github.com/block/vscode-mcp), or [join the Block Open Source Discord](https://discord.gg/goose-oss) if you'd like to ask the team any questions or start discussions.
 
 You can also follow the [tutorial showing you how to integrate VS Code with Goose](/docs/mcp/vs-code-mcp).
 

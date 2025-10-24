@@ -27,6 +27,7 @@ pub struct CreateDynamicTaskParams {
 
     /// How to execute multiple tasks (default: parallel for multiple tasks, sequential for single task)
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
     pub execution_mode: Option<ExecutionModeParam>,
 }
 
@@ -47,6 +48,8 @@ impl From<ExecutionModeParam> for ExecutionMode {
     }
 }
 
+type JsonObject = serde_json::Map<String, Value>;
+
 /// Parameters for a single task
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TaskParameter {
@@ -63,19 +66,19 @@ pub struct TaskParameter {
     pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub extensions: Option<Vec<Value>>,
+    pub extensions: Option<Vec<JsonObject>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<Value>,
+    pub settings: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Vec<Value>>,
+    pub parameters: Option<Vec<JsonObject>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<Value>,
+    pub response: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<Value>,
+    pub retry: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Vec<String>>,
@@ -86,6 +89,18 @@ pub struct TaskParameter {
     /// If true, return only the last message from the subagent (default: false, returns full conversation)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub return_last_only: Option<bool>,
+}
+
+pub fn should_enabled_subagents(model_name: &str) -> bool {
+    let config = crate::config::Config::global();
+    let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
+    if !is_autonomous {
+        return false;
+    }
+    if model_name.starts_with("gemini") {
+        return false;
+    }
+    true
 }
 
 pub fn create_dynamic_task_tool() -> Tool {

@@ -169,7 +169,7 @@ Start building your own cookbook generator, and stop doing the same work twice. 
 
 ## Contribute to Our Community Cookbook
 
-Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/block-opensource) or check out our [GitHub repository](https://github.com/block/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/block/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
+Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/goose-oss) or check out our [GitHub repository](https://github.com/block/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/block/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
 
 
 ## My Own Cookbook Generator Recipe

@@ -9,9 +9,7 @@ use goose::config::Config;
 use goose::recipe::build_recipe::{
     apply_values_to_parameters, build_recipe_from_template, RecipeError,
 };
-use goose::recipe::read_recipe_file_content::RecipeFile;
-use goose::recipe::template_recipe::render_recipe_for_preview;
-use goose::recipe::validate_recipe::validate_recipe_parameters;
+use goose::recipe::validate_recipe::parse_and_validate_parameters;
 use goose::recipe::Recipe;
 use serde_json::Value;
 
@@ -23,19 +21,16 @@ fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     }
 }
 
-fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> {
-    let recipe_file = load_recipe_file(recipe_name)?;
-    let recipe_dir_str = recipe_file
-        .parent_dir
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?
-        .to_string();
-    Ok((recipe_file, recipe_dir_str))
-}
-
 pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
     let recipe_file = load_recipe_file(recipe_name)?;
-    match build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback())) {
+    let recipe_content = recipe_file.content;
+    let recipe_dir = recipe_file.parent_dir;
+    match build_recipe_from_template(
+        recipe_content,
+        &recipe_dir,
+        params,
+        Some(create_user_prompt_callback()),
+    ) {
         Ok(recipe) => {
             let secret_requirements = discover_recipe_secrets(&recipe);
             if let Err(e) = collect_missing_secrets(&secret_requirements) {
@@ -132,10 +127,12 @@ pub fn render_recipe_as_yaml(recipe_name: &str, params: Vec<(String, String)>) -
 }
 
 pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {
-    let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
+    let recipe_file = load_recipe_file(recipe_name)?;
+    let recipe_dir_str = recipe_file.parent_dir.display().to_string();
     let recipe_file_content = &recipe_file.content;
-    let recipe_parameters =
-        validate_recipe_parameters(recipe_file_content, Some(recipe_dir_str.clone()))?;
+    let recipe_template =
+        parse_and_validate_parameters(recipe_file_content, Some(recipe_dir_str.clone()))?;
+    let recipe_parameters = recipe_template.parameters.clone();
 
     let (params_for_template, missing_params) = apply_values_to_parameters(
         &params,
@@ -143,12 +140,7 @@ pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Resul
         &recipe_dir_str,
         None::<fn(&str, &str) -> Result<String>>,
     )?;
-    let recipe = render_recipe_for_preview(
-        recipe_file_content,
-        Some(recipe_dir_str.clone()),
-        &params_for_template,
-    )?;
-    print_recipe_explanation(&recipe);
+    print_recipe_explanation(&recipe_template);
     print_required_parameters_for_template(params_for_template, missing_params);
 
     Ok(())

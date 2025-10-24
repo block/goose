@@ -8,12 +8,15 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import { deleteRecipe, RecipeManifestResponse } from '../../api';
+import { deleteRecipe, RecipeManifestResponse, startAgent } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink, Recipe } from '../../recipe';
+import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
+import { useNavigation } from '../../hooks/useNavigation';
 
 export default function RecipesView() {
+  const setView = useNavigation();
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -25,6 +28,8 @@ export default function RecipesView() {
   // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedRecipeForSchedule, setSelectedRecipeForSchedule] = useState<Recipe | null>(null);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -65,30 +70,50 @@ export default function RecipesView() {
     }
   };
 
-  const handleLoadRecipe = async (recipe: Recipe, recipeId: string) => {
-    try {
-      // onLoadRecipe is not working for loading recipes. It looks correct
-      // but the instructions are not flowing through to the server.
-      // Needs a fix but commenting out to get prod back up and running.
-      //
-      // if (onLoadRecipe) {
-      //   // Use the callback to navigate within the same window
-      //   onLoadRecipe(savedRecipe.recipe);
-      // } else {
-      // Fallback to creating a new window (for backwards compatibility)
-      window.electron.createChatWindow(
-        undefined, // query
-        undefined, // dir
-        undefined, // version
-        undefined, // resumeSessionId
-        recipe, // recipe config
-        undefined, // view type,
-        recipeId // recipe id
-      );
-      // }
-    } catch (err) {
-      console.error('Failed to load recipe:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load recipe');
+  const handleStartRecipeChat = async (recipe: Recipe, recipeId: string) => {
+    if (process.env.ALPHA) {
+      try {
+        const newAgent = await startAgent({
+          body: {
+            working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+            recipe,
+          },
+          throwOnError: true,
+        });
+        const session = newAgent.data;
+        setView('pair', {
+          disableAnimation: true,
+          resumeSessionId: session.id,
+        });
+      } catch (error) {
+        console.error('Failed to load recipe:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load recipe');
+      }
+    } else {
+      try {
+        // onLoadRecipe is not working for loading recipes. It looks correct
+        // but the instructions are not flowing through to the server.
+        // Needs a fix but commenting out to get prod back up and running.
+        //
+        // if (onLoadRecipe) {
+        //   // Use the callback to navigate within the same window
+        //   onLoadRecipe(savedRecipe.recipe);
+        // } else {
+        // Fallback to creating a new window (for backwards compatibility)
+        window.electron.createChatWindow(
+          undefined, // query
+          undefined, // dir
+          undefined, // version
+          undefined, // resumeSessionId
+          recipe, // recipe config
+          undefined, // view type,
+          recipeId // recipe id
+        );
+        // }
+      } catch (err) {
+        console.error('Failed to load recipe:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load recipe');
+      }
     }
   };
 
@@ -151,6 +176,19 @@ export default function RecipesView() {
     }
   };
 
+  const handleScheduleRecipe = (recipe: Recipe) => {
+    setSelectedRecipeForSchedule(recipe);
+    setShowScheduleModal(true);
+  };
+
+  const handleCreateScheduleFromRecipe = async (deepLink: string) => {
+    // Navigate to schedules view with the deep link in state
+    setView('schedules', { pendingScheduleDeepLink: deepLink });
+
+    setShowScheduleModal(false);
+    setSelectedRecipeForSchedule(null);
+  };
+
   // Render a recipe item
   const RecipeItem = ({
     recipeManifestResponse,
@@ -175,7 +213,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(recipe, recipeManifestResponse.id);
+              handleStartRecipeChat(recipe, recipeManifestResponse.id);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -210,6 +248,18 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
+              handleScheduleRecipe(recipe);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Create schedule"
+          >
+            <Calendar className="w-4 h-4" />
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
               handleDeleteRecipe(recipeManifestResponse);
             }}
             variant="ghost"
@@ -234,6 +284,7 @@ export default function RecipesView() {
           <Skeleton className="h-4 w-24" />
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-8" />
@@ -358,6 +409,18 @@ export default function RecipesView() {
             loadSavedRecipes();
           }}
           isCreateMode={true}
+        />
+      )}
+
+      {showScheduleModal && selectedRecipeForSchedule && (
+        <ScheduleFromRecipeModal
+          isOpen={showScheduleModal}
+          onClose={() => {
+            setShowScheduleModal(false);
+            setSelectedRecipeForSchedule(null);
+          }}
+          recipe={selectedRecipeForSchedule}
+          onCreateSchedule={handleCreateScheduleFromRecipe}
         />
       )}
     </>

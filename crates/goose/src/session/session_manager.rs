@@ -63,9 +63,7 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    /// Total number of sessions
     total_sessions: usize,
-    /// Total tokens used across all sessions
     total_tokens: i64,
 }
 
@@ -366,8 +364,7 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(create_if_missing)
-            .busy_timeout(std::time::Duration::from_secs(5))
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            .busy_timeout(std::time::Duration::from_secs(5));
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(
@@ -643,7 +640,7 @@ impl SessionStorage {
 
     async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let session_id = sqlx::query_as(
+        Ok(sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, description, working_dir, extension_data)
                 VALUES (
@@ -664,13 +661,7 @@ impl SessionStorage {
         .bind(&description)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
-        .await?;
-
-        sqlx::query("PRAGMA wal_checkpoint")
-            .execute(&self.pool)
-            .await?;
-
-        Ok(session_id)
+        .await?)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -805,7 +796,9 @@ impl SessionStorage {
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
+        for (idx, (role_str, content_json, created_timestamp, metadata_json)) in
+            rows.into_iter().enumerate()
+        {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -819,6 +812,8 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
+            // TODO(Douwe): make id required
+            message = message.with_id(format!("msg_{}_{}", session_id, idx));
             messages.push(message);
         }
 
