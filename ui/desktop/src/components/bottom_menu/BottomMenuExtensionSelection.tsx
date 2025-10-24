@@ -39,7 +39,15 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, [extensionsList]);
 
   const fetchExtensions = useCallback(async () => {
-    await getExtensions(true);
+    try {
+      await getExtensions(true);
+    } catch (error) {
+      toastService.error({
+        title: 'Extension Fetch Error',
+        msg: 'Failed to refresh extensions list',
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    }
   }, [getExtensions]);
 
   const handleToggle = useCallback(
@@ -101,7 +109,15 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, [extensions]);
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) {
+          setSearchQuery(''); // Reset search when closing
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs"
@@ -119,6 +135,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 text-sm"
+            autoFocus
           />
         </div>
         <div className="max-h-[400px] overflow-y-auto">
