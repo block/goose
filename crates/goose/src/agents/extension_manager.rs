@@ -182,8 +182,8 @@ fn path_var_for_extensions() -> Result<OsString, crate::config::ConfigError> {
         .map(|p| env::split_paths(&p).collect())
         .unwrap_or_default();
 
-    let to_add: Vec<String> = Config::global()
-        .get_param("GOOSE_EXTENSIONS_PATHS")
+    let to_add = Config::global()
+        .get_goose_extensions_paths()
         .or_else(|err| match err {
             crate::config::ConfigError::NotFound(_) => Ok(vec![]),
             err => Err(err),

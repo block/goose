@@ -2648,6 +2648,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "paste",
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
