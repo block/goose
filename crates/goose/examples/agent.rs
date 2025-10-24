@@ -37,7 +37,7 @@ async fn main() {
     .unwrap();
 
     let mut stream = agent.reply(conversation, None, None).await.unwrap();
-    while let Some(Ok(AgentEvent::Message(message, _usage))) = stream.next().await {
+    while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");
     }

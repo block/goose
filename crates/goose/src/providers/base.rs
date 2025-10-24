@@ -298,7 +298,6 @@ impl Usage {
         output_tokens: Option<i32>,
         total_tokens: Option<i32>,
     ) -> Self {
-        // If total_tokens is not provided, calculate it from input + output
         let calculated_total = if total_tokens.is_none() {
             match (input_tokens, output_tokens) {
                 (Some(input), Some(output)) => Some(input + output),

@@ -306,7 +306,6 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            // Always fetch session and create token state so client has latest accumulated tokens
                             let token_state = match SessionManager::get_session(&session_id, false).await {
                                 Ok(session) => {
                                     Some(goose::session::session_manager::TokenState {
