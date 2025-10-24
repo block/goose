@@ -35,6 +35,7 @@ use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
+use crate::providers::base::Provider;
 use rmcp::model::{
     CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
     ServerInfo, Tool,
@@ -177,6 +178,7 @@ impl Default for ExtensionManager {
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
+    provider: Option<Arc<dyn Provider>>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -198,6 +200,7 @@ async fn child_process_client(
     let client_result = McpClient::connect(
         transport,
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+        provider,
     )
     .await;
 
@@ -263,7 +266,7 @@ impl ExtensionManager {
             .any(|ext| ext.supports_resources())
     }
 
-    pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, config: ExtensionConfig, provider: Option<Arc<dyn Provider>>) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
         let mut temp_dir = None;
@@ -341,6 +344,7 @@ impl ExtensionManager {
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
+                        provider.clone(),
                     )
                     .await?,
                 )
@@ -381,6 +385,7 @@ impl ExtensionManager {
                     Duration::from_secs(
                         timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                     ),
+                    provider.clone(),
                 )
                 .await;
                 let client = if let Some(_auth_error) = extract_auth_error(&client_res) {
@@ -400,6 +405,7 @@ impl ExtensionManager {
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
+                        provider.clone(),
                     )
                     .await?
                 } else {
@@ -423,7 +429,7 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let client = child_process_client(command, timeout).await?;
+                let client = child_process_client(command, timeout, provider.clone()).await?;
                 Box::new(client)
             }
             ExtensionConfig::Builtin {
@@ -452,7 +458,7 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
-                let client = child_process_client(command, timeout).await?;
+                let client = child_process_client(command, timeout, provider.clone()).await?;
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
@@ -488,7 +494,7 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                let client = child_process_client(command, timeout).await?;
+                let client = child_process_client(command, timeout, provider.clone()).await?;
 
                 Box::new(client)
             }

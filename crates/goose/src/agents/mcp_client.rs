@@ -1,29 +1,28 @@
-use rmcp::model::JsonObject;
+use rmcp::model::{Content, ErrorCode, JsonObject};
 /// MCP client implementation for Goose
-use rmcp::{
-    model::{
-        CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
-        CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
-        InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
-        ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
-        LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
-        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
-        ReadResourceResult, RequestId, ServerNotification, ServerResult,
-    },
-    service::{
-        ClientInitializeError, PeerRequestOptions, RequestHandle, RunningService, ServiceRole,
-    },
-    transport::IntoTransport,
-    ClientHandler, Peer, RoleClient, ServiceError, ServiceExt,
-};
+use rmcp::{model::{
+    CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
+    CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
+    ClientRequest, CreateMessageRequestParam, CreateMessageResult, GetPromptRequest,
+    GetPromptRequestParam, GetPromptResult, Implementation, InitializeResult,
+    ListPromptsRequest, ListPromptsResult, ListResourcesRequest, ListResourcesResult,
+    ListToolsRequest, ListToolsResult, LoggingMessageNotification,
+    LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
+    ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
+    ReadResourceResult, RequestId, Role, SamplingMessage, ServerNotification, ServerResult,
+}, service::{
+    ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
+    ServiceRole,
+}, transport::IntoTransport, ClientHandler, ErrorData as McpError, ErrorData, Peer, RoleClient, ServiceError, ServiceExt};
 use serde_json::Value;
 use std::{sync::Arc, time::Duration};
+use schemars::_private::NoSerialize;
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
 };
 use tokio_util::sync::CancellationToken;
+use crate::providers::base::Provider;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
@@ -76,12 +75,14 @@ pub trait McpClientTrait: Send + Sync {
 
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    provider: Option<Arc<dyn Provider>>,
 }
 
 impl GooseClient {
-    pub fn new(handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>) -> Self {
+    pub fn new(handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>, provider: Option<Arc<dyn Provider>>) -> Self {
         GooseClient {
             notification_handlers: handlers,
+            provider,
         }
     }
 }
@@ -127,10 +128,78 @@ impl ClientHandler for GooseClient {
             });
     }
 
+    async fn create_message(
+        &self,
+        params: CreateMessageRequestParam,
+        _context: RequestContext<RoleClient>,
+    ) -> Result<CreateMessageResult, McpError> {
+        let provider = self.provider
+            .as_ref()
+            .ok_or(ErrorData::new(ErrorCode::INTERNAL_ERROR, "Could not use provider", None))?
+            .clone();
+
+        // go from MCP sampling messages to a version we can send to the provider
+        let messages: Vec<crate::conversation::message::Message> = params
+            .messages
+            .iter()
+            .map(|msg| {
+                let base = match msg.role {
+                    Role::User => crate::conversation::message::Message::user(),
+                    Role::Assistant => crate::conversation::message::Message::assistant(),
+                };
+
+                match msg.content.as_text() {
+                    Some(text) => base.with_text(&text.text),
+                    None => base.with_content(msg.content.clone().into()),
+                }
+            })
+            .collect();
+
+        // the MCP server can provide one
+        let system_prompt = params
+            .system_prompt
+            .as_deref()
+            .unwrap_or("You are a general-purpose AI agent called goose");
+
+        let (response, usage) = provider
+            .complete(system_prompt, &messages, &[])
+            .await
+            .map_err(|e| {
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, "Unexpected error while completing the prompt", e.maybe_to_value())
+            })?;
+
+        // convert back to MCP messages
+        let response_content = if let Some(content) = response.content.first() {
+            match content {
+                crate::conversation::message::MessageContent::Text(text) => {
+                    Content::text(&text.text)
+                }
+                crate::conversation::message::MessageContent::Image(img) => {
+                    Content::image(&img.data, &img.mime_type)
+                }
+                // TODO(alexhancock) - audio? Goose's messages don't have it
+                _ => Content::text(""),
+            }
+        } else {
+            Content::text("")
+        };
+
+        Ok(CreateMessageResult {
+            model: usage.model,
+            stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
+            message: SamplingMessage {
+                role: Role::Assistant,
+                content: response_content,
+            },
+        })
+    }
+
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().build(),
+            capabilities: ClientCapabilities::builder()
+                .enable_sampling() // Enable sampling capability
+                .build(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
@@ -155,6 +224,7 @@ impl McpClient {
     pub async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
+        provider: Option<Arc<dyn Provider>>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -163,7 +233,7 @@ impl McpClient {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(notification_subscribers.clone());
+        let client = GooseClient::new(notification_subscribers.clone(), provider.clone());
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
         let server_info = client.peer_info().cloned();

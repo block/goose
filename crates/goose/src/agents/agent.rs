@@ -633,8 +633,12 @@ impl Agent {
                 }
             }
             _ => {
+                let provider = match self.provider().await {
+                    Ok(p) => Some(p),
+                    Err(_) => None,
+                };
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension(extension.clone(), provider)
                     .await?;
             }
         }
