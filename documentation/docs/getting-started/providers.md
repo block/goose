@@ -279,6 +279,29 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 For enterprise deployments, you can pre-configure these values using environment variables or configuration files to ensure consistent governance across your organization.
 :::
 
+## Custom Providers
+
+Create custom provider configurations for Anthropic beta features (like 1M context) by adding a JSON file to `~/.config/goose/custom_providers/` (macOS/Linux) or `%APPDATA%\goose\custom_providers\` (Windows):
+
+```json
+{
+  "name": "anthropic_1m_context",
+  "engine": "anthropic",
+  "api_key_env": "ANTHROPIC_API_KEY",
+  "base_url": "https://api.anthropic.com",
+  "models": [{"name": "claude-sonnet-4-20250514", "context_limit": 200000}],
+  "model_overrides": [
+    {
+      "model_pattern": "claude-sonnet-4",
+      "context_limit": 1000000,
+      "headers": {"anthropic-beta": "context-1m-2025-08-07,*"}
+    }
+  ]
+}
+```
+
+The `*` in `anthropic-beta` merges your features with built-in ones. The `context_limit` prevents goose from compacting conversations prematurely.
+
 ## Using goose for Free
 
 goose is a free and open source AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 

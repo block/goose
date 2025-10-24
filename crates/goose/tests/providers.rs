@@ -574,3 +574,144 @@ async fn test_xai_provider() -> Result<()> {
 fn print_test_report() {
     TEST_REPORT.print_summary();
 }
+
+// Declarative provider integration tests
+#[cfg(test)]
+mod declarative_provider_tests {
+    use goose::config::declarative_providers::{
+        DeclarativeProviderConfig, ModelOverride, ProviderEngine,
+    };
+    use goose::providers::base::ModelInfo;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_load_anthropic_config_with_model_overrides() {
+        // Test that an Anthropic config with model_overrides can be deserialized from JSON
+        let json = r#"{
+            "name": "test_anthropic",
+            "engine": "anthropic",
+            "display_name": "Test Anthropic Provider",
+            "description": "Test Anthropic provider with overrides",
+            "api_key_env": "TEST_API_KEY",
+            "base_url": "https://api.anthropic.com",
+            "models": [
+                {
+                    "name": "claude-sonnet-4-20250514",
+                    "context_limit": 200000
+                }
+            ],
+            "model_overrides": [
+                {
+                    "model_pattern": "claude-sonnet-4",
+                    "context_limit": 1000000
+                }
+            ]
+        }"#;
+
+        let config: DeclarativeProviderConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(config.name, "test_anthropic");
+        assert_eq!(config.display_name, "Test Anthropic Provider");
+        assert!(matches!(config.engine, ProviderEngine::Anthropic));
+
+        let overrides = config.model_overrides.as_ref().unwrap();
+        assert_eq!(overrides.len(), 1);
+        assert_eq!(overrides[0].model_pattern, "claude-sonnet-4");
+        assert_eq!(overrides[0].context_limit, Some(1_000_000));
+    }
+
+    #[test]
+    fn test_claude_model_override_matching() {
+        let mut headers = HashMap::new();
+        headers.insert(
+            "anthropic-beta".to_string(),
+            "max-tokens-3-5-sonnet-2024-07-15".to_string(),
+        );
+
+        let config = DeclarativeProviderConfig {
+            name: "test_anthropic".to_string(),
+            engine: ProviderEngine::Anthropic,
+            display_name: "Test Anthropic".to_string(),
+            description: None,
+            api_key_env: "ANTHROPIC_API_KEY".to_string(),
+            base_url: "https://api.anthropic.com".to_string(),
+            models: vec![
+                ModelInfo::new("claude-sonnet-4-20250514".to_string(), 200000),
+                ModelInfo::new("claude-opus-4-20250514".to_string(), 200000),
+            ],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            model_overrides: Some(vec![
+                ModelOverride {
+                    model_pattern: "claude-sonnet-4".to_string(),
+                    context_limit: Some(1_000_000),
+                    headers: Some(headers.clone()),
+                },
+                ModelOverride {
+                    model_pattern: "claude-opus".to_string(),
+                    context_limit: Some(200000),
+                    headers: None,
+                },
+            ]),
+        };
+
+        // Test that the right override is selected for sonnet model
+        let sonnet_override = config.get_model_override("claude-sonnet-4-20250514");
+        assert!(sonnet_override.is_some());
+        let override_config = sonnet_override.unwrap();
+        assert_eq!(override_config.context_limit, Some(1_000_000));
+        assert!(override_config.headers.is_some());
+        assert_eq!(
+            override_config
+                .headers
+                .as_ref()
+                .unwrap()
+                .get("anthropic-beta"),
+            Some(&"max-tokens-3-5-sonnet-2024-07-15".to_string())
+        );
+
+        // Test that the right override is selected for opus model
+        let opus_override = config.get_model_override("claude-opus-4-20250514");
+        assert!(opus_override.is_some());
+        assert_eq!(opus_override.unwrap().context_limit, Some(200000));
+
+        // Test that no override is found for non-matching model
+        let no_override = config.get_model_override("gpt-4o");
+        assert!(no_override.is_none());
+    }
+
+    #[test]
+    fn test_first_claude_override_wins() {
+        // When multiple patterns match, the first one should be used
+        let config = DeclarativeProviderConfig {
+            name: "test_anthropic".to_string(),
+            engine: ProviderEngine::Anthropic,
+            display_name: "Test Anthropic".to_string(),
+            description: None,
+            api_key_env: "ANTHROPIC_API_KEY".to_string(),
+            base_url: "https://api.anthropic.com".to_string(),
+            models: vec![],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            model_overrides: Some(vec![
+                ModelOverride {
+                    model_pattern: "claude".to_string(),
+                    context_limit: Some(200000),
+                    headers: None,
+                },
+                ModelOverride {
+                    model_pattern: "claude-sonnet-4".to_string(),
+                    context_limit: Some(1_000_000),
+                    headers: None,
+                },
+            ]),
+        };
+
+        let override_config = config.get_model_override("claude-sonnet-4-20250514");
+        assert!(override_config.is_some());
+        // Should match the first pattern "claude", not the more specific "claude-sonnet-4"
+        assert_eq!(override_config.unwrap().context_limit, Some(200000));
+    }
+}

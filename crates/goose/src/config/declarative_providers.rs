@@ -28,6 +28,19 @@ pub enum ProviderEngine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ModelOverride {
+    pub model_pattern: String,
+    pub context_limit: Option<usize>,
+    pub headers: Option<HashMap<String, String>>,
+}
+
+impl ModelOverride {
+    pub fn matches(&self, model_name: &str) -> bool {
+        model_name.contains(&self.model_pattern)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DeclarativeProviderConfig {
     pub name: String,
     pub engine: ProviderEngine,
@@ -39,6 +52,7 @@ pub struct DeclarativeProviderConfig {
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
+    pub model_overrides: Option<Vec<ModelOverride>>,
 }
 
 impl DeclarativeProviderConfig {
@@ -52,6 +66,13 @@ impl DeclarativeProviderConfig {
 
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
+    }
+
+    pub fn get_model_override(&self, model_name: &str) -> Option<&ModelOverride> {
+        self.model_overrides
+            .as_ref()?
+            .iter()
+            .find(|override_config| override_config.matches(model_name))
     }
 }
 
@@ -120,6 +141,7 @@ pub fn create_custom_provider(
         headers: None,
         timeout_seconds: None,
         supports_streaming,
+        model_overrides: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -175,6 +197,7 @@ pub fn update_custom_provider(
             headers: existing_config.headers,
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming,
+            model_overrides: existing_config.model_overrides,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", id));
@@ -310,8 +333,61 @@ pub fn register_declarative_provider(
             registry.register_with_name::<AnthropicProvider, _>(
                 &config,
                 provider_type,
-                move |model| AnthropicProvider::from_custom_config(model, config_clone.clone()),
+                move |mut model| {
+                    if let Some(override_config) =
+                        config_clone.get_model_override(&model.model_name)
+                    {
+                        model = model.with_provider_override(override_config);
+                    }
+                    AnthropicProvider::from_custom_config(model, config_clone.clone())
+                },
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_model_override_pattern_matching() {
+        let override_config = ModelOverride {
+            model_pattern: "claude-sonnet-4".to_string(),
+            context_limit: Some(1_000_000),
+            headers: None,
+        };
+
+        assert!(override_config.matches("claude-sonnet-4-20250514"));
+        assert!(override_config.matches("claude-sonnet-4-0"));
+        assert!(!override_config.matches("claude-opus-4-0"));
+    }
+
+    #[test]
+    fn test_get_model_override() {
+        let config = DeclarativeProviderConfig {
+            name: "test".to_string(),
+            engine: ProviderEngine::Anthropic,
+            display_name: "Test".to_string(),
+            description: None,
+            api_key_env: "TEST_KEY".to_string(),
+            base_url: "https://api.test.com".to_string(),
+            models: vec![],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            model_overrides: Some(vec![ModelOverride {
+                model_pattern: "claude-sonnet-4".to_string(),
+                context_limit: Some(1_000_000),
+                headers: None,
+            }]),
+        };
+
+        let override_config = config.get_model_override("claude-sonnet-4-20250514");
+        assert!(override_config.is_some());
+        assert_eq!(override_config.unwrap().context_limit, Some(1_000_000));
+
+        let no_override = config.get_model_override("gpt-4o");
+        assert!(no_override.is_none());
     }
 }

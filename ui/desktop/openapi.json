@@ -2407,6 +2407,13 @@
             },
             "nullable": true
           },
+          "model_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelOverride"
+            },
+            "nullable": true
+          },
           "models": {
             "type": "array",
             "items": {
@@ -3411,6 +3418,29 @@
             "type": "boolean",
             "description": "Whether this model supports cache control",
             "nullable": true
+          }
+        }
+      },
+      "ModelOverride": {
+        "type": "object",
+        "required": [
+          "model_pattern"
+        ],
+        "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "model_pattern": {
+            "type": "string"
           }
         }
       },
