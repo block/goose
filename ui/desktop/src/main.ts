@@ -51,7 +51,7 @@ import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
-import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { setupAutoUpdater as setupMacAutoUpdater } from './autoupdater';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -572,12 +572,34 @@ const createChat = async (
   });
 
   if (!app.isPackaged) {
-    installExtension(REACT_DEVELOPER_TOOLS, {
-      loadExtensionOptions: { allowFileAccess: true },
-      session: mainWindow.webContents.session,
-    })
-      .then(() => log.info('added react dev tools'))
-      .catch((err) => log.info('failed to install react dev tools:', err));
+    try {
+      // Use dynamic import instead of require() to satisfy lint rules and avoid bundler issues.
+      // Dynamic import for dev-only dependency. Narrowed typings so linter is satisfied.
+      // @ts-expect-error: dev-only import may not have types available in all environments
+      import('electron-devtools-installer')
+        .then(
+          (mod: {
+            REACT_DEVELOPER_TOOLS?: symbol;
+            default?: (ext: symbol, opts?: Record<string, unknown>) => Promise<void>;
+          }) => {
+            const REACT_DEVELOPER_TOOLS = mod.REACT_DEVELOPER_TOOLS;
+            if (mod.default && REACT_DEVELOPER_TOOLS) {
+              mod
+                .default(REACT_DEVELOPER_TOOLS, {
+                  loadExtensionOptions: { allowFileAccess: true },
+                  session: mainWindow.webContents.session,
+                })
+                .then(() => log.info('added react dev tools'))
+                .catch((err: unknown) => log.info('failed to install react dev tools:', err));
+            }
+          }
+        )
+        .catch((e: unknown) => {
+          log.info('electron-devtools-installer not available in this environment:', e);
+        });
+    } catch (e) {
+      log.info('electron-devtools-installer not available in this environment (sync error):', e);
+    }
   }
 
   const goosedClient = createClient(
@@ -729,6 +751,17 @@ const createChat = async (
 
   windowMap.set(windowId, mainWindow);
 
+  // Setup macOS auto-updater for packaged builds. The autoupdater module double-checks
+  // app.isPackaged and process.platform before proceeding, but prefer to only call
+  // in Darwin packaged builds to avoid loading update logic unnecessarily.
+  try {
+    if (process.platform === 'darwin' && app.isPackaged) {
+      setupMacAutoUpdater(mainWindow);
+    }
+  } catch (err) {
+    log.error('[Main] Failed to initialize mac auto-updater:', err);
+  }
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
@@ -753,6 +786,7 @@ const createChat = async (
       goosedProcess.kill();
     }
   });
+
   return mainWindow;
 };
 

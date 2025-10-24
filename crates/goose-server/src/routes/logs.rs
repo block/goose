@@ -11,6 +11,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{error, info, warn};
+use once_cell::sync::Lazy;
+use tokio::time::{sleep, Duration};
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::state::AppState;
 
@@ -330,6 +333,155 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/logs/clear", post(clear_logs))
         .route("/logs/path", get(get_log_path))
         .with_state(state.as_ref().clone())
+}
+
+/// Background monitor to automatically archive/delete logs according to thresholds.
+/// Runs periodically in a background task. Uses a 24-hour cooldown between archive/delete actions by default.
+pub fn start_log_monitor(state: Arc<AppState>) {
+    // Default thresholds and intervals
+    const ARCHIVE_THRESHOLD_BYTES: u64 = 1_073_741_824; // 1 GiB
+    const DELETE_THRESHOLD_BYTES: u64 = 5_368_709_120; // 5 GiB
+    const CHECK_INTERVAL_SECS: u64 = 60; // 60 seconds
+    const COOLDOWN_SECS: u64 = 24 * 3600; // 24 hours
+
+    static LAST_ARCHIVE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
+        Lazy::new(|| AsyncMutex::new(None));
+    static LAST_DELETE: Lazy<AsyncMutex<Option<std::time::SystemTime>>> =
+        Lazy::new(|| AsyncMutex::new(None));
+
+    let state_clone = state.clone();
+
+    // Spawn background task
+    tokio::spawn(async move {
+        loop {
+            // Sleep at the end of loop; but do a check immediately first
+            match get_log_base_dir() {
+                Ok(log_dir) => {
+                    match compute_directory_size(&log_dir) {
+                        Ok((total_bytes, _file_count)) => {
+                            if total_bytes >= DELETE_THRESHOLD_BYTES {
+                                // Check cooldown
+                                let mut last_delete = LAST_DELETE.lock().await;
+                                let now = std::time::SystemTime::now();
+                                let should_run = match *last_delete {
+                                    Some(t) => now.duration_since(t).map(|d| d.as_secs() >= COOLDOWN_SECS).unwrap_or(true),
+                                    None => true,
+                                };
+
+                                if should_run {
+                                    info!("Log size >= delete threshold ({}) bytes. Running delete routine.", total_bytes);
+                                    if let Err(e) = delete_archives_then_logs(&log_dir) {
+                                        warn!("Failed to delete logs: {}", e);
+                                    } else {
+                                        *last_delete = Some(now);
+                                    }
+                                }
+                            } else if total_bytes >= ARCHIVE_THRESHOLD_BYTES {
+                                // Check cooldown for archive
+                                let mut last_archive = LAST_ARCHIVE.lock().await;
+                                let now = std::time::SystemTime::now();
+                                let should_run = match *last_archive {
+                                    Some(t) => now.duration_since(t).map(|d| d.as_secs() >= COOLDOWN_SECS).unwrap_or(true),
+                                    None => true,
+                                };
+
+                                if should_run {
+                                    info!("Log size >= archive threshold ({}) bytes. Running archive routine.", total_bytes);
+                                    if let Err(e) = archive_all_logs(&log_dir) {
+                                        warn!("Failed to archive logs: {}", e);
+                                    } else {
+                                        *last_archive = Some(now);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to compute log size in monitor: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to get log base dir in monitor: {}", e);
+                }
+            }
+
+            sleep(Duration::from_secs(CHECK_INTERVAL_SECS)).await;
+        }
+    });
+}
+
+/// Archive all current logs (non-archived) into `archived/` folder. Returns error on failure.
+fn archive_all_logs(log_base_dir: &Path) -> Result<()> {
+    let archive_dir = log_base_dir.join("archived");
+    let log_files = find_log_files(log_base_dir)?;
+
+    for file_path in log_files {
+        if file_path.starts_with(&archive_dir) {
+            continue;
+        }
+        if let Err(e) = archive_log_file(&file_path, &archive_dir) {
+            warn!("Failed to archive {}: {}", file_path.display(), e);
+        }
+    }
+
+    Ok(())
+}
+
+/// Delete archives first, then non-archived logs if necessary until under threshold.
+fn delete_archives_then_logs(log_base_dir: &Path) -> Result<()> {
+    let archive_dir = log_base_dir.join("archived");
+
+    // Collect archived files sorted by oldest first
+    let mut archived_files: Vec<PathBuf> = Vec::new();
+    if archive_dir.exists() {
+        for entry in fs::read_dir(&archive_dir).context("reading archive dir failed")?.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                archived_files.push(p);
+            }
+        }
+        archived_files.sort_by_key(|p| fs::metadata(p).map(|m| m.modified().ok()).ok().flatten());
+    }
+
+    // Delete archived files first
+    for p in archived_files {
+        if let Ok(metadata) = fs::metadata(&p) {
+            let size = metadata.len();
+            if let Err(e) = fs::remove_file(&p) {
+                warn!("Failed to delete archived file {}: {}", p.display(), e);
+            } else {
+                info!("Deleted archived file {} ({} bytes)", p.display(), size);
+            }
+        }
+    }
+
+    // After deleting archives, check size; if still over threshold delete non-archived logs oldest-first
+    let (total_bytes, _) = compute_directory_size(log_base_dir)?;
+    if total_bytes > 0 {
+        // collect non-archived logs
+        let mut files: Vec<PathBuf> = find_log_files(log_base_dir)?;
+        let archive_dir_clone = archive_dir.clone();
+        files.retain(|p| !p.starts_with(&archive_dir_clone));
+        files.sort_by_key(|p| fs::metadata(p).map(|m| m.modified().ok()).ok().flatten());
+
+        for p in files {
+            if let Ok(metadata) = fs::metadata(&p) {
+                let size = metadata.len();
+                if let Err(e) = fs::remove_file(&p) {
+                    warn!("Failed to delete log file {}: {}", p.display(), e);
+                } else {
+                    info!("Deleted log file {} ({} bytes)", p.display(), size);
+                }
+                // re-check size
+                let (current_bytes, _) = compute_directory_size(log_base_dir)?;
+                if current_bytes < DELETE_THRESHOLD_BYTES {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

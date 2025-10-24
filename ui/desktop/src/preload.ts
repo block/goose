@@ -1,5 +1,13 @@
+// Registry mapping: channel -> (originalListener -> wrappedListener)
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
+
+// Types and internal mapping from original listener -> wrapped ipcRenderer listener
+type RawListener =
+  | ((event: Electron.IpcRendererEvent, ...args: unknown[]) => void)
+  | ((...args: unknown[]) => void);
+type WrappedListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
+const listenerMap: Map<string, Map<RawListener, WrappedListener>> = new Map();
 
 interface NotificationData {
   title: string;
@@ -102,13 +110,13 @@ type ElectronAPI = {
   openNotificationsSettings: () => Promise<boolean>;
   onMouseBackButtonClicked: (callback: () => void) => void;
   offMouseBackButtonClicked: (callback: () => void) => void;
-  on: (
+  on: <T = unknown>(
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+    callback: ((event: Electron.IpcRendererEvent, ...args: T[]) => void) | ((...args: T[]) => void)
   ) => void;
-  off: (
+  off: <T = unknown>(
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+    callback: ((event: Electron.IpcRendererEvent, ...args: T[]) => void) | ((...args: T[]) => void)
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
   // Functions for image pasting
@@ -143,7 +151,7 @@ type AppConfigAPI = {
   getAll: () => Record<string, unknown>;
 };
 
-const electronAPI: ElectronAPI = {
+const electronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => {
@@ -213,19 +221,52 @@ const electronAPI: ElectronAPI = {
     return wrappedCallback;
   },
   offMouseBackButtonClicked: (callback: () => void) => {
-    ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+    ipcRenderer.removeListener(
+      'mouse-back-button-clicked',
+      callback as unknown as (...args: unknown[]) => void
+    );
   },
-  on: (
+  on: <T = unknown>(
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+    callback: (event: Electron.IpcRendererEvent, ...args: T[]) => void
   ) => {
-    ipcRenderer.on(channel, callback);
+    // Wrap the renderer callback so the event parameter is stripped and only the args are passed.
+    const map = listenerMap.get(channel) ?? new Map<RawListener, WrappedListener>();
+    const wrapped = (_event: Electron.IpcRendererEvent, ...args: T[]) => {
+      // Try calling the callback as (event, ...args) first (many handlers expect the event),
+      // otherwise fall back to calling with only the args (payload-only handlers).
+      try {
+        (callback as unknown as (event: Electron.IpcRendererEvent, ...args: T[]) => void)(
+          _event,
+          ...args
+        );
+        return;
+      } catch {
+        // ignore and try payload-only invocation
+      }
+      try {
+        (callback as unknown as (...args: T[]) => void)(...args);
+      } catch (err) {
+        // Don't let listener exceptions break the ipc pipeline
+
+        console.error('Renderer listener error for channel', channel, err);
+      }
+    };
+    map.set(callback as RawListener, wrapped as WrappedListener);
+    listenerMap.set(channel, map);
+    ipcRenderer.on(channel, wrapped);
   },
-  off: (
+  off: <T = unknown>(
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+    callback: (event: Electron.IpcRendererEvent, ...args: T[]) => void
   ) => {
-    ipcRenderer.off(channel, callback);
+    const map = listenerMap.get(channel);
+    const wrapped = map?.get(callback as unknown as RawListener) as WrappedListener | undefined;
+    if (wrapped) {
+      ipcRenderer.off(channel, wrapped);
+      map?.delete(callback as unknown as RawListener);
+      if (map && map.size === 0) listenerMap.delete(channel);
+    }
   },
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
@@ -273,7 +314,7 @@ const electronAPI: ElectronAPI = {
   clearLogs: () => ipcRenderer.invoke('clear-logs') as unknown as Promise<ClearLogsResult>,
   getLogPath: () => ipcRenderer.invoke('get-log-path') as Promise<string>,
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder') as Promise<void>,
-};
+} as unknown as ElectronAPI;
 
 const appConfigAPI: AppConfigAPI = {
   get: (key: string) => config[key],
