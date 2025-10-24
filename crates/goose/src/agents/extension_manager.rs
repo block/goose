@@ -12,6 +12,8 @@ use rmcp::transport::{
     TokioChildProcess,
 };
 use std::collections::HashMap;
+use std::env;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -33,6 +35,7 @@ use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use crate::config::{get_all_extensions, Config};
+use crate::model::ConfigError;
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use rmcp::model::{
@@ -174,6 +177,26 @@ impl Default for ExtensionManager {
     }
 }
 
+fn path_var_for_extensions() -> Result<String, crate::config::ConfigError> {
+    let mut paths: Vec<_> = env::var_os("PATH")
+        .map(|p| env::split_paths(&p).collect())
+        .unwrap_or_default();
+
+    let to_add: Vec<String> = Config::global()
+        .get_param("GOOSE_EXTENSIONS_PATHS")
+        .or_else(|err| match err {
+            crate::config::ConfigError::NotFound(_) => Ok(vec![]),
+            err => Err(err),
+        })?;
+
+    paths.extend(to_add.into_iter().map(PathBuf::from));
+
+    Ok(env::join_paths(paths)
+        .map_err(|e| crate::config::ConfigError::DeserializeError(format!("{}", e)))?
+        .to_string_lossy()
+        .to_string())
+}
+
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -182,6 +205,12 @@ async fn child_process_client(
     command.process_group(0);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW_FLAG);
+
+    command.env(
+        "PATH",
+        path_var_for_extensions().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
+    );
+
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;
