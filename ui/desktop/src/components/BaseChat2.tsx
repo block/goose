@@ -174,7 +174,7 @@ function BaseChatContent({
     messages,
     recipe,
     sessionId,
-    title: session?.description || 'No Session',
+    name: session?.name || 'No Session',
   };
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';

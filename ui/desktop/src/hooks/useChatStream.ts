@@ -288,7 +288,7 @@ export function useChatStream({
         const session = response.data;
         log.session('loaded', sessionId, {
           messageCount: session?.conversation?.length || 0,
-          description: session?.description,
+          name: session?.name,
         });
 
         setSession(session);
