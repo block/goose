@@ -304,33 +304,27 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    // Handle session resolution and resuming
     let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        // Handle resume logic
         if let Some(identifier) = session_config.identifier {
             match get_session_id(identifier).await {
-                Ok(session_id) => {
-                    // Verify the session exists
-                    match SessionManager::get_session(&session_id, false).await {
-                        Ok(_) => Some(session_id),
-                        Err(_) => {
-                            output::render_error(&format!(
-                                "Cannot resume session {} - no such session exists",
-                                style(&session_id).cyan()
-                            ));
-                            process::exit(1);
-                        }
+                Ok(session_id) => match SessionManager::get_session(&session_id, false).await {
+                    Ok(_) => Some(session_id),
+                    Err(_) => {
+                        output::render_error(&format!(
+                            "Cannot resume session {} - no such session exists",
+                            style(&session_id).cyan()
+                        ));
+                        process::exit(1);
                     }
-                }
+                },
                 Err(e) => {
                     output::render_error(&format!("Error finding session: {}", e));
                     process::exit(1);
                 }
             }
         } else {
-            // Resume last session
             match SessionManager::list_sessions().await {
                 Ok(sessions) if !sessions.is_empty() => Some(sessions[0].id.clone()),
                 _ => {
@@ -340,18 +334,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         }
     } else {
-        // Handle create logic
         match session_config.identifier {
             Some(Identifier {
                 name: Some(name), ..
             }) => {
-                // Create new session with user-provided name
                 let session =
                     SessionManager::create_session(std::env::current_dir().unwrap(), name.clone())
                         .await
                         .unwrap();
 
-                // Mark as user-provided to prevent auto-naming
                 SessionManager::update_session(&session.id)
                     .user_provided_name(name)
                     .apply()
@@ -361,7 +352,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 Some(session.id)
             }
             _ => {
-                // Create with default name
                 let session = SessionManager::create_session(
                     std::env::current_dir().unwrap(),
                     "CLI Session".to_string(),
@@ -384,7 +374,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     if session_config.resume {
         if let Some(session_id) = session_id.as_ref() {
-            // Read the session metadata from database
             let metadata = SessionManager::get_session(session_id, false)
                 .await
                 .unwrap_or_else(|e| {
@@ -395,7 +384,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             let current_workdir =
                 std::env::current_dir().expect("Failed to get current working directory");
             if current_workdir != metadata.working_dir {
-                // Ask user if they want to change the working directory
                 let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
                     .initial_value(true)
                     .interact().expect("Failed to get user input");
