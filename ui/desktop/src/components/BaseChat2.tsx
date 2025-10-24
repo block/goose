@@ -314,7 +314,7 @@ function BaseChatContent({
         />
       )}
 
-      {recipe?.parameters?.length && !session?.user_recipe_values && (
+      {recipe?.parameters && recipe.parameters.length > 0 && !session?.user_recipe_values && (
         <ParameterInputModal
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
