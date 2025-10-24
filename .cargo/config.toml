@@ -1,0 +1,5 @@
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-args=advapi32.lib"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-args=-ladvapi32"]
