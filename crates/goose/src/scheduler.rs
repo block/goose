@@ -1203,15 +1203,7 @@ async fn run_scheduled_job_internal(
         let error_message = Message::assistant().with_text(format!(
             "Schedule Execution Failed\n\n\
              This recipe does not have a valid 'prompt' field, which is required for scheduled execution.\n\n\
-             Recipe file: {}\n\n\
-             To fix this issue, add a 'prompt' field to your recipe with the instructions you want the AI to execute.\n\
-             Example:\n\
-             ```yaml\n\
-             title: My Recipe\n\
-             description: Does something useful\n\
-             prompt: Please do the following task...\n\
-             ```",
-            job.source
+             To fix this issue, add a 'prompt' field to your recipe with the instructions you want to execute."
         ));
 
         SessionManager::add_message(&session.id, &error_message)
