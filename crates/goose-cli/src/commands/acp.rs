@@ -588,7 +588,7 @@ impl acp::Agent for GooseAcpAgent {
             }
 
             match event {
-                Ok(goose::agents::AgentEvent::Message(message, _usage)) => {
+                Ok(goose::agents::AgentEvent::Message(message)) => {
                     // Re-acquire the lock to add message to conversation
                     let mut sessions = self.sessions.lock().await;
                     let session = sessions

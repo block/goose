@@ -36,7 +36,7 @@ use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::{Provider, ProviderUsage};
+use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
@@ -108,7 +108,7 @@ pub struct Agent {
 
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
-    Message(Message, Option<ProviderUsage>),
+    Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
     HistoryReplaced(Conversation),
@@ -800,8 +800,7 @@ impl Agent {
                     Message::assistant().with_system_notification(
                         SystemNotificationType::InlineMessage,
                         inline_msg,
-                    ),
-                    None
+                    )
                 );
             }
 
@@ -809,8 +808,7 @@ impl Agent {
                 Message::assistant().with_system_notification(
                     SystemNotificationType::ThinkingMessage,
                     COMPACTION_THINKING_TEXT,
-                ),
-                None
+                )
             );
 
             match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
@@ -825,8 +823,7 @@ impl Agent {
                         Message::assistant().with_system_notification(
                             SystemNotificationType::InlineMessage,
                             "Compaction complete",
-                        ),
-                        None
+                        )
                     );
 
                     if !is_manual_compact {
@@ -840,8 +837,7 @@ impl Agent {
                     yield AgentEvent::Message(
                         Message::assistant().with_text(
                             format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                        ),
-                        None
+                        )
                     );
                 }
             }
@@ -934,8 +930,7 @@ impl Agent {
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                     if final_output_tool.final_output.is_some() {
                         let final_event = AgentEvent::Message(
-                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
-                            None
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
                         );
                         yield final_event;
                         break;
@@ -947,8 +942,7 @@ impl Agent {
                     yield AgentEvent::Message(
                         Message::assistant().with_text(
                             "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                        ),
-                        None
+                        )
                     );
                     break;
                 }
@@ -1026,7 +1020,7 @@ impl Agent {
                                     .record_tool_requests(&requests_to_record)
                                     .await;
 
-                                yield AgentEvent::Message(filtered_response.clone(), usage);
+                                yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
@@ -1044,7 +1038,7 @@ impl Agent {
                                 );
 
                                 while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                    yield AgentEvent::Message(msg, None);
+                                    yield AgentEvent::Message(msg);
                                 }
 
                                 let mode = goose_mode.clone();
@@ -1113,7 +1107,7 @@ impl Agent {
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
-                                        yield AgentEvent::Message(msg, None);
+                                        yield AgentEvent::Message(msg);
                                     }
 
                                     tool_futures = {
@@ -1165,7 +1159,7 @@ impl Agent {
                                 }
 
                                 let final_message_tool_resp = message_tool_response.lock().await.clone();
-                                yield AgentEvent::Message(final_message_tool_resp.clone(), None);
+                                yield AgentEvent::Message(final_message_tool_resp.clone());
 
                                 no_tools_called = false;
                                 messages_to_add.push(final_message_tool_resp);
@@ -1176,15 +1170,13 @@ impl Agent {
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
                                     "Context limit reached. Compacting to continue conversation...",
-                                ),
-                                None
+                                )
                             );
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::ThinkingMessage,
                                     COMPACTION_THINKING_TEXT,
-                                ),
-                                None
+                                )
                             );
 
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
@@ -1204,8 +1196,7 @@ impl Agent {
                                     yield AgentEvent::Message(
                                         Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        ),
-                                        None
+                                        )
                                     );
                                     break;
                                 }
@@ -1216,8 +1207,7 @@ impl Agent {
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
                                     format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                ),
-                                None
+                                )
                             );
                             break;
                         }
@@ -1233,11 +1223,11 @@ impl Agent {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message, None);
+                            yield AgentEvent::Message(message);
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
                             messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message, None);
+                            yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
                     } else if did_recovery_compact_this_iteration {
@@ -1256,8 +1246,7 @@ impl Agent {
                                 yield AgentEvent::Message(
                                     Message::assistant().with_text(
                                         format!("Retry logic encountered an error: {}", e)
-                                    ),
-                                    None
+                                    )
                                 );
                                 exit_chat = true;
                             }

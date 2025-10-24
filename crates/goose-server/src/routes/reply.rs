@@ -299,7 +299,7 @@ pub async fn reply(
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
-                        Ok(Some(Ok(AgentEvent::Message(message, usage)))) => {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             for content in &message.content {
                                 track_tool_telemetry(content, all_messages.messages());
                             }
@@ -309,21 +309,10 @@ pub async fn reply(
                             // Always fetch session and create token state so client has latest accumulated tokens
                             let token_state = match SessionManager::get_session(&session_id, false).await {
                                 Ok(session) => {
-                                    // If we have new usage from this turn, use it; otherwise use current session values
-                                    let (input, output, total) = if let Some(ref provider_usage) = usage {
-                                        (
-                                            provider_usage.usage.input_tokens,
-                                            provider_usage.usage.output_tokens,
-                                            provider_usage.usage.total_tokens,
-                                        )
-                                    } else {
-                                        (session.input_tokens, session.output_tokens, session.total_tokens)
-                                    };
-
                                     Some(goose::session::session_manager::TokenState {
-                                        input_tokens: input,
-                                        output_tokens: output,
-                                        total_tokens: total,
+                                        input_tokens: session.input_tokens,
+                                        output_tokens: session.output_tokens,
+                                        total_tokens: session.total_tokens,
                                         accumulated_input_tokens: session.accumulated_input_tokens,
                                         accumulated_output_tokens: session.accumulated_output_tokens,
                                         accumulated_total_tokens: session.accumulated_total_tokens,

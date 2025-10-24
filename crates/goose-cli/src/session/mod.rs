@@ -859,7 +859,7 @@ impl CliSession {
             tokio::select! {
                 result = stream.next() => {
                     match result {
-                        Some(Ok(AgentEvent::Message(message, _usage))) => {
+                        Some(Ok(AgentEvent::Message(message))) => {
                             // If it's a confirmation request, get approval but otherwise do not render/persist
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
