@@ -6,7 +6,7 @@ import { Switch } from '../ui/switch';
 import { FixedExtensionEntry, useConfig } from '../ConfigContext';
 import { toggleExtension } from '../settings/extensions/extension-manager';
 import { toastService } from '../../toasts';
-import { getFriendlyTitle, getSubtitle } from '../settings/extensions/subcomponents/ExtensionList';
+import { getFriendlyTitle } from '../settings/extensions/subcomponents/ExtensionList';
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string;
@@ -15,40 +15,7 @@ interface BottomMenuExtensionSelectionProps {
 export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const { extensionsList, addExtension, getExtensions } = useConfig();
-
-  const extensions = useMemo(() => {
-    if (extensionsList.length === 0) {
-      return [];
-    }
-
-    return [...extensionsList].sort((a, b) => {
-      // First sort by builtin
-      if (a.type === 'builtin' && b.type !== 'builtin') return -1;
-      if (a.type !== 'builtin' && b.type === 'builtin') return 1;
-
-      // Then sort by bundled (handle null/undefined cases)
-      const aBundled = 'bundled' in a && a.bundled === true;
-      const bBundled = 'bundled' in b && b.bundled === true;
-      if (aBundled && !bBundled) return -1;
-      if (!aBundled && bBundled) return 1;
-
-      // Finally sort alphabetically within each group
-      return a.name.localeCompare(b.name);
-    });
-  }, [extensionsList]);
-
-  const fetchExtensions = useCallback(async () => {
-    try {
-      await getExtensions(true);
-    } catch (error) {
-      toastService.error({
-        title: 'Extension Fetch Error',
-        msg: 'Failed to refresh extensions list',
-        traceback: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [getExtensions]);
+  const { extensionsList, addExtension } = useConfig();
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
@@ -71,42 +38,53 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           toastOptions: { silent: false },
           sessionId: sessionId,
         });
-
-        await fetchExtensions();
       } catch (error) {
         toastService.error({
           title: 'Extension Error',
           msg: `Failed to ${extensionConfig.enabled ? 'disable' : 'enable'} ${extensionConfig.name}`,
           traceback: error instanceof Error ? error.message : String(error),
         });
-        await fetchExtensions();
       }
     },
-    [sessionId, addExtension, fetchExtensions]
+    [sessionId, addExtension]
   );
 
   const filteredExtensions = useMemo(() => {
-    return extensions.filter((ext) => {
+    return extensionsList.filter((ext) => {
       const query = searchQuery.toLowerCase();
       return (
         ext.name.toLowerCase().includes(query) ||
         (ext.description && ext.description.toLowerCase().includes(query))
       );
     });
-  }, [extensions, searchQuery]);
+  }, [extensionsList, searchQuery]);
 
   const sortedExtensions = useMemo(() => {
+    const getTypePriority = (type: string): number => {
+      const priorities: Record<string, number> = {
+        builtin: 0,
+        platform: 1,
+        frontend: 2,
+      };
+      return priorities[type] ?? Number.MAX_SAFE_INTEGER;
+    };
+
     return [...filteredExtensions].sort((a, b) => {
-      if (a.enabled === b.enabled) {
-        return a.name.localeCompare(b.name);
-      }
-      return a.enabled ? -1 : 1;
+      // First sort by priority type
+      const typeDiff = getTypePriority(a.type) - getTypePriority(b.type);
+      if (typeDiff !== 0) return typeDiff;
+
+      // Then sort by enabled status (enabled first)
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+
+      // Finally sort alphabetically
+      return a.name.localeCompare(b.name);
     });
   }, [filteredExtensions]);
 
   const activeCount = useMemo(() => {
-    return extensions.filter((ext) => ext.enabled).length;
-  }, [extensions]);
+    return extensionsList.filter((ext) => ext.enabled).length;
+  }, [extensionsList]);
 
   return (
     <DropdownMenu
@@ -147,18 +125,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             sortedExtensions.map((ext) => (
               <div
                 key={ext.name}
-                className="flex items-center gap-3 px-2 py-2 hover:bg-background-hover cursor-pointer"
+                className="flex items-center justify-between px-2 py-2 hover:bg-background-hover cursor-pointer"
                 onClick={() => handleToggle(ext)}
                 title={ext.description || ext.name}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-text-default">
-                    {getFriendlyTitle(ext)}
-                  </div>
-                  <div className="text-xs text-text-default/70 truncate">
-                    {getSubtitle(ext).description || 'No description available'}
-                  </div>
-                </div>
+                <div className="text-sm font-medium text-text-default">{getFriendlyTitle(ext)}</div>
                 <div onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={ext.enabled}
