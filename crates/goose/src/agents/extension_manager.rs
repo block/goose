@@ -35,7 +35,6 @@ use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use crate::config::{get_all_extensions, Config};
-use crate::model::ConfigError;
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use rmcp::model::{
