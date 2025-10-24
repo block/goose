@@ -1,5 +1,7 @@
 use super::output;
 use super::CliSession;
+use crate::cli::Identifier;
+use anyhow::Result;
 use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
@@ -19,14 +21,38 @@ use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 
+/// Look up a session ID from an identifier (by name, session_id, or path)
+pub async fn get_session_id(identifier: Identifier) -> Result<String> {
+    if let Some(session_id) = identifier.session_id {
+        Ok(session_id)
+    } else if let Some(name) = identifier.name {
+        let sessions = SessionManager::list_sessions().await?;
+
+        sessions
+            .into_iter()
+            .find(|s| s.name == name || s.id == name)
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
+    } else if let Some(path) = identifier.path {
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
+    } else {
+        Err(anyhow::anyhow!(
+            "Identifier has no valid fields: session_id, name, and path are all None."
+        ))
+    }
+}
+
 /// Configuration for building a new Goose session
 ///
 /// This struct contains all the parameters needed to create a new session,
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional identifier for the session
-    pub session_id: Option<String>,
+    /// Optional identifier for the session (contains name, session_id, or path)
+    pub identifier: Option<Identifier>,
     /// Whether to resume an existing session
     pub resume: bool,
     /// Whether to run without a session file
@@ -282,42 +308,69 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
-        if let Some(session_id) = session_config.session_id {
-            match SessionManager::get_session(&session_id, false).await {
-                Ok(_) => Some(session_id),
-                Err(_) => {
-                    output::render_error(&format!(
-                        "Cannot resume session {} - no such session exists",
-                        style(&session_id).cyan()
-                    ));
+        // Handle resume logic
+        if let Some(identifier) = session_config.identifier {
+            match get_session_id(identifier).await {
+                Ok(session_id) => {
+                    // Verify the session exists
+                    match SessionManager::get_session(&session_id, false).await {
+                        Ok(_) => Some(session_id),
+                        Err(_) => {
+                            output::render_error(&format!(
+                                "Cannot resume session {} - no such session exists",
+                                style(&session_id).cyan()
+                            ));
+                            process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    output::render_error(&format!("Error finding session: {}", e));
                     process::exit(1);
                 }
             }
         } else {
+            // Resume last session
             match SessionManager::list_sessions().await {
-                Ok(sessions) => {
-                    if sessions.is_empty() {
-                        output::render_error("Cannot resume - no previous sessions found");
-                        process::exit(1);
-                    }
-                    Some(sessions[0].id.clone())
-                }
-                Err(_) => {
+                Ok(sessions) if !sessions.is_empty() => Some(sessions[0].id.clone()),
+                _ => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
                 }
             }
         }
-    } else if let Some(session_id) = session_config.session_id {
-        Some(session_id)
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap(),
-            "CLI Session".to_string(),
-        )
-        .await
-        .unwrap();
-        Some(session.id)
+        // Handle create logic
+        match session_config.identifier {
+            Some(Identifier {
+                name: Some(name), ..
+            }) => {
+                // Create new session with user-provided name
+                let session =
+                    SessionManager::create_session(std::env::current_dir().unwrap(), name.clone())
+                        .await
+                        .unwrap();
+
+                // Mark as user-provided to prevent auto-naming
+                SessionManager::update_session(&session.id)
+                    .user_provided_name(name)
+                    .apply()
+                    .await
+                    .unwrap();
+
+                Some(session.id)
+            }
+            _ => {
+                // Create with default name
+                let session = SessionManager::create_session(
+                    std::env::current_dir().unwrap(),
+                    "CLI Session".to_string(),
+                )
+                .await
+                .unwrap();
+                Some(session.id)
+            }
+        }
     };
 
     agent
@@ -634,7 +687,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_creation() {
         let config = SessionBuilderConfig {
-            session_id: Some("test".to_string()),
+            identifier: None,
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
@@ -673,7 +726,7 @@ mod tests {
     fn test_session_builder_config_default() {
         let config = SessionBuilderConfig::default();
 
-        assert!(config.session_id.is_none());
+        assert!(config.identifier.is_none());
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());

@@ -33,10 +33,10 @@ impl BenchBaseSession for CliSession {
 }
 pub async fn agent_generator(
     requirements: ExtensionRequirements,
-    session_id: String,
+    _session_id: String,
 ) -> BenchAgent {
     let base_session = build_session(SessionBuilderConfig {
-        session_id: Some(session_id),
+        identifier: None,
         resume: false,
         no_session: false,
         extensions: requirements.external,
