@@ -95,6 +95,7 @@ export type DeclarativeProviderConfig = {
     headers?: {
         [key: string]: string;
     } | null;
+    model_overrides?: Array<ModelOverride> | null;
     models: Array<ModelInfo>;
     name: string;
     supports_streaming?: boolean | null;
@@ -402,6 +403,14 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+};
+
+export type ModelOverride = {
+    context_limit?: number | null;
+    headers?: {
+        [key: string]: string;
+    } | null;
+    model_pattern: string;
 };
 
 export type ParseRecipeRequest = {

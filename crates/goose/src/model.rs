@@ -260,6 +260,16 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_provider_override(
+        mut self,
+        override_config: &crate::config::declarative_providers::ModelOverride,
+    ) -> Self {
+        if let Some(context_limit) = override_config.context_limit {
+            self.context_limit = Some(context_limit);
+        }
+        self
+    }
+
     pub fn use_fast_model(&self) -> Self {
         if let Some(fast_model) = &self.fast_model {
             let mut config = self.clone();
@@ -414,6 +424,26 @@ mod tests {
                     });
                 });
             });
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_model_override_applies_context_limit() {
+        use crate::config::declarative_providers::ModelOverride;
+
+        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
+            let override_config = ModelOverride {
+                model_pattern: "claude-sonnet-4".to_string(),
+                context_limit: Some(1_000_000),
+                headers: None,
+            };
+
+            let model = ModelConfig::new("claude-sonnet-4-20250514")
+                .unwrap()
+                .with_provider_override(&override_config);
+
+            assert_eq!(model.context_limit(), 1_000_000);
         });
     }
 }

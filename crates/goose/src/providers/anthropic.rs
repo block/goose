@@ -43,6 +43,8 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    #[serde(skip)]
+    provider_config: Option<DeclarativeProviderConfig>,
 }
 
 impl AnthropicProvider {
@@ -67,6 +69,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
+            provider_config: None,
         })
     }
 
@@ -84,25 +87,103 @@ impl AnthropicProvider {
             key: api_key,
         };
 
-        let api_client = ApiClient::new(config.base_url, auth)?
+        let api_client = ApiClient::new(config.base_url.clone(), auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
         Ok(Self {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            provider_config: Some(config),
         })
     }
 
-    fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
+    fn get_model_override(&self) -> Option<&crate::config::declarative_providers::ModelOverride> {
+        self.provider_config
+            .as_ref()
+            .and_then(|config| config.get_model_override(&self.model.model_name))
+    }
+
+    fn get_builtin_beta_features(&self) -> Vec<&str> {
+        let mut features = Vec::new();
+
+        let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
+        if self.model.model_name.starts_with("claude-3-7-sonnet-") {
+            if is_thinking_enabled {
+                features.push("output-128k-2025-02-19");
+            }
+            features.push("token-efficient-tools-2025-02-19");
+        }
+
+        features
+    }
+
+    fn expand_beta_header(&self, header_value: &str) -> String {
+        if !header_value.contains('*') {
+            return header_value.to_string();
+        }
+
+        let builtin_features = self.get_builtin_beta_features();
+        let mut all_features: Vec<String> = header_value
+            .split(',')
+            .filter_map(|f| {
+                let trimmed = f.trim();
+                if trimmed == "*" {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            })
+            .collect();
+
+        all_features.extend(builtin_features.iter().map(|f| f.to_string()));
+
+        let mut unique_features: Vec<String> = all_features.into_iter().collect();
+        unique_features.sort();
+        unique_features.dedup();
+
+        unique_features.join(",")
+    }
+
+    fn process_model_headers(
+        &self,
+        override_headers: &std::collections::HashMap<String, String>,
+    ) -> Vec<(String, String)> {
+        let mut headers = Vec::new();
+
+        for (key, value) in override_headers {
+            if key == "anthropic-beta" {
+                let expanded = self.expand_beta_header(value);
+                headers.push((key.clone(), expanded));
+            } else {
+                headers.push((key.clone(), value.clone()));
+            }
+        }
+
+        headers
+    }
+
+    fn get_conditional_headers(&self) -> Vec<(String, String)> {
+        if let Some(override_config) = self.get_model_override() {
+            if let Some(override_headers) = &override_config.headers {
+                return self.process_model_headers(override_headers);
+            }
+        }
+
         let mut headers = Vec::new();
 
         let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") {
             if is_thinking_enabled {
-                headers.push(("anthropic-beta", "output-128k-2025-02-19"));
+                headers.push((
+                    "anthropic-beta".to_string(),
+                    "output-128k-2025-02-19".to_string(),
+                ));
             }
-            headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
+            headers.push((
+                "anthropic-beta".to_string(),
+                "token-efficient-tools-2025-02-19".to_string(),
+            ));
         }
 
         headers
@@ -112,7 +193,7 @@ impl AnthropicProvider {
         let mut request = self.api_client.request("v1/messages");
 
         for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
+            request = request.header(&key, &value)?;
         }
 
         Ok(request.api_post(payload).await?)
@@ -263,7 +344,7 @@ impl Provider for AnthropicProvider {
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
+            request = request.header(&key, &value)?;
         }
 
         let response = request.response_post(&payload).await.inspect_err(|e| {
