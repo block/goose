@@ -28,6 +28,9 @@ pub async fn run() -> Result<()> {
 
     let app_state = state::AppState::new().await?;
 
+    // Start background log monitor (automatic archival/deletion)
+    crate::routes::logs::start_log_monitor(app_state.clone());
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)

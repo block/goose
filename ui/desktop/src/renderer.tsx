@@ -4,6 +4,7 @@ import { ConfigProvider } from './components/ConfigContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
+import UpdateToast from './components/UpdateToast';
 
 const App = lazy(() => import('./App'));
 
@@ -29,6 +30,8 @@ const App = lazy(() => import('./App'));
         <ConfigProvider>
           <ErrorBoundary>
             <App />
+            {/* Global update toast — shows a compact restart button when an update is downloaded */}
+            <UpdateToast />
           </ErrorBoundary>
         </ConfigProvider>
       </Suspense>

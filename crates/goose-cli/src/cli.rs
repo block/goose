@@ -3,30 +3,7 @@ use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
 
-use crate::commands::acp::run_acp_agent;
-use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
-use crate::commands::info::handle_info;
-use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-// Import the new handlers from commands::schedule
-use crate::commands::schedule::{
-    handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
-    handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
-    handle_schedule_sessions,
-};
-use crate::commands::session::{handle_session_list, handle_session_remove};
-use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
-use goose::session::SessionManager;
-use goose_bench::bench_config::BenchRunConfig;
-use goose_bench::runners::bench_runner::BenchRunner;
-use goose_bench::runners::eval_runner::EvalRunner;
-use goose_bench::runners::metric_aggregator::MetricAggregator;
-use goose_bench::runners::model_runner::ModelRunner;
-use std::io::Read;
-use std::path::PathBuf;
+use crate::commands::log::LogCommand;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -731,6 +708,13 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Manage log files and auto-rotation settings
+    #[command(about = "Manage log files and auto-rotation settings")]
+    Log {
+        #[command(subcommand)]
+        command: LogCommand,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -777,6 +761,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Log { .. }) => "log",
         None => "default_session",
     };
 
@@ -1253,6 +1238,10 @@ pub async fn cli() -> Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Log { command }) => {
+            crate::commands::log::handle_log(command).await?;
             return Ok(());
         }
         None => {

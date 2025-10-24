@@ -16,6 +16,7 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import LogNotification from './components/alerts/LogNotification';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -45,6 +46,7 @@ import {
 } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import Pair2 from './components/Pair2';
+import { useLogMonitor } from './hooks/useLogMonitor';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -313,6 +315,25 @@ export function AppInner() {
 
   const location = useLocation();
   const [_searchParams, setSearchParams] = useSearchParams();
+
+  // Log monitoring
+  const { logSize, warningLevel } = useLogMonitor();
+
+  const handleClearLogs = async () => {
+    try {
+      await window.electron.clearLogs();
+    } catch (error) {
+      console.error('Failed to clear logs:', error);
+    }
+  };
+
+  const handleOpenLogsFolder = async () => {
+    try {
+      await window.electron.openLogsFolder();
+    } catch (error) {
+      console.error('Failed to open logs folder:', error);
+    }
+  };
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -614,6 +635,12 @@ export function AppInner() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
+      <LogNotification
+        logSize={logSize}
+        warningLevel={warningLevel}
+        onClearLogs={handleClearLogs}
+        onOpenLogsFolder={handleOpenLogsFolder}
+      />
     </>
   );
 }
