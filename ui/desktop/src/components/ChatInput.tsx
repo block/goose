@@ -69,9 +69,9 @@ interface ChatInputProps {
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
-  numTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  currentTotalTokens?: number;
+  accumulatedInputTokens?: number;
+  accumulatedOutputTokens?: number;
   messages?: Message[];
   sessionCosts?: {
     [key: string]: {
@@ -102,9 +102,9 @@ export default function ChatInput({
   droppedFiles = [],
   onFilesProcessed,
   setView,
-  numTokens,
-  inputTokens,
-  outputTokens,
+  currentTotalTokens,
+  accumulatedInputTokens,
+  accumulatedOutputTokens,
   messages = [],
   disableAnimation = false,
   sessionCosts,
@@ -119,9 +119,9 @@ export default function ChatInput({
   isExtensionsLoading = false,
 }: ChatInputProps) {
   console.log('[ChatInput] RENDER with token props:', {
-    numTokens,
-    inputTokens,
-    outputTokens,
+    currentTotalTokens,
+    accumulatedInputTokens,
+    accumulatedOutputTokens,
     timestamp: new Date().toISOString(),
   });
 
@@ -528,16 +528,16 @@ export default function ChatInput({
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
-    if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+    if ((currentTotalTokens && currentTotalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: numTokens || 0,
+          current: currentTotalTokens || 0,
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !numTokens,
+        compactButtonDisabled: !currentTotalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
@@ -570,7 +570,7 @@ export default function ChatInput({
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    numTokens,
+    currentTotalTokens,
     toolCount,
     tokenLimit,
     isTokenLimitLoaded,
@@ -1575,8 +1575,8 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
+                  inputTokens={accumulatedInputTokens}
+                  outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
                 />
               </div>

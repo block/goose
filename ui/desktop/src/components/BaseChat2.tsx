@@ -281,11 +281,11 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={tokenState?.total_tokens ?? session?.total_tokens ?? undefined}
-            inputTokens={
+            currentTotalTokens={tokenState?.total_tokens ?? session?.total_tokens ?? undefined}
+            accumulatedInputTokens={
               tokenState?.accumulated_input_tokens ?? session?.accumulated_input_tokens ?? undefined
             }
-            outputTokens={
+            accumulatedOutputTokens={
               tokenState?.accumulated_output_tokens ??
               session?.accumulated_output_tokens ??
               undefined

@@ -443,11 +443,11 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            numTokens={tokenState?.total_tokens ?? sessionTokenCount}
-            inputTokens={
+            currentTotalTokens={tokenState?.total_tokens ?? sessionTokenCount}
+            accumulatedInputTokens={
               tokenState?.accumulated_input_tokens ?? sessionInputTokens ?? localInputTokens
             }
-            outputTokens={
+            accumulatedOutputTokens={
               tokenState?.accumulated_output_tokens ?? sessionOutputTokens ?? localOutputTokens
             }
             droppedFiles={droppedFiles}
