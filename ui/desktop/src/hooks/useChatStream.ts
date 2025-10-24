@@ -114,6 +114,9 @@ async function streamFromResponse(
   updateTokenState: (tokenState?: TokenState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
+  let chunkCount = 0;
+  let messageEventCount = 0;
+
   try {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     if (!response.body) throw new Error('No response body');
@@ -123,15 +126,18 @@ async function streamFromResponse(
     let currentMessages = initialMessages;
 
     log.stream('reading-chunks');
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
         log.stream('chunks-complete', {
-          totalMessages: currentMessages.length,
+          totalChunks: chunkCount,
+          messageEvents: messageEventCount,
         });
         break;
       }
 
+      chunkCount++;
       const chunk = decoder.decode(value);
       const lines = chunk.split('\n');
 
@@ -146,19 +152,24 @@ async function streamFromResponse(
 
           switch (event.type) {
             case 'Message': {
+              messageEventCount++;
               const msg = event.message;
               currentMessages = pushMessage(currentMessages, msg);
 
-              log.stream('message-chunk', {
-                messageId: msg.id?.slice(0, 8),
-                contentCount: msg.content.length,
-              });
+              // Only log every 10th message event to avoid spam
+              if (messageEventCount % 10 === 0) {
+                log.stream('message-chunk', {
+                  eventCount: messageEventCount,
+                  messageCount: currentMessages.length,
+                });
+              }
 
               // Update token state if present
               if (event.token_state) {
                 updateTokenState(event.token_state);
               }
 
+              // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(currentMessages);
               break;
             }
@@ -181,14 +192,16 @@ async function streamFromResponse(
             }
             case 'UpdateConversation': {
               log.messages('conversation-update', event.conversation.length);
-              currentMessages = event.conversation;
+              // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(event.conversation);
               break;
             }
             case 'Notification': {
+              // Don't log notifications, too noisy
               break;
             }
             case 'Ping': {
+              // Don't log pings
               break;
             }
             default: {
@@ -258,14 +271,15 @@ export function useChatStream({
     if (!sessionId) return;
 
     // Reset state when sessionId changes
+    log.session('loading', sessionId);
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
-    log.session('loading', sessionId);
-    log.state(ChatState.Thinking, { reason: 'session load start' });
     setChatState(ChatState.Thinking);
 
     let cancelled = false;
+
+    log.state(ChatState.Thinking, { reason: 'session load start' });
 
     (async () => {
       try {
@@ -279,11 +293,14 @@ export function useChatStream({
         if (cancelled) return;
 
         const session = response.data;
-        setSession(session);
         log.session('loaded', sessionId, {
-          messageCount: session?.conversation?.length ?? 0,
+          messageCount: session?.conversation?.length || 0,
+          description: session?.description,
         });
-        setMessagesAndLog(session?.conversation || [], 'session-load');
+
+        setSession(session);
+        setMessagesAndLog(session?.conversation || [], 'load-session');
+
         log.state(ChatState.Idle, { reason: 'session load complete' });
         setChatState(ChatState.Idle);
       } catch (error) {
@@ -291,6 +308,7 @@ export function useChatStream({
 
         log.error('session load failed', error);
         setSessionLoadError(error instanceof Error ? error.message : String(error));
+
         log.state(ChatState.Idle, { reason: 'session load error' });
         setChatState(ChatState.Idle);
       }
@@ -303,11 +321,13 @@ export function useChatStream({
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
-      const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       log.messages('user-submit', messagesRef.current.length + 1, {
-        userMessage: userMessage.slice(0, 50),
+        userMessageLength: userMessage.length,
       });
-      setMessagesAndLog(currentMessages, 'user-submit');
+
+      const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
+      setMessagesAndLog(currentMessages, 'user-entered');
+
       log.state(ChatState.Streaming, { reason: 'user submit' });
       setChatState(ChatState.Streaming);
 
@@ -315,6 +335,7 @@ export function useChatStream({
 
       try {
         log.stream('request-start', { sessionId: sessionId.slice(0, 8) });
+
         const response = await fetch(getApiUrl('/reply'), {
           method: 'POST',
           headers: {
@@ -336,10 +357,11 @@ export function useChatStream({
         await streamFromResponse(
           response,
           currentMessages,
-          (messages: Message[]) => setMessagesAndLog(messages, 'stream-update'),
+          (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
           setTokenState,
           onFinish
         );
+
         log.stream('stream-complete');
       } catch (error) {
         // AbortError is expected when user stops streaming
