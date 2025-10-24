@@ -69,7 +69,7 @@ interface ChatInputProps {
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
-  currentTotalTokens?: number;
+  totalTokens?: number;
   accumulatedInputTokens?: number;
   accumulatedOutputTokens?: number;
   messages?: Message[];
@@ -102,7 +102,7 @@ export default function ChatInput({
   droppedFiles = [],
   onFilesProcessed,
   setView,
-  currentTotalTokens,
+  totalTokens,
   accumulatedInputTokens,
   accumulatedOutputTokens,
   messages = [],
@@ -119,7 +119,7 @@ export default function ChatInput({
   isExtensionsLoading = false,
 }: ChatInputProps) {
   console.log('[ChatInput] RENDER with token props:', {
-    currentTotalTokens,
+    currentTotalTokens: totalTokens,
     accumulatedInputTokens,
     accumulatedOutputTokens,
     timestamp: new Date().toISOString(),
@@ -528,16 +528,16 @@ export default function ChatInput({
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
-    if ((currentTotalTokens && currentTotalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+    if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: currentTotalTokens || 0,
+          current: totalTokens || 0,
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !currentTotalTokens,
+        compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
@@ -570,7 +570,7 @@ export default function ChatInput({
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    currentTotalTokens,
+    totalTokens,
     toolCount,
     tokenLimit,
     isTokenLimitLoaded,
