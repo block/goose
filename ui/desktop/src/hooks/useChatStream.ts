@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-import { Conversation, Message, resumeAgent, Session } from '../api';
+import { Conversation, Message, resumeAgent, Session, TokenState } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
@@ -52,7 +52,7 @@ interface NotificationEvent {
 }
 
 type MessageEvent =
-  | { type: 'Message'; message: Message }
+  | { type: 'Message'; message: Message; token_state?: TokenState | null }
   | { type: 'Error'; error: string }
   | { type: 'Ping' }
   | { type: 'Finish'; reason: string }
@@ -73,6 +73,7 @@ interface UseChatStreamReturn {
   handleSubmit: (userMessage: string) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  tokenState?: TokenState;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -101,6 +102,7 @@ async function streamFromResponse(
   response: Response,
   initialMessages: Message[],
   updateMessages: (messages: Message[]) => void,
+  updateTokenState: (tokenState?: TokenState) => void,
   updateChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
@@ -162,6 +164,11 @@ async function streamFromResponse(
                 });
               }
 
+              // Update token state if present
+              if (event.token_state) {
+                updateTokenState(event.token_state);
+              }
+
               // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(currentMessages);
               break;
@@ -185,7 +192,6 @@ async function streamFromResponse(
             }
             case 'UpdateConversation': {
               log.messages('conversation-update', event.conversation.length);
-              currentMessages = event.conversation;
               // This calls the wrapped setMessagesAndLog with 'streaming' context
               updateMessages(event.conversation);
               break;
@@ -227,6 +233,7 @@ export function useChatStream({
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const [tokenState, setTokenState] = useState<TokenState>();
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -351,6 +358,7 @@ export function useChatStream({
           response,
           currentMessages,
           (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
+          setTokenState,
           setChatState,
           onFinish
         );
@@ -397,5 +405,6 @@ export function useChatStream({
     chatState,
     handleSubmit,
     stopStreaming,
+    tokenState,
   };
 }

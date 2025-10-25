@@ -126,6 +126,8 @@ impl IntoResponse for SseResponse {
 pub enum MessageEvent {
     Message {
         message: Message,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        token_state: Option<goose::conversation::message::TokenState>,
     },
     Error {
         error: String,
@@ -158,6 +160,7 @@ async fn stream_event(
             e
         )
     });
+
     if tx.send(format!("data: {}\n\n", json)).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
@@ -302,7 +305,25 @@ pub async fn reply(
                             }
 
                             all_messages.push(message.clone());
-                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+
+                            let token_state = match SessionManager::get_session(&session_id, false).await {
+                                Ok(session) => {
+                                    Some(goose::conversation::message::TokenState {
+                                        input_tokens: session.input_tokens,
+                                        output_tokens: session.output_tokens,
+                                        total_tokens: session.total_tokens,
+                                        accumulated_input_tokens: session.accumulated_input_tokens,
+                                        accumulated_output_tokens: session.accumulated_output_tokens,
+                                        accumulated_total_tokens: session.accumulated_total_tokens,
+                                    })
+                                },
+                                Err(e) => {
+                                    tracing::warn!("Failed to fetch session for token state: {}", e);
+                                    None
+                                }
+                            };
+
+                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();

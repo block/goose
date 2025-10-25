@@ -6,7 +6,7 @@ import {
   getCompactingMessage,
   hasCompletedToolCalls,
 } from '../types/message';
-import { Conversation, Message, Role } from '../api';
+import { Conversation, Message, Role, TokenState } from '../api';
 
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
@@ -35,7 +35,7 @@ export interface NotificationEvent {
 
 // Event types for SSE stream
 type MessageEvent =
-  | { type: 'Message'; message: Message }
+  | { type: 'Message'; message: Message; token_state?: TokenState | null }
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
@@ -165,6 +165,9 @@ export interface UseMessageStreamHelpers {
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
+
+  /** Real-time token state from server */
+  tokenState?: TokenState;
 }
 
 /**
@@ -197,6 +200,7 @@ export function useMessageStream({
     null
   );
   const [session, setSession] = useState<Session | null>(null);
+  const [tokenState, setTokenState] = useState<TokenState>();
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -280,6 +284,11 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
+                    // Update token state if present
+                    if (parsedEvent.token_state) {
+                      setTokenState(parsedEvent.token_state);
+                    }
+
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage: Message = {
                       ...parsedEvent.message,
@@ -341,7 +350,6 @@ export function useMessageStream({
                   }
 
                   case 'UpdateConversation': {
-                    currentMessages = parsedEvent.conversation;
                     setMessages(parsedEvent.conversation);
                     break;
                   }
@@ -650,5 +658,6 @@ export function useMessageStream({
     currentModelInfo,
     session,
     setError,
+    tokenState,
   };
 }

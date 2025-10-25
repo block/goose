@@ -63,12 +63,19 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const { session, messages, chatState, handleSubmit, stopStreaming, sessionLoadError } =
-    useChatStream({
-      sessionId,
-      onStreamFinish,
-      initialMessage,
-    });
+  const {
+    session,
+    messages,
+    chatState,
+    handleSubmit,
+    stopStreaming,
+    sessionLoadError,
+    tokenState,
+  } = useChatStream({
+    sessionId,
+    onStreamFinish,
+    initialMessage,
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -273,9 +280,13 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={session?.total_tokens || undefined}
-            inputTokens={session?.input_tokens || undefined}
-            outputTokens={session?.output_tokens || undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            accumulatedInputTokens={
+              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+            }
+            accumulatedOutputTokens={
+              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}

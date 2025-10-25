@@ -401,6 +401,7 @@ derive_utoipa!(Icon as IconSchema);
         Message,
         MessageContent,
         MessageMetadata,
+        goose::conversation::message::TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,

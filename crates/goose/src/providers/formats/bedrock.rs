@@ -345,11 +345,11 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage {
-        input_tokens: Some(usage.input_tokens),
-        output_tokens: Some(usage.output_tokens),
-        total_tokens: Some(usage.total_tokens),
-    }
+    Usage::new(
+        Some(usage.input_tokens),
+        Some(usage.output_tokens),
+        Some(usage.total_tokens),
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {
