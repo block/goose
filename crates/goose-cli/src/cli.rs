@@ -18,8 +18,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
-use goose::session::SessionManager;
+use crate::session::{build_session, get_session_id, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -35,9 +34,9 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = false)]
-struct Identifier {
+pub struct Identifier {
     #[arg(
         short,
         long,
@@ -46,7 +45,7 @@ struct Identifier {
         long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
         alias = "id"
     )]
-    name: Option<String>,
+    pub name: Option<String>,
 
     #[arg(
         long = "session-id",
@@ -54,7 +53,7 @@ struct Identifier {
         help = "Session ID (e.g., '20250921_143022')",
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
-    session_id: Option<String>,
+    pub session_id: Option<String>,
 
     #[arg(
         short,
@@ -64,29 +63,9 @@ struct Identifier {
         long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
 jsonl' -> '20250325_200615')."
     )]
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
-async fn get_session_id(identifier: Identifier) -> Result<String> {
-    if let Some(session_id) = identifier.session_id {
-        Ok(session_id)
-    } else if let Some(name) = identifier.name {
-        let sessions = SessionManager::list_sessions().await?;
-
-        sessions
-            .into_iter()
-            .find(|s| s.name == name || s.id == name)
-            .map(|s| s.id)
-            .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
-    } else if let Some(path) = identifier.path {
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
-    } else {
-        unreachable!()
-    }
-}
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
@@ -872,15 +851,20 @@ pub async fn cli() -> Result<()> {
                         "Session started"
                     );
 
-                    let session_id = if let Some(id) = identifier {
-                        Some(get_session_id(id).await?)
-                    } else {
-                        None
-                    };
+                    if let Some(Identifier {
+                        session_id: Some(_),
+                        ..
+                    }) = &identifier
+                    {
+                        if !resume {
+                            eprintln!("Error: --session-id can only be used with --resume flag");
+                            std::process::exit(1);
+                        }
+                    }
 
                     // Run session command by default
                     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
-                        session_id,
+                        identifier,
                         resume,
                         no_session: false,
                         extensions,
@@ -1070,14 +1054,20 @@ pub async fn cli() -> Result<()> {
                     std::process::exit(1);
                 }
             };
-            let session_id = if let Some(id) = identifier {
-                Some(get_session_id(id).await?)
-            } else {
-                None
-            };
+
+            if let Some(Identifier {
+                session_id: Some(_),
+                ..
+            }) = &identifier
+            {
+                if !resume {
+                    eprintln!("Error: --session-id can only be used with --resume flag");
+                    std::process::exit(1);
+                }
+            }
 
             let mut session = build_session(SessionBuilderConfig {
-                session_id,
+                identifier,
                 resume,
                 no_session,
                 extensions,
@@ -1262,7 +1252,7 @@ pub async fn cli() -> Result<()> {
             } else {
                 // Run session command by default
                 let mut session = build_session(SessionBuilderConfig {
-                    session_id: None,
+                    identifier: None,
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),

@@ -14,7 +14,7 @@ use goose::conversation::Conversation;
 use std::io::Write;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
+pub use builder::{build_session, get_session_id, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
