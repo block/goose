@@ -32,6 +32,7 @@ instructions: |
   - Framework-specific implementations
   - Real-time monitoring and reporting
   - Comprehensive documentation and setup guides
+  - Manual file operations (users will need to commit changes themselves)
 
 parameters:
   - key: project_path
@@ -78,11 +79,6 @@ parameters:
     default: "true"
     description: Whether to generate interactive reporting dashboard (true/false)
   
-  - key: auto_commit
-    input_type: string
-    requirement: optional
-    default: "false"
-    description: Whether to automatically commit changes and create PR (true/false)
 
 sub_recipes:
   - name: "experiment_tracker"
@@ -122,25 +118,6 @@ extensions:
     timeout: 300
     bundled: true
     description: For storing experiment configurations and tracking patterns across sessions
-  
-  - type: stdio
-    name: filesystem
-    cmd: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "{{ project_path }}"
-    timeout: 300
-    description: Enhanced filesystem operations for managing A/B test files and configurations
-  
-  - type: stdio
-    name: github
-    cmd: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-github"
-    timeout: 300
-    description: GitHub integration for creating PRs with A/B test infrastructure changes
 
 prompt: |
   Generate complete A/B testing infrastructure for {{ project_path }} with test "{{ test_name }}" and variants: {{ variants }}.
@@ -270,18 +247,6 @@ prompt: |
        * ab-tests/docs/ (documentation)
      - Ensure all files use OS-compatible paths
      - Create proper import/export statements
-  
-  {% if auto_commit == "true" %}
-  10. Auto-Commit & PR Creation
-     - Stage all A/B test infrastructure files
-     - Create commit with message: "feat: add A/B test framework for {{ test_name }}"
-     - Push changes to new branch: "feature/ab-test-{{ test_name }}"
-     - Create PR with description including:
-       * Test overview and variants
-       * Framework-specific implementations
-       * Dashboard and analytics features
-       * Documentation and setup instructions
-  {% endif %}
   
   Error Recovery:
   - If framework detection fails, default to vanilla JS implementation
