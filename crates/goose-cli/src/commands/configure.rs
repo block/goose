@@ -1332,7 +1332,10 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
 pub fn configure_keyring_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
-    // Check current setting
+    if std::env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
+    }
+
     let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
 
     let current_status = if currently_disabled {
