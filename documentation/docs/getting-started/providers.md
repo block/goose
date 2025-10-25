@@ -295,10 +295,10 @@ Goose supports adding custom OpenAI-compatible providers with additional authent
 #### Configuring Custom Providers
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-    Custom providers are currently configured through the CLI. After configuration, they'll be available in Goose Desktop.
+  <TabItem value="ui" label="goose Desktop" default>
+    Custom providers are currently configured through the CLI. After configuration, they'll be available in goose Desktop.
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     1. Run `goose configure`
     2. Select `Custom Providers` → `Add A Custom Provider`
     3. Choose `OpenAI Compatible`
@@ -318,8 +318,8 @@ Goose supports adding custom OpenAI-compatible providers with additional authent
 #### Manual Configuration
 
 You can also manually configure custom providers by creating a JSON file in:
-- macOS/Linux: `~/.config/goose/custom_providers/your_provider.json`
-- Windows: `%APPDATA%\goose\custom_providers\your_provider.json`
+- macOS/Linux: `~/.config/goose/custom_providers/custom_your_provider.json`
+- Windows: `%APPDATA%\goose\custom_providers\custom_your_provider.json`
 
 Example configuration:
 ```json
