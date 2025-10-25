@@ -70,7 +70,7 @@ A _turn_ is one complete prompt-response interaction. Here's how it works with t
 - Fallback to the lead model if the worker model struggles for 2 consecutive turns
 - Use the lead model for 2 turns and then switch back to the worker model
 
-The lead model and worker model names are displayed at the start of the Goose CLI session. If you don't export a `GOOSE_MODEL` for your session, the worker model defaults to the `GOOSE_MODEL` in your [configuration file](/docs/guides/config-file).
+The lead model and worker model names are displayed at the start of the Goose CLI session. If you don't export a `GOOSE_MODEL` for your session, the worker model defaults to the `GOOSE_MODEL` in your [configuration file](/docs/guides/config-files).
 
 **Examples**
 
