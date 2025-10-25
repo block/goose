@@ -46,7 +46,7 @@ impl Agent {
             let provider = self.provider().await?;
             let model_name = provider.get_model_config().model_name;
 
-            if !should_enabled_subagents(&model_name) {
+            if !should_enabled_subagents(&model_name) || self.is_subagent {
                 tools.retain(|tool| {
                     tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
                         && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
