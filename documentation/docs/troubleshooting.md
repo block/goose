@@ -155,25 +155,72 @@ This warning helps protect against inadvertently executing potentially harmful r
 ---
 ### Uninstall Goose or Remove Cached Data
 
-You may need to uninstall Goose or clear existing data before re-installing. Goose stores data in a few places. Secrets, such as API keys, are stored exclusively in the system keychain.
+You may need to uninstall Goose or clear existing data before re-installing. Goose stores data in different locations depending on your operating system. Secrets, such as API keys, are stored exclusively in the system keychain/keyring.
 
-Logs and configuration data are stored in `~/.config/goose`. And the app stores a small amount of data in
-`~/Library/Application Support/Goose`.
+#### macOS
 
-You can remove all of this data by following these steps.
+**Data Locations**
 
-* stop any copies of goose running (CLI or GUI)
-  * consider confirming you've stopped them all via the activity monitor
-* open the keychain and delete the credential called "goose", which contains all secrets stored by goose
-* `rm -rf ~/.config/goose`
+- **Logs and Config**: `~/.config/goose`
+- **Application Data**: `~/Library/Application Support/Goose`
+- **Secrets**: macOS Keychain (credential named "goose").
 
-If you are using Goose Desktop on macOS, you may also need to remove the app itself.
-* `rm -rf ~/Library/Application Support/Goose`
-* Delete the "Goose" app from your Applications folder
+#### Removal Steps
 
-After this cleanup, if you are looking to try out a fresh install of Goose, you can now start from the usual
-install instructions.
+1. Stop any copies of Goose running (CLI or GUI)
 
+  - Consider confirming you've stopped them all via Activity Monitor
+
+2. Open Keychain Access and delete the credential called "goose", which contains all secrets stored by Goose
+3. Remove data directories:
+
+```
+rm -rf ~/.config/goose
+rm -rf ~/Library/Application\ Support/Goose
+```
+4. Delete the "Goose" app from your Applications folder (if using Goose Desktop).
+
+#### Linux
+**Data Locations**
+
+- **Data/Sessions**: `~/.local/share/goose/`
+- **Logs**: `~/.local/state/goose/`
+- **Config**: `~/.config/goose/`
+- **Secrets**: System keyring (if available)
+
+#### Removal Steps
+
+- Stop any copies of Goose running (CLI or GUI)
+- Clear secrets from your system keyring (if applicable)
+- Remove data directories:
+
+```
+rm -rf ~/.local/share/goose/
+rm -rf ~/.local/state/goose/
+rm -rf ~/.config/goose/
+```
+#### Windows
+
+**Data Locations**
+- **Configuration and Data**: `%APPDATA%\Block\goose\`
+- **Local Application Data**: `%LOCALAPPDATA%\Block\goose\`
+- **Secrets**: Windows Credential Manager
+
+#### Removal Steps
+
+1. Stop any copies of Goose running (CLI or GUI)
+
+  - Check Task Manager to confirm all instances are closed
+
+2. Open Windows Credential Manager and delete credentials related to "goose"
+3. Remove data directories:
+```
+rmdir /s /q "%APPDATA%\Block\goose"
+rmdir /s /q "%LOCALAPPDATA%\Block\goose"
+```
+4. Uninstall the Goose Desktop app from Settings > Apps (if applicable)
+
+> After this cleanup, if you are looking to try out a fresh install of Goose, you can now start from the usual install instructions.
 ---
 
 ### Keychain/Keyring Errors
