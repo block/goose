@@ -1544,7 +1544,8 @@ mod tests {
     A-->B;
     A-->C;
     B-->D;
-    C-->D;"#.to_string(),
+    C-->D;"#
+                .to_string(),
         });
 
         let result = router.render_mermaid(params).await;
