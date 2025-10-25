@@ -4,6 +4,7 @@ mod experiments;
 pub mod extensions;
 pub mod paths;
 pub mod permission;
+pub mod search_path;
 pub mod signup_openrouter;
 pub mod signup_tetrate;
 

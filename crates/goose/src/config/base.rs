@@ -136,6 +136,16 @@ impl Default for Config {
     }
 }
 
+macro_rules! declare_param {
+    ($param_name:ident, $param_type:ty) => {
+        paste::paste! {
+            pub fn [<get_ $param_name:lower>](&self) -> Result<$param_type, ConfigError> {
+                self.get_param(stringify!($param_name))
+            }
+        }
+    };
+}
+
 impl Config {
     /// Get the global configuration instance.
     ///
@@ -730,6 +740,8 @@ impl Config {
         };
         Ok(())
     }
+
+    declare_param!(GOOSE_SEARCH_PATHS, Vec<String>);
 }
 
 /// Load init-config.yaml from workspace root if it exists.
