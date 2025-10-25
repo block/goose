@@ -231,6 +231,7 @@ impl Provider for OpenAiProvider {
                 tracing::debug!("Failed to get usage data");
                 Usage::default()
             });
+
         let model = get_model(&json_response);
         log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))

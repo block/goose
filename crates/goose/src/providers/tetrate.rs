@@ -165,7 +165,6 @@ impl Provider for TetrateProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create the base payload using the provided model_config
         let payload = create_request(
             model_config,
             system,
