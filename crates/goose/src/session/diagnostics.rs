@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::providers::utils::LOGS_TO_KEEP;
 use crate::session::SessionManager;
 use std::fs::{self};
 use std::io::Cursor;
@@ -36,7 +37,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
 
         log_files.sort_by_key(|e| e.metadata().ok().and_then(|m| m.modified().ok()));
 
-        for entry in log_files.iter().rev().take(3) {
+        for entry in log_files.iter().rev().take(LOGS_TO_KEEP) {
             let path = entry.path();
             let name = path.file_name().unwrap().to_str().unwrap();
             zip.start_file(format!("logs/{}", name), options)?;

@@ -455,7 +455,7 @@ pub struct RequestLog {
     temp_path: PathBuf,
 }
 
-const LOGS_TO_KEEP: usize = 10;
+pub const LOGS_TO_KEEP: usize = 10;
 
 impl RequestLog {
     pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
