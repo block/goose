@@ -8,9 +8,13 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
-    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
-    TextContent, Tool, ToolAnnotations,
+    Annotations, CancelledNotification, CancelledNotificationParam, Content, EmbeddedResource,
+    Icon, ImageContent, JsonObject, LoggingLevel, LoggingMessageNotification,
+    LoggingMessageNotificationParam, ProgressNotification, ProgressNotificationParam,
+    PromptListChangedNotification, RawAudioContent, RawEmbeddedResource, RawImageContent,
+    RawResource, RawTextContent, ResourceContents, ResourceListChangedNotification,
+    ResourceUpdatedNotification, ResourceUpdatedNotificationParam, Role, ServerNotification,
+    TextContent, Tool, ToolAnnotations, ToolListChangedNotification,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -37,13 +41,27 @@ macro_rules! derive_utoipa {
             fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
                 let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
                 let generator = settings.into_generator();
-                let schema = generator.into_root_schema_for::<$inner_type>();
-                let schema = convert_schemars_to_utoipa(schema);
+                let root_schema = generator.into_root_schema_for::<$inner_type>();
+                let schema = convert_schemars_to_utoipa(root_schema.schema.clone().into());
                 (stringify!($inner_type), schema)
             }
 
             fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-                Vec::new()
+                let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
+                let generator = settings.into_generator();
+                let root_schema = generator.into_root_schema_for::<$inner_type>();
+
+                root_schema
+                    .definitions
+                    .iter()
+                    .map(|(name, schema)| {
+                        let converted = convert_schemars_to_utoipa(schema.clone().into());
+                        match converted {
+                            RefOr::T(s) => (Box::leak(name.clone().into_boxed_str()) as &str, s),
+                            RefOr::Ref(_) => unreachable!(),
+                        }
+                    })
+                    .collect()
             }
         }
     };
@@ -319,6 +337,20 @@ derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
+derive_utoipa!(ServerNotification as ServerNotificationSchema);
+
+derive_utoipa!(CancelledNotification as CancelledNotificationSchema);
+derive_utoipa!(ProgressNotification as ProgressNotificationSchema);
+derive_utoipa!(LoggingMessageNotification as LoggingMessageNotificationSchema);
+derive_utoipa!(ResourceUpdatedNotification as ResourceUpdatedNotificationSchema);
+derive_utoipa!(ResourceListChangedNotification as ResourceListChangedNotificationSchema);
+derive_utoipa!(ToolListChangedNotification as ToolListChangedNotificationSchema);
+derive_utoipa!(PromptListChangedNotification as PromptListChangedNotificationSchema);
+derive_utoipa!(CancelledNotificationParam as CancelledNotificationParamSchema);
+derive_utoipa!(ProgressNotificationParam as ProgressNotificationParamSchema);
+derive_utoipa!(LoggingMessageNotificationParam as LoggingMessageNotificationParamSchema);
+derive_utoipa!(ResourceUpdatedNotificationParam as ResourceUpdatedNotificationParamSchema);
+derive_utoipa!(LoggingLevel as LoggingLevelSchema);
 
 #[derive(OpenApi)]
 #[openapi(
@@ -393,6 +425,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::reply::ChatRequest,
+        super::routes::reply::MessageEvent,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,
@@ -411,6 +444,7 @@ derive_utoipa!(Icon as IconSchema);
         RawAudioContentSchema,
         RawEmbeddedResourceSchema,
         RawResourceSchema,
+        ServerNotificationSchema,
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
