@@ -7,6 +7,9 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
+#[cfg(test)]
+mod prompt_display_tests;
+
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -429,6 +432,9 @@ impl CliSession {
                         RunMode::Normal => {
                             save_history(&mut editor);
 
+                            // Render user input with vertical line
+                            output::render_user_input(&content);
+
                             self.push_message(Message::user().with_text(&content));
 
                             // Track the current directory and last instruction in projects.json
@@ -454,6 +460,9 @@ impl CliSession {
                                 "\n{}",
                                 console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
                             );
+                            // Add significant spacing before next prompt
+                            println!();
+                            println!();
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -822,6 +831,9 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        // Render user input with vertical line
+        output::render_user_input(&prompt);
+
         let message = Message::user().with_text(&prompt);
         self.process_message(message, CancellationToken::default())
             .await?;
