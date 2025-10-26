@@ -63,7 +63,7 @@ The goose team continues working to keep goose cutting-edge in the AI agent spac
 
 If you're ready to see how fast and simple this setup really is, watch the full livestream recording of my ACP setup with goose below
 
-<iframe class="aspect-ratio" src="https://www.youtube.com/embed/Hvu5KDTb6JE?si=pWpqj5-qhcepoXkc" title="Vibe Code with goose: Intro to ACP" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/Hvu5KDTb6JE" title="Vibe Code with goose: Intro to ACP" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 *Ready to integrate goose directly into your editor? Get started with our [ACP setup guide](https://block.github.io/goose/docs/guides/acp-clients) and share your experience in our [Discord community](http://discord.gg/goose-oss).*
 
