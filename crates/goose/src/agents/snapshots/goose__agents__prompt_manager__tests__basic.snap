@@ -25,16 +25,7 @@ extension_name. You should only enable extensions found from the search_availabl
 If Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load
 new ones.
 
-
 No extensions are defined. You should let the user know that they should add extensions.
-
-
-
-
-# Suggestion
-
-""
-
 
 
 
@@ -50,7 +41,6 @@ Execute self contained tasks where step-by-step visibility is not important thro
 - Provide all needed context — subagents cannot see your context
 - Use extension filters to limit resource access
 - Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
-  
 
 # Response Guidelines
 
