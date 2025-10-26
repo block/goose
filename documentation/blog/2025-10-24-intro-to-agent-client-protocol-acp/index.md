@@ -9,11 +9,11 @@ authors:
 
 I code best when I sit criss-cross applesauce on my bed or couch with my laptop in my lap, a snack nearby, and no extra screens competing for my attention. Sometimes I keep the editor and browser side by side; other times, I make them full screen and switch between applications. I don't like using multiple monitors, and my developer environment is embarrassingly barebones. 
 
-<!--truncate-->
-
 The described setup allows me to fall into a deep flow state, which is essential for staying productive as a software engineer. It gives me the focus to dig beneath the surface of a problem, trace its root cause, and think about how every fix or improvement affects both users and the system as a whole. While quick bursts of multitasking may work well for other fields, real productivity in engineering often comes from long stretches of uninterrupted thought.
 
 Recently, my workflow changed.
+
+<!--truncate-->
 
 ## The Three-App Problem
 
@@ -39,15 +39,13 @@ Many developers have tried to solve this integration challenge:
 
 Zed Industries, the creators of the Zed code editor, developed a solution called [Agent Client Protocol (ACP)](https://agentclientprotocol.com/overview/introduction) that resolves these integration challenges. ACP allows you to bring any AI agent into any supporting editor without vendor lock-in. More importantly, it solves the maintenance problem because the AI agent and editor communicate directly through a standardized protocol.
 
-Here's how ACP works:
+This standardization is achieved by defining a common language via JSON-RPC. Instead of every editor and agent building private, complex handshakes, ACP uses a simple, predictable sequence of structured messages to manage the agent-editor session:
 
 - **session/initialize:** Your AI agent tells the editor what capabilities it supports (audio, text prompts, etc.)
 - **session/new:** When you start a new session, the agent and editor establish communication
 - **session/prompt:** When you send a prompt, the agent receives and processes it
 - **session/update:** The agent sends responses back to the editor
 - **session/cancel:** When you cancel a session, the agent stops processing
-
-These predictable message exchanges happen through JSON-RPC, creating a standard language for how editors and agents communicate. Instead of every editor and agent building private handshakes, ACP defines this common protocol using structured messages.
 
 Today, editors that support ACP include Zed, Neovim, and Marimo. Supported agents include Claude Code, Codex CLI, Gemini, StackPack, and of course, goose.
 
