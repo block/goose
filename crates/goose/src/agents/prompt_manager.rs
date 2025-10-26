@@ -1,13 +1,18 @@
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::Utc;
+use serde::Serialize;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
+
+const MAX_EXTENSIONS: usize = 5;
+const MAX_TOOLS: usize = 50;
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
@@ -21,50 +26,68 @@ impl Default for PromptManager {
     }
 }
 
-impl PromptManager {
-    pub fn new() -> Self {
-        PromptManager {
-            system_prompt_override: None,
-            system_prompt_extras: Vec::new(),
-            // Use the fixed current date time so that prompt cache can be used.
-            // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
-            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
+#[derive(Serialize)]
+struct SystemPromptContext {
+    extensions: Vec<ExtensionInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_selection_strategy: Option<String>,
+    current_date_time: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extension_tool_limits: Option<(usize, usize)>,
+    goose_mode: String,
+    is_autonomous: bool,
+    enable_subagents: bool,
+    max_extensions: usize,
+    max_tools: usize,
+}
+
+pub struct SystemPromptBuilder<'a, M> {
+    model_name: String,
+    manager: &'a M,
+
+    extensions_info: Vec<ExtensionInfo>,
+    frontend_instructions: Option<String>,
+    extension_tool_count: Option<(usize, usize)>,
+    router_enabled: bool,
+}
+
+impl<'a> SystemPromptBuilder<'a, PromptManager> {
+    pub fn with_extension(mut self, extension: ExtensionInfo) -> Self {
+        self.extensions_info.push(extension);
+        self
+    }
+
+    pub fn with_extensions(mut self, extensions: impl Iterator<Item = ExtensionInfo>) -> Self {
+        for extension in extensions {
+            self.extensions_info.push(extension);
         }
+        self
     }
 
-    #[cfg(test)]
-    pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
-        PromptManager {
-            system_prompt_override: None,
-            system_prompt_extras: Vec::new(),
-            // Use the fixed current date time so that prompt cache can be used.
-            current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
-        }
+    pub fn with_frontend_instructions(mut self, frontend_instructions: Option<String>) -> Self {
+        self.frontend_instructions = frontend_instructions;
+        self
     }
 
-    /// Add an additional instruction to the system prompt
-    pub fn add_system_prompt_extra(&mut self, instruction: String) {
-        self.system_prompt_extras.push(instruction);
+    pub fn with_extension_and_tool_counts(
+        mut self,
+        extension_count: usize,
+        tool_count: usize,
+    ) -> Self {
+        self.extension_tool_count = Some((extension_count, tool_count));
+        self
     }
 
-    /// Override the system prompt with custom text
-    pub fn set_system_prompt_override(&mut self, template: String) {
-        self.system_prompt_override = Some(template);
+    pub fn with_router_enabled(mut self, enabled: bool) -> Self {
+        self.router_enabled = enabled;
+        self
     }
 
-    pub fn build_system_prompt(
-        &self,
-        extensions_info: Vec<ExtensionInfo>,
-        frontend_instructions: Option<String>,
-        suggest_disable_extensions_prompt: Value,
-        model_name: &str,
-        router_enabled: bool,
-    ) -> String {
-        let mut context: HashMap<&str, Value> = HashMap::new();
-        let mut extensions_info = extensions_info.clone();
+    pub fn build(self) -> String {
+        let mut extensions_info = self.extensions_info;
 
         // Add frontend instructions to extensions_info to simplify json rendering
-        if let Some(frontend_instructions) = frontend_instructions {
+        if let Some(frontend_instructions) = self.frontend_instructions {
             extensions_info.push(ExtensionInfo::new(
                 "frontend",
                 &frontend_instructions,
@@ -82,38 +105,28 @@ impl PromptManager {
             })
             .collect();
 
-        context.insert(
-            "extensions",
-            serde_json::to_value(sanitized_extensions_info).unwrap(),
-        );
-
-        if router_enabled {
-            context.insert(
-                "tool_selection_strategy",
-                Value::String(llm_search_tool_prompt()),
-            );
-        }
-
-        context.insert(
-            "current_date_time",
-            Value::String(self.current_date_timestamp.clone()),
-        );
-
-        // Add the suggestion about disabling extensions if flag is true
-        context.insert(
-            "suggest_disable",
-            Value::String(suggest_disable_extensions_prompt.to_string()),
-        );
-
         let config = Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        context.insert("goose_mode", Value::String(goose_mode.clone()));
-        context.insert(
-            "enable_subagents",
-            Value::Bool(should_enabled_subagents(model_name)),
-        );
+        let goose_mode = config
+            .get_param("GOOSE_MODE")
+            .unwrap_or_else(|_| Cow::from("auto"));
 
-        let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
+        let extension_tool_limits = self
+            .extension_tool_count
+            .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS);
+
+        let context = SystemPromptContext {
+            extensions: sanitized_extensions_info,
+            tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
+            current_date_time: self.manager.current_date_timestamp.clone(),
+            extension_tool_limits,
+            goose_mode: goose_mode.to_string(),
+            is_autonomous: goose_mode == "auto",
+            enable_subagents: should_enabled_subagents(self.model_name.as_str()),
+            max_extensions: MAX_EXTENSIONS,
+            max_tools: MAX_TOOLS,
+        };
+
+        let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
             prompt_template::render_inline_once(&sanitized_override_prompt, &context)
         } else {
@@ -123,7 +136,7 @@ impl PromptManager {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
         });
 
-        let mut system_prompt_extras = self.system_prompt_extras.clone();
+        let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
         if goose_mode == "chat" {
             system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."
@@ -146,6 +159,49 @@ impl PromptManager {
             )
         }
     }
+}
+
+impl PromptManager {
+    pub fn new() -> Self {
+        PromptManager {
+            system_prompt_override: None,
+            system_prompt_extras: Vec::new(),
+            // Use the fixed current date time so that prompt cache can be used.
+            // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
+            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
+        PromptManager {
+            system_prompt_override: None,
+            system_prompt_extras: Vec::new(),
+            current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+        }
+    }
+
+    /// Add an additional instruction to the system prompt
+    pub fn add_system_prompt_extra(&mut self, instruction: String) {
+        self.system_prompt_extras.push(instruction);
+    }
+
+    /// Override the system prompt with custom text
+    pub fn set_system_prompt_override(&mut self, template: String) {
+        self.system_prompt_override = Some(template);
+    }
+
+    pub fn builder<'a>(&'a self, model_name: &str) -> SystemPromptBuilder<'a, Self> {
+        SystemPromptBuilder {
+            model_name: model_name.to_string(),
+            manager: self,
+
+            extensions_info: vec![],
+            frontend_instructions: None,
+            extension_tool_count: None,
+            router_enabled: false,
+        }
+    }
 
     pub async fn get_recipe_prompt(&self) -> String {
         let context: HashMap<&str, Value> = HashMap::new();
@@ -166,13 +222,7 @@ mod tests {
         let malicious_override = "System prompt\u{E0041}\u{E0042}\u{E0043}with hidden text";
         manager.set_system_prompt_override(malicious_override.to_string());
 
-        let result = manager.build_system_prompt(
-            vec![],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let result = manager.builder("gpt-4o").build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -187,13 +237,7 @@ mod tests {
         let malicious_extra = "Extra instruction\u{E0041}\u{E0042}\u{E0043}hidden";
         manager.add_system_prompt_extra(malicious_extra.to_string());
 
-        let result = manager.build_system_prompt(
-            vec![],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let result = manager.builder("gpt-4o").build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -209,13 +253,7 @@ mod tests {
         manager.add_system_prompt_extra("Second\u{E0042}instruction".to_string());
         manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
 
-        let result = manager.build_system_prompt(
-            vec![],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let result = manager.builder("gpt-4o").build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -231,13 +269,7 @@ mod tests {
         let legitimate_unicode = "Instruction with 世界 and 🌍 emojis";
         manager.add_system_prompt_extra(legitimate_unicode.to_string());
 
-        let result = manager.build_system_prompt(
-            vec![],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let result = manager.builder("gpt-4o").build();
 
         assert!(result.contains("世界"));
         assert!(result.contains("🌍"));
@@ -254,13 +286,10 @@ mod tests {
             false,
         );
 
-        let result = manager.build_system_prompt(
-            vec![malicious_extension_info],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let result = manager
+            .builder("gpt-4o")
+            .with_extension(malicious_extension_info)
+            .build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -273,13 +302,7 @@ mod tests {
     fn test_basic() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
-        let system_prompt = manager.build_system_prompt(
-            vec![],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            false,
-        );
+        let system_prompt = manager.builder("gpt-4o").build();
 
         assert_snapshot!(system_prompt)
     }
@@ -288,17 +311,38 @@ mod tests {
     fn test_one_extension() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
-        let system_prompt = manager.build_system_prompt(
-            vec![ExtensionInfo::new(
+        let system_prompt = manager
+            .builder("gpt-4o")
+            .with_extension(ExtensionInfo::new(
                 "test",
                 "how to use this extension",
                 true,
-            )],
-            None,
-            Value::String("".to_string()),
-            "gpt-4o",
-            true,
-        );
+            ))
+            .with_router_enabled(true)
+            .build();
+
+        assert_snapshot!(system_prompt)
+    }
+
+    #[test]
+    fn test_typical_setup() {
+        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+
+        let system_prompt = manager
+            .builder("gpt-4o")
+            .with_extension(ExtensionInfo::new(
+                "extension_A",
+                "<instructions on how to use extension A>",
+                true,
+            ))
+            .with_extension(ExtensionInfo::new(
+                "extension_B",
+                "<instructions on how to use extension B (no resources)>",
+                false,
+            ))
+            .with_router_enabled(true)
+            .with_extension_and_tool_counts(MAX_EXTENSIONS + 1, MAX_TOOLS + 1)
+            .build();
 
         assert_snapshot!(system_prompt)
     }
