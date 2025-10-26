@@ -9,7 +9,7 @@
   "extensions": [
     {
       "name": "GitHub",
-      "command": "npx -y @modelcontextprotocol/server-github",
+      "command": "npx -y @github/github-mcp-server",
       "is_builtin": false,
       "environmentVariables": [
         {
