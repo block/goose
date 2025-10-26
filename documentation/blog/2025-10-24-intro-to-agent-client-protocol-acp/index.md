@@ -7,7 +7,7 @@ authors:
 
 ![Choose Your IDE](choose-your-ide.png)
 
-I code best when I sit cross-cross applesauce on my bed or couch with my laptop in my lap, a snack nearby, and no extra screens competing for my attention. Sometimes I keep the editor and browser side by side; other times, I make them full screen and switch between applications. I don't like using multiple monitors, and my developer environment is embarrassingly barebones. 
+I code best when I sit criss-cross applesauce on my bed or couch with my laptop in my lap, a snack nearby, and no extra screens competing for my attention. Sometimes I keep the editor and browser side by side; other times, I make them full screen and switch between applications. I don't like using multiple monitors, and my developer environment is embarrassingly barebones. 
 
 <!--truncate-->
 
