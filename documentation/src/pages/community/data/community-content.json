@@ -93,6 +93,18 @@
       "submittedDate": "2025-10-21",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Adopting Goose in the Enterprise: A Guide to Security, Scalability, and Governance",
+      "author": {
+        "name": "M A Sai Adithyaa",
+        "handle": "M-A-SAIADITHYAA"
+      },
+      "type": "blog",
+      "url": "https://goose123.hashnode.dev/adopting-goose-in-the-enterprise-a-guide-to-security-scalability-and-governance",
+      "submittedDate": "2025-10-26",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
