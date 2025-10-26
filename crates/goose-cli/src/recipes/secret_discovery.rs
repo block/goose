@@ -58,6 +58,7 @@ fn extract_secrets_from_extensions(
             ExtensionConfig::Platform { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Frontend { name, .. } => (name, &Vec::new()),
             ExtensionConfig::InlinePython { name, .. } => (name, &Vec::new()),
+            ExtensionConfig::Lsp { name, .. } => (name, &Vec::new()),
         };
 
         for key in env_keys {
