@@ -72,11 +72,11 @@ If you're ready to see how fast and simple this setup really is, watch the full 
   <meta property="og:title" content="Intro to Agent Client Protocol (ACP): The Standard for AI Agent-Editor Integration" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/10/24/intro-to-agent-client-protocol-acp" />
-  <meta property="og:description" content="Fix the awkward gap between AI agents and code editors with the Agent Client Protocol (ACP). Learn why this new open standard makes agents like goose truly editor-agnostic, improving AI-human collaboration and restoring developer flow state. ACP works alongside protocols like MCP to create an open AI tooling ecosystem.." />
+  <meta property="og:description" content="Fix the awkward gap between AI agents and code editors with the Agent Client Protocol (ACP). Learn why this new open standard makes agents like goose truly editor-agnostic, improving AI-human collaboration and restoring developer flow state. ACP works alongside protocols like MCP to create an open AI tooling ecosystem." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/choose-your-ide-c308664c1783e1651d9a4f4d6ff7d731.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Intro to Agent Client Protocol (ACP): The Standard for AI Agent-Editor Integration" />
-  <meta name="twitter:description" content="Fix the awkward gap between AI agents and code editors with the Agent Client Protocol (ACP). Learn why this new open standard makes agents like goose truly editor-agnostic, improving AI-human collaboration and restoring developer flow state. ACP works alongside protocols like MCP to create an open AI tooling ecosystem.." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/åchoose-your-ide-c308664c1783e1651d9a4f4d6ff7d731.png"/>
+  <meta name="twitter:description" content="Fix the awkward gap between AI agents and code editors with the Agent Client Protocol (ACP). Learn why this new open standard makes agents like goose truly editor-agnostic, improving AI-human collaboration and restoring developer flow state. ACP works alongside protocols like MCP to create an open AI tooling ecosystem." />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/choose-your-ide-c308664c1783e1651d9a4f4d6ff7d731.png"/>
 </head>
