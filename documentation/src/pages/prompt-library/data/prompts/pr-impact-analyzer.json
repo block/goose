@@ -9,7 +9,15 @@
   "extensions": [
     {
       "name": "GitHub",
-      "command": "npx -y @github/github-mcp-server",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
       "is_builtin": false,
       "environmentVariables": [
         {
