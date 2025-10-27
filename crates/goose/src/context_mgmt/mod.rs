@@ -16,6 +16,52 @@ struct SummarizeContext {
     messages: String,
 }
 
+fn is_user_submitted_text(message: &Message) -> bool {
+    match message.role {
+        Role::User => !is_tool_response_message(message),
+        Role::Assistant => false,
+    }
+}
+
+fn is_tool_response_message(message: &Message) -> bool {
+    message
+        .content
+        .iter()
+        .any(|c| c.as_tool_response().is_some())
+}
+
+const CONVSERATION_CONTINUATION_TEXT: &str =
+    "The previous message contains a summary that was prepared because a context limit was reached.
+Do not mention that you read a summary or that conversation summarization occurred
+Just continue the conversation naturally based on the summarized context";
+
+const TOOL_LOOP_CONTINUATION_TEXT: &str =
+    "The previous message contains a summary that was prepared because a context limit was reached.
+Do not mention that you read a summary or that conversation summarization occurred
+Continue calling tools as necessary to complete the task.";
+
+fn conversation_continuation_message() -> Message {
+    Message::user()
+        .with_text(CONVSERATION_CONTINUATION_TEXT)
+        .with_metadata(MessageMetadata::agent_only())
+}
+
+fn tool_loop_continuation_message(last_user_message: Option<&Message>) -> Message {
+    let prompt = if let Some(user_message) = last_user_message {
+        format!(
+            "{}\nThe last user message was:\n\n{}",
+            TOOL_LOOP_CONTINUATION_TEXT,
+            user_message.as_concat_text()
+        )
+    } else {
+        TOOL_LOOP_CONTINUATION_TEXT.to_string()
+    };
+
+    Message::user()
+        .with_text(prompt)
+        .with_metadata(MessageMetadata::agent_only())
+}
+
 /// Compact messages by summarizing them
 ///
 /// This function performs the actual compaction by summarizing messages and updating
@@ -24,32 +70,28 @@ struct SummarizeContext {
 pub async fn compact_messages(
     provider: &dyn Provider,
     conversation: &Conversation,
-    preserve_last_user_message: bool,
 ) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
     info!("Performing message compaction");
 
     let messages = conversation.messages();
 
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
-        } else if preserve_last_user_message {
-            // Last message is not a user message, but we want to preserve the most recent user message
-            // Find the most recent user message and copy it (don't remove from history)
+    // split the conversation into messages to be compacted, and continuation messages
+    let (messages_to_compact, continuation_messages) = match messages.last() {
+        Some(message) if is_user_submitted_text(message) => (
+            &messages[..messages.len() - 1],
+            vec![conversation_continuation_message(), message.clone()],
+        ),
+        Some(message) if is_tool_response_message(message) => {
             let most_recent_user_message = messages
                 .iter()
                 .rev()
-                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
-                .cloned();
-            (messages.as_slice(), most_recent_user_message)
-        } else {
-            (messages.as_slice(), None)
+                .find(|msg| is_user_submitted_text(msg));
+            (
+                &messages[..messages.len() - 1],
+                vec![tool_loop_continuation_message(most_recent_user_message)],
+            )
         }
-    } else {
-        (messages.as_slice(), None)
+        _ => (messages.as_ref(), vec![]), // we are compacting an empty conversation
     };
 
     let summary = do_compact(provider, messages_to_compact).await?;
@@ -91,22 +133,10 @@ pub async fn compact_messages(
     final_messages.push(summary_msg);
     final_token_counts.push(summary_tokens);
 
-    // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
-    let assistant_message = Message::assistant()
-        .with_text(
-            "The previous message contains a summary that was prepared because a context limit was reached.
-Do not mention that you read a summary or that conversation summarization occurred
-Just continue the conversation naturally based on the summarized context"
-        )
-        .with_metadata(MessageMetadata::agent_only());
     let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
-    final_messages.push(assistant_message);
     final_token_counts.push(assistant_message_tokens);
 
-    // Add back the preserved user message if it exists
-    if let Some(user_message) = preserved_user_message {
-        final_messages.push(user_message);
-    }
+    final_messages.extend(continuation_messages.into_iter());
 
     Ok((
         Conversation::new_unvalidated(final_messages),
@@ -357,9 +387,7 @@ mod tests {
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
         let (compacted_conversation, _token_counts, _usage) =
-            compact_messages(&provider, &conversation, true)
-                .await
-                .unwrap();
+            compact_messages(&provider, &conversation).await.unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 

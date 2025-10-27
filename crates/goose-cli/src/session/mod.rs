@@ -659,7 +659,6 @@ impl CliSession {
                             goose::context_mgmt::compact_messages(
                                 self.agent.provider().await?.as_ref(),
                                 &self.messages,
-                                false,
                             )
                             .await?;
 
