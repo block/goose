@@ -51,24 +51,27 @@ export default function DefaultProviderSetupForm({
 
   const loadConfigValues = useCallback(async () => {
     setIsLoading(true);
-    const values: { [k: string]: ConfigInput } = {};
+    try {
+      const values: { [k: string]: ConfigInput } = {};
 
-    for (const parameter of parameters) {
-      const configKey = `${parameter.name}`;
-      const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
+      for (const parameter of parameters) {
+        const configKey = `${parameter.name}`;
+        const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
 
-      if (configValue) {
-        values[parameter.name] = { serverValue: configValue };
-      } else if (parameter.default !== undefined && parameter.default !== null) {
-        values[parameter.name] = { value: parameter.default };
+        if (configValue) {
+          values[parameter.name] = { serverValue: configValue };
+        } else if (parameter.default !== undefined && parameter.default !== null) {
+          values[parameter.name] = { value: parameter.default };
+        }
       }
-    }
 
-    setConfigValues((prev) => ({
-      ...prev,
-      ...values,
-    }));
-    setIsLoading(false);
+      setConfigValues((prev) => ({
+        ...prev,
+        ...values,
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   }, [parameters, read, setConfigValues]);
 
   useEffect(() => {
@@ -143,8 +146,7 @@ export default function DefaultProviderSetupForm({
           value={getRenderValue(parameter)}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             setConfigValues((prev) => {
-              const newValue = prev[parameter.name] || {};
-              newValue.value = e.target.value;
+              const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
               return {
                 ...prev,
                 [parameter.name]: newValue,

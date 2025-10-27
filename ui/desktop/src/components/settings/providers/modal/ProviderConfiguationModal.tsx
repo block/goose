@@ -175,7 +175,10 @@ export default function ProviderConfigurationModal({
             onDelete={handleDelete}
             showDeleteConfirmation={showDeleteConfirmation}
             onConfirmDelete={handleConfirmDelete}
-            onCancelDelete={() => {}}
+            onCancelDelete={() => {
+              setIsActiveProvider(false);
+              setShowDeleteConfirmation(false);
+            }}
             canDelete={isConfigured && !isActiveProvider}
             providerName={provider.metadata.display_name}
             isActiveProvider={isActiveProvider}
