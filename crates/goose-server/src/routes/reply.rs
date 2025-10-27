@@ -165,13 +165,14 @@ async fn stream_event(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 #[utoipa::path(
     post,
     path = "/reply",
     request_body = ChatRequest,
     responses(
-        (status = 200, description = "Streaming response initiated", content_type = "text/event-stream"),
+        (status = 200, description = "Streaming response initiated",
+         body = MessageEvent,
+         content_type = "text/event-stream"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )

@@ -1247,7 +1247,14 @@
         },
         "responses": {
           "200": {
-            "description": "Streaming response initiated"
+            "description": "Streaming response initiated",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
           },
           "424": {
             "description": "Agent not initialized"

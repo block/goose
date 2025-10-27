@@ -1851,8 +1851,10 @@ export type ReplyResponses = {
     /**
      * Streaming response initiated
      */
-    200: unknown;
+    200: MessageEvent;
 };
+
+export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
