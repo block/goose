@@ -42,19 +42,26 @@ pub async fn compact_messages(
 
     let messages = conversation.messages();
 
-    // Check if the most recent message is a user message
+    // Helper to check if a message has text content
+    let has_text_content = |msg: &Message| {
+        msg.content
+            .iter()
+            .any(|c| matches!(c, MessageContent::Text(_)))
+    };
+
+    // Check if the most recent message is a user message with text content
     let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
     {
-        if matches!(last_message.role, rmcp::model::Role::User) {
+        if matches!(last_message.role, rmcp::model::Role::User) && has_text_content(last_message) {
             // Remove the last user message before compaction
             (&messages[..messages.len() - 1], Some(last_message.clone()))
         } else if preserve_last_user_message {
-            // Last message is not a user message, but we want to preserve the most recent user message
-            // Find the most recent user message and copy it (don't remove from history)
+            // Last message is not a user message with text, but we want to preserve the most recent user message with text
+            // Find the most recent user message with text content and copy it (don't remove from history)
             let most_recent_user_message = messages
                 .iter()
                 .rev()
-                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
+                .find(|msg| matches!(msg.role, rmcp::model::Role::User) && has_text_content(msg))
                 .cloned();
             (messages.as_slice(), most_recent_user_message)
         } else {
