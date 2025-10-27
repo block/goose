@@ -28,7 +28,7 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-opus-4",
     "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
-    "google/gemini-flash-2.5",
+    "google/gemini-2.5-flash",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
