@@ -18,7 +18,6 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::lib::ExecutionMode;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
@@ -535,15 +534,6 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
                 None,
             )))
-        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
-            match self
-                .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
-                .await
-            {
-                Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e)),
-            }
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = self

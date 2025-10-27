@@ -60,6 +60,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Search past conversations and load session summaries for contextual memory",
                 default_enabled: false,
+                toggleable: Some(true),
                 client_factory: |ctx| {
                     Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
                 },
