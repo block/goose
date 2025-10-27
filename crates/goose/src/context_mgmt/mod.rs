@@ -390,10 +390,8 @@ mod tests {
                     arguments: Some(object!({"location": "San Francisco"})),
                 }),
             ),
-            Message::user().with_tool_response(
-                "tool_1",
-                Ok(vec![Content::text("It's sunny and 72°F")]),
-            ),
+            Message::user()
+                .with_tool_response("tool_1", Ok(vec![Content::text("It's sunny and 72°F")])),
             Message::assistant().with_text("The weather in San Francisco is sunny and 72°F."),
         ];
 
@@ -401,9 +399,7 @@ mod tests {
 
         // Compact with preserve_last_user_message=true
         let (compacted_conversation, _token_counts, _usage) =
-            compact_messages(&agent, &conversation, true)
-                .await
-                .unwrap();
+            compact_messages(&agent, &conversation, true).await.unwrap();
 
         let compacted_messages = compacted_conversation.messages();
 
@@ -431,10 +427,12 @@ mod tests {
         }
 
         // Verify there are no tool request/response messages in the preserved message
-        let has_tool_content = last_message
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)));
+        let has_tool_content = last_message.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        });
         assert!(
             !has_tool_content,
             "Preserved message should not contain tool requests or responses"
@@ -469,9 +467,7 @@ mod tests {
 
         // Compact with preserve_last_user_message=true
         let (compacted_conversation, _token_counts, _usage) =
-            compact_messages(&agent, &conversation, true)
-                .await
-                .unwrap();
+            compact_messages(&agent, &conversation, true).await.unwrap();
 
         let compacted_messages = compacted_conversation.messages();
 
@@ -530,9 +526,7 @@ mod tests {
 
         // Compact with preserve_last_user_message=true
         let (compacted_conversation, _token_counts, _usage) =
-            compact_messages(&agent, &conversation, true)
-                .await
-                .unwrap();
+            compact_messages(&agent, &conversation, true).await.unwrap();
 
         let compacted_messages = compacted_conversation.messages();
 
