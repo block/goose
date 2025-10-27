@@ -139,6 +139,7 @@ pub enum MessageEvent {
     },
     Notification {
         request_id: String,
+        #[schema(value_type = Object)]
         message: ServerNotification,
     },
     UpdateConversation {

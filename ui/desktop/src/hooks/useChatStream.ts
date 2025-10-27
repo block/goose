@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-import { Conversation, Message, resumeAgent, Session } from '../api';
+import { Message, resumeAgent, Session, MessageEvent } from '../api';
 import { getApiUrl } from '../config';
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
@@ -37,28 +37,6 @@ const log = {
     console.error(`[useChatStream:error] ${context}`, error);
   },
 };
-
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-interface NotificationEvent {
-  type: 'Notification';
-  request_id: string;
-  message: {
-    method: string;
-    params: {
-      [key: string]: JsonValue;
-    };
-  };
-}
-
-type MessageEvent =
-  | { type: 'Message'; message: Message }
-  | { type: 'Error'; error: string }
-  | { type: 'Ping' }
-  | { type: 'Finish'; reason: string }
-  | { type: 'ModelChange'; model: string; mode: string }
-  | { type: 'UpdateConversation'; conversation: Conversation }
-  | NotificationEvent;
 
 interface UseChatStreamProps {
   sessionId: string;

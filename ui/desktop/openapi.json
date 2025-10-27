@@ -3259,7 +3259,7 @@
             ],
             "properties": {
               "message": {
-                "$ref": "#/components/schemas/ServerNotification"
+                "type": "object"
               },
               "request_id": {
                 "type": "string"
@@ -4029,31 +4029,6 @@
             "type": "string"
           }
         }
-      },
-      "ServerNotification": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/Notification"
-          },
-          {
-            "$ref": "#/components/schemas/Notification2"
-          },
-          {
-            "$ref": "#/components/schemas/Notification3"
-          },
-          {
-            "$ref": "#/components/schemas/Notification4"
-          },
-          {
-            "$ref": "#/components/schemas/NotificationNoParam"
-          },
-          {
-            "$ref": "#/components/schemas/NotificationNoParam2"
-          },
-          {
-            "$ref": "#/components/schemas/NotificationNoParam3"
-          }
-        ]
       },
       "Session": {
         "type": "object",
