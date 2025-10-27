@@ -76,7 +76,7 @@ async fn create_tasks_from_params(
         });
 
         let task = Task {
-            id: session.id, // Use the session ID as task ID
+            id: session.id,
             task_type: TaskType::SubRecipe,
             payload,
         };

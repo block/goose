@@ -332,7 +332,7 @@ pub async fn create_dynamic_task(
                 };
 
                 let task = Task {
-                    id: session.id, // Use the session ID as task ID
+                    id: session.id,
                     task_type: TaskType::InlineRecipe,
                     payload: json!({
                         "recipe": recipe_json,
