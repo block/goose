@@ -1,7 +1,6 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -42,7 +41,7 @@ pub struct OpenRouterProvider {
     api_client: ApiClient,
     model: ModelConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl OpenRouterProvider {
@@ -63,7 +62,7 @@ impl OpenRouterProvider {
         Ok(Self {
             api_client,
             model,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -249,8 +248,8 @@ impl Provider for OpenRouterProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

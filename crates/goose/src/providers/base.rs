@@ -14,7 +14,7 @@ use utoipa::ToSchema;
 use once_cell::sync::Lazy;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -325,8 +325,8 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
-    /// Get the metadata for this provider instance
-    fn get_metadata(&self) -> Arc<ProviderMetadata>;
+    /// Get the name of this provider instance
+    fn get_name(&self) -> &str;
 
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic

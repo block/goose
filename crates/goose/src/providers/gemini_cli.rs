@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use serde_json::json;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -26,7 +25,7 @@ pub struct GeminiCliProvider {
     command: String,
     model: ModelConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl GeminiCliProvider {
@@ -45,7 +44,7 @@ impl GeminiCliProvider {
         Ok(Self {
             command: resolved_command,
             model,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -315,8 +314,8 @@ impl Provider for GeminiCliProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

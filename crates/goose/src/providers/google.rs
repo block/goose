@@ -3,7 +3,6 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
 use crate::conversation::message::Message;
-use std::sync::Arc;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -41,7 +40,7 @@ pub struct GoogleProvider {
     api_client: ApiClient,
     model: ModelConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl GoogleProvider {
@@ -65,7 +64,7 @@ impl GoogleProvider {
         Ok(Self {
             api_client,
             model,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -93,8 +92,8 @@ impl Provider for GoogleProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

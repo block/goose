@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::Arc;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
@@ -28,7 +27,7 @@ pub struct AzureProvider {
     deployment_name: String,
     api_version: String,
     model: ModelConfig,
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl Serialize for AzureProvider {
@@ -96,7 +95,7 @@ impl AzureProvider {
             deployment_name,
             api_version,
             model,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -131,8 +130,8 @@ impl Provider for AzureProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

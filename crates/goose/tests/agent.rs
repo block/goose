@@ -557,8 +557,8 @@ mod final_output_tool_tests {
                 goose::providers::base::ProviderMetadata::empty()
             }
 
-            fn get_metadata(&self) -> std::sync::Arc<goose::providers::base::ProviderMetadata> {
-                std::sync::Arc::new(goose::providers::base::ProviderMetadata::empty())
+            fn get_name(&self) -> &str {
+                "mock-test"
             }
 
             fn get_model_config(&self) -> ModelConfig {
@@ -676,8 +676,8 @@ mod final_output_tool_tests {
                 goose::providers::base::ProviderMetadata::empty()
             }
 
-            fn get_metadata(&self) -> std::sync::Arc<goose::providers::base::ProviderMetadata> {
-                std::sync::Arc::new(goose::providers::base::ProviderMetadata::empty())
+            fn get_name(&self) -> &str {
+                "mock-test"
             }
 
             fn get_model_config(&self) -> ModelConfig {
@@ -866,8 +866,8 @@ mod retry_tests {
             goose::providers::base::ProviderMetadata::empty()
         }
 
-        fn get_metadata(&self) -> std::sync::Arc<goose::providers::base::ProviderMetadata> {
-            std::sync::Arc::new(goose::providers::base::ProviderMetadata::empty())
+        fn get_name(&self) -> &str {
+            "mock-test"
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -1093,8 +1093,8 @@ mod max_turns_tests {
             }
         }
 
-        fn get_metadata(&self) -> std::sync::Arc<goose::providers::base::ProviderMetadata> {
-            std::sync::Arc::new(goose::providers::base::ProviderMetadata::empty())
+        fn get_name(&self) -> &str {
+            "mock-test"
         }
     }
 

@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -78,7 +77,7 @@ pub struct GcpVertexAIProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl GcpVertexAIProvider {
@@ -112,7 +111,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -498,8 +497,8 @@ impl Provider for GcpVertexAIProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     /// Completes a model interaction by sending a request and processing the response.

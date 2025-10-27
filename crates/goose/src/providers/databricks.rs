@@ -5,7 +5,6 @@ use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::pin;
 use tokio_util::io::StreamReader;
@@ -108,7 +107,7 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl DatabricksProvider {
@@ -149,7 +148,7 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         };
 
         // Check if the default fast model exists in the workspace
@@ -226,7 +225,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -265,8 +264,8 @@ impl Provider for DatabricksProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

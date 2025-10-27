@@ -6,7 +6,6 @@ use reqwest::StatusCode;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io;
-use std::sync::Arc;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -55,8 +54,7 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
-    #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl OpenAiProvider {
@@ -110,13 +108,14 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        provider_name: String,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
@@ -167,7 +166,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
-            metadata: Arc::new(Self::metadata()),
+            name: provider_name,
         })
     }
 
@@ -206,8 +205,8 @@ impl Provider for OpenAiProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

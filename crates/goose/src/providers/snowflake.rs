@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::Arc;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -50,7 +49,7 @@ pub struct SnowflakeProvider {
     model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl SnowflakeProvider {
@@ -104,7 +103,7 @@ impl SnowflakeProvider {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -306,8 +305,8 @@ impl Provider for SnowflakeProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

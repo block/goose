@@ -22,7 +22,6 @@ use regex::Regex;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::io;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -48,8 +47,7 @@ pub struct OllamaProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
-    #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl OllamaProvider {
@@ -95,13 +93,14 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: true,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        provider_name: String,
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
@@ -135,7 +134,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
-            metadata: Arc::new(Self::metadata()),
+            name: provider_name,
         })
     }
 
@@ -181,8 +180,8 @@ impl Provider for OllamaProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

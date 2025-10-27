@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -80,7 +79,7 @@ pub struct VeniceProvider {
     models_path: String,
     model: ModelConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl VeniceProvider {
@@ -108,7 +107,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -214,8 +213,8 @@ impl Provider for VeniceProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

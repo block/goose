@@ -309,8 +309,8 @@ mod tests {
             crate::providers::base::ProviderMetadata::empty()
         }
 
-        fn get_metadata(&self) -> std::sync::Arc<crate::providers::base::ProviderMetadata> {
-            std::sync::Arc::new(crate::providers::base::ProviderMetadata::empty())
+        fn get_name(&self) -> &str {
+            "mock"
         }
 
         fn get_model_config(&self) -> ModelConfig {

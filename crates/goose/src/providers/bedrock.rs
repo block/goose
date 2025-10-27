@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
@@ -44,7 +43,7 @@ pub struct BedrockProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl BedrockProvider {
@@ -81,7 +80,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -188,8 +187,8 @@ impl Provider for BedrockProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

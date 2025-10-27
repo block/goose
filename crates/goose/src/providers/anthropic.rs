@@ -5,7 +5,6 @@ use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
-use std::sync::Arc;
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
@@ -44,8 +43,7 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
-    #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl AnthropicProvider {
@@ -70,13 +68,14 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        provider_name: String,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
@@ -95,7 +94,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
-            metadata: Arc::new(Self::metadata()),
+            name: provider_name,
         })
     }
 
@@ -181,8 +180,8 @@ impl Provider for AnthropicProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

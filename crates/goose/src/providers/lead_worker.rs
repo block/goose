@@ -320,9 +320,9 @@ impl Provider for LeadWorkerProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        // Return the lead provider's metadata as the default
-        self.lead_provider.get_metadata()
+    fn get_name(&self) -> &str {
+        // Return the lead provider's name as the default
+        self.lead_provider.get_name()
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -477,8 +477,8 @@ mod tests {
             ProviderMetadata::empty()
         }
 
-        fn get_metadata(&self) -> Arc<ProviderMetadata> {
-            Arc::new(ProviderMetadata::empty())
+        fn get_name(&self) -> &str {
+            "mock-lead"
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -643,8 +643,8 @@ mod tests {
             ProviderMetadata::empty()
         }
 
-        fn get_metadata(&self) -> Arc<ProviderMetadata> {
-            Arc::new(ProviderMetadata::empty())
+        fn get_name(&self) -> &str {
+            "mock-lead"
         }
 
         fn get_model_config(&self) -> ModelConfig {

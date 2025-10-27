@@ -1361,8 +1361,8 @@ mod tests {
             )
         }
 
-        fn get_metadata(&self) -> std::sync::Arc<ProviderMetadata> {
-            std::sync::Arc::new(Self::metadata())
+        fn get_name(&self) -> &str {
+            "mock-scheduler"
         }
 
         fn get_model_config(&self) -> ModelConfig {

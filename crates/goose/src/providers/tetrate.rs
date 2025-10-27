@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use serde_json::{json, Value};
 use std::io;
-use std::sync::Arc;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -48,7 +47,7 @@ pub struct TetrateProvider {
     model: ModelConfig,
     supports_streaming: bool,
     #[serde(skip)]
-    metadata: Arc<ProviderMetadata>,
+    name: String,
 }
 
 impl TetrateProvider {
@@ -69,7 +68,7 @@ impl TetrateProvider {
             api_client,
             model,
             supports_streaming: true,
-            metadata: Arc::new(Self::metadata()),
+            name: Self::metadata().name,
         })
     }
 
@@ -154,8 +153,8 @@ impl Provider for TetrateProvider {
         )
     }
 
-    fn get_metadata(&self) -> Arc<ProviderMetadata> {
-        Arc::clone(&self.metadata)
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
