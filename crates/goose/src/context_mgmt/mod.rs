@@ -78,8 +78,7 @@ pub async fn compact_messages(
     };
 
     // Check if the most recent message is a user message with text content only
-    let (messages_to_compact, preserved_user_text) = if let Some(last_message) = messages.last()
-    {
+    let (messages_to_compact, preserved_user_text) = if let Some(last_message) = messages.last() {
         if matches!(last_message.role, rmcp::model::Role::User) && has_text_only(last_message) {
             // Remove the last user message before compaction and preserve its text
             (&messages[..messages.len() - 1], extract_text(last_message))
