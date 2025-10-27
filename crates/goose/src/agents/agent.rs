@@ -767,7 +767,7 @@ impl Agent {
             };
 
             let needs_auto_compact = crate::context_mgmt::check_if_compaction_needed(
-                self,
+                self.provider().await?.as_ref(),
                 &unfixed_conversation,
                 None,
                 session_metadata.as_ref(),
@@ -811,7 +811,8 @@ impl Agent {
                 )
             );
 
-            match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+            let provider = self.provider().await?;
+            match crate::context_mgmt::compact_messages(provider.as_ref(), &conversation_to_compact, false).await {
                 Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
                     if let Some(session_to_store) = &session {
                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
@@ -1173,7 +1174,8 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                            let provider = self.provider().await?;
+                            match crate::context_mgmt::compact_messages(provider.as_ref(), &conversation, true).await {
                                 Ok((compacted_conversation, _token_counts, _usage)) => {
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?

@@ -657,7 +657,7 @@ impl CliSession {
 
                         let (summarized_messages, _token_counts, summarization_usage) =
                             goose::context_mgmt::compact_messages(
-                                &self.agent,
+                                self.agent.provider().await?.as_ref(),
                                 &self.messages,
                                 false,
                             )

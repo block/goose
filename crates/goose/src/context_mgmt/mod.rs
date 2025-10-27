@@ -3,11 +3,10 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::{agents::Agent, config::Config, token_counter::create_token_counter};
+use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use rmcp::model::Role;
 use serde::Serialize;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
@@ -22,19 +21,8 @@ struct SummarizeContext {
 /// This function performs the actual compaction by summarizing messages and updating
 /// their visibility metadata. It does not check thresholds - use `check_if_compaction_needed`
 /// first to determine if compaction is necessary.
-///
-/// # Arguments
-/// * `agent` - The agent to use for context management
-/// * `conversation` - The current conversation history
-/// * `preserve_last_user_message` - If true and last message is not a user message, copy the most recent user message to the end
-///
-/// # Returns
-/// * A tuple containing:
-///   - `Conversation`: The compacted messages
-///   - `Vec<usize>`: Token counts for each message
-///   - `Option<ProviderUsage>`: Provider usage from summarization
 pub async fn compact_messages(
-    agent: &Agent,
+    provider: &dyn Provider,
     conversation: &Conversation,
     preserve_last_user_message: bool,
 ) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
@@ -64,8 +52,7 @@ pub async fn compact_messages(
         (messages.as_slice(), None)
     };
 
-    let provider = agent.provider().await?;
-    let summary = do_compact(provider.clone(), messages_to_compact).await?;
+    let summary = do_compact(provider, messages_to_compact).await?;
 
     let (summary_message, summarization_usage) = match summary {
         Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
@@ -130,7 +117,7 @@ Just continue the conversation naturally based on the summarized context"
 
 /// Check if messages exceed the auto-compaction threshold
 pub async fn check_if_compaction_needed(
-    agent: &Agent,
+    provider: &dyn Provider,
     conversation: &Conversation,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
@@ -144,7 +131,6 @@ pub async fn check_if_compaction_needed(
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
-    let provider = agent.provider().await?;
     let context_limit = provider.get_model_config().context_limit();
 
     let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
@@ -186,7 +172,7 @@ pub async fn check_if_compaction_needed(
 }
 
 async fn do_compact(
-    provider: Arc<dyn Provider>,
+    provider: &dyn Provider,
     messages: &[Message],
 ) -> Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
     let agent_visible_messages: Vec<&Message> = messages
@@ -288,5 +274,96 @@ fn format_message_for_compacting(msg: &Message) -> String {
         format!("[{}]: <empty message>", role_str)
     } else {
         format!("[{}]: {}", role_str, content_parts.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        model::ModelConfig,
+        providers::{
+            base::{ProviderMetadata, Usage},
+            errors::ProviderError,
+        },
+    };
+    use async_trait::async_trait;
+    use rmcp::model::{AnnotateAble, CallToolRequestParam, RawContent, Tool};
+
+    struct MockProvider {
+        message: Message,
+        config: ModelConfig,
+    }
+
+    impl MockProvider {
+        fn new(message: Message, context_limit: usize) -> Self {
+            Self {
+                message,
+                config: ModelConfig {
+                    model_name: "test".to_string(),
+                    context_limit: Some(context_limit),
+                    temperature: None,
+                    max_tokens: None,
+                    toolshim: false,
+                    toolshim_model: None,
+                    fast_model: None,
+                },
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Provider for MockProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                self.message.clone(),
+                ProviderUsage::new("mock-model".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.config.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_keeps_tool_request() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProvider::new(response_message, 1);
+        let basic_conversation = vec![
+            Message::user().with_text("read hello.txt"),
+            Message::assistant().with_tool_request(
+                "tool_0",
+                Ok(CallToolRequestParam {
+                    name: "read_file".into(),
+                    arguments: None,
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool_0",
+                Ok(vec![RawContent::text("hello, world").no_annotation()]),
+            ),
+        ];
+
+        let conversation = Conversation::new_unvalidated(basic_conversation);
+        let (compacted_conversation, _token_counts, _usage) =
+            compact_messages(&provider, &conversation, true)
+                .await
+                .unwrap();
+
+        let agent_conversation = compacted_conversation.agent_visible_messages();
+
+        let _ = Conversation::new(agent_conversation)
+            .expect("compaction should produce a valid conversation");
     }
 }
