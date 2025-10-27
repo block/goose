@@ -144,7 +144,7 @@ For the video recording, I used a voice modifier to narrate Goose's response in 
 
 We want to extend a huge thank you to [deemkeen](https://x.com/deemkeen) for their open-source work which inspired this project, and to the Makeblock team for creating such a fun rover to work with.
 
-We're always excited to see what the community is up to. If you're working on your own Goose-powered experiment, come share it with us on [Discord](https://discord.gg/block-opensource)!
+We're always excited to see what the community is up to. If you're working on your own Goose-powered experiment, come share it with us on [Discord](https://discord.gg/goose-oss)!
 
 <head>
   <meta property="og:title" content="Goose Gets a Driver's License!" />

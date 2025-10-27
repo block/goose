@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 3;
+const CURRENT_SCHEMA_VERSION: i32 = 4;
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -27,7 +27,11 @@ pub struct Session {
     pub id: String,
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
-    pub description: String,
+    // Allow importing session exports from before 'description' was renamed to 'name'
+    #[serde(alias = "description")]
+    pub name: String,
+    #[serde(default)]
+    pub user_set_name: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
@@ -46,7 +50,8 @@ pub struct Session {
 
 pub struct SessionUpdateBuilder {
     session_id: String,
-    description: Option<String>,
+    name: Option<String>,
+    user_set_name: Option<bool>,
     working_dir: Option<PathBuf>,
     extension_data: Option<ExtensionData>,
     total_tokens: Option<Option<i32>>,
@@ -63,9 +68,7 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    /// Total number of sessions
     total_sessions: usize,
-    /// Total tokens used across all sessions
     total_tokens: i64,
 }
 
@@ -73,7 +76,8 @@ impl SessionUpdateBuilder {
     fn new(session_id: String) -> Self {
         Self {
             session_id,
-            description: None,
+            name: None,
+            user_set_name: None,
             working_dir: None,
             extension_data: None,
             total_tokens: None,
@@ -88,8 +92,21 @@ impl SessionUpdateBuilder {
         }
     }
 
-    pub fn description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
+    pub fn user_provided_name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into().trim().to_string();
+        if !name.is_empty() {
+            self.name = Some(name);
+            self.user_set_name = Some(true);
+        }
+        self
+    }
+
+    pub fn system_generated_name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into().trim().to_string();
+        if !name.is_empty() {
+            self.name = Some(name);
+            self.user_set_name = Some(false);
+        }
         self
     }
 
@@ -166,10 +183,10 @@ impl SessionManager {
             .map(Arc::clone)
     }
 
-    pub async fn create_session(working_dir: PathBuf, description: String) -> Result<Session> {
+    pub async fn create_session(working_dir: PathBuf, name: String) -> Result<Session> {
         Self::instance()
             .await?
-            .create_session(working_dir, description)
+            .create_session(working_dir, name)
             .await
     }
 
@@ -219,8 +236,13 @@ impl SessionManager {
         Self::instance().await?.import_session(json).await
     }
 
-    pub async fn maybe_update_description(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = Self::get_session(id, true).await?;
+
+        if session.user_set_name {
+            return Ok(());
+        }
+
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
@@ -232,9 +254,9 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let description = provider.generate_session_name(&conversation).await?;
+            let name = provider.generate_session_name(&conversation).await?;
             Self::update_session(id)
-                .description(description)
+                .system_generated_name(name)
                 .apply()
                 .await
         } else {
@@ -269,7 +291,8 @@ impl Default for Session {
         Self {
             id: String::new(),
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            description: String::new(),
+            name: String::new(),
+            user_set_name: false,
             created_at: Default::default(),
             updated_at: Default::default(),
             extension_data: ExtensionData::default(),
@@ -306,10 +329,22 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let name: String = {
+            let name_val: String = row.try_get("name").unwrap_or_default();
+            if !name_val.is_empty() {
+                name_val
+            } else {
+                row.try_get("description").unwrap_or_default()
+            }
+        };
+
+        let user_set_name = row.try_get("user_set_name").unwrap_or(false);
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
-            description: row.try_get("description")?,
+            name,
+            user_set_name,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
             extension_data: serde_json::from_str(&row.try_get::<String, _>("extension_data")?)
@@ -395,7 +430,9 @@ impl SessionStorage {
             r#"
             CREATE TABLE sessions (
                 id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
+                user_set_name BOOLEAN DEFAULT FALSE,
                 working_dir TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -503,15 +540,16 @@ impl SessionStorage {
         sqlx::query(
             r#"
         INSERT INTO sessions (
-            id, description, working_dir, created_at, updated_at, extension_data,
+            id, name, user_set_name, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
             schedule_id, recipe_json, user_recipe_values_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(&session.id)
-        .bind(&session.description)
+        .bind(&session.name)
+        .bind(session.user_set_name)
         .bind(session.working_dir.to_string_lossy().as_ref())
         .bind(session.created_at)
         .bind(session.updated_at)
@@ -619,6 +657,23 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            4 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN name TEXT DEFAULT ''
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN user_set_name BOOLEAN DEFAULT FALSE
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -627,11 +682,11 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn create_session(&self, working_dir: PathBuf, description: String) -> Result<Session> {
+    async fn create_session(&self, working_dir: PathBuf, name: String) -> Result<Session> {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         Ok(sqlx::query_as(
             r#"
-                INSERT INTO sessions (id, description, working_dir, extension_data)
+                INSERT INTO sessions (id, name, user_set_name, working_dir, extension_data)
                 VALUES (
                     ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
@@ -639,6 +694,7 @@ impl SessionStorage {
                         WHERE id LIKE ? || '_%'
                     ), 0) + 1 AS TEXT),
                     ?,
+                    FALSE,
                     ?,
                     '{}'
                 )
@@ -647,7 +703,7 @@ impl SessionStorage {
         )
         .bind(&today)
         .bind(&today)
-        .bind(&description)
+        .bind(&name)
         .bind(working_dir.to_string_lossy().as_ref())
         .fetch_one(&self.pool)
         .await?)
@@ -656,7 +712,7 @@ impl SessionStorage {
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         let mut session = sqlx::query_as::<_, Session>(
             r#"
-        SELECT id, working_dir, description, created_at, updated_at, extension_data,
+        SELECT id, working_dir, name, description, user_set_name, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                schedule_id, recipe_json, user_recipe_values_json
@@ -702,7 +758,8 @@ impl SessionStorage {
             };
         }
 
-        add_update!(builder.description, "description");
+        add_update!(builder.name, "name");
+        add_update!(builder.user_set_name, "user_set_name");
         add_update!(builder.working_dir, "working_dir");
         add_update!(builder.extension_data, "extension_data");
         add_update!(builder.total_tokens, "total_tokens");
@@ -722,15 +779,16 @@ impl SessionStorage {
             return Ok(());
         }
 
-        if !updates.is_empty() {
-            query.push_str(", ");
-        }
+        query.push_str(", ");
         query.push_str("updated_at = datetime('now') WHERE id = ?");
 
         let mut q = sqlx::query(&query);
 
-        if let Some(desc) = builder.description {
-            q = q.bind(desc);
+        if let Some(name) = builder.name {
+            q = q.bind(name);
+        }
+        if let Some(user_set_name) = builder.user_set_name {
+            q = q.bind(user_set_name);
         }
         if let Some(wd) = builder.working_dir {
             q = q.bind(wd.to_string_lossy().to_string());
@@ -785,7 +843,9 @@ impl SessionStorage {
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
+        for (idx, (role_str, content_json, created_timestamp, metadata_json)) in
+            rows.into_iter().enumerate()
+        {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -799,6 +859,8 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
+            // TODO(Douwe): make id required
+            message = message.with_id(format!("msg_{}_{}", session_id, idx));
             messages.push(message);
         }
 
@@ -867,7 +929,7 @@ impl SessionStorage {
     async fn list_sessions(&self) -> Result<Vec<Session>> {
         sqlx::query_as::<_, Session>(
             r#"
-        SELECT s.id, s.working_dir, s.description, s.created_at, s.updated_at, s.extension_data,
+        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                s.schedule_id, s.recipe_json, s.user_recipe_values_json,
@@ -933,23 +995,26 @@ impl SessionStorage {
         let import: Session = serde_json::from_str(json)?;
 
         let session = self
-            .create_session(import.working_dir.clone(), import.description.clone())
+            .create_session(import.working_dir.clone(), import.name.clone())
             .await?;
 
-        self.apply_update(
-            SessionUpdateBuilder::new(session.id.clone())
-                .extension_data(import.extension_data)
-                .total_tokens(import.total_tokens)
-                .input_tokens(import.input_tokens)
-                .output_tokens(import.output_tokens)
-                .accumulated_total_tokens(import.accumulated_total_tokens)
-                .accumulated_input_tokens(import.accumulated_input_tokens)
-                .accumulated_output_tokens(import.accumulated_output_tokens)
-                .schedule_id(import.schedule_id)
-                .recipe(import.recipe)
-                .user_recipe_values(import.user_recipe_values),
-        )
-        .await?;
+        let mut builder = SessionUpdateBuilder::new(session.id.clone())
+            .extension_data(import.extension_data)
+            .total_tokens(import.total_tokens)
+            .input_tokens(import.input_tokens)
+            .output_tokens(import.output_tokens)
+            .accumulated_total_tokens(import.accumulated_total_tokens)
+            .accumulated_input_tokens(import.accumulated_input_tokens)
+            .accumulated_output_tokens(import.accumulated_output_tokens)
+            .schedule_id(import.schedule_id)
+            .recipe(import.recipe)
+            .user_recipe_values(import.user_recipe_values);
+
+        if import.user_set_name {
+            builder = builder.user_provided_name(import.name.clone());
+        }
+
+        self.apply_update(builder).await?;
 
         if let Some(conversation) = import.conversation {
             self.replace_conversation(&session.id, &conversation)
@@ -1019,7 +1084,7 @@ mod tests {
                 session_storage
                     .apply_update(
                         SessionUpdateBuilder::new(session.id.clone())
-                            .description(format!("Updated session {}", i))
+                            .user_provided_name(format!("Updated session {}", i))
                             .total_tokens(Some(100 * i)),
                     )
                     .await
@@ -1052,7 +1117,7 @@ mod tests {
 
         for session in &sessions {
             assert_eq!(session.message_count, 2);
-            assert!(session.description.starts_with("Updated session"));
+            assert!(session.name.starts_with("Updated session"));
         }
 
         let insights = storage.get_insights().await.unwrap();
@@ -1123,7 +1188,7 @@ mod tests {
         let imported = storage.import_session(&exported).await.unwrap();
 
         assert_ne!(imported.id, original.id);
-        assert_eq!(imported.description, DESCRIPTION);
+        assert_eq!(imported.name, DESCRIPTION);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
         assert_eq!(imported.total_tokens, Some(TOTAL_TOKENS));
         assert_eq!(imported.input_tokens, Some(INPUT_TOKENS));
@@ -1135,5 +1200,29 @@ mod tests {
         assert_eq!(conversation.messages().len(), 2);
         assert_eq!(conversation.messages()[0].role, Role::User);
         assert_eq!(conversation.messages()[1].role, Role::Assistant);
+    }
+
+    #[tokio::test]
+    async fn test_import_session_with_description_field() {
+        const OLD_FORMAT_JSON: &str = r#"{
+            "id": "20240101_1",
+            "description": "Old format session",
+            "user_set_name": true,
+            "working_dir": "/tmp/test",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "extension_data": {},
+            "message_count": 0
+        }"#;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_import.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let imported = storage.import_session(OLD_FORMAT_JSON).await.unwrap();
+
+        assert_eq!(imported.name, "Old format session");
+        assert!(imported.user_set_name);
+        assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
     }
 }

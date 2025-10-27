@@ -177,6 +177,10 @@ pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow
         None => generate_recipe_filename(&recipe.title, &recipe_library_dir),
     };
 
+    if let Some(parent) = file_path_value.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let yaml_content = serde_yaml::to_string(&recipe)?;
     fs::write(&file_path_value, yaml_content)?;
     Ok(file_path_value)

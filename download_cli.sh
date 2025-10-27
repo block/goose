@@ -54,7 +54,23 @@ fi
 # --- 2) Variables ---
 REPO="block/goose"
 OUT_FILE="goose"
-GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+
+# Set default bin directory based on detected OS environment
+if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    # Native Windows environments - use Windows user profile path
+    DEFAULT_BIN_DIR="$USERPROFILE/goose"
+elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL - use Linux-style path but make sure it exists
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+else
+    # Default for Linux/macOS
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+fi
+
+GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-$DEFAULT_BIN_DIR}"
 RELEASE="${CANARY:-false}"
 CONFIGURE="${CONFIGURE:-true}"
 if [ -n "${GOOSE_VERSION:-}" ]; then

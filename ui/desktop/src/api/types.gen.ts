@@ -67,39 +67,7 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-/**
- * Request payload for context management operations
- */
-export type ContextManageRequest = {
-    /**
-     * Collection of messages to be managed
-     */
-    messages: Array<Message>;
-    /**
-     * Optional session ID for session-specific agent
-     */
-    sessionId: string;
-};
-
-/**
- * Response from context management operations
- */
-export type ContextManageResponse = {
-    /**
-     * Processed messages after the operation
-     */
-    messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
-};
-
 export type Conversation = Array<Message>;
-
-export type ConversationCompacted = {
-    msg: string;
-};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -388,8 +356,8 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ConversationCompacted & {
-    type: 'conversationCompacted';
+}) | (SystemNotificationContent & {
+    type: 'systemNotification';
 });
 
 /**
@@ -605,6 +573,7 @@ export type Response = {
 };
 
 export type ResumeAgentRequest = {
+    load_model_and_extensions: boolean;
     session_id: string;
 };
 
@@ -675,11 +644,11 @@ export type Session = {
     accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
-    description: string;
     extension_data: ExtensionData;
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    name: string;
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
@@ -688,6 +657,7 @@ export type Session = {
     user_recipe_values?: {
         [key: string]: string;
     } | null;
+    user_set_name?: boolean;
     working_dir: string;
 };
 
@@ -707,13 +677,7 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionInsights = {
-    /**
-     * Total number of sessions
-     */
     totalSessions: number;
-    /**
-     * Total tokens used across all sessions
-     */
     totalTokens: number;
 };
 
@@ -766,6 +730,13 @@ export type SuccessCheck = {
     command: string;
     type: 'Shell';
 };
+
+export type SystemNotificationContent = {
+    msg: string;
+    notificationType: SystemNotificationType;
+};
+
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
 export type TextContent = {
     _meta?: {
@@ -869,11 +840,11 @@ export type UpdateScheduleRequest = {
     cron: string;
 };
 
-export type UpdateSessionDescriptionRequest = {
+export type UpdateSessionNameRequest = {
     /**
-     * Updated description (name) for the session (max 200 characters)
+     * Updated name for the session (max 200 characters)
      */
-    description: string;
+    name: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -1568,36 +1539,30 @@ export type ConfirmPermissionResponses = {
     200: unknown;
 };
 
-export type ManageContextData = {
-    body: ContextManageRequest;
-    path?: never;
+export type DiagnosticsData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
     query?: never;
-    url: '/context/manage';
+    url: '/diagnostics/{session_id}';
 };
 
-export type ManageContextErrors = {
+export type DiagnosticsErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
+     * Failed to generate diagnostics
      */
     500: unknown;
 };
 
-export type ManageContextResponses = {
+export type DiagnosticsResponses = {
     /**
-     * Context managed successfully
+     * Diagnostics zip file
      */
-    200: ContextManageResponse;
+    200: Blob | File;
 };
 
-export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
@@ -2318,44 +2283,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type UpdateSessionDescriptionData = {
-    body: UpdateSessionDescriptionRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/description';
-};
-
-export type UpdateSessionDescriptionErrors = {
-    /**
-     * Bad request - Description too long (max 200 characters)
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionDescriptionResponses = {
-    /**
-     * Session description updated successfully
-     */
-    200: unknown;
-};
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -2391,6 +2318,44 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type UpdateSessionNameData = {
+    body: UpdateSessionNameRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/name';
+};
+
+export type UpdateSessionNameErrors = {
+    /**
+     * Bad request - Name too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionNameResponses = {
+    /**
+     * Session name updated successfully
+     */
+    200: unknown;
+};
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;

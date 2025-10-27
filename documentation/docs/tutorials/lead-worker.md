@@ -58,14 +58,14 @@ Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
    1. Click the model name at the bottom of the Goose Desktop window
    2. Click **Lead/Worker Settings**
    3. Check the box to **Enable lead/worker mode**
    4. Select your **Lead Model** and **Worker Model** from the dropdown menus
    5. (Optional) Change the default number of **initial lead turns**, the **failure threshold** before switching back to the leavd model, or the number of **fallback turns** to use the lead model during fallback
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     The only required configuration is setting the `GOOSE_LEAD_MODEL` [environment variable](/docs/guides/environment-variables#leadworker-model-configuration):
 
     ```bash

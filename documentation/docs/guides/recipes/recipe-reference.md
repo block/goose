@@ -535,10 +535,10 @@ Recipes can be loaded from:
 
 1. Local filesystem:
    - Current directory
-   - Directories specified in `GOOSE_RECIPE_PATH` environment variable
+   - Directories specified in [`GOOSE_RECIPE_PATH`](/docs/guides/environment-variables#recipe-configuration) environment variable
    
 2. GitHub repositories:
-   - Configure using `GOOSE_RECIPE_GITHUB_REPO` configuration key
+   - Configure using [`GOOSE_RECIPE_GITHUB_REPO`](/docs/guides/environment-variables#recipe-configuration) configuration key
    - Requires GitHub CLI (`gh`) to be installed and authenticated
 
 ## Validation Rules

@@ -154,8 +154,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         .collect()
 }
 
-/// Get the accepted keys for a given parent key in the JSON schema.
-fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
+pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
     match parent_key {
         Some("properties") => vec![
             "anyOf",
@@ -178,7 +177,7 @@ fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
 /// Process a JSON map to filter out unsupported attributes, mirroring the logic
 /// from the official Google Gemini CLI.
 /// See: https://github.com/google-gemini/gemini-cli/blob/8a6509ffeba271a8e7ccb83066a9a31a5d72a647/packages/core/src/tools/tool-registry.ts#L356
-fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
+pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
     let accepted_keys = get_accepted_keys(parent_key);
     let filtered_map: Map<String, Value> = map
         .iter()
