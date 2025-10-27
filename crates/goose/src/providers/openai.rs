@@ -6,6 +6,7 @@ use reqwest::StatusCode;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -54,6 +55,8 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl OpenAiProvider {
@@ -107,6 +110,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -163,6 +167,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -199,6 +204,10 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

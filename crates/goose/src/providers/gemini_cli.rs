@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use serde_json::json;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -24,6 +25,8 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 pub struct GeminiCliProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl GeminiCliProvider {
@@ -42,6 +45,7 @@ impl GeminiCliProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -309,6 +313,10 @@ impl Provider for GeminiCliProvider {
             GEMINI_CLI_DOC_URL,
             vec![], // No configuration needed
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

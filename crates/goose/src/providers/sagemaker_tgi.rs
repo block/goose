@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -30,6 +31,8 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl SageMakerTgiProvider {
@@ -79,6 +82,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -270,6 +274,10 @@ impl Provider for SageMakerTgiProvider {
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -113,6 +114,8 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl GithubCopilotProvider {
@@ -127,6 +130,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -390,6 +394,10 @@ impl Provider for GithubCopilotProvider {
                 None,
             )],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

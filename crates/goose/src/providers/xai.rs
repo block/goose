@@ -3,6 +3,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, RequestLog};
 use crate::conversation::message::Message;
+use std::sync::Arc;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -42,6 +43,8 @@ pub struct XaiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl XaiProvider {
@@ -55,7 +58,11 @@ impl XaiProvider {
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            metadata: Arc::new(Self::metadata()),
+        })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
@@ -85,6 +92,10 @@ impl Provider for XaiProvider {
                 ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST)),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

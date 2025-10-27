@@ -36,6 +36,7 @@ pub struct TestProvider {
     inner: Option<Arc<dyn Provider>>,
     records: Arc<Mutex<HashMap<String, TestRecord>>>,
     file_path: String,
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl TestProvider {
@@ -44,6 +45,7 @@ impl TestProvider {
             inner: Some(inner),
             records: Arc::new(Mutex::new(HashMap::new())),
             file_path: file_path.into(),
+            metadata: Arc::new(Self::metadata()),
         }
     }
 
@@ -55,6 +57,7 @@ impl TestProvider {
             inner: None,
             records: Arc::new(Mutex::new(records)),
             file_path,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -110,6 +113,10 @@ impl Provider for TestProvider {
             "",
             vec![],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     async fn complete_with_model(
@@ -187,6 +194,10 @@ mod tests {
                 "",
                 vec![],
             )
+        }
+
+        fn get_metadata(&self) -> Arc<ProviderMetadata> {
+            Arc::new(Self::metadata())
         }
 
         async fn complete_with_model(

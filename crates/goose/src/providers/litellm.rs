@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
@@ -23,6 +24,8 @@ pub struct LiteLLMProvider {
     api_client: ApiClient,
     base_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl LiteLLMProvider {
@@ -67,6 +70,7 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -152,6 +156,10 @@ impl Provider for LiteLLMProvider {
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

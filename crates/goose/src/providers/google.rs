@@ -3,6 +3,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
 use crate::conversation::message::Message;
+use std::sync::Arc;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -39,6 +40,8 @@ pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl GoogleProvider {
@@ -59,7 +62,11 @@ impl GoogleProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            metadata: Arc::new(Self::metadata()),
+        })
     }
 
     async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
@@ -84,6 +91,10 @@ impl Provider for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST)),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

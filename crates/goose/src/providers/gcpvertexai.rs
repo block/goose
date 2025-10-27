@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -76,6 +77,8 @@ pub struct GcpVertexAIProvider {
     /// Retry configuration for handling rate limit errors
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl GcpVertexAIProvider {
@@ -109,6 +112,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -492,6 +496,10 @@ impl Provider for GcpVertexAIProvider {
                 ),
             ],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     /// Completes a model interaction by sending a request and processing the response.

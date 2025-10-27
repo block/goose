@@ -4,6 +4,7 @@ use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -23,6 +24,8 @@ pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview"
 pub struct CursorAgentProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl CursorAgentProvider {
@@ -41,6 +44,7 @@ impl CursorAgentProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -393,6 +397,10 @@ impl Provider for CursorAgentProvider {
                 Some("cursor-agent"),
             )],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn get_model_config(&self) -> ModelConfig {

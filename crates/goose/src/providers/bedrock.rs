@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
@@ -42,6 +43,8 @@ pub struct BedrockProvider {
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    metadata: Arc<ProviderMetadata>,
 }
 
 impl BedrockProvider {
@@ -78,6 +81,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
+            metadata: Arc::new(Self::metadata()),
         })
     }
 
@@ -182,6 +186,10 @@ impl Provider for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
         )
+    }
+
+    fn get_metadata(&self) -> Arc<ProviderMetadata> {
+        Arc::clone(&self.metadata)
     }
 
     fn retry_config(&self) -> RetryConfig {
