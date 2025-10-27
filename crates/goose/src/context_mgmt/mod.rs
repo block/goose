@@ -1,6 +1,6 @@
 use crate::conversation::message::MessageMetadata;
 use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::Conversation;
+use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::{config::Config, token_counter::create_token_counter};
@@ -76,7 +76,7 @@ pub async fn compact_messages(
     let messages = conversation.messages();
 
     // split the conversation into messages to be compacted, and continuation messages
-    let (messages_to_compact, continuation_messages) = match messages.last() {
+    let (messages_to_compact, mut continuation_messages) = match messages.last() {
         Some(message) if is_user_submitted_text(message) => (
             &messages[..messages.len() - 1],
             vec![conversation_continuation_message(), message.clone()],
@@ -130,13 +130,15 @@ pub async fn compact_messages(
         .as_ref()
         .and_then(|usage| usage.usage.output_tokens)
         .unwrap_or(0) as usize;
-    final_messages.push(summary_msg);
     final_token_counts.push(summary_tokens);
 
     let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
     final_token_counts.push(assistant_message_tokens);
 
-    final_messages.extend(continuation_messages.into_iter());
+    let mut new_messages = vec![summary_msg];
+    new_messages.append(&mut continuation_messages);
+    let (new_messages, _issues) = merge_consecutive_messages(new_messages);
+    final_messages.extend(new_messages.into_iter());
 
     Ok((
         Conversation::new_unvalidated(final_messages),
