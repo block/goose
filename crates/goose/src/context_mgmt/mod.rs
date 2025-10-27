@@ -1,13 +1,12 @@
 use crate::conversation::message::MessageMetadata;
 use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::Conversation;
+use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::{agents::Agent, config::Config, token_counter::create_token_counter};
+use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use rmcp::model::Role;
 use serde::Serialize;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
@@ -17,55 +16,85 @@ struct SummarizeContext {
     messages: String,
 }
 
+fn is_user_submitted_text(message: &Message) -> bool {
+    match message.role {
+        Role::User => !is_tool_response_message(message),
+        Role::Assistant => false,
+    }
+}
+
+fn is_tool_response_message(message: &Message) -> bool {
+    message
+        .content
+        .iter()
+        .any(|c| c.as_tool_response().is_some())
+}
+
+const CONVSERATION_CONTINUATION_TEXT: &str =
+    "The previous message contains a summary that was prepared because a context limit was reached.
+Do not mention that you read a summary or that conversation summarization occurred
+Just continue the conversation naturally based on the summarized context";
+
+const TOOL_LOOP_CONTINUATION_TEXT: &str =
+    "The previous message contains a summary that was prepared because a context limit was reached.
+Do not mention that you read a summary or that conversation summarization occurred
+Continue calling tools as necessary to complete the task.";
+
+fn conversation_continuation_message() -> Message {
+    Message::user()
+        .with_text(CONVSERATION_CONTINUATION_TEXT)
+        .with_metadata(MessageMetadata::agent_only())
+}
+
+fn tool_loop_continuation_message(last_user_message: Option<&Message>) -> Message {
+    let prompt = if let Some(user_message) = last_user_message {
+        format!(
+            "{}\nThe last user message was:\n\n{}",
+            TOOL_LOOP_CONTINUATION_TEXT,
+            user_message.as_concat_text()
+        )
+    } else {
+        TOOL_LOOP_CONTINUATION_TEXT.to_string()
+    };
+
+    Message::user()
+        .with_text(prompt)
+        .with_metadata(MessageMetadata::agent_only())
+}
+
 /// Compact messages by summarizing them
 ///
 /// This function performs the actual compaction by summarizing messages and updating
 /// their visibility metadata. It does not check thresholds - use `check_if_compaction_needed`
 /// first to determine if compaction is necessary.
-///
-/// # Arguments
-/// * `agent` - The agent to use for context management
-/// * `conversation` - The current conversation history
-/// * `preserve_last_user_message` - If true and last message is not a user message, copy the most recent user message to the end
-///
-/// # Returns
-/// * A tuple containing:
-///   - `Conversation`: The compacted messages
-///   - `Vec<usize>`: Token counts for each message
-///   - `Option<ProviderUsage>`: Provider usage from summarization
 pub async fn compact_messages(
-    agent: &Agent,
+    provider: &dyn Provider,
     conversation: &Conversation,
-    preserve_last_user_message: bool,
 ) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
     info!("Performing message compaction");
 
     let messages = conversation.messages();
 
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
-        } else if preserve_last_user_message {
-            // Last message is not a user message, but we want to preserve the most recent user message
-            // Find the most recent user message and copy it (don't remove from history)
+    // split the conversation into messages to be compacted, and continuation messages
+    let (messages_to_compact, continuation_messages) = match messages.last() {
+        Some(message) if is_user_submitted_text(message) => (
+            &messages[..messages.len() - 1],
+            vec![conversation_continuation_message(), message.clone()],
+        ),
+        Some(message) if is_tool_response_message(message) => {
             let most_recent_user_message = messages
                 .iter()
                 .rev()
-                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
-                .cloned();
-            (messages.as_slice(), most_recent_user_message)
-        } else {
-            (messages.as_slice(), None)
+                .find(|msg| is_user_submitted_text(msg));
+            (
+                &messages[..messages.len() - 1],
+                vec![tool_loop_continuation_message(most_recent_user_message)],
+            )
         }
-    } else {
-        (messages.as_slice(), None)
+        _ => (messages.as_ref(), vec![]), // we are compacting an empty conversation
     };
 
-    let provider = agent.provider().await?;
-    let summary = do_compact(provider.clone(), messages_to_compact).await?;
+    let summary = do_compact(provider, messages_to_compact).await?;
 
     let (summary_message, summarization_usage) = match summary {
         Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
@@ -101,25 +130,15 @@ pub async fn compact_messages(
         .as_ref()
         .and_then(|usage| usage.usage.output_tokens)
         .unwrap_or(0) as usize;
-    final_messages.push(summary_msg);
     final_token_counts.push(summary_tokens);
 
-    // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
-    let assistant_message = Message::assistant()
-        .with_text(
-            "The previous message contains a summary that was prepared because a context limit was reached.
-Do not mention that you read a summary or that conversation summarization occurred
-Just continue the conversation naturally based on the summarized context"
-        )
-        .with_metadata(MessageMetadata::agent_only());
     let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
-    final_messages.push(assistant_message);
     final_token_counts.push(assistant_message_tokens);
 
-    // Add back the preserved user message if it exists
-    if let Some(user_message) = preserved_user_message {
-        final_messages.push(user_message);
-    }
+    let mut new_messages = vec![summary_msg];
+    new_messages.extend(continuation_messages);
+    let (new_messages, _issues) = merge_consecutive_messages(new_messages);
+    final_messages.extend(new_messages);
 
     Ok((
         Conversation::new_unvalidated(final_messages),
@@ -130,7 +149,7 @@ Just continue the conversation naturally based on the summarized context"
 
 /// Check if messages exceed the auto-compaction threshold
 pub async fn check_if_compaction_needed(
-    agent: &Agent,
+    provider: &dyn Provider,
     conversation: &Conversation,
     threshold_override: Option<f64>,
     session_metadata: Option<&crate::session::Session>,
@@ -144,7 +163,6 @@ pub async fn check_if_compaction_needed(
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
-    let provider = agent.provider().await?;
     let context_limit = provider.get_model_config().context_limit();
 
     let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
@@ -186,7 +204,7 @@ pub async fn check_if_compaction_needed(
 }
 
 async fn do_compact(
-    provider: Arc<dyn Provider>,
+    provider: &dyn Provider,
     messages: &[Message],
 ) -> Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
     let agent_visible_messages: Vec<&Message> = messages
@@ -288,5 +306,94 @@ fn format_message_for_compacting(msg: &Message) -> String {
         format!("[{}]: <empty message>", role_str)
     } else {
         format!("[{}]: {}", role_str, content_parts.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        model::ModelConfig,
+        providers::{
+            base::{ProviderMetadata, Usage},
+            errors::ProviderError,
+        },
+    };
+    use async_trait::async_trait;
+    use rmcp::model::{AnnotateAble, CallToolRequestParam, RawContent, Tool};
+
+    struct MockProvider {
+        message: Message,
+        config: ModelConfig,
+    }
+
+    impl MockProvider {
+        fn new(message: Message, context_limit: usize) -> Self {
+            Self {
+                message,
+                config: ModelConfig {
+                    model_name: "test".to_string(),
+                    context_limit: Some(context_limit),
+                    temperature: None,
+                    max_tokens: None,
+                    toolshim: false,
+                    toolshim_model: None,
+                    fast_model: None,
+                },
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Provider for MockProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                self.message.clone(),
+                ProviderUsage::new("mock-model".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.config.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_keeps_tool_request() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProvider::new(response_message, 1);
+        let basic_conversation = vec![
+            Message::user().with_text("read hello.txt"),
+            Message::assistant().with_tool_request(
+                "tool_0",
+                Ok(CallToolRequestParam {
+                    name: "read_file".into(),
+                    arguments: None,
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool_0",
+                Ok(vec![RawContent::text("hello, world").no_annotation()]),
+            ),
+        ];
+
+        let conversation = Conversation::new_unvalidated(basic_conversation);
+        let (compacted_conversation, _token_counts, _usage) =
+            compact_messages(&provider, &conversation).await.unwrap();
+
+        let agent_conversation = compacted_conversation.agent_visible_messages();
+
+        let _ = Conversation::new(agent_conversation)
+            .expect("compaction should produce a valid conversation");
     }
 }
