@@ -86,6 +86,7 @@ pub struct UpdateCustomProviderRequest {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
 #[utoipa::path(
@@ -627,6 +628,7 @@ pub async fn create_custom_provider(
         request.api_key,
         request.models,
         request.supports_streaming,
+        request.headers,
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

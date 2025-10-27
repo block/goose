@@ -1184,6 +1184,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Set maximum number of turns without user input",
         )
         .item(
+            "keyring",
+            "Secret Storage",
+            "Configure how secrets are stored (keyring vs file)",
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
@@ -1216,6 +1221,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         "max_turns" => {
             configure_max_turns_dialog()?;
         }
+        "keyring" => {
+            configure_keyring_dialog()?;
+        }
         "experiment" => {
             toggle_experiments_dialog()?;
         }
@@ -1234,7 +1242,6 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
 pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
-    // Check if GOOSE_MODE is set as an environment variable
     if std::env::var("GOOSE_MODE").is_ok() {
         let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
     }
@@ -1316,7 +1323,7 @@ pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
 
 pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
-    // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
+
     if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
         let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.");
     }
@@ -1338,6 +1345,60 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
         "all" => {
             config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
             cliclack::outro("Showing all tool output.")?;
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(())
+}
+
+pub fn configure_keyring_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    if std::env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
+    }
+
+    let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
+
+    let current_status = if currently_disabled {
+        "Disabled (using file-based storage)"
+    } else {
+        "Enabled (using system keyring)"
+    };
+
+    let _ = cliclack::log::info(format!("Current secret storage: {}", current_status));
+    let _ = cliclack::log::warning("Note: Disabling the keyring stores secrets in a plain text file (~/.config/goose/secrets.yaml)");
+
+    let storage_option = cliclack::select("How would you like to store secrets?")
+        .item(
+            "keyring",
+            "System Keyring (recommended)",
+            "Use secure system keyring for storing API keys and secrets",
+        )
+        .item(
+            "file",
+            "File-based Storage",
+            "Store secrets in a local file (useful when keyring access is restricted)",
+        )
+        .interact()?;
+
+    match storage_option {
+        "keyring" => {
+            // Set to empty string to enable keyring (absence or empty = enabled)
+            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+            cliclack::outro("Secret storage set to system keyring (secure)")?;
+            let _ =
+                cliclack::log::info("You may need to restart goose for this change to take effect");
+        }
+        "file" => {
+            // Set the disable flag to use file storage
+            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+            cliclack::outro(
+                "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
+            )?;
+            let _ =
+                cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         _ => unreachable!(),
     };
@@ -1562,7 +1623,6 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
 fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
-    // Check if GOOSE_SCHEDULER_TYPE is set as an environment variable
     if std::env::var("GOOSE_SCHEDULER_TYPE").is_ok() {
         let _ = cliclack::log::info("Notice: GOOSE_SCHEDULER_TYPE environment variable is set and will override the configuration here.");
     }
@@ -1911,6 +1971,53 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         .initial_value(true)
         .interact()?;
 
+    // Ask about custom headers for OpenAI compatible providers
+    let headers = if provider_type == "openai_compatible" {
+        let use_custom_headers = cliclack::confirm("Does this provider require custom headers?")
+            .initial_value(false)
+            .interact()?;
+
+        if use_custom_headers {
+            let mut custom_headers = std::collections::HashMap::new();
+
+            loop {
+                let header_name: String = cliclack::input("Header name:")
+                    .placeholder("e.g., x-origin-client-id")
+                    .required(false)
+                    .interact()?;
+
+                if header_name.is_empty() {
+                    break;
+                }
+
+                let header_value: String =
+                    cliclack::password(format!("Value for '{}':", header_name))
+                        .mask('▪')
+                        .interact()?;
+
+                custom_headers.insert(header_name, header_value);
+
+                let add_more = cliclack::confirm("Add another header?")
+                    .initial_value(false)
+                    .interact()?;
+
+                if !add_more {
+                    break;
+                }
+            }
+
+            if custom_headers.is_empty() {
+                None
+            } else {
+                Some(custom_headers)
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     create_custom_provider(
         provider_type,
         display_name.clone(),
@@ -1918,6 +2025,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
         api_key,
         models,
         Some(supports_streaming),
+        headers,
     )?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
