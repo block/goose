@@ -9,7 +9,7 @@
   "extensions": [
     {
       "name": "GitHub",
-      "command": "npx -y @modelcontextprotocol/server-github",
+      "command": "goose session --with-streamable-http-extension \"https://api.githubcopilot.com/mcp/\"",
       "is_builtin": false,
       "link": "https://block.github.io/goose/docs/mcp/github-mcp",
       "environmentVariables": [
