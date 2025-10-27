@@ -307,12 +307,13 @@ export default function TunnelSection() {
                     <div>
                       <h3 className="text-xs font-medium mb-1 text-text-muted">Tunnel URL</h3>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all">
+                        <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelStatus.info.url}
                         </code>
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="flex-shrink-0"
                           onClick={() => copyToClipboard(tunnelStatus.info!.url, 'url')}
                         >
                           {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -323,12 +324,13 @@ export default function TunnelSection() {
                     <div>
                       <h3 className="text-xs font-medium mb-1 text-text-muted">Secret Key</h3>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
+                        <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelStatus.info.secret}
                         </code>
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="flex-shrink-0"
                           onClick={() => copyToClipboard(tunnelStatus.info!.secret, 'secret')}
                         >
                           {copiedSecret ? (
