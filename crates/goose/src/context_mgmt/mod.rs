@@ -76,7 +76,7 @@ pub async fn compact_messages(
     let messages = conversation.messages();
 
     // split the conversation into messages to be compacted, and continuation messages
-    let (messages_to_compact, mut continuation_messages) = match messages.last() {
+    let (messages_to_compact, continuation_messages) = match messages.last() {
         Some(message) if is_user_submitted_text(message) => (
             &messages[..messages.len() - 1],
             vec![conversation_continuation_message(), message.clone()],
@@ -136,9 +136,9 @@ pub async fn compact_messages(
     final_token_counts.push(assistant_message_tokens);
 
     let mut new_messages = vec![summary_msg];
-    new_messages.append(&mut continuation_messages);
+    new_messages.extend(continuation_messages);
     let (new_messages, _issues) = merge_consecutive_messages(new_messages);
-    final_messages.extend(new_messages.into_iter());
+    final_messages.extend(new_messages);
 
     Ok((
         Conversation::new_unvalidated(final_messages),
