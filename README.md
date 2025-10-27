@@ -23,7 +23,6 @@ _a local, extensible, open source AI agent that automates engineering tasks_
 > Thank you for contributing! We welcome first-time contributors to participate in Hacktoberfest 2025.
 > Small improvements like fixing typos, formatting, and improving docs are highly appreciated.
 
-
 ### To get started:
 1. Read the [contributing guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md).
 2. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
