@@ -226,12 +226,11 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
                     if let Some(arr) = value.as_array() {
                         let processed_arr: Vec<Value> = arr
                             .iter()
-                            .filter_map(|item| {
-                                if let Some(obj) = item.as_object() {
-                                    Some(process_map(obj, parent_key))
-                                } else {
-                                    Some(item.clone())
-                                }
+                            .map(|item| {
+                                item.as_object().map_or_else(
+                                    || item.clone(),
+                                    |obj| process_map(obj, parent_key),
+                                )
                             })
                             .collect();
                         Value::Array(processed_arr)
