@@ -1369,6 +1369,8 @@ impl Agent {
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
+        let (extension_count, tool_count) =
+            self.extension_manager.get_extension_and_tool_counts().await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1380,15 +1382,12 @@ impl Agent {
         tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.build_system_prompt(
-            extensions_info,
-            self.frontend_instructions.lock().await.clone(),
-            self.extension_manager
-                .suggest_disable_extensions_prompt()
-                .await,
-            model_name,
-            false,
-        );
+        let system_prompt = prompt_manager
+            .builder(model_name)
+            .with_extensions(extensions_info.into_iter())
+            .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_extension_and_tool_counts(extension_count, tool_count)
+            .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = self
@@ -1612,8 +1611,7 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, "gpt-4o", false);
+        let system_prompt = prompt_manager.builder("gpt-4o").build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =
