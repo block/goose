@@ -1,5 +1,8 @@
 use crate::{
-    agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
+    agents::{
+        extension::PlatformExtensionContext, subagent_task_config::TaskConfig, Agent, AgentEvent,
+        SessionConfig,
+    },
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
     session::SessionManager,
@@ -7,8 +10,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
-use std::future::Future;
 use std::pin::Pin;
+use std::{future::Future, sync::Arc};
 use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
@@ -101,17 +104,35 @@ fn get_agent_messages(
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
         let parent_session_id = task_config.parent_session_id;
         let working_dir = task_config.parent_working_dir;
-        let session = SessionManager::create_session(
-            working_dir.clone(),
-            format!("Subagent task for: {}", parent_session_id),
-        )
-        .await
-        .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
+        let (agent, session_id) = match parent_session_id {
+            Some(parent_session_id) => {
+                let session = SessionManager::create_session(
+                    working_dir.clone(),
+                    format!("Subagent task for: {}", parent_session_id),
+                )
+                .await
+                .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
 
-        let agent = agent_manager
-            .get_or_create_agent(session.id.clone())
-            .await
-            .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+                let agent = agent_manager
+                    .get_or_create_agent(session.id.clone())
+                    .await
+                    .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+                (agent, Some(session.id))
+            }
+            None => {
+                let agent = Arc::new(Agent::new());
+                agent
+                    .extension_manager
+                    .set_context(PlatformExtensionContext {
+                        session_id: None,
+                        extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                        tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+                    })
+                    .await;
+                (agent, None)
+            }
+        };
+
         agent
             .update_provider(task_config.provider)
             .await
@@ -131,17 +152,20 @@ fn get_agent_messages(
             Conversation::new_unvalidated(
                 vec![Message::user().with_text(text_instruction.clone())],
             );
-        let session_config = SessionConfig {
-            id: session.id,
-            working_dir,
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: task_config.max_turns.map(|v| v as u32),
-            retry_config: None,
+        let session_config = if let Some(session_id) = session_id {
+            Some(SessionConfig {
+                id: session_id,
+                working_dir,
+                schedule_id: None,
+                execution_mode: None,
+                max_turns: task_config.max_turns.map(|v| v as u32),
+                retry_config: None,
+            })
+        } else {
+            None
         };
-
         let mut stream = agent
-            .reply(conversation.clone(), Some(session_config), None)
+            .reply(conversation.clone(), session_config, None)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
