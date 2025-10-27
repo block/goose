@@ -190,18 +190,6 @@ pub fn process_value(value: &Value, parent_key: Option<&str>) -> Value {
 pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
     let accepted_keys = get_accepted_keys(parent_key);
 
-    if let Some(any_of) = map.get("anyOf") {
-        if let Some(arr) = any_of.as_array() {
-            for item in arr {
-                if let Some(obj) = item.as_object() {
-                    if obj.get("type").and_then(|t| t.as_str()) != Some("null") {
-                        return process_value(item, parent_key);
-                    }
-                }
-            }
-        }
-    }
-
     let filtered_map: Map<String, Value> = map
         .iter()
         .filter_map(|(key, value)| {
@@ -234,7 +222,23 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
                         value.clone()
                     }
                 }
-                "type" => process_value(value, Some("type")),
+                "anyOf" | "allOf" => {
+                    if let Some(arr) = value.as_array() {
+                        let processed_arr: Vec<Value> = arr
+                            .iter()
+                            .filter_map(|item| {
+                                if let Some(obj) = item.as_object() {
+                                    Some(process_map(obj, parent_key))
+                                } else {
+                                    Some(item.clone())
+                                }
+                            })
+                            .collect();
+                        Value::Array(processed_arr)
+                    } else {
+                        value.clone()
+                    }
+                }
                 _ => value.clone(),
             };
 
