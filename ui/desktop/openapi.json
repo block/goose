@@ -2817,6 +2817,65 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "WebSocket client with a URI endpoint",
+            "required": [
+              "name",
+              "description",
+              "uri",
+              "type"
+            ],
+            "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "bundled": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "description": {
+                "type": "string"
+              },
+              "env_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "envs": {
+                "$ref": "#/components/schemas/Envs"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "websocket"
+                ]
+              },
+              "uri": {
+                "type": "string"
+              }
+            }
           }
         ],
         "description": "Represents the different types of MCP extensions that can be added to the manager",

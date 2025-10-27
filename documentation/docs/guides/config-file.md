@@ -107,7 +107,7 @@ extensions:
     enabled: true/false        # Whether the extension is active
     name: "extension_name"     # Internal name
     timeout: 300              # Operation timeout in seconds
-    type: "builtin"/"stdio"   # Extension type
+    type: "builtin"/"stdio"/"sse"/"streamable_http"/"websocket"   # Extension type
     
     # Additional settings for stdio extensions:
     cmd: "command"            # Command to execute
@@ -115,7 +115,58 @@ extensions:
     description: "text"       # Extension description
     env_keys: []             # Required environment variables
     envs: {}                 # Environment values
+    
+    # Additional settings for remote extensions (SSE, Streaming HTTP, WebSocket):
+    uri: "url"               # Remote endpoint URL
+    headers: {}              # Custom HTTP headers (optional)
 ```
+
+### Extension Types
+
+Goose supports multiple transport types for connecting to MCP servers:
+
+- **builtin**: Extensions bundled with Goose (Developer, Memory, etc.)
+- **stdio**: Local command-line extensions using standard input/output
+- **sse**: Remote extensions using Server-Sent Events (HTTP streaming)
+- **streamable_http**: Remote extensions using Streaming HTTP
+- **websocket**: Remote extensions using WebSocket protocol
+
+### WebSocket Extensions
+
+WebSocket extensions provide bidirectional, real-time communication with MCP servers. This is particularly useful for:
+
+- High-performance, low-latency communication
+- Server-initiated requests and notifications
+- Long-lived connections with minimal overhead
+- Integration with existing WebSocket-based services
+
+Example WebSocket extension configuration:
+
+```yaml
+extensions:
+  my_websocket_extension:
+    enabled: true
+    name: "My WebSocket Extension"
+    type: websocket
+    uri: "ws://localhost:8080/mcp"
+    timeout: 300
+    description: "WebSocket-based MCP server"
+    env_keys: []
+    envs: {}
+    headers: {}
+```
+
+**WebSocket Configuration Options:**
+
+- `uri`: WebSocket endpoint URL (must start with `ws://` or `wss://` for secure connections)
+- `timeout`: Maximum time in seconds to wait for responses (default: 300)
+- `headers`: Optional custom HTTP headers for the WebSocket handshake (e.g., authentication tokens)
+
+**Protocol Requirements:**
+
+- The WebSocket server must support the `mcp` subprotocol
+- Messages are exchanged as JSON-RPC 2.0 formatted text frames
+- Each message should be a complete JSON-RPC request/response
 
 ## Configuration Priority
 

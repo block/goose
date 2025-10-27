@@ -735,6 +735,11 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             "Remote Extension (Streaming HTTP)",
             "Connect to a remote extension via MCP Streaming HTTP",
         )
+        .item(
+            "websocket",
+            "Remote Extension (WebSocket)",
+            "Connect to a remote extension via WebSocket",
+        )
         .interact()?;
 
     match extension_type {
@@ -1106,6 +1111,128 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             set_extension(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::StreamableHttp {
+                    name: name.clone(),
+                    uri,
+                    envs: Envs::new(envs),
+                    env_keys,
+                    headers,
+                    description,
+                    timeout: Some(timeout),
+                    bundled: None,
+                    available_tools: Vec::new(),
+                },
+            });
+
+            cliclack::outro(format!("Added {} extension", style(name).green()))?;
+        }
+        "websocket" => {
+            let extensions = get_all_extension_names();
+            let name: String = cliclack::input("What would you like to call this extension?")
+                .placeholder("my-websocket-extension")
+                .validate(move |input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a name")
+                    } else if extensions.contains(input) {
+                        Err("An extension with this name already exists")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let uri: String = cliclack::input("What is the WebSocket endpoint URI?")
+                .placeholder("ws://localhost:8080/mcp or wss://example.com/mcp")
+                .validate(|input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a URI")
+                    } else if !(input.starts_with("ws://") || input.starts_with("wss://")) {
+                        Err("URI should start with ws:// or wss://")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid timeout"),
+                })
+                .interact()?;
+
+            let description = cliclack::input("Enter a description for this extension:")
+                .placeholder("Description")
+                .validate(|input: &String| {
+                    if input.trim().is_empty() {
+                        Err("Please enter a valid description")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let add_headers =
+                cliclack::confirm("Would you like to add custom headers?").interact()?;
+
+            let mut headers = HashMap::new();
+            if add_headers {
+                loop {
+                    let key: String = cliclack::input("Header name:")
+                        .placeholder("Authorization")
+                        .interact()?;
+
+                    let value: String = cliclack::input("Header value:")
+                        .placeholder("Bearer token123")
+                        .interact()?;
+
+                    headers.insert(key, value);
+
+                    if !cliclack::confirm("Add another header?").interact()? {
+                        break;
+                    }
+                }
+            }
+
+            let add_env =
+                cliclack::confirm("Would you like to add environment variables?").interact()?;
+
+            let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
+            if add_env {
+                loop {
+                    let key: String = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
+
+                    let value: String = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
+
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
+
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
+                }
+            }
+
+            set_extension(ExtensionEntry {
+                enabled: true,
+                config: ExtensionConfig::WebSocket {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
