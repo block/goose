@@ -10,6 +10,7 @@ use crate::agents::subagent_execution_tool::lib::ExecutionMode;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskType};
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
+use crate::session::SessionManager;
 
 use super::param_utils::prepare_command_params;
 
@@ -51,30 +52,38 @@ fn extract_task_parameters(params: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-fn create_tasks_from_params(
+async fn create_tasks_from_params(
     sub_recipe: &SubRecipe,
     command_params: &[std::collections::HashMap<String, String>],
-) -> Vec<Task> {
-    let tasks: Vec<Task> = command_params
-        .iter()
-        .map(|task_command_param| {
-            let payload = json!({
-                "sub_recipe": {
-                    "name": sub_recipe.name.clone(),
-                    "command_parameters": task_command_param,
-                    "recipe_path": sub_recipe.path.clone(),
-                    "sequential_when_repeated": sub_recipe.sequential_when_repeated
-                }
-            });
-            Task {
-                id: uuid::Uuid::new_v4().to_string(),
-                task_type: TaskType::SubRecipe,
-                payload,
-            }
-        })
-        .collect();
+) -> Result<Vec<Task>> {
+    let mut tasks = Vec::new();
 
-    tasks
+    for task_command_param in command_params {
+        // Create a session for this task - use its ID as the task ID
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            format!("Subagent: {}", sub_recipe.name),
+        )
+        .await?;
+
+        let payload = json!({
+            "sub_recipe": {
+                "name": sub_recipe.name.clone(),
+                "command_parameters": task_command_param,
+                "recipe_path": sub_recipe.path.clone(),
+                "sequential_when_repeated": sub_recipe.sequential_when_repeated
+            }
+        });
+
+        let task = Task {
+            id: session.id, // Use the session ID as task ID
+            task_type: TaskType::SubRecipe,
+            payload,
+        };
+        tasks.push(task);
+    }
+
+    Ok(tasks)
 }
 
 fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
@@ -97,7 +106,7 @@ pub async fn create_sub_recipe_task(
 ) -> Result<String> {
     let task_params_array = extract_task_parameters(&params);
     let command_params = prepare_command_params(sub_recipe, task_params_array.clone())?;
-    let tasks = create_tasks_from_params(sub_recipe, &command_params);
+    let tasks = create_tasks_from_params(sub_recipe, &command_params).await?;
     let task_execution_payload = create_task_execution_payload(&tasks, sub_recipe);
 
     let tasks_json = serde_json::to_string(&task_execution_payload)
