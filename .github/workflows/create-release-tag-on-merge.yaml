@@ -1,0 +1,51 @@
+name: Create release tag and patch release PR on merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - release/*
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  trigger-patch-release:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore release branch and create tag
+      run: |
+        BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+        PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+        git checkout -b "$BRANCH_NAME" "$PR_HEAD_SHA"
+        git push origin "$BRANCH_NAME"
+
+        echo "✅ Restored branch: $BRANCH_NAME at $PR_HEAD_SHA"
+
+        RELEASE_TAG=${BRANCH_NAME#release/}
+
+        echo "creating release tag: $RELEASE_TAG"
+        git tag "$RELEASE_TAG"
+        git push origin tag "$RELEASE_TAG"
+
+    - name: Trigger patch release
+      run: |
+        gh workflow run patch-release.yaml \
+          --field target_branch=${{ github.event.pull_request.head.ref }}
+
+        echo "✅ Triggered patch release workflow"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

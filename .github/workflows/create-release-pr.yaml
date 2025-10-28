@@ -1,0 +1,67 @@
+name: Release Workflow
+
+on:
+  workflow_call:
+    inputs:
+      bump_type:
+        description: 'Type of version bump (minor or patch)'
+        required: true
+        type: string
+      target_branch:
+        description: 'Target branch for the pull request'
+        required: false
+        type: string
+        default: 'main'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cashapp/activate-hermit@v1
+
+    - name: Validate bump type
+      run: |
+        if [[ "${{ inputs.bump_type }}" != "minor" && "${{ inputs.bump_type }}" != "patch" ]]; then
+          echo "Error: bump_type must be 'minor' or 'patch'"
+          exit 1
+        fi
+
+    - name: create release branch
+      run: |
+        if [[ "${{ inputs.bump_type }}" == "minor" ]]; then
+          VERSION=$(just get-next-minor-version)
+        else
+          VERSION=$(just get-next-patch-version)
+        fi
+
+        echo "version=$VERSION" >> $GITHUB_ENV
+        echo "Version: $VERSION"
+
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        just prepare-release $VERSION
+        BRANCH_NAME=$(git branch --show-current)
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "Branch: $BRANCH_NAME"
+
+    - name: push release branch
+      run: |
+        git push origin "${{ env.branch_name }}"
+
+    - name: Create Pull Request
+      run: |
+        gh pr create \
+          -B "${{ inputs.target_branch }}" \
+          -H "${{ env.branch_name }}" \
+          --title 'chore(release): release version ${{ env.version }} (${{ inputs.bump_type }})' \
+          --body '_Created automatically by ${{ github.workflow_ref }}_'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        ISSUE: ${{ github.event.issue.html_url }}
