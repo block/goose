@@ -220,14 +220,13 @@ pub async fn check_if_compaction_needed(
     Ok(needs_compaction)
 }
 
-
 fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> Vec<&'a Message> {
     fn has_tool_response(msg: &Message) -> bool {
         msg.content
             .iter()
             .any(|c| matches!(c, MessageContent::ToolResponse(_)))
     }
-    
+
     if remove_percent == 0 {
         return messages.to_vec();
     }
@@ -317,14 +316,9 @@ async fn do_compact(
                 return Ok(Some((response, provider_usage)));
             }
             Err(e) => {
-                // Check if this is a context length error
                 if matches!(e, ProviderError::ContextLengthExceeded(_)) {
                     if attempt < removal_percentages.len() - 1 {
-                        debug!(
-                            "Context length exceeded on attempt {}, trying to remove more messages",
-                            attempt + 1
-                        );
-                        continue; // Try next removal percentage
+                        continue;
                     } else {
                         return Err(anyhow::anyhow!(
                             "Failed to compact messages: context length still exceeded after {} attempts with maximum removal",
