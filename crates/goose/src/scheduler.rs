@@ -1153,12 +1153,6 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    if let Err(e) = agent.update_provider(agent_provider).await {
-        return Err(JobExecutionError {
-            job_id: job.id.clone(),
-            error: format!("Failed to set provider on agent: {}", e),
-        });
-    }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
     let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
     tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
@@ -1173,7 +1167,6 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    // Create session upfront
     let session = match SessionManager::create_session(
         current_dir.clone(),
         format!("Scheduled job: {}", job.id),
@@ -1189,7 +1182,20 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    // Update the job with the session ID if we have access to the jobs arc
+    if let Err(e) = agent.update_provider(agent_provider).await {
+        return Err(JobExecutionError {
+            job_id: job.id.clone(),
+            error: format!("Failed to set provider on agent: {}", e),
+        });
+    }
+
+    if let Err(e) = agent.persist_provider_config(&session.id).await {
+        return Err(JobExecutionError {
+            job_id: job.id.clone(),
+            error: format!("Failed to save provider config to session: {}", e),
+        });
+    }
+
     if let (Some(jobs_arc), Some(job_id_str)) = (jobs_arc.as_ref(), job_id.as_ref()) {
         let mut jobs_guard = jobs_arc.lock().await;
         if let Some((_, job_def)) = jobs_guard.get_mut(job_id_str) {
@@ -1197,7 +1203,6 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    // Use prompt if available, otherwise fall back to instructions
     let prompt_text = recipe
         .prompt
         .as_ref()

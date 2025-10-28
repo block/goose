@@ -116,6 +116,10 @@ fn get_agent_messages(
             .update_provider(task_config.provider)
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
+        agent
+            .persist_provider_config(&session.id)
+            .await
+            .map_err(|e| anyhow!("Failed to persist provider config for sub agent: {}", e))?;
 
         for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {

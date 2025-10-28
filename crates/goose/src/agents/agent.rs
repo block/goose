@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
@@ -947,6 +947,10 @@ impl Agent {
                         debug!("AutoPilot switching to {} role with model {}", role, model);
                         self.update_provider(new_provider).await?;
 
+                        if let Some(ref session) = session {
+                            self.persist_provider_config(&session.id).await?;
+                        }
+
                         yield AgentEvent::ModelChange {
                             model: model.clone(),
                             mode: format!("autopilot:{}", role),
@@ -1269,7 +1273,6 @@ impl Agent {
         }
     }
 
-    /// Extend the system prompt with one line of additional instruction
     pub async fn extend_system_prompt(&self, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(instruction);
@@ -1278,10 +1281,19 @@ impl Agent {
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
+        drop(current_provider);
 
-        self.update_router_tool_selector(Some(provider), None)
-            .await?;
-        Ok(())
+        self.update_router_tool_selector(Some(provider), None).await
+    }
+
+    pub async fn persist_provider_config(&self, session_id: &str) -> Result<()> {
+        let provider = self.provider().await?;
+        SessionManager::update_session(session_id)
+            .provider_name(provider.get_name())
+            .model_config(provider.get_model_config())
+            .apply()
+            .await
+            .context("Failed to persist provider config to session")
     }
 
     pub async fn update_router_tool_selector(
