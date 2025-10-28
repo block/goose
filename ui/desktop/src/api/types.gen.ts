@@ -362,6 +362,7 @@ export type MessageContent = (TextContent & {
 
 export type MessageEvent = {
     message: Message;
+    token_state?: TokenState | null;
     type: 'Message';
 } | {
     error: string;

@@ -3191,6 +3191,14 @@
               "message": {
                 "$ref": "#/components/schemas/Message"
               },
+              "token_state": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TokenState"
+                  }
+                ],
+                "nullable": true
+              },
               "type": {
                 "type": "string",
                 "enum": [

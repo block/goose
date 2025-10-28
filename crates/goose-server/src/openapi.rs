@@ -19,8 +19,8 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SystemNotificationContent, SystemNotificationType, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use crate::routes::reply::MessageEvent;
@@ -402,7 +402,7 @@ derive_utoipa!(Icon as IconSchema);
         Message,
         MessageContent,
         MessageMetadata,
-        goose::conversation::message::TokenState,
+        TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,

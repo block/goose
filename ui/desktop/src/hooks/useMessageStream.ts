@@ -284,7 +284,6 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
-                    // Update token state if present
                     if (parsedEvent.token_state) {
                       setTokenState(parsedEvent.token_state);
                     }

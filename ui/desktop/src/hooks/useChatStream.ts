@@ -122,7 +122,6 @@ async function streamFromResponse(
             });
           }
 
-          // Update token state if present
           if (event.token_state) {
             updateTokenState(event.token_state);
           }
