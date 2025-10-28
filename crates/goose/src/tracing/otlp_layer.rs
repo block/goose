@@ -5,14 +5,10 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::logs::{Logger, LoggerProvider};
 use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
 use opentelemetry_sdk::{runtime, Resource};
-use std::sync::OnceLock;
 use std::time::Duration;
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
-
-// TODO: figure out if this can be done differently
-static LOGGER_PROVIDER: OnceLock<LoggerProvider> = OnceLock::new();
 
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
@@ -190,9 +186,7 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OpenTelemetryTracingBridge<LoggerP
         .with_resource(resource)
         .build();
 
-    let provider = LOGGER_PROVIDER.get_or_init(|| logger_provider);
-
-    Ok(OpenTelemetryTracingBridge::new(provider))
+    Ok(OpenTelemetryTracingBridge::new(&logger_provider))
 }
 
 pub fn init_otlp() -> OtlpResult<OtlpLayers> {
