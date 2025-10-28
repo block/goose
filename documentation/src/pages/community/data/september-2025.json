@@ -1,0 +1,65 @@
+{
+  "month": "September 2025",
+  "communityStars": [
+    {
+      "name": "Abhijay007",
+      "handle": "Abhijay007"
+    },
+    {
+      "name": "sings-to-bees-on-wednesdays",
+      "handle": "sings-to-bees-on-wednesdays"
+    },
+    {
+      "name": "ARYPROGRAMMER",
+      "handle": "ARYPROGRAMMER"
+    },
+    {
+      "name": "Anudhyan",
+      "handle": "Anudhyan"
+    },
+    {
+      "name": "Better-Boy",
+      "handle": "Better-Boy"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "Kvadratni",
+      "handle": "Kvadratni"
+    },
+    {
+      "name": "wpfleger96",
+      "handle": "wpfleger96"
+    },
+    {
+      "name": "dhanji",
+      "handle": "dhanji"
+    },
+    {
+      "name": "exitcode0",
+      "handle": "exitcode0"
+    },
+    {
+      "name": "dorien-koelemeijer",
+      "handle": "dorien-koelemeijer"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "Abhijay007", "rank": 1, "medal": "🥇" },
+    { "handle": "jalateras", "rank": 2, "medal": "🥈" },
+    { "handle": "Kvadratni", "rank": 3, "medal": "🥉" },
+    { "handle": "wpfleger96", "rank": 4 },
+    { "handle": "dhanji", "rank": 5 },
+    { "handle": "exitcode0", "rank": 6 },
+    { "handle": "dorien-koelemeijer", "rank": 7 },
+    { "handle": "sings-to-bees-on-wednesdays", "rank": 8 },
+    { "handle": "ARYPROGRAMMER", "rank": 9 },
+    { "handle": "spencrmartin", "rank": 10 },
+    { "handle": "Better-Boy", "rank": 11 },
+    { "handle": "finn-block", "rank": 12 },
+    { "handle": "johnlanda", "rank": 13 },
+    { "handle": "aegntic", "rank": 14 },
+    { "handle": "Anudhyan", "rank": 15 },
+    { "handle": "eyelight", "rank": 16 }
+  ]
+}
