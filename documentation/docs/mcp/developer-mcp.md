@@ -10,7 +10,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/on_p-LeIrak" />
 
-The Developer extension allows Goose to automate developer-centric tasks such as file editing, shell command execution, and project setup.
+The Developer extension allows Goose to automate developer-centric tasks such as file editing, shell command execution, and project setup. It also provides tools for [enhanced code editing](/docs/guides/enhanced-code-editing) and [codebase analysis](/docs/guides/codebase-analysis).
 
 This tutorial will cover enabling and using the Developer MCP Server, which is a built-in Goose extension. 
 
