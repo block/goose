@@ -1,0 +1,149 @@
+# OpenAPI to Locust Load Test Generator
+# Main recipe for generating comprehensive load tests from OpenAPI specifications
+
+name: openapi-load-test-generator
+version: 1.0.0
+description: |
+  Advanced recipe that generates Locust load tests from OpenAPI specification files.
+  Supports both JSON and YAML formats, creates structured test files with proper
+  authentication, request modeling, and test scenarios.
+
+parameters:
+  - name: openapi_spec_path
+    description: Path to the OpenAPI specification file (JSON or YAML)
+    required: true
+    type: string
+  
+  - name: output_dir
+    description: Directory where load test files will be generated
+    required: false
+    type: string
+    default: "./load_tests"
+  
+  - name: base_url
+    description: Base URL for the API (overrides spec if provided)
+    required: false
+    type: string
+  
+  - name: include_auth
+    description: Whether to include authentication handling
+    required: false
+    type: boolean
+    default: true
+  
+  - name: test_users
+    description: Number of simulated users for the load test
+    required: false
+    type: integer
+    default: 10
+  
+  - name: spawn_rate
+    description: Number of users spawned per second
+    required: false
+    type: integer
+    default: 2
+
+instructions: |
+  You are an expert in API testing and load testing with Locust. Your task is to
+  generate comprehensive load tests from an OpenAPI specification file.
+  
+  Follow this workflow:
+  
+  1. Parse and validate the OpenAPI specification
+  2. Extract API endpoints, methods, parameters, and schemas
+  3. Identify authentication requirements
+  4. Generate Locust test files with proper structure
+  5. Create supporting configuration and documentation
+  
+  Use the sub-recipes to handle each phase of the process systematically.
+
+activities:
+  - name: validate-openapi-spec
+    recipe: ./sub-recipes/validate-openapi-spec.yaml
+    description: Parse and validate the OpenAPI specification file
+    inputs:
+      spec_path: "{{ openapi_spec_path }}"
+    outputs:
+      - spec_format
+      - spec_version
+      - api_info
+      - endpoints_count
+  
+  - name: extract-api-details
+    recipe: ./sub-recipes/extract-api-details.yaml
+    description: Extract endpoints, schemas, and authentication details
+    depends_on: [validate-openapi-spec]
+    inputs:
+      spec_path: "{{ openapi_spec_path }}"
+      spec_format: "{{ validate-openapi-spec.spec_format }}"
+    outputs:
+      - endpoints
+      - schemas
+      - auth_schemes
+      - base_path
+  
+  - name: generate-locust-tasks
+    recipe: ./sub-recipes/generate-locust-tasks.yaml
+    description: Generate Locust task classes for API endpoints
+    depends_on: [extract-api-details]
+    inputs:
+      endpoints: "{{ extract-api-details.endpoints }}"
+      schemas: "{{ extract-api-details.schemas }}"
+      auth_schemes: "{{ extract-api-details.auth_schemes }}"
+      include_auth: "{{ include_auth }}"
+    outputs:
+      - task_classes
+      - helper_functions
+  
+  - name: create-locust-files
+    recipe: ./sub-recipes/create-locust-files.yaml
+    description: Create the main Locust file and supporting files
+    depends_on: [generate-locust-tasks]
+    inputs:
+      output_dir: "{{ output_dir }}"
+      task_classes: "{{ generate-locust-tasks.task_classes }}"
+      helper_functions: "{{ generate-locust-tasks.helper_functions }}"
+      base_url: "{{ base_url }}"
+      api_info: "{{ validate-openapi-spec.api_info }}"
+      test_users: "{{ test_users }}"
+      spawn_rate: "{{ spawn_rate }}"
+    outputs:
+      - locustfile_path
+      - config_path
+      - helpers_path
+  
+  - name: generate-documentation
+    recipe: ./sub-recipes/generate-test-documentation.yaml
+    description: Create documentation for the generated load tests
+    depends_on: [create-locust-files]
+    inputs:
+      output_dir: "{{ output_dir }}"
+      api_info: "{{ validate-openapi-spec.api_info }}"
+      endpoints: "{{ extract-api-details.endpoints }}"
+      locustfile_path: "{{ create-locust-files.locustfile_path }}"
+    outputs:
+      - readme_path
+
+output:
+  summary: |
+    Load test generation completed successfully!
+    
+    Generated files:
+    - Locust file: {{ create-locust-files.locustfile_path }}
+    - Configuration: {{ create-locust-files.config_path }}
+    - Helpers: {{ create-locust-files.helpers_path }}
+    - Documentation: {{ generate-documentation.readme_path }}
+    
+    To run the load tests:
+    ```bash
+    cd {{ output_dir }}
+    locust -f locustfile.py --host={{ base_url }}
+    ```
+    
+    Then open http://localhost:8089 to access the Locust web interface.
+  
+  artifacts:
+    - "{{ create-locust-files.locustfile_path }}"
+    - "{{ create-locust-files.config_path }}"
+    - "{{ create-locust-files.helpers_path }}"
+    - "{{ generate-documentation.readme_path }}"
