@@ -1426,3 +1426,375 @@ mod extension_manager_tests {
         );
     }
 }
+
+mod core_extension_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use goose::agents::core_extension::{
+        LIST_RESOURCES_TOOL_NAME, READ_RESOURCE_TOOL_NAME, SEARCH_TOOLS_TOOL_NAME,
+    };
+    use goose::agents::extension::{ExtensionConfig, PlatformExtensionContext};
+    use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
+    use rmcp::model::{
+        CallToolRequestParam, CallToolResult, GetPromptResult, Implementation, InitializeResult,
+        JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion,
+        ReadResourceResult, ResourcesCapability, ServerCapabilities, ServerNotification,
+    };
+    use rmcp::object;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+    use tokio::sync::Mutex;
+    use tokio_util::sync::CancellationToken;
+
+    struct MockResourceServer {
+        resources: Arc<Mutex<HashMap<String, String>>>,
+        server_info: InitializeResult,
+    }
+
+    impl MockResourceServer {
+        fn new() -> Self {
+            let mut resources = HashMap::new();
+            resources.insert(
+                "test://resource1".to_string(),
+                "Content of resource 1".to_string(),
+            );
+            resources.insert(
+                "test://resource2".to_string(),
+                "Content of resource 2".to_string(),
+            );
+            resources.insert(
+                "test://data/config.json".to_string(),
+                r#"{"key": "value", "enabled": true}"#.to_string(),
+            );
+
+            let server_info = InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    resources: Some(ResourcesCapability {
+                        subscribe: Some(false),
+                        list_changed: Some(false),
+                    }),
+                    tools: None,
+                    prompts: None,
+                    completions: None,
+                    experimental: None,
+                    logging: None,
+                },
+                server_info: Implementation {
+                    name: "MockResourceServer".to_string(),
+                    title: Some("Mock Resource Server".to_string()),
+                    version: "1.0.0".to_string(),
+                    icons: None,
+                    website_url: None,
+                },
+                instructions: None,
+            };
+
+            Self {
+                resources: Arc::new(Mutex::new(resources)),
+                server_info,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl McpClientTrait for MockResourceServer {
+        async fn list_resources(
+            &self,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListResourcesResult, McpError> {
+            let resources = self.resources.lock().await;
+            let resource_list = resources
+                .keys()
+                .map(|uri| {
+                    serde_json::from_value(json!({
+                        "uri": uri,
+                        "name": uri.split("://").nth(1).unwrap_or(uri),
+                        "description": format!("Mock resource at {}", uri),
+                        "mimeType": "text/plain"
+                    }))
+                    .unwrap()
+                })
+                .collect();
+
+            Ok(ListResourcesResult {
+                resources: resource_list,
+                next_cursor: None,
+            })
+        }
+
+        async fn read_resource(
+            &self,
+            uri: &str,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ReadResourceResult, McpError> {
+            let resources = self.resources.lock().await;
+            if let Some(content) = resources.get(uri) {
+                Ok(ReadResourceResult {
+                    contents: vec![serde_json::from_value(json!({
+                        "uri": uri,
+                        "text": content,
+                        "mimeType": "text/plain"
+                    }))
+                    .unwrap()],
+                })
+            } else {
+                Err(McpError::TransportClosed)
+            }
+        }
+
+        async fn list_tools(
+            &self,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, McpError> {
+            Ok(ListToolsResult {
+                tools: vec![],
+                next_cursor: None,
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, McpError> {
+            Err(McpError::TransportClosed)
+        }
+
+        async fn list_prompts(
+            &self,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListPromptsResult, McpError> {
+            Err(McpError::TransportClosed)
+        }
+
+        async fn get_prompt(
+            &self,
+            _name: &str,
+            _arguments: serde_json::Value,
+            _cancellation_token: CancellationToken,
+        ) -> Result<GetPromptResult, McpError> {
+            Err(McpError::TransportClosed)
+        }
+
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+            mpsc::channel(1).1
+        }
+
+        fn get_info(&self) -> Option<&InitializeResult> {
+            Some(&self.server_info)
+        }
+    }
+
+    async fn setup_agent_with_core() -> Agent {
+        let agent = Agent::new();
+
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some("test_session".to_string()),
+                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+            })
+            .await;
+
+        let core_config = ExtensionConfig::Platform {
+            name: "core".to_string(),
+            description: "Core extension providing essential resource management tools".to_string(),
+            bundled: Some(true),
+            available_tools: vec![],
+            toggleable: Some(false),
+        };
+
+        agent
+            .add_extension(core_config)
+            .await
+            .expect("Failed to add core extension");
+
+        agent
+    }
+
+    async fn add_mock_extension_to_agent(
+        agent: &Agent,
+        name: &str,
+        client: Box<dyn McpClientTrait>,
+    ) {
+        agent
+            .extension_manager
+            .add_mock_extension(name.to_string(), Arc::new(Mutex::new(client)))
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_get_tools_returns_only_search_tool_without_resource_extensions() {
+        let agent = setup_agent_with_core().await;
+        let tools = agent.list_tools(None).await;
+
+        let search_tool = tools
+            .iter()
+            .find(|tool| tool.name == format!("core__{}", SEARCH_TOOLS_TOOL_NAME));
+        assert!(
+            search_tool.is_some(),
+            "Tool router (search_tools) should be available"
+        );
+
+        let list_resources_tool = tools
+            .iter()
+            .find(|tool| tool.name == format!("core__{}", LIST_RESOURCES_TOOL_NAME));
+        assert!(
+            list_resources_tool.is_none(),
+            "list_resources should NOT be available without resource-supporting extensions"
+        );
+
+        let read_resource_tool = tools
+            .iter()
+            .find(|tool| tool.name == format!("core__{}", READ_RESOURCE_TOOL_NAME));
+        assert!(
+            read_resource_tool.is_none(),
+            "read_resource should NOT be available without resource-supporting extensions"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resource_tools_appear_after_adding_resource_extension() {
+        let agent = setup_agent_with_core().await;
+        add_mock_extension_to_agent(&agent, "mock_resource", Box::new(MockResourceServer::new()))
+            .await;
+
+        let supports_resources = agent.extension_manager.supports_resources().await;
+        assert!(
+            supports_resources,
+            "ExtensionManager should support resources after adding mock server"
+        );
+
+        let tools_after = agent.list_tools(None).await;
+
+        let list_after = tools_after
+            .iter()
+            .find(|t| t.name == format!("core__{}", LIST_RESOURCES_TOOL_NAME));
+        assert!(
+            list_after.is_some(),
+            "list_resources SHOULD be available after adding resource-supporting extension"
+        );
+
+        let read_after = tools_after
+            .iter()
+            .find(|t| t.name == format!("core__{}", READ_RESOURCE_TOOL_NAME));
+        assert!(
+            read_after.is_some(),
+            "read_resource SHOULD be available after adding resource-supporting extension"
+        );
+
+        let search_after = tools_after
+            .iter()
+            .find(|t| t.name == format!("core__{}", SEARCH_TOOLS_TOOL_NAME));
+        assert!(
+            search_after.is_some(),
+            "Tool router should still be available"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_and_read_resource_tools_work() {
+        let agent = setup_agent_with_core().await;
+
+        add_mock_extension_to_agent(&agent, "mock_resource", Box::new(MockResourceServer::new()))
+            .await;
+
+        // Test list_resources tool
+        let list_call = CallToolRequestParam {
+            name: format!("core__{}", LIST_RESOURCES_TOOL_NAME).into(),
+            arguments: Some(object!({
+                "extension_name": "mock_resource"
+            })),
+        };
+
+        let (_, list_result) = agent
+            .dispatch_tool_call(list_call, "request_list".to_string(), None, None)
+            .await;
+
+        assert!(list_result.is_ok(), "list_resources call should succeed");
+        let list_call_result = list_result.unwrap().result.await;
+        assert!(
+            list_call_result.is_ok(),
+            "list_resources should execute successfully: {:?}",
+            list_call_result.err()
+        );
+
+        let list_content = list_call_result.unwrap();
+        assert!(!list_content.is_empty(), "Should return resources");
+
+        let text = list_content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("test://") && text.text.contains("resource"),
+            "Should contain resource URIs, got: {}",
+            text.text
+        );
+
+        let read_call = CallToolRequestParam {
+            name: format!("core__{}", READ_RESOURCE_TOOL_NAME).into(),
+            arguments: Some(object!({
+                "uri": "test://resource1",
+                "extension_name": "mock_resource"
+            })),
+        };
+
+        let (_, read_result) = agent
+            .dispatch_tool_call(read_call, "request_read".to_string(), None, None)
+            .await;
+
+        assert!(read_result.is_ok(), "read_resource call should succeed");
+        let read_call_result = read_result.unwrap().result.await;
+        assert!(
+            read_call_result.is_ok(),
+            "read_resource should execute successfully: {:?}",
+            read_call_result.err()
+        );
+
+        let read_content = read_call_result.unwrap();
+        assert!(!read_content.is_empty(), "Should return resource content");
+
+        let content_text = read_content.first().unwrap().as_text().unwrap();
+        assert!(
+            content_text.text.contains("Content of resource 1"),
+            "Should contain the resource content, got: {}",
+            content_text.text
+        );
+
+        // Test read_resource with non-existent resource
+        let error_call = CallToolRequestParam {
+            name: format!("core__{}", READ_RESOURCE_TOOL_NAME).into(),
+            arguments: Some(object!({
+                "uri": "test://nonexistent",
+                "extension_name": "mock_resource"
+            })),
+        };
+
+        let (_, error_result) = agent
+            .dispatch_tool_call(error_call, "request_error".to_string(), None, None)
+            .await;
+
+        assert!(error_result.is_ok(), "Call should dispatch");
+        let error_call_result = error_result.unwrap().result.await;
+
+        // The call should complete but indicate an error
+        if let Ok(content) = error_call_result {
+            if !content.is_empty() {
+                let text = content.first().unwrap().as_text().unwrap();
+                assert!(
+                    text.text.to_lowercase().contains("error")
+                        || text.text.to_lowercase().contains("not found")
+                        || text.text.to_lowercase().contains("failed"),
+                    "Should indicate error for non-existent resource, got: {}",
+                    text.text
+                );
+            }
+        }
+    }
+}
