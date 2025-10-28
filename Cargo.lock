@@ -2646,7 +2646,7 @@ dependencies = [
  "oauth2",
  "once_cell",
  "opentelemetry",
- "opentelemetry-appender-tracing2",
+ "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "rand 0.8.5",
@@ -4561,15 +4561,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry-appender-tracing2"
-version = "0.27.1"
+name = "opentelemetry-appender-tracing"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233805bc42fbefa67c0aed7c0cb6bc3c1a73be5148c0a56447be669ed78eb322"
+checksum = "ab5feffc321035ad94088a7e5333abb4d84a8726e54a802e736ce9dd7237e85b"
 dependencies = [
  "opentelemetry",
  "tracing",
  "tracing-core",
- "tracing-opentelemetry",
  "tracing-subscriber",
 ]
 

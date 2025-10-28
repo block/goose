@@ -67,6 +67,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
+opentelemetry-appender-tracing = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio", "metrics"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "http-proto", "reqwest-client"] }
 tonic = "0.12"
@@ -105,7 +106,6 @@ sys-info = "0.9"
 oauth2 = "5.0.0"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
-opentelemetry-appender-tracing2 = "0.27"
 
 
 [target.'cfg(target_os = "windows")'.dependencies]

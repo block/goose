@@ -186,6 +186,8 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OpenTelemetryTracingBridge<LoggerP
         .with_resource(resource)
         .build();
 
+    global::set_logger_provider(logger_provider.clone())
+
     Ok(OpenTelemetryTracingBridge::new(&logger_provider))
 }
 
