@@ -28,7 +28,7 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-opus-4",
     "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
-    "google/gemini-flash-2.5",
+    "google/gemini-2.5-flash",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
@@ -193,7 +193,7 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
     payload
 }
 
-fn create_request_based_on_model(
+async fn create_request_based_on_model(
     provider: &OpenRouterProvider,
     system: &str,
     messages: &[Message],
@@ -207,7 +207,7 @@ fn create_request_based_on_model(
         &super::utils::ImageFormat::OpenAi,
     )?;
 
-    if provider.supports_cache_control() {
+    if provider.supports_cache_control().await {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -257,8 +257,7 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create the base payload
-        let payload = create_request_based_on_model(self, system, messages, tools)?;
+        let payload = create_request_based_on_model(self, system, messages, tools).await?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
@@ -357,7 +356,7 @@ impl Provider for OpenRouterProvider {
         Ok(Some(models))
     }
 
-    fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)

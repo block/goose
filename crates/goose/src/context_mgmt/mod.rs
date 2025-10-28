@@ -42,21 +42,55 @@ pub async fn compact_messages(
 
     let messages = conversation.messages();
 
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
+    let has_text_only = |msg: &Message| {
+        let has_text = msg
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::Text(_)));
+        let has_tool_content = msg.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        });
+        has_text && !has_tool_content
+    };
+
+    // Helper function to extract text content from a message
+    let extract_text = |msg: &Message| -> Option<String> {
+        let text_parts: Vec<String> = msg
+            .content
+            .iter()
+            .filter_map(|c| {
+                if let MessageContent::Text(text) = c {
+                    Some(text.text.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if text_parts.is_empty() {
+            None
+        } else {
+            Some(text_parts.join("\n"))
+        }
+    };
+
+    // Check if the most recent message is a user message with text content only
+    let (messages_to_compact, preserved_user_text) = if let Some(last_message) = messages.last() {
+        if matches!(last_message.role, rmcp::model::Role::User) && has_text_only(last_message) {
+            // Remove the last user message before compaction and preserve its text
+            (&messages[..messages.len() - 1], extract_text(last_message))
         } else if preserve_last_user_message {
-            // Last message is not a user message, but we want to preserve the most recent user message
-            // Find the most recent user message and copy it (don't remove from history)
-            let most_recent_user_message = messages
+            // Last message is not a user message with text only, but we want to preserve the most recent user message with text only
+            // Find the most recent user message with text content only and extract its text
+            let preserved_text = messages
                 .iter()
                 .rev()
-                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
-                .cloned();
-            (messages.as_slice(), most_recent_user_message)
+                .find(|msg| matches!(msg.role, rmcp::model::Role::User) && has_text_only(msg))
+                .and_then(extract_text);
+            (messages.as_slice(), preserved_text)
         } else {
             (messages.as_slice(), None)
         }
@@ -117,8 +151,8 @@ Just continue the conversation naturally based on the summarized context"
     final_token_counts.push(assistant_message_tokens);
 
     // Add back the preserved user message if it exists
-    if let Some(user_message) = preserved_user_message {
-        final_messages.push(user_message);
+    if let Some(user_text) = preserved_user_text {
+        final_messages.push(Message::user().with_text(&user_text));
     }
 
     Ok((
@@ -167,7 +201,7 @@ pub async fn check_if_compaction_needed(
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
     let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        usage_ratio > DEFAULT_COMPACTION_THRESHOLD
+        false // Auto-compact is disabled.
     } else {
         usage_ratio > threshold
     };

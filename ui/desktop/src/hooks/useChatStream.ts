@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-import { Message, resumeAgent, Session, MessageEvent, reply } from '../api';
+
+import {
+  Message,
+  MessageEvent,
+  reply,
+  resumeAgent,
+  Session,
+  updateFromSession,
+  updateSessionUserRecipeValues,
+} from '../api';
+
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -47,6 +57,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   handleSubmit: (userMessage: string) => Promise<void>;
+  setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
 }
@@ -296,6 +307,44 @@ export function useChatStream({
     [sessionId, setMessagesAndLog, onFinish]
   );
 
+  const setRecipeUserParams = useCallback(
+    async (user_recipe_values: Record<string, string>) => {
+      if (session) {
+        await updateSessionUserRecipeValues({
+          path: {
+            session_id: sessionId,
+          },
+          body: {
+            userRecipeValues: user_recipe_values,
+          },
+          throwOnError: true,
+        });
+        // TODO(Douwe): get this from the server instead of emulating it here
+        setSession({
+          ...session,
+          user_recipe_values,
+        });
+      } else {
+        setSessionLoadError("can't call setRecipeParams without a session");
+      }
+    },
+    [sessionId, session, setSessionLoadError]
+  );
+
+  useEffect(() => {
+    // This should happen on the server when the session is loaded or changed
+    // use session.id to support changing of sessions rather than depending on the
+    // stable sessionId.
+    if (session) {
+      updateFromSession({
+        body: {
+          session_id: session.id,
+        },
+        throwOnError: true,
+      });
+    }
+  }, [session]);
+
   useEffect(() => {
     if (initialMessage && session && messages.length === 0 && chatState === ChatState.Idle) {
       log.messages('auto-submit-initial', 0, { initialMessage: initialMessage.slice(0, 50) });
@@ -323,5 +372,6 @@ export function useChatStream({
     chatState,
     handleSubmit,
     stopStreaming,
+    setRecipeUserParams,
   };
 }
