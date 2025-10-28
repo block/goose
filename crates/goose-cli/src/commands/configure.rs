@@ -11,7 +11,10 @@ use goose::config::extensions::{
     name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
 use goose::config::permission::PermissionLevel;
-use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, PermissionManager};
+use goose::config::signup_tetrate::TetrateAuth;
+use goose::config::{
+    configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, PermissionManager,
+};
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, providers};
@@ -19,13 +22,12 @@ use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::error::Error;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
-pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
+pub async fn handle_configure() -> anyhow::Result<()> {
     let config = Config::global();
 
     if !config.exists() {
@@ -235,8 +237,8 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
             "remove" => remove_extension_dialog(),
-            "settings" => configure_settings_dialog().await.and(Ok(())),
-            "providers" => configure_provider_dialog().await.and(Ok(())),
+            "settings" => configure_settings_dialog().await,
+            "providers" => configure_provider_dialog().await.map(|_| ()),
             "custom_providers" => configure_custom_provider_dialog(),
             _ => unreachable!(),
         }
@@ -244,10 +246,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
 }
 
 /// Helper function to handle OAuth configuration for a provider
-async fn handle_oauth_configuration(
-    provider_name: &str,
-    key_name: &str,
-) -> Result<(), Box<dyn Error>> {
+async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyhow::Result<()> {
     let _ = cliclack::log::info(format!(
         "Configuring {} using OAuth device code flow...",
         key_name
@@ -263,17 +262,24 @@ async fn handle_oauth_configuration(
             }
             Err(e) => {
                 let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                Err(format!("OAuth authentication failed for {}: {}", key_name, e).into())
+                Err(anyhow::anyhow!(
+                    "OAuth authentication failed for {}: {}",
+                    key_name,
+                    e
+                ))
             }
         },
         Err(e) => {
             let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
-            Err(format!("Failed to create provider for OAuth: {}", e).into())
+            Err(anyhow::anyhow!(
+                "Failed to create provider for OAuth: {}",
+                e
+            ))
         }
     }
 }
 
-fn interactive_model_search(models: &[String]) -> Result<String, Box<dyn Error>> {
+fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
     const MAX_VISIBLE: usize = 30;
     let mut query = String::new();
 
@@ -355,7 +361,7 @@ fn interactive_model_search(models: &[String]) -> Result<String, Box<dyn Error>>
 fn select_model_from_list(
     models: &[String],
     provider_meta: &goose::providers::base::ProviderMetadata,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
@@ -411,8 +417,20 @@ fn select_model_from_list(
     }
 }
 
-/// Dialog for configuring the A provider and model
-pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
+fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
+    match config.set_secret(key_name, Value::String(value)) {
+        Ok(_) => Ok(true),
+        Err(e) => {
+            cliclack::outro(style(format!(
+                "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
+                key_name, e
+            )).on_red().white())?;
+            Ok(false)
+        }
+    }
+}
+
+pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Get global config instance
     let config = Config::global();
 
@@ -462,7 +480,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     .interact()?
                 {
                     if key.secret {
-                        config.set_secret(&key.name, Value::String(env_value))?;
+                        if !try_store_secret(config, &key.name, env_value)? {
+                            return Ok(false);
+                        }
                     } else {
                         config.set_param(&key.name, Value::String(env_value))?;
                     }
@@ -502,7 +522,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                 };
 
                                 if key.secret {
-                                    config.set_secret(&key.name, Value::String(value))?;
+                                    if !try_store_secret(config, &key.name, value)? {
+                                        return Ok(false);
+                                    }
                                 } else {
                                     config.set_param(&key.name, Value::String(value))?;
                                 }
@@ -510,7 +532,6 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                         }
                     }
                     Err(_) => {
-                        // Check if this key uses OAuth flow
                         if key.oauth_flow {
                             handle_oauth_configuration(provider_name, &key.name).await?;
                         } else {
@@ -640,7 +661,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 
 /// Configure extensions that can be used with goose
 /// Dialog for toggling which extensions are enabled/disabled
-pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
+pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
     let extensions = get_all_extensions();
 
     if extensions.is_empty() {
@@ -692,7 +713,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_extensions_dialog() -> anyhow::Result<()> {
     let extension_type = cliclack::select("What type of extension would you like to add?")
         .item(
             "built-in",
@@ -1105,7 +1126,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
+pub fn remove_extension_dialog() -> anyhow::Result<()> {
     let extensions = get_all_extensions();
 
     // Create a list of extension names and their enabled status
@@ -1160,7 +1181,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
+pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
@@ -1231,7 +1252,7 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     // Check if GOOSE_MODE is set as an environment variable
@@ -1284,7 +1305,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     let enable_router = cliclack::select("Would you like to enable smart tool routing?")
@@ -1314,7 +1335,7 @@ pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
     let config = Config::global();
     // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
     if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
@@ -1347,7 +1368,7 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
 
 /// Configure experiment features that can be used with goose
 /// Dialog for toggling which experiments are enabled/disabled
-pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
+pub fn toggle_experiments_dialog() -> anyhow::Result<()> {
     let experiments = ExperimentManager::get_all()?;
 
     if experiments.is_empty() {
@@ -1385,7 +1406,7 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
+pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let mut extensions: Vec<String> = get_enabled_extensions()
         .into_iter()
         .map(|ext| ext.name().clone())
@@ -1537,7 +1558,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
+fn configure_recipe_dialog() -> anyhow::Result<()> {
     let key_name = GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
     let config = Config::global();
     let default_recipe_repo = std::env::var(key_name)
@@ -1559,7 +1580,7 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
+fn configure_scheduler_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     // Check if GOOSE_SCHEDULER_TYPE is set as an environment variable
@@ -1613,7 +1634,7 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     let current_max_turns: u32 = config.get_param("GOOSE_MAX_TURNS").unwrap_or(1000);
@@ -1646,205 +1667,170 @@ pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 /// Handle OpenRouter authentication
-pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
+pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     use goose::config::{configure_openrouter, signup_openrouter::OpenRouterAuth};
     use goose::conversation::message::Message;
     use goose::providers::create;
 
     // Use the OpenRouter authentication flow
     let mut auth_flow = OpenRouterAuth::new()?;
-    match auth_flow.complete_flow().await {
-        Ok(api_key) => {
-            println!("\nAuthentication complete!");
+    let api_key = auth_flow.complete_flow().await?;
+    println!("\nAuthentication complete!");
 
-            // Get config instance
-            let config = Config::global();
+    // Get config instance
+    let config = Config::global();
 
-            // Use the existing configure_openrouter function to set everything up
-            println!("\nConfiguring OpenRouter...");
-            if let Err(e) = configure_openrouter(config, api_key) {
-                eprintln!("Failed to configure OpenRouter: {}", e);
-                return Err(e.into());
-            }
+    // Use the existing configure_openrouter function to set everything up
+    println!("\nConfiguring OpenRouter...");
+    configure_openrouter(config, api_key)?;
 
-            println!("✓ OpenRouter configuration complete");
-            println!("✓ Models configured successfully");
+    println!("✓ OpenRouter configuration complete");
+    println!("✓ Models configured successfully");
 
-            // Test configuration - get the model that was configured
-            println!("\nTesting configuration...");
-            let configured_model: String = config.get_param("GOOSE_MODEL")?;
-            let model_config = match goose::model::ModelConfig::new(&configured_model) {
-                Ok(config) => config,
-                Err(e) => {
-                    eprintln!("⚠️  Invalid model configuration: {}", e);
-                    eprintln!(
-                        "Your settings have been saved. Please check your model configuration."
-                    );
-                    return Ok(());
-                }
-            };
+    // Test configuration - get the model that was configured
+    println!("\nTesting configuration...");
+    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("⚠️  Invalid model configuration: {}", e);
+            eprintln!("Your settings have been saved. Please check your model configuration.");
+            return Ok(());
+        }
+    };
 
-            match create("openrouter", model_config).await {
-                Ok(provider) => {
-                    // Simple test request
-                    let test_result = provider
-                        .complete(
-                            "You are goose, an AI assistant.",
-                            &[Message::user().with_text("Say 'Configuration test successful!'")],
-                            &[],
-                        )
-                        .await;
+    match create("openrouter", model_config).await {
+        Ok(provider) => {
+            // Simple test request
+            let test_result = provider
+                .complete(
+                    "You are goose, an AI assistant.",
+                    &[Message::user().with_text("Say 'Configuration test successful!'")],
+                    &[],
+                )
+                .await;
 
-                    match test_result {
-                        Ok(_) => {
-                            println!("✓ Configuration test passed!");
+            match test_result {
+                Ok(_) => {
+                    println!("✓ Configuration test passed!");
 
-                            // Enable the developer extension by default if not already enabled
-                            let entries = get_all_extensions();
-                            let has_developer = entries
-                                .iter()
-                                .any(|e| e.config.name() == "developer" && e.enabled);
+                    // Enable the developer extension by default if not already enabled
+                    let entries = get_all_extensions();
+                    let has_developer = entries
+                        .iter()
+                        .any(|e| e.config.name() == "developer" && e.enabled);
 
-                            if !has_developer {
-                                set_extension(ExtensionEntry {
-                                    enabled: true,
-                                    config: ExtensionConfig::Builtin {
-                                        name: "developer".to_string(),
-                                        display_name: Some(
-                                            goose::config::DEFAULT_DISPLAY_NAME.to_string(),
-                                        ),
-                                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                        bundled: Some(true),
-                                        description: "Developer extension".to_string(),
-                                        available_tools: Vec::new(),
-                                    },
-                                });
-                                println!("✓ Developer extension enabled");
-                            }
-
-                            cliclack::outro("OpenRouter setup complete! You can now use goose.")?;
-                        }
-                        Err(e) => {
-                            eprintln!("⚠️  Configuration test failed: {}", e);
-                            eprintln!("Your settings have been saved, but there may be an issue with the connection.");
-                        }
+                    if !has_developer {
+                        set_extension(ExtensionEntry {
+                            enabled: true,
+                            config: ExtensionConfig::Builtin {
+                                name: "developer".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                                bundled: Some(true),
+                                description: "Developer extension".to_string(),
+                                available_tools: Vec::new(),
+                            },
+                        });
+                        println!("✓ Developer extension enabled");
                     }
+
+                    cliclack::outro("OpenRouter setup complete! You can now use goose.")?;
                 }
                 Err(e) => {
-                    eprintln!("⚠️  Failed to create provider for testing: {}", e);
-                    eprintln!("Your settings have been saved. Please check your configuration.");
+                    eprintln!("⚠️  Configuration test failed: {}", e);
+                    eprintln!("Your settings have been saved, but there may be an issue with the connection.");
                 }
             }
         }
         Err(e) => {
-            eprintln!("Authentication failed: {}", e);
-            return Err(e.into());
+            eprintln!("⚠️  Failed to create provider for testing: {}", e);
+            eprintln!("Your settings have been saved. Please check your configuration.");
         }
     }
-
     Ok(())
 }
 
-/// Handle Tetrate Agent Router Service authentication
-pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
-    use goose::config::{configure_tetrate, signup_tetrate::TetrateAuth};
-    use goose::conversation::message::Message;
-    use goose::providers::create;
-
-    // Use the Tetrate Agent Router Service authentication flow
+pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     let mut auth_flow = TetrateAuth::new()?;
-    match auth_flow.complete_flow().await {
-        Ok(api_key) => {
-            println!("\nAuthentication complete!");
+    let api_key = auth_flow.complete_flow().await?;
 
-            let config = Config::global();
+    println!("\nAuthentication complete!");
 
-            // Use the existing configure_tetrate function to set everything up
-            println!("\nConfiguring Tetrate Agent Router Service...");
-            if let Err(e) = configure_tetrate(config, api_key) {
-                eprintln!("Failed to configure Tetrate Agent Router Service: {}", e);
-                return Err(e.into());
-            }
+    let config = Config::global();
 
-            println!("✓ Tetrate Agent Router Service configuration complete");
-            println!("✓ Models configured successfully");
+    println!("\nConfiguring Tetrate Agent Router Service...");
+    configure_tetrate(config, api_key)?;
 
-            // Test configuration - get the model that was configured
-            println!("\nTesting configuration...");
-            let configured_model: String = config.get_param("GOOSE_MODEL")?;
-            let model_config = match goose::model::ModelConfig::new(&configured_model) {
-                Ok(config) => config,
-                Err(e) => {
-                    eprintln!("⚠️  Invalid model configuration: {}", e);
-                    eprintln!(
-                        "Your settings have been saved. Please check your model configuration."
-                    );
-                    return Ok(());
-                }
-            };
+    println!("✓ Tetrate Agent Router Service configuration complete");
+    println!("✓ Models configured successfully");
 
-            match create("tetrate", model_config).await {
-                Ok(provider) => {
-                    // Simple test request
-                    let test_result = provider
-                        .complete(
-                            "You are goose, an AI assistant.",
-                            &[Message::user().with_text("Say 'Configuration test successful!'")],
-                            &[],
-                        )
-                        .await;
+    // Test configuration
+    println!("\nTesting configuration...");
+    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("⚠️  Invalid model configuration: {}", e);
+            eprintln!("Your settings have been saved. Please check your model configuration.");
+            return Ok(());
+        }
+    };
 
-                    match test_result {
-                        Ok(_) => {
-                            println!("✓ Configuration test passed!");
+    match create("tetrate", model_config).await {
+        Ok(provider) => {
+            let test_result = provider
+                .complete(
+                    "You are goose, an AI assistant.",
+                    &[Message::user().with_text("Say 'Configuration test successful!'")],
+                    &[],
+                )
+                .await;
 
-                            // Enable the developer extension by default if not already enabled
-                            let entries = get_all_extensions();
-                            let has_developer = entries
-                                .iter()
-                                .any(|e| e.config.name() == "developer" && e.enabled);
+            match test_result {
+                Ok(_) => {
+                    println!("✓ Configuration test passed!");
 
-                            if !has_developer {
-                                set_extension(ExtensionEntry {
-                                    enabled: true,
-                                    config: ExtensionConfig::Builtin {
-                                        name: "developer".to_string(),
-                                        display_name: Some(
-                                            goose::config::DEFAULT_DISPLAY_NAME.to_string(),
-                                        ),
-                                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                        bundled: Some(true),
-                                        description: "Developer extension".to_string(),
-                                        available_tools: Vec::new(),
-                                    },
-                                });
-                                println!("✓ Developer extension enabled");
-                            }
+                    let entries = get_all_extensions();
+                    let has_developer = entries
+                        .iter()
+                        .any(|e| e.config.name() == "developer" && e.enabled);
 
-                            cliclack::outro("Tetrate Agent Router Service setup complete! You can now use goose.")?;
-                        }
-                        Err(e) => {
-                            eprintln!("⚠️  Configuration test failed: {}", e);
-                            eprintln!("Your settings have been saved, but there may be an issue with the connection.");
-                        }
+                    if !has_developer {
+                        set_extension(ExtensionEntry {
+                            enabled: true,
+                            config: ExtensionConfig::Builtin {
+                                name: "developer".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                                bundled: Some(true),
+                                description: "Developer extension".to_string(),
+                                available_tools: Vec::new(),
+                            },
+                        });
+                        println!("✓ Developer extension enabled");
                     }
+
+                    cliclack::outro(
+                        "Tetrate Agent Router Service setup complete! You can now use goose.",
+                    )?;
                 }
                 Err(e) => {
-                    eprintln!("⚠️  Failed to create provider for testing: {}", e);
-                    eprintln!("Your settings have been saved. Please check your configuration.");
+                    eprintln!("⚠️  Configuration test failed: {}", e);
+                    eprintln!("Your settings have been saved, but there may be an issue with the connection.");
                 }
             }
         }
         Err(e) => {
-            eprintln!("Authentication failed: {}", e);
-            return Err(e.into());
+            eprintln!("⚠️  Failed to create provider for testing: {}", e);
+            eprintln!("Your settings have been saved. Please check your configuration.");
         }
     }
 
     Ok(())
 }
 
-fn add_provider() -> Result<(), Box<dyn Error>> {
+fn add_provider() -> anyhow::Result<()> {
     let provider_type = cliclack::select("What type of API is this?")
         .item(
             "openai_compatible",
@@ -1924,7 +1910,7 @@ fn add_provider() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn remove_provider() -> Result<(), Box<dyn Error>> {
+fn remove_provider() -> anyhow::Result<()> {
     let custom_providers_dir = goose::config::declarative_providers::custom_providers_dir();
     let custom_providers = if custom_providers_dir.exists() {
         goose::config::declarative_providers::load_custom_providers(&custom_providers_dir)?
@@ -1951,7 +1937,7 @@ fn remove_provider() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
     let action = cliclack::select("What would you like to do?")
         .item(
             "add",
