@@ -118,10 +118,9 @@ jobs:
 
       - name: Run Subrecipe Tests
         env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          GOOSE_PROVIDER: databricks
-          GOOSE_MODEL: goose-claude-4-5-sonnet
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1

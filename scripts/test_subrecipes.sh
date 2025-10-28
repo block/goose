@@ -16,6 +16,14 @@ fi
 
 SCRIPT_DIR=$(pwd)
 
+# Set default provider and model if not already set
+export GOOSE_PROVIDER="${GOOSE_PROVIDER:-anthropic}"
+export GOOSE_MODEL="${GOOSE_MODEL:-claude-sonnet-4-5-20250929}"
+
+echo "Using provider: $GOOSE_PROVIDER"
+echo "Using model: $GOOSE_MODEL"
+echo ""
+
 TESTDIR=$(mktemp -d)
 echo "Created test directory: $TESTDIR"
 
