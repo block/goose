@@ -20,26 +20,34 @@ permissions:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    env:
+      BUMP_TYPE: ${{ inputs.bump_type }}
+      TARGET_BRANCH: ${{ inputs.target_branch }}
 
     steps:
     - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+      with:
+        ref: ${{ inputs.target_branch }}
+        fetch-depth: 0 # to generate complete release log
     - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
 
-    - name: Validate bump type
+    - name: Validate input and set old version
       run: |
-        if [[ "${{ inputs.bump_type }}" != "minor" && "${{ inputs.bump_type }}" != "patch" ]]; then
+        if [[ "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "patch" ]]; then
           echo "Error: bump_type must be 'minor' or 'patch'"
           exit 1
         fi
 
     - name: create release branch
       run: |
-        if [[ "${{ inputs.bump_type }}" == "minor" ]]; then
+        PRIOR_VERSION=$(just get-tag-version)
+        if [[ "$BUMP_TYPE" == "minor" ]]; then
           VERSION=$(just get-next-minor-version)
         else
           VERSION=$(just get-next-patch-version)
         fi
 
+        echo "prior_version=$PRIOR_VERSION" >> $GITHUB_ENV
         echo "version=$VERSION" >> $GITHUB_ENV
         echo "Version: $VERSION"
 
@@ -57,11 +65,23 @@ jobs:
 
     - name: Create Pull Request
       run: |
+        cat > pr_body.txt <<EOF
+        Release version ${{ env.version }}
+
+        Merging this PR will trigger the release of version ${{ env.version }}. Closing this PR will do nothing.
+
+        Release log:
+        EOF
+
+        git fetch origin --tags
+
+        git log --pretty=format:"- %s (%h)" v${{ env.prior_version }}..HEAD >> pr_body.txt
+
         gh pr create \
-          -B "${{ inputs.target_branch }}" \
+          -B "$TARGET_BRANCH" \
           -H "${{ env.branch_name }}" \
-          --title 'chore(release): release version ${{ env.version }} (${{ inputs.bump_type }})' \
-          --body '_Created automatically by ${{ github.workflow_ref }}_'
+          --title "chore(release): release version ${{ env.version }} ($BUMP_TYPE)" \
+          --body-file pr_body.txt
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         ISSUE: ${{ github.event.issue.html_url }}

@@ -2,7 +2,9 @@ name: Check Release PR
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types:
+      - opened
+      - synchronize
     branches:
       - main
 
