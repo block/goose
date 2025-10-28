@@ -43,6 +43,7 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    name: String,
 }
 
 impl AnthropicProvider {
@@ -67,6 +68,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
@@ -91,6 +93,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -174,6 +177,10 @@ impl Provider for AnthropicProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

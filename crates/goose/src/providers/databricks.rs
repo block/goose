@@ -106,6 +106,8 @@ pub struct DatabricksProvider {
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl DatabricksProvider {
@@ -146,6 +148,7 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
+            name: Self::metadata().name,
         };
 
         // Check if the default fast model exists in the workspace
@@ -222,6 +225,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
+            name: Self::metadata().name,
         })
     }
 
@@ -258,6 +262,10 @@ impl Provider for DatabricksProvider {
                 ConfigKey::new("DATABRICKS_TOKEN", false, true, None),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

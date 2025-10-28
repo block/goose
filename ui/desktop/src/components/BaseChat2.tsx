@@ -23,6 +23,7 @@ import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage } from '../types/message';
+import ParameterInputModal from './ParameterInputModal';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
@@ -49,7 +50,7 @@ function BaseChatContent({
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasAcceptedRecipe, setHasAcceptedRecipe] = useState<boolean>();
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
@@ -70,6 +71,7 @@ function BaseChatContent({
     handleSubmit,
     stopStreaming,
     sessionLoadError,
+    setRecipeUserParams,
     tokenState,
   } = useChatStream({
     sessionId,
@@ -102,7 +104,7 @@ function BaseChatContent({
 
     (async () => {
       const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
-      setHasAcceptedRecipe(accepted);
+      setHasNotAcceptedRecipe(!accepted);
 
       if (!accepted) {
         const scanResult = await scanRecipe(recipe);
@@ -114,7 +116,7 @@ function BaseChatContent({
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {
       await window.electron.recordRecipeHash(recipe);
-      setHasAcceptedRecipe(true);
+      setHasNotAcceptedRecipe(false);
     } else {
       setView('chat');
     }
@@ -294,7 +296,7 @@ function BaseChatContent({
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipe={recipe}
-            recipeAccepted={hasAcceptedRecipe}
+            recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
             autoSubmit={false}
@@ -305,7 +307,7 @@ function BaseChatContent({
 
       {recipe && (
         <RecipeWarningModal
-          isOpen={!hasAcceptedRecipe}
+          isOpen={!!hasNotAcceptedRecipe}
           onConfirm={() => handleRecipeAccept(true)}
           onCancel={() => handleRecipeAccept(false)}
           recipeDetails={{
@@ -317,14 +319,13 @@ function BaseChatContent({
         />
       )}
 
-      {/*/!* Recipe Parameter Modal *!/*/}
-      {/*{isParameterModalOpen && filteredParameters.length > 0 && (*/}
-      {/*  <ParameterInputModal*/}
-      {/*    parameters={filteredParameters}*/}
-      {/*    onSubmit={handleParameterSubmit}*/}
-      {/*    onClose={() => setIsParameterModalOpen(false)}*/}
-      {/*  />*/}
-      {/*)}*/}
+      {recipe?.parameters && recipe.parameters.length > 0 && !session?.user_recipe_values && (
+        <ParameterInputModal
+          parameters={recipe.parameters}
+          onSubmit={setRecipeUserParams}
+          onClose={() => setView('chat')}
+        />
+      )}
 
       {/*/!* Create Recipe from Session Modal *!/*/}
       {/*<CreateRecipeFromSessionModal*/}

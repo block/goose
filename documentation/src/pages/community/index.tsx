@@ -11,6 +11,7 @@ import may2025Data from "./data/may-2025.json";
 import june2025Data from "./data/june-2025.json";
 import july2025Data from "./data/july-2025.json";
 import august2025Data from "./data/august-2025.json";
+import september2025Data from "./data/september-2025.json";
 import communityContentData from "./data/community-content.json";
 
 // Create a data map for easy access
@@ -20,6 +21,7 @@ const communityDataMap = {
   "june-2025": june2025Data,
   "july-2025": july2025Data,
   "august-2025": august2025Data,
+  "september-2025": september2025Data,
 };
 
 function UpcomingEventsSection() {

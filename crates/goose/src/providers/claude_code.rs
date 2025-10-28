@@ -24,6 +24,8 @@ pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 pub struct ClaudeCodeProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl ClaudeCodeProvider {
@@ -42,6 +44,7 @@ impl ClaudeCodeProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -461,6 +464,10 @@ impl Provider for ClaudeCodeProvider {
                 Some("claude"),
             )],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

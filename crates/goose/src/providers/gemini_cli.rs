@@ -24,6 +24,8 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 pub struct GeminiCliProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GeminiCliProvider {
@@ -42,6 +44,7 @@ impl GeminiCliProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -309,6 +312,10 @@ impl Provider for GeminiCliProvider {
             GEMINI_CLI_DOC_URL,
             vec![], // No configuration needed
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

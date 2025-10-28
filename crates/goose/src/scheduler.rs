@@ -655,7 +655,9 @@ impl Scheduler {
                 schedule_sessions.push((session.id.clone(), session));
             }
         }
-        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Sort by created_at timestamp, newest first
+        schedule_sessions.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
 
         let result_sessions: Vec<(String, Session)> =
             schedule_sessions.into_iter().take(limit).collect();
@@ -1171,14 +1173,10 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    // Create session upfront for both cases
+    // Create session upfront
     let session = match SessionManager::create_session(
         current_dir.clone(),
-        if recipe.prompt.is_some() {
-            format!("Scheduled job: {}", job.id)
-        } else {
-            "Empty job - no prompt".to_string()
-        },
+        format!("Scheduled job: {}", job.id),
     )
     .await
     {
@@ -1199,65 +1197,64 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    if let Some(ref prompt_text) = recipe.prompt {
-        let mut conversation =
-            Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
+    // Use prompt if available, otherwise fall back to instructions
+    let prompt_text = recipe
+        .prompt
+        .as_ref()
+        .or(recipe.instructions.as_ref())
+        .unwrap();
 
-        let session_config = SessionConfig {
-            id: session.id.clone(),
-            working_dir: current_dir.clone(),
-            schedule_id: Some(job.id.clone()),
-            execution_mode: job.execution_mode.clone(),
-            max_turns: None,
-            retry_config: None,
-        };
+    let mut conversation =
+        Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
-        match agent
-            .reply(conversation.clone(), Some(session_config.clone()), None)
-            .await
-        {
-            Ok(mut stream) => {
-                use futures::StreamExt;
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        working_dir: current_dir.clone(),
+        schedule_id: Some(job.id.clone()),
+        execution_mode: job.execution_mode.clone(),
+        max_turns: None,
+        retry_config: None,
+    };
 
-                while let Some(message_result) = stream.next().await {
-                    tokio::task::yield_now().await;
+    match agent
+        .reply(conversation.clone(), Some(session_config.clone()), None)
+        .await
+    {
+        Ok(mut stream) => {
+            use futures::StreamExt;
 
-                    match message_result {
-                        Ok(AgentEvent::Message(msg)) => {
-                            if msg.role == rmcp::model::Role::Assistant {
-                                tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
-                            }
-                            conversation.push(msg);
+            while let Some(message_result) = stream.next().await {
+                tokio::task::yield_now().await;
+
+                match message_result {
+                    Ok(AgentEvent::Message(msg)) => {
+                        if msg.role == rmcp::model::Role::Assistant {
+                            tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                         }
-                        Ok(AgentEvent::McpNotification(_)) => {}
-                        Ok(AgentEvent::ModelChange { .. }) => {}
-                        Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                            conversation = updated_conversation;
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "[Job {}] Error receiving message from agent: {}",
-                                job.id,
-                                e
-                            );
-                            break;
-                        }
+                        conversation.push(msg);
+                    }
+                    Ok(AgentEvent::McpNotification(_)) => {}
+                    Ok(AgentEvent::ModelChange { .. }) => {}
+                    Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                        conversation = updated_conversation;
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "[Job {}] Error receiving message from agent: {}",
+                            job.id,
+                            e
+                        );
+                        break;
                     }
                 }
             }
-            Err(e) => {
-                return Err(JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
-                });
-            }
         }
-    } else {
-        tracing::warn!(
-            "[Job {}] Recipe '{}' has no prompt to execute.",
-            job.id,
-            job.source
-        );
+        Err(e) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
+            });
+        }
     }
 
     if let Err(e) = SessionManager::update_session(&session.id)
@@ -1362,6 +1359,10 @@ mod tests {
                 "",     // model_doc_link (empty string if not applicable)
                 vec![], // config_keys (empty vec if none)
             )
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-scheduler"
         }
 
         fn get_model_config(&self) -> ModelConfig {

@@ -263,6 +263,19 @@ impl SessionManager {
             Ok(())
         }
     }
+
+    pub async fn search_chat_history(
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<chrono::DateTime<chrono::Utc>>,
+        before_date: Option<chrono::DateTime<chrono::Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
+        Self::instance()
+            .await?
+            .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
+            .await
+    }
 }
 
 pub struct SessionStorage {
@@ -1022,6 +1035,28 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn search_chat_history(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<chrono::DateTime<chrono::Utc>>,
+        before_date: Option<chrono::DateTime<chrono::Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
+        use crate::session::chat_history_search::ChatHistorySearch;
+
+        ChatHistorySearch::new(
+            &self.pool,
+            query,
+            limit,
+            after_date,
+            before_date,
+            exclude_session_id,
+        )
+        .execute()
+        .await
     }
 }
 

@@ -30,6 +30,8 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SageMakerTgiProvider {
@@ -79,6 +81,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -270,6 +273,10 @@ impl Provider for SageMakerTgiProvider {
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
