@@ -4280,7 +4280,6 @@
           "accumulatedInputTokens": {
             "type": "integer",
             "format": "int32",
-            "description": "Accumulated token counts across all turns",
             "nullable": true
           },
           "accumulatedOutputTokens": {
@@ -4296,7 +4295,6 @@
           "inputTokens": {
             "type": "integer",
             "format": "int32",
-            "description": "Current turn token counts",
             "nullable": true
           },
           "outputTokens": {

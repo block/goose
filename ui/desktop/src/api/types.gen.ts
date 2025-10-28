@@ -754,15 +754,9 @@ export type ThinkingContent = {
 };
 
 export type TokenState = {
-    /**
-     * Accumulated token counts across all turns
-     */
     accumulatedInputTokens?: number | null;
     accumulatedOutputTokens?: number | null;
     accumulatedTotalTokens?: number | null;
-    /**
-     * Current turn token counts
-     */
     inputTokens?: number | null;
     outputTokens?: number | null;
     totalTokens?: number | null;
