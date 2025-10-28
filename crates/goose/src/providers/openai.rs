@@ -115,7 +115,6 @@ impl OpenAiProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
-        provider_name: String,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
@@ -166,7 +165,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
-            name: provider_name,
+            name: config.name.clone(),
         })
     }
 

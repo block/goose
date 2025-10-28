@@ -100,7 +100,6 @@ impl OllamaProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
-        provider_name: String,
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
@@ -134,7 +133,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
-            name: provider_name,
+            name: config.name.clone(),
         })
     }
 

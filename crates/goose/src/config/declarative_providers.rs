@@ -293,45 +293,24 @@ pub fn register_declarative_provider(
 
     match config.engine {
         ProviderEngine::OpenAI => {
-            let provider_name = config.name.clone();
             registry.register_with_name::<OpenAiProvider, _>(
                 &config,
                 provider_type,
-                move |model| {
-                    OpenAiProvider::from_custom_config(
-                        model,
-                        config_clone.clone(),
-                        provider_name.clone(),
-                    )
-                },
+                move |model| OpenAiProvider::from_custom_config(model, config_clone.clone()),
             );
         }
         ProviderEngine::Ollama => {
-            let provider_name = config.name.clone();
             registry.register_with_name::<OllamaProvider, _>(
                 &config,
                 provider_type,
-                move |model| {
-                    OllamaProvider::from_custom_config(
-                        model,
-                        config_clone.clone(),
-                        provider_name.clone(),
-                    )
-                },
+                move |model| OllamaProvider::from_custom_config(model, config_clone.clone()),
             );
         }
         ProviderEngine::Anthropic => {
-            let provider_name = config.name.clone();
             registry.register_with_name::<AnthropicProvider, _>(
                 &config,
                 provider_type,
-                move |model| {
-                    AnthropicProvider::from_custom_config(
-                        model,
-                        config_clone.clone(),
-                        provider_name.clone(),
-                    )
-                },
+                move |model| AnthropicProvider::from_custom_config(model, config_clone.clone()),
             );
         }
     }
