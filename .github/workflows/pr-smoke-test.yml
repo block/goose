@@ -115,3 +115,15 @@ jobs:
 
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
+
+      - name: Run Subrecipe Tests
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          GOOSE_PROVIDER: databricks
+          GOOSE_MODEL: goose-claude-4-5-sonnet
+          HOME: /tmp/goose-home
+          GOOSE_DISABLE_KEYRING: 1
+          SKIP_BUILD: 1
+        run: |
+          bash scripts/test_subrecipes.sh

@@ -1,0 +1,23 @@
+version: "1.0.0"
+title: "Travel Activity Planner"
+description: "Get weather data and suggest appropriate activities"
+instructions: |
+  Plan activities by first getting weather data, then suggesting activities based on conditions.
+
+prompt: |
+  Plan activities for Sydney by first getting weather data, then suggesting activities based on the weather conditions we receive.
+
+sub_recipes:
+  - name: weather_data
+    path: "{{ recipe_dir }}/subrecipes/weather-data.yaml"
+    # No values - location parameter comes from prompt context
+  
+  - name: activity_suggestions
+    path: "{{ recipe_dir }}/subrecipes/activity-suggestions.yaml"
+    # weather_conditions parameter comes from conversation context
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
