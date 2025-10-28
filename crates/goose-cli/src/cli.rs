@@ -27,6 +27,7 @@ use goose_bench::runners::metric_aggregator::MetricAggregator;
 use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
+use tracing::warn;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -820,9 +821,8 @@ pub struct RecipeInfo {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
-    // Track the current directory in projects.json
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        eprintln!("Warning: Failed to update project tracker: {}", e);
+        warn!("Warning: Failed to update project tracker: {}", e);
     }
 
     let command_name = match &cli.command {
