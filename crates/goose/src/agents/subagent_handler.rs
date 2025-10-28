@@ -109,7 +109,7 @@ fn get_agent_messages(
         .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
 
         let agent = agent_manager
-            .get_or_create_agent(session.id.clone())
+            .get_or_create_agent(session.id.clone(), true) // true = is_subagent
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
         agent

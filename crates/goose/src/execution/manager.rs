@@ -106,7 +106,11 @@ impl AgentManager {
         Ok(())
     }
 
-    pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
+    pub async fn get_or_create_agent(
+        &self,
+        session_id: String,
+        is_subagent: bool,
+    ) -> Result<Arc<Agent>> {
         {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
@@ -114,7 +118,11 @@ impl AgentManager {
             }
         }
 
-        let agent = Arc::new(Agent::new());
+        let mut agent = Agent::new();
+        if is_subagent {
+            agent.mark_as_subagent();
+        }
+        let agent = Arc::new(agent);
         agent.set_scheduler(Arc::clone(&self.scheduler)).await;
         agent
             .extension_manager
