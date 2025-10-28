@@ -35,9 +35,9 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = false)]
-struct Identifier {
+pub struct Identifier {
     #[arg(
         short,
         long,
@@ -46,7 +46,7 @@ struct Identifier {
         long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
         alias = "id"
     )]
-    name: Option<String>,
+    pub name: Option<String>,
 
     #[arg(
         long = "session-id",
@@ -54,7 +54,7 @@ struct Identifier {
         help = "Session ID (e.g., '20250921_143022')",
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
-    session_id: Option<String>,
+    pub session_id: Option<String>,
 
     #[arg(
         short,
@@ -64,18 +64,79 @@ struct Identifier {
         long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
 jsonl' -> '20250325_200615')."
     )]
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
-async fn get_session_id(identifier: Identifier) -> Result<String> {
+async fn get_or_create_session_id(
+    identifier: Option<Identifier>,
+    resume: bool,
+    no_session: bool,
+) -> Result<Option<String>> {
+    if no_session {
+        return Ok(None);
+    }
+
+    let Some(id) = identifier else {
+        if resume {
+            let sessions = SessionManager::list_sessions().await?;
+            let session_id = sessions
+                .first()
+                .map(|s| s.id.clone())
+                .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
+            return Ok(Some(session_id));
+        } else {
+            let session =
+                SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
+                    .await?;
+            return Ok(Some(session.id));
+        }
+    };
+
+    if let Some(session_id) = id.session_id {
+        Ok(Some(session_id))
+    } else if let Some(name) = id.name {
+        if resume {
+            let sessions = SessionManager::list_sessions().await?;
+            let session_id = sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
+            Ok(Some(session_id))
+        } else {
+            let session =
+                SessionManager::create_session(std::env::current_dir()?, name.clone()).await?;
+
+            SessionManager::update_session(&session.id)
+                .user_provided_name(name)
+                .apply()
+                .await?;
+
+            Ok(Some(session.id))
+        }
+    } else if let Some(path) = id.path {
+        let session_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
+        Ok(Some(session_id))
+    } else {
+        let session =
+            SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
+                .await?;
+        Ok(Some(session.id))
+    }
+}
+
+async fn lookup_session_id(identifier: Identifier) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
         let sessions = SessionManager::list_sessions().await?;
-
         sessions
             .into_iter()
-            .find(|s| s.id == name || s.description.contains(&name))
+            .find(|s| s.name == name || s.id == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else if let Some(path) = identifier.path {
@@ -84,9 +145,10 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
     } else {
-        unreachable!()
+        Err(anyhow::anyhow!("No identifier provided"))
     }
 }
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
@@ -135,7 +197,7 @@ enum SessionCommand {
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
     },
-    #[command(about = "Export a session to Markdown format")]
+    #[command(about = "Export a session")]
     Export {
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -155,6 +217,16 @@ enum SessionCommand {
             default_value = "markdown"
         )]
         format: String,
+    },
+    #[command(name = "diagnostics")]
+    Diagnostics {
+        /// Session ID to generate diagnostics for
+        #[arg(short, long)]
+        session_id: String,
+
+        /// Output path for the diagnostics zip file (optional, defaults to current directory)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -826,7 +898,7 @@ pub async fn cli() -> Result<()> {
                     format,
                 }) => {
                     let session_identifier = if let Some(id) = identifier {
-                        get_session_id(id).await?
+                        lookup_session_id(id).await?
                     } else {
                         // If no identifier is provided, prompt for interactive selection
                         match crate::commands::session::prompt_interactive_session_selection().await
@@ -847,6 +919,10 @@ pub async fn cli() -> Result<()> {
                     .await?;
                     Ok(())
                 }
+                Some(SessionCommand::Diagnostics { session_id, output }) => {
+                    crate::commands::session::handle_diagnostics(&session_id, output).await?;
+                    Ok(())
+                }
                 None => {
                     let session_start = std::time::Instant::now();
                     let session_type = if resume { "resumed" } else { "new" };
@@ -858,11 +934,18 @@ pub async fn cli() -> Result<()> {
                         "Session started"
                     );
 
-                    let session_id = if let Some(id) = identifier {
-                        Some(get_session_id(id).await?)
-                    } else {
-                        None
-                    };
+                    if let Some(Identifier {
+                        session_id: Some(_),
+                        ..
+                    }) = &identifier
+                    {
+                        if !resume {
+                            eprintln!("Error: --session-id can only be used with --resume flag");
+                            std::process::exit(1);
+                        }
+                    }
+
+                    let session_id = get_or_create_session_id(identifier, resume, false).await?;
 
                     // Run session command by default
                     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
@@ -1056,11 +1139,19 @@ pub async fn cli() -> Result<()> {
                     std::process::exit(1);
                 }
             };
-            let session_id = if let Some(id) = identifier {
-                Some(get_session_id(id).await?)
-            } else {
-                None
-            };
+
+            if let Some(Identifier {
+                session_id: Some(_),
+                ..
+            }) = &identifier
+            {
+                if !resume {
+                    eprintln!("Error: --session-id can only be used with --resume flag");
+                    std::process::exit(1);
+                }
+            }
+
+            let session_id = get_or_create_session_id(identifier, resume, no_session).await?;
 
             let mut session = build_session(SessionBuilderConfig {
                 session_id,
@@ -1247,8 +1338,10 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
+                let session_id = get_or_create_session_id(None, false, false).await?;
+
                 let mut session = build_session(SessionBuilderConfig {
-                    session_id: None,
+                    session_id,
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),

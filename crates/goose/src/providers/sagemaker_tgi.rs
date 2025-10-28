@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::model::ModelConfig;
@@ -30,6 +30,8 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SageMakerTgiProvider {
@@ -79,6 +81,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -272,6 +275,10 @@ impl Provider for SageMakerTgiProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -312,12 +319,11 @@ impl Provider for SageMakerTgiProvider {
             "messages": messages,
             "tools": tools
         });
-        emit_debug_trace(
-            &self.model,
-            &debug_payload,
+        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
-            &usage,
-        );
+            Some(&usage),
+        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

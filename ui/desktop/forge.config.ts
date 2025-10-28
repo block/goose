@@ -65,8 +65,8 @@ module.exports = {
     {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'goose',
-        bin: 'goose',
+        name: 'Goose',
+        bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
@@ -79,8 +79,8 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'goose',
-        bin: 'goose',
+        name: 'Goose',
+        bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],

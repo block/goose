@@ -18,8 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
-import { CompactionMarker } from './context_management/CompactionMarker';
-import { useContextManager } from './context_management/ContextManager';
+import { SystemNotificationInline } from './context_management/SystemNotificationInline';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -68,17 +67,12 @@ export default function ProgressiveMessageList({
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
-  // Try to use context manager, but don't require it for session history
-  let hasCompactionMarker: ((message: Message) => boolean) | undefined;
-
-  try {
-    const contextManager = useContextManager();
-    hasCompactionMarker = contextManager.hasCompactionMarker;
-  } catch {
-    // Context manager not available (e.g., in session history view)
-    // This is fine, we'll just skip compaction marker functionality
-    hasCompactionMarker = undefined;
-  }
+  const hasInlineSystemNotification = (message: Message): boolean => {
+    return message.content.some(
+      (content) =>
+        content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
+    );
+  };
 
   // Simple progressive loading - start immediately when component mounts if needed
   useEffect(() => {
@@ -172,7 +166,9 @@ export default function ProgressiveMessageList({
     const messagesToRender = messages.slice(0, renderedCount);
     return messagesToRender
       .map((message, index) => {
-        // Use custom render function if provided
+        if (!message.metadata.userVisible) {
+          return null;
+        }
         if (renderMessage) {
           return renderMessage(message, index);
         }
@@ -185,6 +181,19 @@ export default function ProgressiveMessageList({
           return null;
         }
 
+        // System notifications are never user messages, handle them first
+        if (hasInlineSystemNotification(message)) {
+          return (
+            <div
+              key={message.id && `${message.id}-${message.content.length}`}
+              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
+              data-testid="message-container"
+            >
+              <SystemNotificationInline message={message} />
+            </div>
+          );
+        }
+
         const isUser = isUserMessage(message);
 
         return (
@@ -194,37 +203,25 @@ export default function ProgressiveMessageList({
             data-testid="message-container"
           >
             {isUser ? (
-              <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
-                ) : (
-                  !hasOnlyToolResponses(message) && (
-                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
-                  )
-                )}
-              </>
+              !hasOnlyToolResponses(message) && (
+                <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+              )
             ) : (
-              <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
-                ) : (
-                  <GooseMessage
-                    sessionId={chat.sessionId}
-                    messageHistoryIndex={chat.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    append={append}
-                    appendMessage={appendMessage}
-                    toolCallNotifications={toolCallNotifications}
-                    isStreaming={
-                      isStreamingMessage &&
-                      !isUser &&
-                      index === messagesToRender.length - 1 &&
-                      message.role === 'assistant'
-                    }
-                  />
-                )}
-              </>
+              <GooseMessage
+                sessionId={chat.sessionId}
+                messageHistoryIndex={chat.messageHistoryIndex}
+                message={message}
+                messages={messages}
+                append={append}
+                appendMessage={appendMessage}
+                toolCallNotifications={toolCallNotifications}
+                isStreaming={
+                  isStreamingMessage &&
+                  !isUser &&
+                  index === messagesToRender.length - 1 &&
+                  message.role === 'assistant'
+                }
+              />
             )}
           </div>
         );
@@ -241,7 +238,6 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
-    hasCompactionMarker,
   ]);
 
   return (

@@ -25,7 +25,7 @@ use tokio::task::JoinSet;
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional identifier for the session
+    /// Optional session ID for resuming or identifying an existing session
     pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
@@ -133,7 +133,7 @@ async fn offer_extension_debugging_help(
     }
 
     // Create the debugging session
-    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None);
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None).await;
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -278,7 +278,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    // Handle session resolution and resuming
     let session_id: Option<String> = if session_config.no_session {
         None
     } else if session_config.resume {
@@ -295,41 +294,28 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         } else {
             match SessionManager::list_sessions().await {
-                Ok(sessions) => {
-                    if sessions.is_empty() {
-                        output::render_error("Cannot resume - no previous sessions found");
-                        process::exit(1);
-                    }
-                    Some(sessions[0].id.clone())
-                }
-                Err(_) => {
+                Ok(sessions) if !sessions.is_empty() => Some(sessions[0].id.clone()),
+                _ => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
                 }
             }
         }
-    } else if let Some(session_id) = session_config.session_id {
-        Some(session_id)
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap(),
-            "CLI Session".to_string(),
-        )
-        .await
-        .unwrap();
-        Some(session.id)
+        session_config.session_id
     };
 
     agent
         .extension_manager
         .set_context(PlatformExtensionContext {
             session_id: session_id.clone(),
+            extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+            tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
         })
         .await;
 
     if session_config.resume {
         if let Some(session_id) = session_id.as_ref() {
-            // Read the session metadata from database
             let metadata = SessionManager::get_session(session_id, false)
                 .await
                 .unwrap_or_else(|e| {
@@ -340,7 +326,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             let current_workdir =
                 std::env::current_dir().expect("Failed to get current working directory");
             if current_workdir != metadata.working_dir {
-                // Ask user if they want to change the working directory
                 let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
                     .initial_value(true)
                     .interact().expect("Failed to get user input");
@@ -465,7 +450,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
-    );
+    )
+    .await;
 
     // Add stdio extensions if provided
     for extension_str in session_config.extensions {
@@ -631,7 +617,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_creation() {
         let config = SessionBuilderConfig {
-            session_id: Some("test".to_string()),
+            session_id: None,
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],

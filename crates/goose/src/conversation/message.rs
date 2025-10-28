@@ -112,12 +112,16 @@ pub struct FrontendToolRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ContextLengthExceeded {
-    pub msg: String,
+#[serde(rename_all = "camelCase")]
+pub enum SystemNotificationType {
+    ThinkingMessage,
+    InlineMessage,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct SummarizationRequested {
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationContent {
+    pub notification_type: SystemNotificationType,
     pub msg: String,
 }
 
@@ -133,8 +137,7 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
-    ContextLengthExceeded(ContextLengthExceeded),
-    SummarizationRequested(SummarizationRequested),
+    SystemNotification(SystemNotificationContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -162,11 +165,8 @@ impl fmt::Display for MessageContent {
             },
             MessageContent::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
             MessageContent::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
-            MessageContent::ContextLengthExceeded(r) => {
-                write!(f, "[ContextLengthExceeded: {}]", r.msg)
-            }
-            MessageContent::SummarizationRequested(r) => {
-                write!(f, "[SummarizationRequested: {}]", r.msg)
+            MessageContent::SystemNotification(r) => {
+                write!(f, "[SystemNotification: {}]", r.msg)
             }
         }
     }
@@ -246,18 +246,19 @@ impl MessageContent {
         })
     }
 
-    pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
-        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
+    pub fn system_notification<S: Into<String>>(
+        notification_type: SystemNotificationType,
+        msg: S,
+    ) -> Self {
+        MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type,
+            msg: msg.into(),
+        })
     }
 
-    pub fn summarization_requested<S: Into<String>>(msg: S) -> Self {
-        MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
-    }
-
-    // Add this new method to check for summarization requested content
-    pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
-        if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
-            Some(summarization_requested)
+    pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
+        if let MessageContent::SystemNotification(ref notification) = self {
+            Some(notification)
         } else {
             None
         }
@@ -390,10 +391,8 @@ impl From<PromptMessage> for Message {
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
     /// Whether the message should be visible to the user in the UI
-    #[serde(default = "default_true")]
     pub user_visible: bool,
     /// Whether the message should be included in the agent's context window
-    #[serde(default = "default_true")]
     pub agent_visible: bool,
 }
 
@@ -464,26 +463,16 @@ impl MessageMetadata {
     }
 }
 
-fn default_true() -> bool {
-    true
-}
-
 #[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
     pub role: Role,
-    #[serde(default = "default_created")]
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
-    #[serde(default)]
     pub metadata: MessageMetadata,
-}
-
-fn default_created() -> i64 {
-    0 // old messages do not have timestamps.
 }
 
 impl Message {
@@ -605,11 +594,6 @@ impl Message {
         self.with_content(MessageContent::redacted_thinking(data))
     }
 
-    /// Add context length exceeded content to the message
-    pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
-        self.with_content(MessageContent::context_length_exceeded(msg))
-    }
-
     /// Get the concatenated text content of the message, separated by newlines
     pub fn as_concat_text(&self) -> String {
         self.content
@@ -680,9 +664,13 @@ impl Message {
             .all(|c| matches!(c, MessageContent::Text(_)))
     }
 
-    /// Add summarization requested to the message
-    pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
-        self.with_content(MessageContent::summarization_requested(msg))
+    pub fn with_system_notification<S: Into<String>>(
+        self,
+        notification_type: SystemNotificationType,
+        msg: S,
+    ) -> Self {
+        self.with_content(MessageContent::system_notification(notification_type, msg))
+            .with_metadata(MessageMetadata::user_only())
     }
 
     /// Set the visibility metadata for the message
@@ -837,7 +825,8 @@ mod tests {
                         }
                     }
                 }
-            ]
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
         }"#;
 
         let message: Message = serde_json::from_str(json_str).unwrap();
@@ -1045,7 +1034,8 @@ mod tests {
                     "data": "base64data",
                     "mimeType": "image/png"
                 }}
-            ]
+            ],
+            "metadata": {{ "agentVisible": true, "userVisible": true }}
         }}"#,
             malicious_text
         );
@@ -1073,7 +1063,8 @@ mod tests {
             "content": [{
                 "type": "text",
                 "text": "Hello world 世界 🌍"
-            }]
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
         }"#;
 
         let message: Message = serde_json::from_str(clean_json).unwrap();
@@ -1141,20 +1132,6 @@ mod tests {
 
         let message: Message = serde_json::from_str(json_with_metadata).unwrap();
         assert!(!message.is_user_visible());
-        assert!(message.is_agent_visible());
-
-        // Test without metadata (should use defaults)
-        let json_without_metadata = r#"{
-            "role": "user",
-            "created": 1640995200,
-            "content": [{
-                "type": "text",
-                "text": "Test"
-            }]
-        }"#;
-
-        let message: Message = serde_json::from_str(json_without_metadata).unwrap();
-        assert!(message.is_user_visible());
         assert!(message.is_agent_visible());
     }
 

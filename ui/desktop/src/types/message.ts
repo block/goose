@@ -1,72 +1,24 @@
-import { Content, Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
 
+// Compaction response message - must match backend constant
+const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
+
 export function createUserMessage(text: string): Message {
   return {
-    id: generateId(),
+    id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [{ type: 'text', text }],
-  };
-}
-
-export function createAssistantMessage(text: string): Message {
-  return {
-    id: generateId(),
-    role: 'assistant',
-    created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
-  };
-}
-
-export function createToolRequestMessage(
-  id: string,
-  toolName: string,
-  args: Record<string, unknown>
-): Message {
-  return {
-    id: generateId(),
-    role: 'assistant',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolRequest',
-        id,
-        toolCall: {
-          status: 'success',
-          value: {
-            name: toolName,
-            arguments: args,
-          },
-        },
-      },
-    ],
-  };
-}
-
-export function createToolResponseMessage(id: string, result: Content[]): Message {
-  return {
-    id: generateId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolResponse',
-        id,
-        toolResult: {
-          status: 'success',
-          value: result,
-        },
-      },
-    ],
+    metadata: { userVisible: true, agentVisible: true },
   };
 }
 
 export function createToolErrorResponseMessage(id: string, error: string): Message {
   return {
-    id: generateId(),
+    id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [
@@ -79,10 +31,11 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
         },
       },
     ],
+    metadata: { userVisible: true, agentVisible: true },
   };
 }
 
-function generateId(): string {
+export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
@@ -90,7 +43,6 @@ export function getTextContent(message: Message): string {
   return message.content
     .map((content) => {
       if (content.type === 'text') return content.text;
-      if (content.type === 'contextLengthExceeded') return content.msg;
       return '';
     })
     .join('');
@@ -120,4 +72,34 @@ export function getToolConfirmationContent(
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   return toolRequests.length > 0;
+}
+
+export function getThinkingMessage(message: Message | undefined): string | undefined {
+  if (!message || message.role !== 'assistant') {
+    return undefined;
+  }
+
+  for (const content of message.content) {
+    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
+      return content.msg;
+    }
+  }
+
+  return undefined;
+}
+
+export function getCompactingMessage(message: Message | undefined): string | undefined {
+  if (!message || message.role !== 'assistant') {
+    return undefined;
+  }
+
+  for (const content of message.content) {
+    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
+      if (content.msg === COMPACTION_THINKING_TEXT) {
+        return content.msg;
+      }
+    }
+  }
+
+  return undefined;
 }

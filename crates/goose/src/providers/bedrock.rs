@@ -5,7 +5,7 @@ use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::emit_debug_trace;
+use crate::providers::utils::RequestLog;
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
@@ -42,6 +42,8 @@ pub struct BedrockProvider {
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl BedrockProvider {
@@ -78,6 +80,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -184,6 +187,10 @@ impl Provider for BedrockProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -222,12 +229,11 @@ impl Provider for BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        emit_debug_trace(
-            &self.model,
-            &debug_payload,
+        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
-            &usage,
-        );
+            Some(&usage),
+        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

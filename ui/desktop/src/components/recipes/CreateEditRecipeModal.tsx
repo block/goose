@@ -7,6 +7,7 @@ import { Check, Save, Calendar, X, Play } from 'lucide-react';
 import { ExtensionConfig } from '../ConfigContext';
 import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 import { Button } from '../ui/button';
+import { useNavigation } from '../../hooks/useNavigation';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
@@ -28,6 +29,7 @@ export default function CreateEditRecipeModal({
   isCreateMode = false,
   recipeId,
 }: CreateEditRecipeModalProps) {
+  const setView = useNavigation();
   const getInitialValues = React.useCallback((): RecipeFormData => {
     if (recipe) {
       return {
@@ -295,7 +297,7 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      let saved_recipe_id = await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);
@@ -306,9 +308,9 @@ export default function CreateEditRecipeModal({
         undefined,
         undefined,
         undefined,
-        recipe,
         undefined,
-        recipeId ?? undefined
+        undefined,
+        saved_recipe_id
       );
 
       toastSuccess({
@@ -452,18 +454,9 @@ export default function CreateEditRecipeModal({
         onClose={() => setIsScheduleModalOpen(false)}
         recipe={getCurrentRecipe()}
         onCreateSchedule={(deepLink) => {
-          // Open the schedules view with the deep link pre-filled
-          window.electron.createChatWindow(
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            'schedules',
-            undefined
-          );
-          // Store the deep link in localStorage for the schedules view to pick up
-          localStorage.setItem('pendingScheduleDeepLink', deepLink);
+          // Navigate to schedules view with the deep link in state
+          setView('schedules', { pendingScheduleDeepLink: deepLink });
+          setIsScheduleModalOpen(false);
         }}
       />
     </div>
