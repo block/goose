@@ -22,7 +22,7 @@ This is useful when:
 - You want to try different approaches to a problem without starting a new session
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
 
         1. Hover over any of your previous messages to reveal the edit button
         2. Click the <Edit2 className="inline" size={16} /> edit button that appears
@@ -57,7 +57,7 @@ This is useful when:
         - **When to Edit vs. Interrupt**: Editing earlier messages when a conversation has gone off track can be more effective than trying to correct course using new messages or [interruptions](#interrupt-task). By editing messages, you rewrite history. With interruptions, you only affect the conversation from the current message onwards.
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         Message editing is not available in the Goose CLI.
     </TabItem>
 </Tabs>
@@ -75,7 +75,7 @@ Goose may perform better when complex tasks are split into subtasks, a technique
 :::
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
       Add a message to the queue:
       1. While Goose is processing a response, type your next message
       2. Press `Enter` to add it to the queue (or interrupts if using [interruption keywords](#interrupt-task))
@@ -117,7 +117,7 @@ Goose may perform better when complex tasks are split into subtasks, a technique
       Each task builds on the previous one.
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         Message queuing is not available in the Goose CLI.
     </TabItem>
 </Tabs>
@@ -131,7 +131,7 @@ Interrupt Goose while it's processing a task to take control of the conversation
 - You want to switch to a completely different task
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         
         There are two ways to interrupt a task:
 
@@ -184,7 +184,7 @@ Interrupt Goose while it's processing a task to take control of the conversation
         </details>
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         1. Press `Ctrl+C` to interrupt the current task
         2. Type your prompt that provides more context or changes direction  
         3. Press `Enter`
@@ -198,7 +198,7 @@ Interrupt Goose while it's processing a task to take control of the conversation
 Speak to Goose directly instead of typing your prompts.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
     To enable voice dictation:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
@@ -222,7 +222,7 @@ Speak to Goose directly instead of typing your prompts.
         * Recordings are not stored locally after transcription
 
   </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         Voice dictation is not available in the Goose CLI. 
     </TabItem>
 </Tabs>
@@ -232,7 +232,7 @@ Speak to Goose directly instead of typing your prompts.
 Provide Goose with context from your codebase, documents, and other files to get more relevant and accurate assistance.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         Share files with Goose in several ways:
 
         1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
@@ -243,7 +243,7 @@ Provide Goose with context from your codebase, documents, and other files to get
 
         4. **Quick File Search**: Use the [`@` shortcut key](/docs/guides/file-management#quick-file-search-in-goose-desktop) to quickly find and include files
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         You can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
 
         ```bash

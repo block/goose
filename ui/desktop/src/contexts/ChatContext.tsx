@@ -55,11 +55,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const resetChat = () => {
     setChat({
       sessionId: '',
-      title: DEFAULT_CHAT_TITLE,
+      name: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
       recipe: null,
-      recipeParameters: null,
+      recipeParameterValues: null,
     });
     clearDraft();
   };
@@ -68,7 +68,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setChat({
       ...chat,
       recipe: recipe,
-      recipeParameters: null,
+      recipeParameterValues: null,
     });
   };
 

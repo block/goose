@@ -239,6 +239,7 @@ These variables control how Goose handles [tool execution](/docs/guides/goose-pe
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
+| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "1", "true" (case insensitive) to enable | false |
 
 **Examples**
 
@@ -312,6 +313,31 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_URL` | Custom URL for Langfuse service | URL String | Default Langfuse URL |
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
+
+## Recipe Configuration
+
+These variables control recipe discovery and management.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_RECIPE_PATH` | Additional directories to search for recipes | Colon-separated paths on Unix, semicolon-separated on Windows | None |
+| `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository to search for recipes | Format: "owner/repo" (e.g., "block/goose-recipes") | None |
+| `GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS` | Global timeout for recipe success check commands | Integer (seconds) | Recipe-specific default |
+| `GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS` | Global timeout for recipe on_failure commands | Integer (seconds) | Recipe-specific default |
+
+**Examples**
+
+```bash
+# Add custom recipe directories
+export GOOSE_RECIPE_PATH="/path/to/my/recipes:/path/to/team/recipes"
+
+# Configure GitHub recipe repository
+export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
+
+# Set global recipe timeouts
+export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
+export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
+```
 
 ## Experimental Features
 

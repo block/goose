@@ -1,4 +1,3 @@
-import { gsap } from 'gsap';
 import SplitType from 'split-type';
 import { useEffect, useRef } from 'react';
 
@@ -110,6 +109,8 @@ export class TextAnimator {
   textElement: HTMLElement;
   splitter!: TextSplitter;
   originalChars!: string[];
+  activeAnimations: globalThis.Animation[] = [];
+  activeTimeouts: ReturnType<typeof setTimeout>[] = [];
 
   constructor(textElement: HTMLElement) {
     if (!textElement || !(textElement instanceof HTMLElement)) {
@@ -124,7 +125,7 @@ export class TextAnimator {
     this.splitter = new TextSplitter(this.textElement, {
       splitTypeTypes: ['words', 'chars'],
     });
-    this.originalChars = this.splitter.getChars().map((char) => char.innerHTML);
+    this.originalChars = this.splitter.getChars().map((char) => char.textContent || '');
   }
 
   animate() {
@@ -133,64 +134,83 @@ export class TextAnimator {
     const chars = this.splitter.getChars();
 
     chars.forEach((char, position) => {
-      const initialHTML = char.innerHTML;
-      let repeatCount = 0;
+      const initialText = char.textContent || '';
 
-      // Set initial state
-      gsap.set(char, {
-        opacity: 1,
-        display: 'inline-block',
-        position: 'relative',
-      });
+      char.style.opacity = '1';
+      char.style.display = 'inline-block';
+      char.style.position = 'relative';
 
-      gsap.fromTo(
-        char,
+      const animation = char.animate(
+        [
+          {
+            opacity: 1,
+            color: '#666',
+            fontFamily: 'Cash Sans Mono',
+            fontWeight: '300',
+          },
+          {
+            opacity: 0.5,
+            color: '#999',
+          },
+          {
+            opacity: 1,
+            color: 'inherit',
+            fontFamily: 'inherit',
+            fontWeight: 'inherit',
+          },
+        ],
         {
-          opacity: 1,
-        },
-        {
-          duration: 0.1, // Increased duration
-          ease: 'power2.out',
-          onStart: () => {
-            gsap.set(char, {
-              fontFamily: 'Cash Sans Mono',
-              fontWeight: 300,
-              color: '#666', // Add color change
-            });
-          },
-          onComplete: () => {
-            gsap.set(char, {
-              innerHTML: initialHTML,
-              color: '',
-              fontFamily: '',
-              opacity: 1,
-            });
-          },
-          repeat: 2, // Reduced repeats
-          onRepeat: () => {
-            repeatCount++;
-            if (repeatCount === 1) {
-              gsap.set(char, {
-                opacity: 0.5,
-                color: '#999',
-              });
-            }
-          },
-          repeatRefresh: true,
-          repeatDelay: 0.05, // Increased delay
-          delay: position * 0.03, // Reduced delay between chars
-          innerHTML: () => lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)],
-          opacity: 1,
+          duration: 300, // Total duration for all iterations
+          easing: 'ease-in-out',
+          delay: position * 30, // Stagger the start of each animation
+          iterations: 1,
         }
       );
+
+      this.activeAnimations.push(animation);
+
+      let iteration = 0;
+      const maxIterations = 2;
+
+      const animateCharacterChange = () => {
+        if (iteration < maxIterations) {
+          char.textContent =
+            lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
+          const timeoutId = setTimeout(animateCharacterChange, 100);
+          this.activeTimeouts.push(timeoutId);
+          iteration++;
+        } else {
+          char.textContent = initialText;
+        }
+      };
+
+      const timeoutId = setTimeout(animateCharacterChange, position * 30);
+      this.activeTimeouts.push(timeoutId);
+
+      animation.onfinish = () => {
+        char.textContent = initialText;
+        char.style.color = '';
+        char.style.fontFamily = '';
+        char.style.opacity = '1';
+      };
     });
   }
 
   reset() {
+    // Clear all timeouts
+    this.activeTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+    this.activeTimeouts = [];
+
+    // Cancel all animations
+    this.activeAnimations.forEach((animation) => animation.cancel());
+    this.activeAnimations = [];
+
+    // Reset text content
     const chars = this.splitter.getChars();
     chars.forEach((char, index) => {
-      gsap.killTweensOf(char);
-      char.innerHTML = this.originalChars[index];
+      if (this.originalChars[index]) {
+        char.textContent = this.originalChars[index];
+      }
     });
   }
 }

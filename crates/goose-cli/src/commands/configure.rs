@@ -3,9 +3,6 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
-use goose::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-};
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};
@@ -1468,10 +1465,6 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .list_tools(Some(selected_extension_name.clone()))
         .await
         .into_iter()
-        .filter(|tool| {
-            tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
-                && tool.name != PLATFORM_READ_RESOURCE_TOOL_NAME
-        })
         .map(|tool| {
             ToolInfo::new(
                 &tool.name,

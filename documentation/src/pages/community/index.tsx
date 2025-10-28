@@ -40,7 +40,7 @@ function UpcomingEventsSection() {
       {/* Call to Action */}
       <p className="italic text-textStandard">
         Want to join us on a livestream or have ideas for future events? 
-        Reach out to the team on <Link href="https://discord.gg/block-opensource">Discord</Link>.
+        Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>.
       </p>
     </section>
   );
@@ -201,7 +201,7 @@ function CommunityAllStarsSection() {
           <div className="text-sm">
             Want to be a Community All Star? Just start contributing on{' '}
             <Link href="https://github.com/block/goose">GitHub</Link>, helping others on{' '}
-            <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
+            <Link href="https://discord.gg/goose-oss">Discord</Link>, or share your 
             goose projects with the community! You can check out the{' '}
             <Link href="https://github.com/block/goose/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
             for more tips.
