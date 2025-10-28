@@ -397,7 +397,33 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        let history_file = Paths::config_dir().join("history.txt");
+        let history_file = Paths::state_dir().join("history.txt");
+
+        // Migrate from old location if needed
+        let old_history_file = Paths::config_dir().join("history.txt");
+        if old_history_file.exists() && !history_file.exists() {
+            if let Some(parent) = history_file.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+
+            // Try to move the file (rename is atomic on same filesystem)
+            if let Err(_) = std::fs::rename(&old_history_file, &history_file) {
+                // If rename fails (e.g., cross-device), try copy + delete
+                if let Err(copy_err) = std::fs::copy(&old_history_file, &history_file) {
+                    eprintln!("Warning: Failed to migrate history file: {}", copy_err);
+                } else {
+                    // Successfully copied, now try to remove old file
+                    if let Err(remove_err) = std::fs::remove_file(&old_history_file) {
+                        eprintln!(
+                            "Warning: Migrated history file but couldn't remove old file: {}",
+                            remove_err
+                        );
+                    }
+                }
+            }
+        }
 
         if let Some(parent) = history_file.parent() {
             if !parent.exists() {
