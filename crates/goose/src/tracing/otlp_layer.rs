@@ -1,6 +1,6 @@
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
-use opentelemetry_appender_tracing2::layer::OpenTelemetryTracingBridge;
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::logs::{Logger, LoggerProvider};
 use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
@@ -186,7 +186,7 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OpenTelemetryTracingBridge<LoggerP
         .with_resource(resource)
         .build();
 
-    global::set_logger_provider(logger_provider.clone());
+    // global::set_logger_provider(logger_provider.clone());
 
     Ok(OpenTelemetryTracingBridge::new(&logger_provider))
 }
