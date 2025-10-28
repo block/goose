@@ -20,10 +20,10 @@ This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   </TabItem>
 </Tabs>
@@ -37,7 +37,7 @@ This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Extensions`
     3. Click `Add custom extension`
@@ -49,7 +49,7 @@ This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.
     6. Navigate to the chat
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="kiwi-flight-search"
       type="http"

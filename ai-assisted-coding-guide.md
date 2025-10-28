@@ -88,4 +88,4 @@ Before submitting AI assisted code, confirm that:
 
 AI is a powerful assistant, not a replacement for your judgment. Use it to speed up development; while keeping your brain engaged, your standards high, and goose secure.  
 
-Questions? Join our [Discord](https://discord.gg/block-opensource) or [GitHub Discussions](https://github.com/block/goose/discussions) to talk more about responsible AI development.  
+Questions? Join our [Discord](https://discord.gg/goose-oss) or [GitHub Discussions](https://github.com/block/goose/discussions) to talk more about responsible AI development.  

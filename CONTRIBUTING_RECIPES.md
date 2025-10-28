@@ -144,4 +144,4 @@ Need inspiration? Consider recipes for:
 
 **Ready to contribute?** [Fork the repo](https://github.com/block/goose/fork) and start creating! 
 
-*Questions? Ask in your PR or hop into [discord](https://discord.gg/block-opensource) - we're here to help!* 💙
+*Questions? Ask in your PR or hop into [discord](https://discord.gg/goose-oss) - we're here to help!* 💙

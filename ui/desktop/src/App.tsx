@@ -89,18 +89,32 @@ const PairRouteWrapper = ({
   const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
+  // Determine which session ID to use:
+  // 1. From route state (when navigating from Hub with a new session)
+  // 2. From URL params (when resuming a session)
+  // 3. From the existing chat state (when navigating to Pair directly)
+  const sessionId = routeState.resumeSessionId || resumeSessionId || chat.sessionId;
+
+  // Update URL with session ID if it's not already there (new chat from pair)
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+      setSearchParams((prev) => {
+        prev.set('resumeSessionId', sessionId);
+        return prev;
+      });
+    }
+  }, [sessionId, resumeSessionId, setSearchParams]);
+
   return process.env.ALPHA ? (
     <Pair2
-      chat={chat}
       setChat={setChat}
-      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
+      sessionId={sessionId}
       initialMessage={initialMessage}
     />
   ) : (
@@ -302,7 +316,7 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    title: 'Pair Chat',
+    name: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
     recipe: null,

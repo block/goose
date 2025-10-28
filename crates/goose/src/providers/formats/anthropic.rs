@@ -90,7 +90,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ConversationCompacted(_) => {
+                MessageContent::SystemNotification(_) => {
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {

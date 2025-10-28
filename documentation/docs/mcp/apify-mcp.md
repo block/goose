@@ -19,10 +19,10 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   </TabItem>
 </Tabs>
@@ -34,7 +34,7 @@ https://mcp.apify.com
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     1. Obtain an [Apify Token](https://console.apify.com/settings/integrations)  
     2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar  
     3. Click `Extensions`  
@@ -51,7 +51,7 @@ https://mcp.apify.com
     9. Navigate to the chat  
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="apify-mcp"
       type="http"
@@ -74,11 +74,11 @@ https://mcp.apify.com
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=@apify/actors-mcp-server&arg=start&id=mcp_apify_local&name=Apify%20Local%20MCP%20Server&description=Run%20Apify%20MCP%20server%20locally%20using%20your%20token&env=APIFY_TOKEN%3DYour%20Apify%20Token)
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y @apify/actors-mcp-server
@@ -93,7 +93,7 @@ APIFY_TOKEN: <YOUR_APIFY_TOKEN>
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     1. Obtain an [Apify Token](https://console.apify.com/settings/integrations)  
     2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar  
     3. Click `Extensions`  
@@ -110,7 +110,7 @@ APIFY_TOKEN: <YOUR_APIFY_TOKEN>
     9. Navigate to the chat  
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="apify-mcp"
       type="stdio"

@@ -14,6 +14,9 @@ We're in the early days of a new era in tech, one where companies are innovating
 
 <!-- truncate -->
 
+:::warning goose Beta Version
+This post was written about a beta version of goose and the commands and flow may have changed.
+:::
 
 ### The MCP Open Standard
 

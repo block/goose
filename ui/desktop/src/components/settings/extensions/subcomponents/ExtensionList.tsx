@@ -10,6 +10,7 @@ interface ExtensionListProps {
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
   disableConfiguration?: boolean;
+  searchTerm?: string;
 }
 
 export default function ExtensionList({
@@ -18,10 +19,26 @@ export default function ExtensionList({
   onConfigure,
   isStatic,
   disableConfiguration: _disableConfiguration,
+  searchTerm = '',
 }: ExtensionListProps) {
-  // Separate enabled and disabled extensions
-  const enabledExtensions = extensions.filter((ext) => ext.enabled);
-  const disabledExtensions = extensions.filter((ext) => !ext.enabled);
+  const matchesSearch = (extension: FixedExtensionEntry): boolean => {
+    if (!searchTerm) return true;
+
+    const searchLower = searchTerm.toLowerCase();
+    const title = getFriendlyTitle(extension).toLowerCase();
+    const name = extension.name.toLowerCase();
+    const subtitle = getSubtitle(extension);
+    const description = subtitle.description?.toLowerCase() || '';
+
+    return (
+      title.includes(searchLower) || name.includes(searchLower) || description.includes(searchLower)
+    );
+  };
+
+  // Separate enabled and disabled extensions, then filter by search term
+  const enabledExtensions = extensions.filter((ext) => ext.enabled && matchesSearch(ext));
+  const disabledExtensions = extensions.filter((ext) => !ext.enabled && matchesSearch(ext));
+
   // Sort each group alphabetically by their friendly title
   const sortedEnabledExtensions = [...enabledExtensions].sort((a, b) =>
     getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))

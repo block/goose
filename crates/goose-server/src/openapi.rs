@@ -18,8 +18,9 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    ConversationCompacted, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
+    SystemNotificationContent, SystemNotificationType, ThinkingContent, ToolConfirmationRequest,
+    ToolRequest, ToolResponse,
 };
 
 use utoipa::openapi::schema::{
@@ -322,7 +323,8 @@ derive_utoipa!(Icon as IconSchema);
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        super::routes::health::status,
+        super::routes::status::status,
+        super::routes::status::diagnostics,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
@@ -351,11 +353,10 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::update_router_tool_selector,
         super::routes::reply::confirm_permission,
         super::routes::reply::reply,
-        super::routes::context::manage_context,
         super::routes::session::list_sessions,
         super::routes::session::get_session,
         super::routes::session::get_session_insights,
-        super::routes::session::update_session_description,
+        super::routes::session::update_session_name,
         super::routes::session::delete_session,
         super::routes::session::export_session,
         super::routes::session::import_session,
@@ -394,11 +395,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::reply::ChatRequest,
-        super::routes::context::ContextManageRequest,
-        super::routes::context::ContextManageResponse,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
-        super::routes::session::UpdateSessionDescriptionRequest,
+        super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
         Message,
@@ -421,7 +420,8 @@ derive_utoipa!(Icon as IconSchema);
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ConversationCompacted,
+        SystemNotificationType,
+        SystemNotificationContent,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
