@@ -126,8 +126,7 @@ impl IntoResponse for SseResponse {
 pub enum MessageEvent {
     Message {
         message: Message,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        token_state: Option<TokenState>,
+        token_state: TokenState,
     },
     Error {
         error: String,
@@ -311,18 +310,25 @@ pub async fn reply(
 
                             let token_state = match SessionManager::get_session(&session_id, false).await {
                                 Ok(session) => {
-                                    Some(goose::conversation::message::TokenState {
-                                        input_tokens: session.input_tokens,
-                                        output_tokens: session.output_tokens,
-                                        total_tokens: session.total_tokens,
-                                        accumulated_input_tokens: session.accumulated_input_tokens,
-                                        accumulated_output_tokens: session.accumulated_output_tokens,
-                                        accumulated_total_tokens: session.accumulated_total_tokens,
-                                    })
+                                    TokenState {
+                                        input_tokens: session.input_tokens.unwrap_or(0),
+                                        output_tokens: session.output_tokens.unwrap_or(0),
+                                        total_tokens: session.total_tokens.unwrap_or(0),
+                                        accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+                                        accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+                                        accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+                                    }
                                 },
                                 Err(e) => {
                                     tracing::warn!("Failed to fetch session for token state: {}", e);
-                                    None
+                                    TokenState {
+                                        input_tokens: 0,
+                                        output_tokens: 0,
+                                        total_tokens: 0,
+                                        accumulated_input_tokens: 0,
+                                        accumulated_output_tokens: 0,
+                                        accumulated_total_tokens: 0,
+                                    }
                                 }
                             };
 

@@ -714,12 +714,12 @@ impl Message {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenState {
-    pub input_tokens: Option<i32>,
-    pub output_tokens: Option<i32>,
-    pub total_tokens: Option<i32>,
-    pub accumulated_input_tokens: Option<i32>,
-    pub accumulated_output_tokens: Option<i32>,
-    pub accumulated_total_tokens: Option<i32>,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub total_tokens: i32,
+    pub accumulated_input_tokens: i32,
+    pub accumulated_output_tokens: i32,
+    pub accumulated_total_tokens: i32,
 }
 
 #[cfg(test)]

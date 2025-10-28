@@ -3185,6 +3185,7 @@
             "type": "object",
             "required": [
               "message",
+              "token_state",
               "type"
             ],
             "properties": {
@@ -3192,12 +3193,7 @@
                 "$ref": "#/components/schemas/Message"
               },
               "token_state": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/TokenState"
-                  }
-                ],
-                "nullable": true
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
@@ -4428,36 +4424,38 @@
       },
       "TokenState": {
         "type": "object",
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "accumulatedInputTokens",
+          "accumulatedOutputTokens",
+          "accumulatedTotalTokens"
+        ],
         "properties": {
           "accumulatedInputTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "accumulatedOutputTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "accumulatedTotalTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "inputTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "outputTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "totalTokens": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           }
         }
       },

@@ -362,7 +362,7 @@ export type MessageContent = (TextContent & {
 
 export type MessageEvent = {
     message: Message;
-    token_state?: TokenState | null;
+    token_state: TokenState;
     type: 'Message';
 } | {
     error: string;
@@ -781,12 +781,12 @@ export type ThinkingContent = {
 };
 
 export type TokenState = {
-    accumulatedInputTokens?: number | null;
-    accumulatedOutputTokens?: number | null;
-    accumulatedTotalTokens?: number | null;
-    inputTokens?: number | null;
-    outputTokens?: number | null;
-    totalTokens?: number | null;
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
 };
 
 export type Tool = {
