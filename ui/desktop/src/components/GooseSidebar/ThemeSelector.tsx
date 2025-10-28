@@ -14,12 +14,19 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   horizontal = false,
 }) => {
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
-    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    if (savedUseSystemTheme) {
+    const savedUseSystemTheme = localStorage.getItem('use_system_theme');
+    const savedTheme = localStorage.getItem('theme');
+    if (savedUseSystemTheme === 'true') {
       return 'system';
     }
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark' ? 'dark' : 'light';
+    if (savedTheme) {
+      return savedTheme === 'dark' ? 'dark' : 'light';
+    }
+
+    // No explicit preference: infer from current DOM state (set by index.html)
+    // This preserves the system preference that was applied on initial load
+    const isDarkInDOM = document.documentElement.classList.contains('dark');
+    return isDarkInDOM ? 'dark' : 'light';
   });
 
   const [isDarkMode, setDarkMode] = useState(() => {
