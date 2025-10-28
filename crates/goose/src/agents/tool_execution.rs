@@ -84,6 +84,8 @@ impl Agent {
                             // Log user decision if this was a security alert
                             if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                                 tracing::info!(
+                                    counter.goose.prompt_injection_user_decisions = 1,
+                                    decision = ?confirmation.permission,
                                     "🔒 User security decision: {:?} for finding ID: {}",
                                     confirmation.permission,
                                     finding_id
