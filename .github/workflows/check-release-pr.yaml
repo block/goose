@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.head_ref, 'release/')
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
       with:
         ref: ${{ github.head_ref }}
         fetch-depth: 0

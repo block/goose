@@ -20,7 +20,7 @@ jobs:
       startsWith(github.event.pull_request.head.ref, 'release/')
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
