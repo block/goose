@@ -406,25 +406,20 @@ impl CliSession {
             }
         }
 
-        let history_loaded = if history_file.exists() {
-            if let Err(err) = editor.load_history(&history_file) {
+        let history_files = [&history_file, &old_history_file];
+        let load_from = history_files.iter().find(|f| f.exists());
+
+        if let Some(file) = load_from {
+            if let Err(err) = editor.load_history(file) {
                 eprintln!("Warning: Failed to load command history: {}", err);
             }
-            true
-        } else if old_history_file.exists() {
-            if let Err(err) = editor.load_history(&old_history_file) {
-                eprintln!("Warning: Failed to load command history: {}", err);
-            }
-            true
-        } else {
-            false
-        };
+        }
 
         let save_history =
             |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
                     eprintln!("Warning: Failed to save command history: {}", err);
-                } else if history_loaded && old_history_file.exists() {
+                } else if old_history_file.exists() {
                     if let Err(err) = std::fs::remove_file(&old_history_file) {
                         eprintln!("Warning: Failed to remove old history file: {}", err);
                     }
