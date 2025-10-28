@@ -1067,7 +1067,6 @@ impl ExtensionManager {
             if !extension.enabled {
                 let config = extension.config.clone();
 
-                // Skip non-toggleable extensions
                 if let ExtensionConfig::Platform { toggleable, .. } = &config {
                     if toggleable == &Some(false) {
                         continue;
@@ -1098,13 +1097,11 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        // Filter out non-toggleable extensions
         let mut enabled_extensions: Vec<String> = vec![];
         for extension in get_all_extensions() {
             if extension.enabled {
                 let config = extension.config.clone();
 
-                // Skip non-toggleable extensions
                 if let ExtensionConfig::Platform { toggleable, .. } = &config {
                     if toggleable == &Some(false) {
                         continue;

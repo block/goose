@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::agents::core_extension::llm_search_tool_prompt;
+use crate::agents::core_extension::LLM_SEARCH_TOOL_PROMPT;
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::{
@@ -117,7 +117,9 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
-            tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
+            tool_selection_strategy: self
+                .router_enabled
+                .then_some(LLM_SEARCH_TOOL_PROMPT.to_string()),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
             goose_mode,

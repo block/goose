@@ -36,11 +36,9 @@ export default function ExtensionList({
   };
 
   const isToggleable = (extension: FixedExtensionEntry): boolean => {
-    // If extension is platform type and toggleable is explicitly false, hide it
     if (extension.type === 'platform' && extension.toggleable === false) {
       return false;
     }
-    // Otherwise, show the extension (default behavior)
     return true;
   };
 

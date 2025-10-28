@@ -1,7 +1,4 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager_extension::{
-    MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -68,30 +65,7 @@ pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_TOOLS_TOOL_NAME: &str = "search_tools";
 
-pub fn llm_search_tool_prompt() -> String {
-    format!(
-        r#"# LLM Tool Selection Instructions
-    Important: the user has opted to dynamically enable tools, so although an extension could be enabled, \
-    please invoke the llm search tool to actually retrieve the most relevant tools to use according to the user's messages.
-    For example, if the user has 3 extensions enabled, but they are asking for a tool to read a pdf file, \
-    you would invoke the llm_search tool to find the most relevant read pdf tool.
-    By dynamically enabling tools, you (goose) as the agent save context window space and allow the user to dynamically retrieve the most relevant tools.
-    Be sure to format a query packed with relevant keywords to search for the most relevant tools.
-    In addition to the extension names available to you, you also have platform extension tools available to you.
-    The platform extensions contains the following tools:
-    - {}
-    - {}
-    - {}
-    - {}
-    - {}
-    "#,
-        SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-        MANAGE_EXTENSIONS_TOOL_NAME,
-        READ_RESOURCE_TOOL_NAME,
-        LIST_RESOURCES_TOOL_NAME,
-        SEARCH_TOOLS_TOOL_NAME
-    )
-}
+pub const LLM_SEARCH_TOOL_PROMPT: &str = r#"Important: the user has opted to dynamically enable tools, so although an extension could be enabled, please invoke the llm search tool to actually retrieve the most relevant tools to use according to the user's messages. For example, if the user has 3 extensions enabled, but they are asking for a tool to read a pdf file, you would invoke the llm_search tool to find the most relevant read pdf tool. By dynamically enabling tools, you (goose) as the agent save context window space and allow the user to dynamically retrieve the most relevant tools. Be sure to format a query packed with relevant keywords to search for the most relevant tools."#;
 
 pub struct CoreClient {
     info: InitializeResult,
@@ -131,7 +105,7 @@ impl CoreClient {
                 - read_resource: Read specific resources from extensions. This tool is only available if any of the extensions supports resources.
                 - search_tools: Search for relevant tools based on user messages
 
-                Use list_resources and read_resource to work with extension data and resources.
+                Use list_resources and read_resource to review extension resources.
                 Use search_tools to dynamically discover and retrieve the most relevant tools for a given task.
             "#}
                 .to_string(),
@@ -228,7 +202,7 @@ impl CoreClient {
     async fn get_tools(&self) -> Vec<Tool> {
         let mut tools = vec![];
 
-        // Only add resource tools if extension manager supports resources
+        // Only add resource tools if any extension supports resources
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 if extension_manager.supports_resources().await {
@@ -286,7 +260,6 @@ impl CoreClient {
             }
         }
 
-        // Add search_tools tool if tool route manager is available
         if let Some(weak_ref) = &self.context.tool_route_manager {
             if weak_ref.upgrade().is_some() {
                 tools.push(

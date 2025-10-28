@@ -5,6 +5,11 @@ use crate::agents::todo_extension;
 use std::collections::HashMap;
 
 use crate::agents::mcp_client::McpClientTrait;
+
+const fn default_toggleable() -> Option<bool> {
+    Some(true)
+}
+
 use crate::config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
@@ -83,7 +88,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             "core",
             PlatformExtensionDef {
                 name: core_extension::EXTENSION_NAME,
-                description: "Core extension providing essential resource management tools",
+                description: "Core extension providing tools for reviewing extension resources and tool discovery capabilities",
                 default_enabled: true,
                 toggleable: Some(false),
                 client_factory: |ctx| Box::new(core_extension::CoreClient::new(ctx).unwrap()),
@@ -294,7 +299,7 @@ pub enum ExtensionConfig {
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
-        #[serde(default)]
+        #[serde(default = "default_toggleable")]
         toggleable: Option<bool>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
