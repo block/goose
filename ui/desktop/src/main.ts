@@ -770,26 +770,73 @@ const createTray = () => {
   // If tray already exists, destroy it first
   destroyTray();
 
-  const isDev = process.env.NODE_ENV === 'development';
-  let iconPath: string;
+  // Determine icon path by checking which location exists
+  const possiblePaths = [
+    path.join(process.resourcesPath, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'src', 'images', 'iconTemplate.png'),
+    path.join(__dirname, '..', 'images', 'iconTemplate.png'),
+    path.join(__dirname, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'images', 'iconTemplate.png'),
+  ];
 
-  if (isDev) {
-    iconPath = path.join(process.cwd(), 'src', 'images', 'iconTemplate.png');
-  } else {
-    iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
+  let iconPath: string | null = null;
+  for (const testPath of possiblePaths) {
+    if (fsSync.existsSync(testPath)) {
+      iconPath = testPath;
+      console.log(`[Main] Found tray icon at: ${iconPath}`);
+      break;
+    }
   }
 
-  tray = new Tray(iconPath);
+  // If no icon found, handle gracefully based on platform
+  if (!iconPath) {
+    console.warn('[Main] Tray icon not found at any known location');
 
-  // Set tray reference for auto-updater
-  setTrayRef(tray);
+    // On Linux, system tray support varies by desktop environment
+    // Log a helpful message but don't crash the app
+    if (process.platform === 'linux') {
+      console.log('[Main] Tray icon is optional on Linux. App will continue without system tray.');
+      const settings = loadSettings();
+      settings.showMenuBarIcon = false;
+      saveSettings(settings);
+      return;
+    }
 
-  // Initially build menu based on update status
-  updateTrayMenu(getUpdateAvailable());
+    console.error('[Main] Could not find tray icon. Tray will not be created.');
+    const settings = loadSettings();
+    settings.showMenuBarIcon = false;
+    saveSettings(settings);
+    return;
+  }
 
-  // On Windows, clicking the tray icon should show the window
-  if (process.platform === 'win32') {
-    tray.on('click', showWindow);
+  try {
+    tray = new Tray(iconPath);
+    console.log(`[Main] Successfully created tray with icon: ${iconPath}`);
+
+    // Set tray reference for auto-updater
+    setTrayRef(tray);
+
+    // Initially build menu based on update status
+    updateTrayMenu(getUpdateAvailable());
+
+    // On Windows, clicking the tray icon should show the window
+    if (process.platform === 'win32') {
+      tray.on('click', showWindow);
+    }
+  } catch (error) {
+    console.error('[Main] Failed to create tray:', error);
+
+    // On Linux, this is not critical - the app can run without a tray
+    if (process.platform === 'linux') {
+      console.log('[Main] App will continue without system tray on Linux.');
+      const settings = loadSettings();
+      settings.showMenuBarIcon = false;
+      saveSettings(settings);
+    } else {
+      console.error('[Main] Tray creation failed. App will continue without system tray.');
+    }
+
+    tray = null;
   }
 };
 
