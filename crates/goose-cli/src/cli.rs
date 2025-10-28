@@ -1092,7 +1092,7 @@ pub async fn cli() -> Result<()> {
             .await;
 
             if interactive {
-                let _ = session.interactive(input_config.contents).await;
+                session.interactive(input_config.contents).await?;
             } else if let Some(contents) = input_config.contents {
                 let session_start = std::time::Instant::now();
                 let session_type = if recipe_info.is_some() {
@@ -1146,8 +1146,9 @@ pub async fn cli() -> Result<()> {
 
                 result?;
             } else {
-                eprintln!("Error: no text provided for prompt in headless mode");
-                std::process::exit(1);
+                return Err(anyhow::anyhow!(
+                    "no text provided for prompt in headless mode"
+                ));
             }
 
             return Ok(());
@@ -1199,8 +1200,7 @@ pub async fn cli() -> Result<()> {
                 BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
                 BenchCommand::InitConfig { name } => {
                     let mut config = BenchRunConfig::default();
-                    let cwd =
-                        std::env::current_dir().expect("Failed to get current working directory");
+                    let cwd = std::env::current_dir()?;
                     config.output_dir = Some(cwd);
                     config.save(name);
                 }
@@ -1243,7 +1243,7 @@ pub async fn cli() -> Result<()> {
         }
         None => {
             return if !Config::global().exists() {
-                let _ = handle_configure().await;
+                handle_configure().await?;
                 Ok(())
             } else {
                 // Run session command by default
@@ -1271,10 +1271,7 @@ pub async fn cli() -> Result<()> {
                     retry_config: None,
                 })
                 .await;
-                if let Err(e) = session.interactive(None).await {
-                    eprintln!("Session ended with error: {}", e);
-                    std::process::exit(1);
-                }
+                session.interactive(None).await?;
                 Ok(())
             };
         }
