@@ -409,7 +409,7 @@ impl CliSession {
             }
 
             // Try to move the file (rename is atomic on same filesystem)
-            if let Err(_) = std::fs::rename(&old_history_file, &history_file) {
+            if std::fs::rename(&old_history_file, &history_file).is_err() {
                 // If rename fails (e.g., cross-device), try copy + delete
                 if let Err(copy_err) = std::fs::copy(&old_history_file, &history_file) {
                     eprintln!("Warning: Failed to migrate history file: {}", copy_err);
