@@ -77,19 +77,19 @@ async fn get_or_create_session_id(
     }
 
     let Some(id) = identifier else {
-        if resume {
+        return if resume {
             let sessions = SessionManager::list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            return Ok(Some(session_id));
+            Ok(Some(session_id))
         } else {
             let session =
                 SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
                     .await?;
-            return Ok(Some(session.id));
-        }
+            Ok(Some(session.id))
+        };
     };
 
     if let Some(session_id) = id.session_id {
@@ -817,7 +817,7 @@ pub struct RecipeInfo {
     pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
-pub async fn cli() -> Result<()> {
+pub async fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Track the current directory in projects.json
@@ -850,20 +850,17 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Configure {}) => {
-            let _ = handle_configure().await;
-            return Ok(());
+            handle_configure().await?;
         }
         Some(Command::Info { verbose }) => {
             handle_info(verbose)?;
-            return Ok(());
         }
         Some(Command::Mcp { name }) => {
             crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            let _ = goose_mcp::mcp_server_runner::run_mcp_server(&name).await;
+            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
         }
         Some(Command::Acp {}) => {
-            let _ = run_acp_agent().await;
-            return Ok(());
+            run_acp_agent().await?;
         }
         Some(Command::Session {
             command,
@@ -884,13 +881,9 @@ pub async fn cli() -> Result<()> {
                     ascending,
                     working_dir,
                     limit,
-                }) => {
-                    handle_session_list(format, ascending, working_dir, limit).await?;
-                    Ok(())
-                }
+                }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
                 Some(SessionCommand::Remove { id, regex }) => {
-                    handle_session_remove(id, regex).await?;
-                    return Ok(());
+                    Ok(handle_session_remove(id, regex).await?)
                 }
                 Some(SessionCommand::Export {
                     identifier,
