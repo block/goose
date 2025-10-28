@@ -2,6 +2,7 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
+    recipe::Recipe,
     session::SessionManager,
 };
 use anyhow::{anyhow, Result};
@@ -9,23 +10,28 @@ use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
 use std::future::Future;
 use std::pin::Pin;
-use tracing::debug;
+use tracing::{debug, info};
+
+type AgentMessagesFuture =
+    Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 
 /// Standalone function to run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
-    text_instruction: String,
+    recipe: Recipe,
     task_config: TaskConfig,
     return_last_only: bool,
 ) -> Result<String, anyhow::Error> {
-    let messages = get_agent_messages(text_instruction, task_config)
-        .await
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to execute task: {}", e),
-                None,
-            )
-        })?;
+    let (messages, final_output) = get_agent_messages(recipe, task_config).await.map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to execute task: {}", e),
+            None,
+        )
+    })?;
+
+    if let Some(output) = final_output {
+        return Ok(output);
+    }
 
     // Extract text content based on return_last_only flag
     let response_text = if return_last_only {
@@ -91,11 +97,14 @@ pub async fn run_complete_subagent_task(
     Ok(response_text)
 }
 
-fn get_agent_messages(
-    text_instruction: String,
-    task_config: TaskConfig,
-) -> Pin<Box<dyn Future<Output = Result<Conversation>> + Send>> {
+fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesFuture {
     Box::pin(async move {
+        let text_instruction = recipe
+            .instructions
+            .clone()
+            .or(recipe.prompt.clone())
+            .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
+
         let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
@@ -127,17 +136,29 @@ fn get_agent_messages(
             }
         }
 
-        let mut conversation =
-            Conversation::new_unvalidated(
-                vec![Message::user().with_text(text_instruction.clone())],
-            );
+        let has_response_schema = recipe.response.is_some();
+        agent
+            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .await;
+
+        // Build initial conversation
+        let initial_messages = vec![Message::user().with_text(text_instruction.clone())];
+
+        let mut conversation = Conversation::new_unvalidated(initial_messages);
+
+        // Log activities if provided
+        if let Some(activities) = recipe.activities {
+            for activity in activities {
+                info!("Recipe activity: {}", activity);
+            }
+        }
         let session_config = SessionConfig {
             id: session.id,
             working_dir,
             schedule_id: None,
             execution_mode: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
-            retry_config: None,
+            retry_config: recipe.retry, // Use recipe's retry config instead of None
         };
 
         let mut stream = agent
@@ -158,6 +179,18 @@ fn get_agent_messages(
             }
         }
 
-        Ok(conversation)
+        // Extract final output if FinalOutputTool was used
+        let final_output = if has_response_schema {
+            agent
+                .final_output_tool
+                .lock()
+                .await
+                .as_ref()
+                .and_then(|tool| tool.final_output.clone())
+        } else {
+            None
+        };
+
+        Ok((conversation, final_output))
     })
 }
