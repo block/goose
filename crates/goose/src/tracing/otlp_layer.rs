@@ -248,10 +248,15 @@ pub fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> 
     })
 }
 
-/// Custom filter for OTLP logs that captures only ERROR and WARN levels
+/// Creates a custom filter for OTLP metrics that captures:
+/// - All events at WARN level and above
 pub fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     FilterFn::new(|metadata: &Metadata<'_>| {
-        matches!(metadata.level(), &Level::ERROR | &Level::WARN)
+        if metadata.level() <= &Level::WARN {
+            return true;
+        }
+
+        false
     })
 }
 
