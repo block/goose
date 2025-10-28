@@ -47,5 +47,8 @@ You don’t need to get it right the first time. Iterating on prompts and tools 
 ### Keep Goose updated
 Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
 
-### Use environment variables for secrets
-Avoid hardcoding API keys or credentials in your Goose recipes. Instead, reference them from environment variables (e.g., `process.env.API_KEY`). This keeps your configuration secure and portable across environments.
+### Mix Models for Speed and Savings  
+Run Goose in lead–worker mode — use a reasoning model for planning and a smaller one for fast execution.  
+```bash
+export GOOSE_LEAD_MODEL="gpt-4o"; export GOOSE_MODEL="gpt-4o-mini"; export GOOSE_PROVIDER="openai"
+```
