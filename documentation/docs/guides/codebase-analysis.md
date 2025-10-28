@@ -120,4 +120,4 @@ If the analysis results exceed 1000 lines, the tool returns a warning message in
 
 - Start with smaller scopes (specific files or subdirectories) before analyzing entire projects
 - Use `max_depth=1` or `max_depth=2` to limit directory traversal depth
-- Create a local [`.gooseignore` file](/docs/guides/using-gooseignore) to exclude unnecessary files from analysis
+- Use [`.gooseignore`](/docs/guides/using-gooseignore) and `.gitignore` files to exclude unnecessary files from analysis (like `node_modules/`, build artifacts, or sensitive files)
