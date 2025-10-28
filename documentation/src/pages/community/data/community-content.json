@@ -80,6 +80,18 @@
       "submittedDate": "2025-10-16",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Goose with Context7 MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/EmLcx5gKHsE",
+      "submittedDate": "2025-10-29",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
