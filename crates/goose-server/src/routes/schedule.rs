@@ -317,7 +317,7 @@ async fn sessions_handler(
             for (session_name, session) in session_tuples {
                 display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
-                    name: session.name,
+                    name: session.description,
                     created_at: session.created_at.to_rfc3339(),
                     working_dir: session.working_dir.to_string_lossy().into_owned(),
                     schedule_id: session.schedule_id,
