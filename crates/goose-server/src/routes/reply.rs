@@ -139,6 +139,7 @@ pub enum MessageEvent {
     },
     Notification {
         request_id: String,
+        #[schema(value_type = Object)]
         message: ServerNotification,
     },
     UpdateConversation {
@@ -170,7 +171,9 @@ async fn stream_event(
     path = "/reply",
     request_body = ChatRequest,
     responses(
-        (status = 200, description = "Streaming response initiated", content_type = "text/event-stream"),
+        (status = 200, description = "Streaming response initiated",
+         body = MessageEvent,
+         content_type = "text/event-stream"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )

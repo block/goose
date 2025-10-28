@@ -360,6 +360,32 @@ export type MessageContent = (TextContent & {
     type: 'systemNotification';
 });
 
+export type MessageEvent = {
+    message: Message;
+    type: 'Message';
+} | {
+    error: string;
+    type: 'Error';
+} | {
+    reason: string;
+    type: 'Finish';
+} | {
+    mode: string;
+    model: string;
+    type: 'ModelChange';
+} | {
+    message: {
+        [key: string]: unknown;
+    };
+    request_id: string;
+    type: 'Notification';
+} | {
+    conversation: Conversation;
+    type: 'UpdateConversation';
+} | {
+    type: 'Ping';
+};
+
 /**
  * Metadata for message visibility
  */
@@ -1825,8 +1851,10 @@ export type ReplyResponses = {
     /**
      * Streaming response initiated
      */
-    200: unknown;
+    200: MessageEvent;
 };
+
+export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

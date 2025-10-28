@@ -397,7 +397,8 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        let history_file = Paths::config_dir().join("history.txt");
+        let history_file = Paths::state_dir().join("history.txt");
+        let old_history_file = Paths::config_dir().join("history.txt");
 
         if let Some(parent) = history_file.parent() {
             if !parent.exists() {
@@ -405,8 +406,11 @@ impl CliSession {
             }
         }
 
-        if history_file.exists() {
-            if let Err(err) = editor.load_history(&history_file) {
+        let history_files = [&history_file, &old_history_file];
+        let load_from = history_files.iter().find(|f| f.exists());
+
+        if let Some(file) = load_from {
+            if let Err(err) = editor.load_history(file) {
                 eprintln!("Warning: Failed to load command history: {}", err);
             }
         }
@@ -415,6 +419,10 @@ impl CliSession {
             |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
                     eprintln!("Warning: Failed to save command history: {}", err);
+                } else if old_history_file.exists() {
+                    if let Err(err) = std::fs::remove_file(&old_history_file) {
+                        eprintln!("Warning: Failed to remove old history file: {}", err);
+                    }
                 }
             };
 

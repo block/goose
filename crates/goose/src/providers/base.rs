@@ -325,6 +325,9 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
+    /// Get the name of this provider instance
+    fn get_name(&self) -> &str;
+
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
@@ -386,18 +389,15 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    /// Optional hook to fetch supported models.
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
-    /// Check if this provider supports embeddings
     fn supports_embeddings(&self) -> bool {
         false
     }
 
-    /// Check if this provider supports cache control
-    fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         false
     }
 

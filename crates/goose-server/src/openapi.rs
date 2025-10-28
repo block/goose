@@ -23,6 +23,7 @@ use goose::conversation::message::{
     ToolRequest, ToolResponse,
 };
 
+use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -420,6 +421,7 @@ derive_utoipa!(Icon as IconSchema);
         ResourceContentsSchema,
         SystemNotificationType,
         SystemNotificationContent,
+        MessageEvent,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,

@@ -48,6 +48,8 @@ pub struct SnowflakeProvider {
     api_client: ApiClient,
     model: ModelConfig,
     image_format: ImageFormat,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SnowflakeProvider {
@@ -101,6 +103,7 @@ impl SnowflakeProvider {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
+            name: Self::metadata().name,
         })
     }
 
@@ -300,6 +303,10 @@ impl Provider for SnowflakeProvider {
                 ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
