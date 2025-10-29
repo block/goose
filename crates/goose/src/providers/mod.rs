@@ -13,6 +13,7 @@ mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod gondola;
 pub mod gemini_cli;
 pub mod githubcopilot;
 pub mod google;

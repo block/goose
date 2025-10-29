@@ -367,6 +367,19 @@ pub struct PricingResponse {
     pub source: String,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct SecurityModel {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub version: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct SecurityModelsResponse {
+    pub models: Vec<SecurityModel>,
+}
+
 #[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
     /// If true, only return pricing for configured providers. If false, return all.
@@ -707,6 +720,43 @@ pub async fn update_custom_provider(
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/config/security/models",
+    responses(
+        (status = 200, description = "Available security models retrieved successfully", body = SecurityModelsResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_security_models() -> Result<Json<SecurityModelsResponse>, StatusCode> {
+    use goose::providers::gondola::GondolaConfig;
+
+    let available_models = GondolaConfig::available_models();
+
+    let models = available_models
+        .into_iter()
+        .map(|model_name| {
+            // For now, we only have one model but this is extensible
+            match model_name.as_str() {
+                "deberta-prompt-injection-v2" => SecurityModel {
+                    name: model_name,
+                    display_name: "DeBERTa v2 (Prompt Injection)".to_string(),
+                    description: "BERT-based model specialized for detecting prompt injection attacks".to_string(),
+                    version: Some("gmv-zve9abhxe9s7fq1zep5dxd807".to_string()),
+                },
+                _ => SecurityModel {
+                    name: model_name.clone(),
+                    display_name: model_name,
+                    description: "Security model for prompt injection detection".to_string(),
+                    version: None,
+                },
+            }
+        })
+        .collect();
+
+    Ok(Json(SecurityModelsResponse { models }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -731,6 +781,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/config/custom-providers/{id}", put(update_custom_provider))
         .route("/config/custom-providers/{id}", get(get_custom_provider))
+        .route("/config/security/models", get(get_security_models))
         .with_state(state)
 }
 

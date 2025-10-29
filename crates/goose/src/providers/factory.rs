@@ -11,6 +11,7 @@ use super::{
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
+    gondola::GondolaProvider,
     google::GoogleProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
@@ -60,6 +61,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             |m| Box::pin(GithubCopilotProvider::from_env(m)),
             false,
         );
+        registry.register::<GondolaProvider, _>(|m| Box::pin(GondolaProvider::from_env(m)), false);
         registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
         registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
         registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);

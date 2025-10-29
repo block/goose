@@ -25,13 +25,16 @@ impl SecurityInspector {
     ) -> InspectionResult {
         let action = if security_result.is_malicious && security_result.should_ask_user {
             // High confidence threat - require user approval with warning
+            // Create a user-friendly explanation without BERT model details
+            let user_explanation = self.create_user_friendly_explanation(&security_result.explanation);
+
             InspectionAction::RequireApproval(Some(format!(
                 "🔒 Security Alert: This tool call has been flagged as potentially dangerous.\n\
                 Confidence: {:.1}%\n\
                 Explanation: {}\n\
                 Finding ID: {}",
                 security_result.confidence * 100.0,
-                security_result.explanation,
+                user_explanation,
                 security_result.finding_id
             )))
         } else {
@@ -42,11 +45,39 @@ impl SecurityInspector {
         InspectionResult {
             tool_request_id,
             action,
-            reason: security_result.explanation.clone(),
+            reason: format!("{}, threshold: {}", security_result.explanation, security_result.threshold),
             confidence: security_result.confidence,
             inspector_name: self.name().to_string(),
             finding_id: Some(security_result.finding_id.clone()),
         }
+    }
+
+    /// Create a user-friendly explanation by removing BERT model details
+    fn create_user_friendly_explanation(&self, full_explanation: &str) -> String {
+        // Remove BERT model information from user-facing messages
+        // Keep only the pattern analysis details for the user
+
+        if full_explanation.starts_with("Detected by pattern analysis (BERT model found no injection") {
+            // Extract just the pattern analysis part after the BERT model note
+            if let Some(pattern_start) = full_explanation.find("):\n") {
+                return full_explanation[pattern_start + 3..].to_string();
+            }
+        }
+
+        if full_explanation.starts_with("Detected by both BERT model") {
+            // Extract just the pattern analysis part
+            if let Some(pattern_start) = full_explanation.find("and pattern analysis:\n") {
+                return full_explanation[pattern_start + 22..].to_string();
+            }
+        }
+
+        if full_explanation.starts_with("Detected by BERT model") {
+            // For BERT-only detections, provide a generic message
+            return "Potential prompt injection detected".to_string();
+        }
+
+        // For other cases (pattern-only, no threats), return as-is
+        full_explanation.to_string()
     }
 }
 
