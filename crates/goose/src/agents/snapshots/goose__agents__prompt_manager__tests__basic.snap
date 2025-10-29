@@ -30,18 +30,6 @@ No extensions are defined. You should let the user know that they should add ext
 
 
 
-# sub agents
-
-Execute self contained tasks where step-by-step visibility is not important through subagents.
-
-- Delegate via `dynamic_task__create_task` for: result-only operations, parallelizable work, multi-part requests,
-  verification, exploration
-- Parallel subagents for multiple operations, single subagents for independent work
-- Explore solutions in parallel — launch parallel subagents with different approaches (if non-interfering)
-- Provide all needed context — subagents cannot see your context
-- Use extension filters to limit resource access
-- Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
-
 # Response Guidelines
 
 - Use Markdown formatting for all responses.
