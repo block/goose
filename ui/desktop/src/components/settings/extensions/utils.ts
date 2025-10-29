@@ -36,6 +36,7 @@ export interface ExtensionFormData {
     value: string;
     isEdited?: boolean;
   }[];
+  installation_notes?: string;
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -96,12 +97,11 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
 
   return {
     name: extension.name || '',
-    description:
-      extension.type === 'stdio' || extension.type === 'sse' || extension.type === 'streamable_http'
-        ? extension.description || ''
-        : '',
+    description: extension.description || '',
     type:
-      extension.type === 'frontend' || extension.type === 'inline_python'
+      extension.type === 'frontend' ||
+      extension.type === 'inline_python' ||
+      extension.type === 'platform'
         ? 'stdio'
         : extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
@@ -111,6 +111,9 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
     headers,
+    installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
+      | string
+      | undefined,
   };
 }
 
@@ -166,6 +169,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
     return {
       type: formData.type,
       name: formData.name,
+      description: formData.description,
       timeout: formData.timeout,
     };
   }
@@ -184,17 +188,6 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
   return [cmd, ...args].join(' ');
-}
-
-/**
- * Extracts the ExtensionConfig from a FixedExtensionEntry object
- * @param fixedEntry - The FixedExtensionEntry object
- * @returns The ExtensionConfig portion of the object
- */
-export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): ExtensionConfig {
-  // todo: enabled not used?
-  const { ...extensionConfig } = fixedEntry;
-  return extensionConfig;
 }
 
 export async function replaceWithShims(cmd: string) {

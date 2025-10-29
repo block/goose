@@ -1,21 +1,20 @@
-use std::sync::Arc;
-
 use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
-use goose::providers::databricks::DatabricksProvider;
+use goose::providers::create_with_named_model;
+use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 
 #[tokio::main]
 async fn main() {
-    // Setup a model provider from env vars
     let _ = dotenv();
 
-    let provider = Arc::new(DatabricksProvider::default());
+    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL)
+        .await
+        .expect("Couldn't create provider");
 
-    // Setup an agent with the developer extension
     let agent = Agent::new();
     let _ = agent.update_provider(provider).await;
 

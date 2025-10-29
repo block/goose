@@ -17,10 +17,10 @@ This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/go
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40gotohuman%2Fmcp-server&id=gotoHuman&name=gotoHuman&description=gotoHuman%20MCP%20server%20for%20human-in-the-loop%20approvals&env=GOTOHUMAN_API_KEY%3DgotoHuman%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
    npx -y @gotohuman/mcp-server
@@ -36,7 +36,7 @@ This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/go
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="gotoHuman"
     extensionName="gotoHuman"
@@ -50,7 +50,7 @@ This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/go
     apiKeyLinkText="GOTOHUMAN_API_KEY"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
         name="gotoHuman MCP"
         command="npx -y @gotohuman/mcp-server"
@@ -78,10 +78,10 @@ Follow the steps to create a template and ensure you set a **Webhook Endpoint** 
 In this example, Goose sends a LinkedIn post draft to gotoHuman for approval using the `n8n news to post` template that was created.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
    1. Open a new session in Goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Open a terminal and start a new Goose session:
 

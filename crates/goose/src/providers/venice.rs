@@ -10,7 +10,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
+
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
 use rmcp::model::{object, CallToolRequestParam, Role, Tool};
@@ -78,12 +78,12 @@ pub struct VeniceProvider {
     base_path: String,
     models_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(VeniceProvider);
-
 impl VeniceProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(mut model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("VENICE_API_KEY")?;
         let host: String = config
@@ -107,6 +107,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
+            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -210,6 +211,10 @@ impl Provider for VeniceProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

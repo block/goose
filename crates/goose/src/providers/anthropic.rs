@@ -14,15 +14,15 @@ use super::errors::ProviderError;
 use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
-use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
-use crate::config::custom_providers::CustomProviderConfig;
+use super::utils::{get_model, map_http_error_to_provider_error};
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
-const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet-latest";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-0",
@@ -43,12 +43,11 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    name: String,
 }
 
-impl_provider_default!(AnthropicProvider);
-
 impl AnthropicProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -69,10 +68,14 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)
@@ -90,6 +93,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -175,6 +179,10 @@ impl Provider for AnthropicProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -204,7 +212,8 @@ impl Provider for AnthropicProvider {
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let response_model = get_model(&json_response);
-        emit_debug_trace(&self.model, &payload, &json_response, &usage);
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        log.write(&json_response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
@@ -258,22 +267,26 @@ impl Provider for AnthropicProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let mut request = self.api_client.request("v1/messages");
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
         }
 
-        let response = request.response_post(&payload).await?;
+        let response = request.response_post(&payload).await.inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             let error_json = serde_json::from_str::<Value>(&error_text).ok();
-            return Err(map_http_error_to_provider_error(status, error_json));
+            let error = map_http_error_to_provider_error(status, error_json);
+            let _ = log.error(&error);
+            return Err(error);
         }
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
-        let model = self.model.clone();
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
@@ -282,7 +295,7 @@ impl Provider for AnthropicProvider {
             pin!(message_stream);
             while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))

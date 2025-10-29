@@ -81,6 +81,14 @@ impl ModelInfo {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum ProviderType {
+    Preferred,
+    Builtin,
+    Declarative,
+    Custom,
+}
+
 /// Metadata about a provider's configuration requirements and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {
@@ -93,7 +101,6 @@ pub struct ProviderMetadata {
     /// The default/recommended model for this provider
     pub default_model: String,
     /// A list of currently known models with their capabilities
-    /// TODO: eventually query the apis directly
     pub known_models: Vec<ModelInfo>,
     /// Link to the docs where models can be found
     pub model_doc_link: String,
@@ -132,7 +139,6 @@ impl ProviderMetadata {
         }
     }
 
-    /// Create a new ProviderMetadata with ModelInfo objects that include cost data
     pub fn with_models(
         name: &str,
         display_name: &str,
@@ -319,6 +325,9 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
+    /// Get the name of this provider instance
+    fn get_name(&self) -> &str;
+
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
@@ -380,18 +389,15 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    /// Optional hook to fetch supported models.
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
-    /// Check if this provider supports embeddings
     fn supports_embeddings(&self) -> bool {
         false
     }
 
-    /// Check if this provider supports cache control
-    fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         false
     }
 

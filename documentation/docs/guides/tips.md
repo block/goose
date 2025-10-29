@@ -47,8 +47,11 @@ You don’t need to get it right the first time. Iterating on prompts and tools 
 ### Keep Goose updated
 Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
 
-### Mix Models for Speed and Savings  
-Run Goose in lead–worker mode — use a reasoning model for planning and a smaller one for fast execution.  
-```bash
-export GOOSE_LEAD_MODEL="gpt-4o"; export GOOSE_MODEL="gpt-4o-mini"; export GOOSE_PROVIDER="openai"
-```
+### Pair Two Models to Save Money 
+Use [lead/worker model](/docs/tutorials/lead-worker/) to have goose use a "lead" model for early planning before handing the task to a lower-cost "worker" model for execution.  
+
+### Make Recipes Safe to Re-run
+Write [recipes](/docs/guides/recipes/session-recipes) that check your current state before acting, so they can be run multiple times without causing any errors or duplication. 
+
+### Add Logging to Recipes
+Inlcude informative log messages in your recipes for each major step to make debugging and troubleshooting easier should something fail.

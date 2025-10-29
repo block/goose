@@ -1,35 +1,34 @@
-use crate::agents::subagent::SubAgent;
-use crate::agents::subagent_task_config::TaskConfig;
-use anyhow::Result;
+use crate::{
+    agents::{
+        extension::PlatformExtensionContext, subagent_task_config::TaskConfig, Agent, AgentEvent,
+        SessionConfig,
+    },
+    conversation::{message::Message, Conversation},
+    execution::manager::AgentManager,
+    session::SessionManager,
+};
+use anyhow::{anyhow, Result};
+use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
-
-/// Standalone function to run a complete subagent task
-pub async fn run_complete_subagent_task(
-    text_instruction: String,
-    task_config: TaskConfig,
-) -> Result<String, anyhow::Error> {
-    run_complete_subagent_task_with_options(text_instruction, task_config, false).await
-}
+use std::pin::Pin;
+use std::{future::Future, sync::Arc};
+use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
-pub async fn run_complete_subagent_task_with_options(
+pub async fn run_complete_subagent_task(
     text_instruction: String,
     task_config: TaskConfig,
     return_last_only: bool,
 ) -> Result<String, anyhow::Error> {
-    // Create the subagent with the parent agent's provider
-    let subagent = SubAgent::new(task_config.clone()).await.map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to create subagent: {}", e),
-            None,
-        )
-    })?;
-
-    // Execute the subagent task
-    let messages = subagent
-        .reply_subagent(text_instruction, task_config)
-        .await?;
+    let messages = get_agent_messages(text_instruction, task_config)
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
 
     // Extract text content based on return_last_only flag
     let response_text = if return_last_only {
@@ -93,4 +92,96 @@ pub async fn run_complete_subagent_task_with_options(
 
     // Return the result
     Ok(response_text)
+}
+
+fn get_agent_messages(
+    text_instruction: String,
+    task_config: TaskConfig,
+) -> Pin<Box<dyn Future<Output = Result<Conversation>> + Send>> {
+    Box::pin(async move {
+        let agent_manager = AgentManager::instance()
+            .await
+            .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
+        let parent_session_id = task_config.parent_session_id;
+        let working_dir = task_config.parent_working_dir;
+        let (agent, session_id) = match parent_session_id {
+            Some(parent_session_id) => {
+                let session = SessionManager::create_session(
+                    working_dir.clone(),
+                    format!("Subagent task for: {}", parent_session_id),
+                )
+                .await
+                .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
+
+                let agent = agent_manager
+                    .get_or_create_agent(session.id.clone())
+                    .await
+                    .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+                (agent, Some(session.id))
+            }
+            None => {
+                let agent = Arc::new(Agent::new());
+                agent
+                    .extension_manager
+                    .set_context(PlatformExtensionContext {
+                        session_id: None,
+                        extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                        tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+                    })
+                    .await;
+                (agent, None)
+            }
+        };
+
+        agent
+            .update_provider(task_config.provider)
+            .await
+            .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
+
+        for extension in task_config.extensions {
+            if let Err(e) = agent.add_extension(extension.clone()).await {
+                debug!(
+                    "Failed to add extension '{}' to subagent: {}",
+                    extension.name(),
+                    e
+                );
+            }
+        }
+
+        let mut conversation =
+            Conversation::new_unvalidated(
+                vec![Message::user().with_text(text_instruction.clone())],
+            );
+        let session_config = if let Some(session_id) = session_id {
+            Some(SessionConfig {
+                id: session_id,
+                working_dir,
+                schedule_id: None,
+                execution_mode: None,
+                max_turns: task_config.max_turns.map(|v| v as u32),
+                retry_config: None,
+            })
+        } else {
+            None
+        };
+        let mut stream = agent
+            .reply(conversation.clone(), session_config, None)
+            .await
+            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+        while let Some(message_result) = stream.next().await {
+            match message_result {
+                Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
+                Err(e) => {
+                    tracing::error!("Error receiving message from subagent: {}", e);
+                    break;
+                }
+            }
+        }
+
+        Ok(conversation)
+    })
 }

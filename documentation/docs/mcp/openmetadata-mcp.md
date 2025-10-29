@@ -11,10 +11,10 @@ The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows Go
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mcp-remote&arghttp://localhost:8585/mcp&arg=--auth-server-url&arg=http://localhost:8585/mcp&id=openmetadata&name=OpenMetadata&description=OpenMetadata%20integration)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
@@ -34,7 +34,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="openmetadata"
       extensionName="OpenMetadata"
@@ -48,7 +48,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

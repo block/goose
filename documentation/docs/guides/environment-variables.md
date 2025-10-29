@@ -154,8 +154,6 @@ These variables control how Goose manages conversation sessions and context.
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
-| `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
-| `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
@@ -183,12 +181,6 @@ export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project
 
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
-
-# Use Temporal for scheduled recipes
-export GOOSE_SCHEDULER_TYPE=temporal
-
-# Custom Temporal binary (optional)
-export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
 
 # Disable random thinking messages for less distraction
 export GOOSE_RANDOM_THINKING_MESSAGES=false
@@ -239,6 +231,7 @@ These variables control how Goose handles [tool execution](/docs/guides/goose-pe
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
+| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "1", "true" (case insensitive) to enable | false |
 
 **Examples**
 
@@ -312,6 +305,31 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_URL` | Custom URL for Langfuse service | URL String | Default Langfuse URL |
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
+
+## Recipe Configuration
+
+These variables control recipe discovery and management.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_RECIPE_PATH` | Additional directories to search for recipes | Colon-separated paths on Unix, semicolon-separated on Windows | None |
+| `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository to search for recipes | Format: "owner/repo" (e.g., "block/goose-recipes") | None |
+| `GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS` | Global timeout for recipe success check commands | Integer (seconds) | Recipe-specific default |
+| `GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS` | Global timeout for recipe on_failure commands | Integer (seconds) | Recipe-specific default |
+
+**Examples**
+
+```bash
+# Add custom recipe directories
+export GOOSE_RECIPE_PATH="/path/to/my/recipes:/path/to/team/recipes"
+
+# Configure GitHub recipe repository
+export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
+
+# Set global recipe timeouts
+export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
+export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
+```
 
 ## Experimental Features
 

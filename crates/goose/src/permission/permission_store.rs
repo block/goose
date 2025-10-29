@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use crate::conversation::message::ToolRequest;
 use anyhow::Result;
 use blake3::Hasher;
 use chrono::Utc;
-use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -35,14 +35,10 @@ impl Default for ToolPermissionStore {
 
 impl ToolPermissionStore {
     pub fn new() -> Self {
-        let permissions_dir = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .map(|strategy| strategy.config_dir())
-            .unwrap_or_else(|_| PathBuf::from(".config/goose"));
-
         Self {
             permissions: HashMap::new(),
             version: 1,
-            permissions_dir,
+            permissions_dir: Paths::config_dir().join("permissions"),
         }
     }
 

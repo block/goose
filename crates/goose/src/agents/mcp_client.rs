@@ -133,7 +133,8 @@ impl ClientHandler for GooseClient {
             capabilities: ClientCapabilities::builder().build(),
             client_info: Implementation {
                 name: "goose".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
+                version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
+                    .unwrap_or(env!("CARGO_PKG_VERSION").to_owned()),
                 icons: None,
                 title: None,
                 website_url: None,

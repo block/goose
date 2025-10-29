@@ -49,6 +49,7 @@ describe('Agent API', () => {
   describe('extensionApiCall', () => {
     const mockExtensionConfig: ExtensionConfig = {
       type: 'stdio',
+      description: 'description',
       name: 'test-extension',
       cmd: 'python',
       args: ['script.py'],
@@ -237,6 +238,7 @@ describe('Agent API', () => {
     const mockExtensionConfig: ExtensionConfig = {
       type: 'stdio',
       name: 'Test Extension',
+      description: 'Test description',
       cmd: 'python',
       args: ['script.py'],
     };
@@ -286,6 +288,7 @@ describe('Agent API', () => {
       const sseConfig: ExtensionConfig = {
         type: 'sse',
         name: 'SSE Extension',
+        description: 'Test description',
         uri: 'http://localhost:8080/events',
       };
 
@@ -309,6 +312,31 @@ describe('Agent API', () => {
           session_id: 'test-session',
         }),
       });
+    });
+
+    it('should not mutate the original extension config', async () => {
+      const originalConfig: ExtensionConfig = {
+        type: 'stdio',
+        name: 'Extension Manager',
+        description: 'Test description',
+        cmd: 'python',
+        args: ['script.py'],
+      };
+
+      const mockResponse = {
+        ok: true,
+        text: vi.fn().mockResolvedValue('{"error": false}'),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const { replaceWithShims } = await import('./utils');
+      vi.mocked(replaceWithShims).mockResolvedValue('/path/to/shim');
+
+      await addToAgent(originalConfig, {}, 'test-session');
+
+      // Verify the original config was not mutated
+      expect(originalConfig.name).toBe('Extension Manager');
+      expect(originalConfig.cmd).toBe('python');
     });
   });
 

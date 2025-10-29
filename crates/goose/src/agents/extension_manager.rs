@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use rmcp::service::ClientInitializeError;
+use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
 };
@@ -24,12 +24,15 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use super::extension::{
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
+    ToolInfo, PLATFORM_EXTENSIONS,
+};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use rmcp::model::{
@@ -37,6 +40,7 @@ use rmcp::model::{
     ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
+use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
@@ -85,6 +89,7 @@ impl Extension {
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
+    context: Mutex<PlatformExtensionContext>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -234,7 +239,20 @@ impl ExtensionManager {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
+            context: Mutex::new(PlatformExtensionContext {
+                session_id: None,
+                extension_manager: None,
+                tool_route_manager: None,
+            }),
         }
+    }
+
+    pub async fn set_context(&self, context: PlatformExtensionContext) {
+        *self.context.lock().await = context;
+    }
+
+    pub async fn get_context(&self) -> PlatformExtensionContext {
+        self.context.lock().await.clone()
     }
 
     pub async fn supports_resources(&self) -> bool {
@@ -417,15 +435,36 @@ impl ExtensionManager {
                 available_tools: _,
             } => {
                 let cmd = std::env::current_exe()
-                    .expect("should find the current executable")
-                    .to_str()
-                    .expect("should resolve executable to string path")
-                    .to_string();
+                    .and_then(|path| {
+                        path.to_str().map(|s| s.to_string()).ok_or_else(|| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Invalid UTF-8 in executable path",
+                            )
+                        })
+                    })
+                    .map_err(|e| {
+                        ExtensionError::ConfigError(format!(
+                            "Failed to resolve executable path: {}",
+                            e
+                        ))
+                    })?;
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
                 let client = child_process_client(command, timeout).await?;
                 Box::new(client)
+            }
+            ExtensionConfig::Platform { name, .. } => {
+                // Normalize the name to match the key used in PLATFORM_EXTENSIONS
+                let normalized_key = normalize(name.clone());
+                let def = PLATFORM_EXTENSIONS
+                    .get(normalized_key.as_str())
+                    .ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
+                    })?;
+                let context = self.get_context().await;
+                (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
                 name,
@@ -453,7 +492,11 @@ impl ExtensionManager {
 
                 Box::new(client)
             }
-            _ => unreachable!(),
+            ExtensionConfig::Frontend { .. } => {
+                return Err(ExtensionError::ConfigError(
+                    "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
+                ));
+            }
         };
 
         let server_info = client.get_info().cloned();
@@ -506,7 +549,7 @@ impl ExtensionManager {
         Ok(())
     }
 
-    pub async fn suggest_disable_extensions_prompt(&self) -> Value {
+    pub async fn get_extension_and_tool_counts(&self) -> (usize, usize) {
         let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
@@ -515,31 +558,20 @@ impl ExtensionManager {
             .map(|tools| tools.len())
             .unwrap_or(0);
 
-        // Check if either condition is met
-        const MIN_EXTENSIONS: usize = 5;
-        const MIN_TOOLS: usize = 50;
-
-        if enabled_extensions_count > MIN_EXTENSIONS || total_tools > MIN_TOOLS {
-            Value::String(format!(
-                "The user currently has enabled {} extensions with a total of {} tools. \
-                Since this exceeds the recommended limits ({} extensions or {} tools), \
-                you should ask the user if they would like to disable some extensions for this session.\n\n\
-                Use the search_available_extensions tool to find extensions available to disable. \
-                You should only disable extensions found from the search_available_extensions tool. \
-                List all the extensions available to disable in the response. \
-                Explain that minimizing extensions helps with the recall of the correct tools to use.",
-                enabled_extensions_count,
-                total_tools,
-                MIN_EXTENSIONS,
-                MIN_TOOLS,
-            ))
-        } else {
-            Value::String(String::new()) // Empty string if under limits
-        }
+        (enabled_extensions_count, total_tools)
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.extensions.lock().await.keys().cloned().collect())
+    }
+
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .map(|ext| ext.config.clone())
+            .collect()
     }
 
     /// Get all tools from all clients with proper prefixing
@@ -662,9 +694,13 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-        for extension_name in self.extensions.lock().await.keys() {
+
+        // Collect extension names first to avoid holding the lock during iteration
+        let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
+
+        for extension_name in extension_names {
             let result = self
-                .read_resource_from_extension(uri, extension_name, cancellation_token.clone())
+                .read_resource_from_extension(uri, &extension_name, cancellation_token.clone())
                 .await;
             match result {
                 Ok(result) => return Ok(result),
@@ -890,7 +926,12 @@ impl ExtensionManager {
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
                 .map(|call| call.content)
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+                .map_err(|e| match e {
+                    ServiceError::McpError(error_data) => error_data,
+                    _ => {
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
+                    }
+                })
         };
 
         Ok(ToolCallResult {
@@ -1001,40 +1042,27 @@ impl ExtensionManager {
 
         // First get disabled extensions from current config
         let mut disabled_extensions: Vec<String> = vec![];
-        for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
+        for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
                 let description = match &config {
                     ExtensionConfig::Builtin {
-                        name, display_name, ..
+                        description,
+                        display_name,
+                        ..
                     } => {
-                        // For builtin extensions, use display name if available
-                        display_name
-                            .as_ref()
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| name.clone())
+                        if description.is_empty() {
+                            display_name.as_deref().unwrap_or("Built-in extension")
+                        } else {
+                            description
+                        }
                     }
-                    ExtensionConfig::Sse {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::StreamableHttp {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::Stdio {
-                        description, name, ..
-                    }
-                    | ExtensionConfig::InlinePython {
-                        description, name, ..
-                    } => {
-                        // For SSE/StreamableHttp/Stdio/InlinePython, use description if available
-                        description
-                            .as_ref()
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| format!("Extension '{}'", name))
-                    }
-                    ExtensionConfig::Frontend { name, .. } => {
-                        format!("Frontend extension '{}'", name)
-                    }
+                    ExtensionConfig::Platform { description, .. }
+                    | ExtensionConfig::Sse { description, .. }
+                    | ExtensionConfig::StreamableHttp { description, .. }
+                    | ExtensionConfig::Stdio { description, .. }
+                    | ExtensionConfig::Frontend { description, .. }
+                    | ExtensionConfig::InlinePython { description, .. } => description,
                 };
                 disabled_extensions.push(format!("- {} - {}", config.name(), description));
             }
@@ -1110,7 +1138,7 @@ mod tests {
             let config = ExtensionConfig::Builtin {
                 name: name.clone(),
                 display_name: Some(name.clone()),
-                description: None,
+                description: "built-in".to_string(),
                 timeout: None,
                 bundled: None,
                 available_tools,

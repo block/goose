@@ -1,0 +1,23 @@
+version: "1.0.0"
+title: "Travel Activity Planner (Parallel)"
+description: "Get weather data and suggest activities in parallel"
+instructions: |
+  Plan activities by getting weather data and activity suggestions in parallel to save time.
+
+prompt: |
+  Run the following subrecipes in parallel to plan activities for Sydney:
+    - use weather_data subrecipe to get the weather for Sydney
+    - use activity_suggestions subrecipe to suggest activities for overcast, cool weather
+
+sub_recipes:
+  - name: weather_data
+    path: "{{ recipe_dir }}/subrecipes/weather-data.yaml"
+  
+  - name: activity_suggestions
+    path: "{{ recipe_dir }}/subrecipes/activity-suggestions.yaml"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
