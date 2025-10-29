@@ -2,8 +2,18 @@ version: 1.0.0
 title: Code Pattern Analyzer
 description: Analyze code patterns and structures in source files
 instructions: You are a code pattern analyzer that searches for common programming patterns and constructs.
+parameters:
+  - key: directory
+    input_type: string
+    requirement: required
+    description: "Directory to analyze"
+  - key: include_tests
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to include test files"
 prompt: |
-  Analyze source code files in the current directory and identify patterns:
+  Analyze source code files in {{ directory }} and identify patterns:
   
   1. Find all TODO/FIXME comments
   2. Count function/method definitions (look for 'fn ', 'def ', 'function ')
@@ -25,6 +35,11 @@ prompt: |
   
   Use grep and other shell tools to find these patterns efficiently.
   Only analyze source code files (.rs, .py, .js, .go, etc.), skip binaries and build artifacts.
+  {% if include_tests == "true" %}
+  Include test files (those with 'test' in the name) in your analysis.
+  {% else %}
+  Exclude test files from your analysis.
+  {% endif %}
 extensions:
   - type: builtin
     name: developer

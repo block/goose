@@ -2,8 +2,13 @@ version: 1.0.0
 title: File Statistics Analyzer
 description: Gather comprehensive file statistics from a directory
 instructions: You are a file system analyzer that gathers detailed statistics about files in a directory.
+parameters:
+  - key: directory
+    input_type: string
+    requirement: required
+    description: "Directory to analyze"
 prompt: |
-  Analyze the current directory and generate file statistics:
+  Analyze {{ directory }} and generate file statistics:
   
   1. Count total files by extension (.rs, .yaml, .md, .toml, etc.)
   2. Calculate total lines of code across all text files
