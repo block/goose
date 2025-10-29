@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Technical Debt Tracker"
 description: "Comprehensive analysis of technical debt in a code repository including complexity, test coverage, documentation, dependencies, and code duplication"
 author:
