@@ -5,7 +5,6 @@ use goose::scheduler::{
     SchedulerError,
 };
 use goose::scheduler_factory::SchedulerFactory;
-use goose::temporal_scheduler::TemporalScheduler;
 use std::path::Path;
 
 // Base64 decoding function - might be needed if recipe_source_arg can be base64
@@ -260,74 +259,18 @@ pub async fn handle_schedule_run_now(id: String) -> Result<()> {
 }
 
 pub async fn handle_schedule_services_status() -> Result<()> {
-    // Check if we're using temporal scheduler
-    let scheduler_type =
-        std::env::var("GOOSE_SCHEDULER_TYPE").unwrap_or_else(|_| "temporal".to_string());
-
-    if scheduler_type != "temporal" {
-        println!("Service management is only available for temporal scheduler.");
-        println!("Set GOOSE_SCHEDULER_TYPE=temporal to use Temporal services.");
-        return Ok(());
-    }
-
-    println!("Checking Temporal services status...");
-
-    // Create a temporary TemporalScheduler to check status
-    match TemporalScheduler::new().await {
-        Ok(scheduler) => {
-            let info = scheduler.get_service_info().await;
-            println!("{}", info);
-        }
-        Err(e) => {
-            println!("❌ Failed to check services: {}", e);
-            println!();
-            println!("💡 This might mean:");
-            println!("   • Temporal CLI is not installed");
-            println!("   • temporal-service binary is not available");
-            println!("   • Services are not running");
-            println!();
-            println!("🔧 To fix this:");
-            println!("   1. Install Temporal CLI:");
-            println!("      macOS: brew install temporal");
-            println!("      Linux/Windows: https://github.com/temporalio/cli/releases");
-            println!("   2. Or use legacy scheduler: export GOOSE_SCHEDULER_TYPE=legacy");
-        }
-    }
-
+    println!("Service management has been removed as Temporal scheduler is no longer supported.");
+    println!(
+        "The built-in scheduler runs within the goose process and requires no external services."
+    );
     Ok(())
 }
 
 pub async fn handle_schedule_services_stop() -> Result<()> {
-    // Check if we're using temporal scheduler
-    let scheduler_type =
-        std::env::var("GOOSE_SCHEDULER_TYPE").unwrap_or_else(|_| "temporal".to_string());
-
-    if scheduler_type != "temporal" {
-        println!("Service management is only available for temporal scheduler.");
-        println!("Set GOOSE_SCHEDULER_TYPE=temporal to use Temporal services.");
-        return Ok(());
-    }
-
-    println!("Stopping Temporal services...");
-
-    // Create a temporary TemporalScheduler to stop services
-    match TemporalScheduler::new().await {
-        Ok(scheduler) => match scheduler.stop_services().await {
-            Ok(result) => {
-                println!("{}", result);
-                println!("\nNote: Services were running independently and have been stopped.");
-                println!("They will be automatically restarted when needed.");
-            }
-            Err(e) => {
-                println!("Failed to stop services: {}", e);
-            }
-        },
-        Err(e) => {
-            println!("Failed to initialize scheduler: {}", e);
-            println!("Services may not be running or may have already been stopped.");
-        }
-    }
-
+    println!("Service management has been removed as Temporal scheduler is no longer supported.");
+    println!(
+        "The built-in scheduler runs within the goose process and requires no external services."
+    );
     Ok(())
 }
 

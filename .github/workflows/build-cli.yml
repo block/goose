@@ -78,12 +78,6 @@ jobs:
         if: matrix.use-cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
-      # Install Go for building temporal-service
-      - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
-        with:
-          go-version: '1.21'
-
       # Cache Cargo registry and git dependencies for Windows builds
       - name: Cache Cargo registry (Windows)
         if: matrix.use-docker
@@ -231,140 +225,7 @@ jobs:
           echo "✅ Windows runtime DLLs:"
           ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
 
-      - name: Build temporal-service for target platform using build.sh script (Linux/macOS)
-        if: matrix.use-cross
-        run: |
-          source ./bin/activate-hermit
-          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
-
-          # Set Go cross-compilation variables based on target
-          case "${TARGET}" in
-            "x86_64-unknown-linux-gnu")
-              export GOOS=linux
-              export GOARCH=amd64
-              BINARY_NAME="temporal-service"
-              ;;
-            "aarch64-unknown-linux-gnu")
-              export GOOS=linux
-              export GOARCH=arm64
-              BINARY_NAME="temporal-service"
-              ;;
-            "x86_64-apple-darwin")
-              export GOOS=darwin
-              export GOARCH=amd64
-              BINARY_NAME="temporal-service"
-              ;;
-            "aarch64-apple-darwin")
-              export GOOS=darwin
-              export GOARCH=arm64
-              BINARY_NAME="temporal-service"
-              ;;
-            *)
-              echo "Unsupported target: ${TARGET}"
-              exit 1
-              ;;
-          esac
-
-          echo "Building temporal-service for ${GOOS}/${GOARCH} using build.sh script..."
-          cd temporal-service
-          # Run build.sh with cross-compilation environment
-          GOOS="${GOOS}" GOARCH="${GOARCH}" ./build.sh
-          # Move the built binary to the expected location
-          mv "${BINARY_NAME}" "../target/${TARGET}/release/${BINARY_NAME}"
-          echo "temporal-service built successfully for ${TARGET}"
-
-      - name: Build temporal-service for Windows
-        if: matrix.use-docker
-        run: |
-          echo "Building temporal-service for Windows using build.sh script..."
-          docker run --rm \
-            -v "$(pwd)":/usr/src/myapp \
-            -w /usr/src/myapp/temporal-service \
-            golang:latest \
-            sh -c "
-              # Make build.sh executable
-              chmod +x build.sh
-              # Set Windows build environment and run build script
-              GOOS=windows GOARCH=amd64 ./build.sh
-
-              # Move the built binary to the expected location (inside container)
-              mkdir -p ../target/x86_64-pc-windows-gnu/release
-              mv temporal-service.exe ../target/x86_64-pc-windows-gnu/release/temporal-service.exe
-
-              # Fix permissions for host access
-              chmod -R 755 ../target/x86_64-pc-windows-gnu
-            "
-          echo "temporal-service.exe built successfully for Windows"
-
-      - name: Download temporal CLI (Linux/macOS)
-        if: matrix.use-cross
-        run: |
-          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
-          TEMPORAL_VERSION="1.3.0"
-
-          # Set platform-specific download parameters
-          case "${TARGET}" in
-            "x86_64-unknown-linux-gnu")
-              TEMPORAL_OS="linux"
-              TEMPORAL_ARCH="amd64"
-              TEMPORAL_EXT=""
-              ;;
-            "aarch64-unknown-linux-gnu")
-              TEMPORAL_OS="linux"
-              TEMPORAL_ARCH="arm64"
-              TEMPORAL_EXT=""
-              ;;
-            "x86_64-apple-darwin")
-              TEMPORAL_OS="darwin"
-              TEMPORAL_ARCH="amd64"
-              TEMPORAL_EXT=""
-              ;;
-            "aarch64-apple-darwin")
-              TEMPORAL_OS="darwin"
-              TEMPORAL_ARCH="arm64"
-              TEMPORAL_EXT=""
-              ;;
-            *)
-              echo "Unsupported target for temporal CLI: ${TARGET}"
-              exit 1
-              ;;
-          esac
-
-          echo "Downloading temporal CLI for ${TEMPORAL_OS}/${TEMPORAL_ARCH}..."
-          TEMPORAL_FILE="temporal_cli_${TEMPORAL_VERSION}_${TEMPORAL_OS}_${TEMPORAL_ARCH}.tar.gz"
-          curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/${TEMPORAL_FILE}" -o "${TEMPORAL_FILE}"
-
-          # Extract temporal CLI
-          tar -xzf "${TEMPORAL_FILE}"
-          chmod +x temporal${TEMPORAL_EXT}
-
-          # Move to target directory
-          mv temporal${TEMPORAL_EXT} "target/${TARGET}/release/temporal${TEMPORAL_EXT}"
-
-          # Clean up
-          rm -f "${TEMPORAL_FILE}"
-          echo "temporal CLI downloaded successfully for ${TARGET}"
-
-      - name: Download temporal CLI (Windows)
-        if: matrix.use-docker
-        run: |
-          TEMPORAL_VERSION="1.3.0"
-          echo "Downloading temporal CLI for Windows..."
-          curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
-          unzip -o temporal-cli-windows.zip
-          chmod +x temporal.exe
-
-          # Fix permissions on target directory (created by Docker as root)
-          sudo chown -R $(whoami):$(whoami) target/x86_64-pc-windows-gnu/ || true
-
-          # Move to target directory
-          mv temporal.exe target/x86_64-pc-windows-gnu/release/temporal.exe
-
-          # Clean up
-          rm -f temporal-cli-windows.zip
-          echo "temporal CLI downloaded successfully for Windows"
-
-      - name: Package CLI with temporal-service (Linux/macOS)
+      - name: Package CLI (Linux/macOS)
         if: matrix.use-cross
         run: |
           source ./bin/activate-hermit
@@ -373,17 +234,15 @@ jobs:
           # Create a directory for the package contents
           mkdir -p "target/${TARGET}/release/goose-package"
 
-          # Copy binaries
+          # Copy the goose binary
           cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
-          cp "target/${TARGET}/release/temporal-service" "target/${TARGET}/release/goose-package/"
-          cp "target/${TARGET}/release/temporal" "target/${TARGET}/release/goose-package/"
 
-          # Create the tar archive with all binaries
+          # Create the tar archive
           cd "target/${TARGET}/release"
           tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
-      - name: Package CLI with temporal-service (Windows)
+      - name: Package CLI (Windows)
         if: matrix.use-docker
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
@@ -391,15 +250,13 @@ jobs:
           # Create a directory for the package contents
           mkdir -p "target/${TARGET}/release/goose-package"
 
-          # Copy binaries
+          # Copy the goose binary
           cp "target/${TARGET}/release/goose.exe" "target/${TARGET}/release/goose-package/"
-          cp "target/${TARGET}/release/temporal-service.exe" "target/${TARGET}/release/goose-package/"
-          cp "target/${TARGET}/release/temporal.exe" "target/${TARGET}/release/goose-package/"
 
           # Copy Windows runtime DLLs
           cp "target/${TARGET}/release/"*.dll "target/${TARGET}/release/goose-package/"
 
-          # Create the zip archive with all binaries and DLLs
+          # Create the zip archive with binary and DLLs
           cd "target/${TARGET}/release"
           zip -r "goose-${TARGET}.zip" goose-package/
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV

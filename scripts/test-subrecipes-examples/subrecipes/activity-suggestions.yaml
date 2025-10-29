@@ -1,0 +1,23 @@
+version: "1.0.0"
+title: "Activity Recommender"
+description: "Suggest activities based on weather conditions"
+instructions: |
+  You are a travel expert. Recommend appropriate activities and attractions
+  based on current weather conditions.
+
+parameters:
+  - key: weather_conditions
+    input_type: string
+    requirement: required
+    description: "Current weather conditions to base recommendations on"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  Based on these weather conditions: {{ weather_conditions }}, 
+  suggest appropriate activities, attractions, and travel tips.
+  Include both indoor and outdoor options as relevant.
