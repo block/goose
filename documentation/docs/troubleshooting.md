@@ -409,6 +409,201 @@ If you still encounter a `failed to connect` error, you can try using WSL's [Mir
 
 ---
 
+### WebSocket Extension Connection Issues
+
+If you're having trouble connecting to a WebSocket-based MCP extension, here are common issues and solutions:
+
+#### Connection Refused or Timeout
+
+**Symptoms:**
+- Error: `Failed to connect to WebSocket at ws://...`
+- Connection timeout errors
+- Extension fails to activate
+
+**Solutions:**
+1. **Verify the server is running:**
+   ```bash
+   # Check if the WebSocket server is listening
+   netstat -an | grep 8080  # Replace 8080 with your port
+   ```
+
+2. **Check the URL format:**
+   - Use `ws://` for unencrypted connections (local development)
+   - Use `wss://` for encrypted connections (production)
+   - Example: `ws://localhost:8080/mcp` or `wss://example.com/mcp`
+
+3. **Verify firewall settings:**
+   - Ensure your firewall allows connections to the WebSocket port
+   - For corporate networks, check with your IT department
+
+4. **Test the connection:**
+   ```bash
+   # Using websocat (install via: cargo install websocat)
+   websocat ws://localhost:8080/mcp
+   
+   # Or using wscat (install via: npm install -g wscat)
+   wscat -c ws://localhost:8080/mcp
+   ```
+
+#### Subprotocol Negotiation Errors
+
+**Symptoms:**
+- Error: `Invalid subprotocol: null, expected mcp`
+- Connection closes immediately after handshake
+- Server logs show subprotocol validation failures
+
+**Solutions:**
+1. **Ensure server supports the `mcp` subprotocol:**
+   - The WebSocket server must accept and echo the `Sec-WebSocket-Protocol: mcp` header
+   - Check your server's WebSocket configuration
+
+2. **Example server-side configuration (varies by framework):**
+   ```kotlin
+   // Kotlin/Misk example
+   webSocket("/mcp") {
+       if (call.request.headers["Sec-WebSocket-Protocol"] != "mcp") {
+           close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Invalid subprotocol"))
+           return@webSocket
+       }
+       // Accept the subprotocol
+       call.response.headers.append("Sec-WebSocket-Protocol", "mcp")
+   }
+   ```
+
+#### Premature Connection Closure
+
+**Symptoms:**
+- Connection establishes but closes immediately
+- No initialization message received
+- Server logs show `ClosedChannelException` or similar
+
+**Solutions:**
+1. **Check server message handling:**
+   - Ensure the server properly reads and processes JSON-RPC messages
+   - Verify the server sends responses for initialization requests
+
+2. **Enable debug logging:**
+   ```bash
+   RUST_LOG=debug goose session
+   ```
+   Look for connection and message flow details in the logs
+
+3. **Verify message format:**
+   - Messages should be JSON-RPC 2.0 formatted
+   - Each message should be sent as a complete WebSocket text frame
+   - Example initialization request:
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "method": "initialize",
+     "params": {
+       "protocolVersion": "2024-11-05",
+       "capabilities": {},
+       "clientInfo": {
+         "name": "goose",
+         "version": "0.9.6"
+       }
+     }
+   }
+   ```
+
+#### Authentication Issues
+
+**Symptoms:**
+- 401 Unauthorized errors
+- Connection rejected during handshake
+- Authentication headers not being sent
+
+**Solutions:**
+1. **Add custom headers in configuration:**
+   ```yaml
+   extensions:
+     my_websocket_extension:
+       type: websocket
+       uri: "wss://example.com/mcp"
+       headers:
+         Authorization: "Bearer YOUR_TOKEN_HERE"
+         X-Custom-Header: "value"
+   ```
+
+2. **Use environment variables for sensitive data:**
+   ```yaml
+   extensions:
+     my_websocket_extension:
+       type: websocket
+       uri: "wss://example.com/mcp"
+       env_keys: ["AUTH_TOKEN"]
+       envs: {}
+   ```
+   Then set: `export AUTH_TOKEN=your_token`
+
+#### SSL/TLS Certificate Errors
+
+**Symptoms:**
+- Error: `invalid certificate` or `certificate verify failed`
+- Connection fails with `wss://` URLs
+- Works with `ws://` but not `wss://`
+
+**Solutions:**
+1. **For self-signed certificates (development only):**
+   - Not currently supported directly; use a reverse proxy with valid certificates
+   - Consider using `ws://` for local development
+
+2. **For corporate/internal certificates:**
+   - Ensure your system's certificate store includes the necessary CA certificates
+   - Contact your IT department for certificate installation instructions
+
+#### Performance Issues
+
+**Symptoms:**
+- Slow response times
+- Timeouts on tool calls
+- Connection drops under load
+
+**Solutions:**
+1. **Adjust timeout settings:**
+   ```yaml
+   extensions:
+     my_websocket_extension:
+       type: websocket
+       uri: "ws://localhost:8080/mcp"
+       timeout: 600  # Increase from default 300 seconds
+   ```
+
+2. **Check network latency:**
+   ```bash
+   # Measure round-trip time
+   ping your-websocket-server.com
+   ```
+
+3. **Monitor server resources:**
+   - Check CPU and memory usage on the WebSocket server
+   - Review server logs for performance issues
+
+#### Debugging Tips
+
+1. **Enable verbose logging:**
+   ```bash
+   RUST_LOG=debug,goose=trace goose session
+   ```
+
+2. **Check logs location:**
+   - Logs are written to stderr by default
+   - Redirect to file: `goose session 2> goose.log`
+
+3. **Test with a simple WebSocket client:**
+   ```bash
+   # Send a test message
+   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | websocat ws://localhost:8080/mcp
+   ```
+
+4. **Verify server-side logs:**
+   - Check your WebSocket server's logs for errors
+   - Look for connection attempts, handshake details, and message processing
+
+---
+
 ### Airgapped/Offline Environment Issues
 
 If you're working in an airgapped, offline, or corporate-restricted environment, you may encounter issues where MCP server extensions fail to activate or download their runtime dependencies.

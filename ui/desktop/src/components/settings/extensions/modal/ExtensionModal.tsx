@@ -216,7 +216,8 @@ export default function ExtensionModal({
       (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '') ||
       (formData.type === 'streamable_http' &&
         !!formData.endpoint &&
-        formData.endpoint.trim() !== '')
+        formData.endpoint.trim() !== '') ||
+      (formData.type === 'websocket' && !!formData.endpoint && formData.endpoint.trim() !== '')
     );
   };
 
@@ -408,6 +409,25 @@ export default function ExtensionModal({
                 </>
               )}
             </div>
+          )}
+
+          {/* Request Headers - For streamable_http and websocket */}
+          {(formData.type === 'streamable_http' || formData.type === 'websocket') && (
+            <>
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle mb-4" />
+
+              <div className="mb-6">
+                <HeadersSection
+                  headers={formData.headers}
+                  onAdd={handleAddHeader}
+                  onRemove={handleRemoveHeader}
+                  onChange={handleHeaderChange}
+                  submitAttempted={submitAttempted}
+                  onPendingInputChange={handlePendingHeaderChange}
+                />
+              </div>
+            </>
           )}
 
           <DialogFooter className="pt-2">

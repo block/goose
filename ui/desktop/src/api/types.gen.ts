@@ -247,6 +247,22 @@ export type ExtensionConfig = {
      */
     timeout?: number | null;
     type: 'inline_python';
+} | {
+    available_tools?: Array<string>;
+    bundled?: boolean | null;
+    description: string;
+    env_keys?: Array<string>;
+    envs?: Envs;
+    headers?: {
+        [key: string]: string;
+    };
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    timeout?: number | null;
+    type: 'websocket';
+    uri: string;
 };
 
 /**

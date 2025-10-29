@@ -323,6 +323,25 @@ pub enum ExtensionConfig {
         #[serde(default)]
         available_tools: Vec<String>,
     },
+    /// WebSocket client with a URI endpoint
+    #[serde(rename = "websocket")]
+    WebSocket {
+        /// The name used to identify this extension
+        name: String,
+        description: String,
+        uri: String,
+        #[serde(default)]
+        envs: Envs,
+        #[serde(default)]
+        env_keys: Vec<String>,
+        #[serde(default)]
+        headers: HashMap<String, String>,
+        timeout: Option<u64>,
+        #[serde(default)]
+        bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
+    },
 }
 
 impl Default for ExtensionConfig {
@@ -452,6 +471,7 @@ impl ExtensionConfig {
             Self::Platform { name, .. } => name,
             Self::Frontend { name, .. } => name,
             Self::InlinePython { name, .. } => name,
+            Self::WebSocket { name, .. } => name,
         }
         .to_string()
     }
@@ -478,6 +498,9 @@ impl ExtensionConfig {
                 available_tools, ..
             }
             | Self::Frontend {
+                available_tools, ..
+            }
+            | Self::WebSocket {
                 available_tools, ..
             } => available_tools,
         };
@@ -507,6 +530,9 @@ impl std::fmt::Display for ExtensionConfig {
             }
             ExtensionConfig::InlinePython { name, code, .. } => {
                 write!(f, "InlinePython({}: {} chars)", name, code.len())
+            }
+            ExtensionConfig::WebSocket { name, uri, .. } => {
+                write!(f, "WebSocket({}: {})", name, uri)
             }
         }
     }

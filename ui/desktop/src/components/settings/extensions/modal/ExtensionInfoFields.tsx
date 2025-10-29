@@ -3,7 +3,7 @@ import { Select } from '../../../ui/Select';
 
 interface ExtensionInfoFieldsProps {
   name: string;
-  type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';
+  type: 'stdio' | 'sse' | 'streamable_http' | 'websocket' | 'builtin';
   description: string;
   onChange: (key: string, value: string) => void;
   submitAttempted: boolean;
@@ -52,7 +52,9 @@ export default function ExtensionInfoFields({
                     ? 'SSE'
                     : type === 'streamable_http'
                       ? 'HTTP'
-                      : type.toUpperCase(),
+                      : type === 'websocket'
+                        ? 'WebSocket'
+                        : type.toUpperCase(),
             }}
             onChange={(newValue: unknown) => {
               const option = newValue as { value: string; label: string } | null;
@@ -64,6 +66,7 @@ export default function ExtensionInfoFields({
               { value: 'stdio', label: 'Standard IO (STDIO)' },
               { value: 'sse', label: 'Server-Sent Events (SSE)' },
               { value: 'streamable_http', label: 'Streamable HTTP' },
+              { value: 'websocket', label: 'WebSocket' },
             ]}
             isSearchable={false}
           />

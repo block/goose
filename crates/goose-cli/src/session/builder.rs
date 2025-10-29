@@ -414,6 +414,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     spinner.clear();
 
     for (name, err) in offer_debug {
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Failed to start extension '{}': {}",
+                name, err
+            ))
+            .yellow()
+        );
+
         if let Err(debug_err) = offer_extension_debugging_help(
             &name,
             &err.to_string(),

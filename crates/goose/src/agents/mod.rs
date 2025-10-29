@@ -25,6 +25,7 @@ mod tool_execution;
 mod tool_route_manager;
 mod tool_router_index_manager;
 pub mod types;
+pub mod websocket_transport;
 
 pub use agent::{Agent, AgentEvent};
 pub use extension::ExtensionConfig;

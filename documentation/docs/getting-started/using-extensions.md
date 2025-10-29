@@ -153,6 +153,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
       - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
+      - `Remote Extension (WebSocket)`: Connect to a remote system via WebSocket
 
   4. Follow the prompts based on the type of extension you selected.
 
@@ -318,6 +319,32 @@ For example, a deeplink for a URL like `https://example.com/streamable` would lo
 
 ```
 goose://extension?url=https%3A%2F%2Fexample.com%2Fstreamable&type=streamable_http&timeout=<timeout>&id=<id>&name=<n>&description=<description>
+```
+
+  </TabItem>
+  <TabItem value="websocket" label="WebSocket">
+```
+goose://extension?url=<remote-websocket-url>&type=websocket&id=<id>&name=<name>&description=<description>
+```
+
+Parameters:
+- `url`: The URL of the remote WebSocket server
+- `type`: Must be set to `websocket` to specify the protocol type
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+For example, a deeplink for a URL like `ws://localhost:8080/mcp` would look like this when URL-encoded:
+
+```
+goose://extension?url=ws%3A%2F%2Flocalhost%3A8080%2Fmcp&type=websocket&timeout=<timeout>&id=<id>&name=<name>&description=<description>
+```
+
+For secure WebSocket connections (WSS), use a URL like `wss://example.com/mcp`:
+
+```
+goose://extension?url=wss%3A%2F%2Fexample.com%2Fmcp&type=websocket&timeout=<timeout>&id=<id>&name=<name>&description=<description>
 ```
 
   </TabItem>
@@ -661,6 +688,34 @@ For example, to start a session with a Streaming HTTP extension, you'd run:
 ```bash
 goose session --with-streamable-http-extension "https://example.com/streamable"
 ```
+
+### Remote Extensions over WebSocket
+
+To enable a remote extension over WebSocket while starting a session, run the following command:
+
+```bash
+goose session --with-websocket-extension "{extension URL}" --with-websocket-extension "{another extension URL}"
+```
+
+For example, to start a session with a WebSocket extension running on localhost on port 8080, you'd run:
+
+```bash
+goose session --with-websocket-extension "ws://localhost:8080/mcp"
+```
+
+For secure WebSocket connections (WSS), use:
+
+```bash
+goose session --with-websocket-extension "wss://example.com/mcp"
+```
+
+:::tip WebSocket Benefits
+WebSocket extensions provide:
+- **Low latency**: Bidirectional communication with minimal overhead
+- **Real-time updates**: Server can push notifications and updates
+- **Persistent connections**: Reduced connection overhead for long-running sessions
+- **Better performance**: Ideal for high-frequency tool calls
+:::
 
 ## Developing Extensions
 

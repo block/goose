@@ -104,6 +104,24 @@ enum RecipeExtensionConfigInternal {
         #[serde(default)]
         available_tools: Vec<String>,
     },
+    #[serde(rename = "websocket")]
+    WebSocket {
+        name: String,
+        #[serde(default)]
+        description: Option<String>,
+        uri: String,
+        #[serde(default)]
+        envs: Envs,
+        #[serde(default)]
+        env_keys: Vec<String>,
+        #[serde(default)]
+        headers: HashMap<String, String>,
+        timeout: Option<u64>,
+        #[serde(default)]
+        bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
+    },
 }
 
 macro_rules! map_recipe_extensions {
@@ -174,6 +192,15 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 code,
                 timeout,
                 dependencies,
+                available_tools
+            },
+            WebSocket {
+                uri,
+                envs,
+                env_keys,
+                headers,
+                timeout,
+                bundled,
                 available_tools
             }
         )
@@ -273,6 +300,98 @@ mod tests {
                 assert_eq!(name, "null-description-builtin");
                 assert_eq!(description, "");
                 assert!(display_name.is_none());
+                assert!(timeout.is_none());
+                assert!(bundled.is_none());
+                assert!(available_tools.is_empty());
+            }
+            other => panic!("unexpected extension variant: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn websocket_extension_with_headers() {
+        let wrapper: Wrapper = serde_json::from_value(json!({
+            "extensions": [{
+                "type": "websocket",
+                "name": "test-websocket",
+                "description": "Test WebSocket extension",
+                "uri": "ws://localhost:8080/mcp",
+                "headers": {
+                    "Authorization": "Bearer token123",
+                    "X-Custom-Header": "custom-value"
+                },
+                "timeout": 60,
+                "bundled": false,
+                "available_tools": ["tool1", "tool2"]
+            }]
+        }))
+        .expect("failed to deserialize websocket extension");
+
+        let extensions = wrapper.extensions.expect("expected extensions");
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::WebSocket {
+                name,
+                description,
+                uri,
+                headers,
+                timeout,
+                bundled,
+                available_tools,
+                ..
+            } => {
+                assert_eq!(name, "test-websocket");
+                assert_eq!(description, "Test WebSocket extension");
+                assert_eq!(uri, "ws://localhost:8080/mcp");
+                assert_eq!(
+                    headers.get("Authorization"),
+                    Some(&"Bearer token123".to_string())
+                );
+                assert_eq!(
+                    headers.get("X-Custom-Header"),
+                    Some(&"custom-value".to_string())
+                );
+                assert_eq!(*timeout, Some(60));
+                assert_eq!(*bundled, Some(false));
+                assert_eq!(
+                    available_tools,
+                    &vec!["tool1".to_string(), "tool2".to_string()]
+                );
+            }
+            other => panic!("unexpected extension variant: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn websocket_extension_defaults_empty_headers() {
+        let wrapper: Wrapper = serde_json::from_value(json!({
+            "extensions": [{
+                "type": "websocket",
+                "name": "test-websocket-no-headers",
+                "uri": "wss://example.com/mcp"
+            }]
+        }))
+        .expect("failed to deserialize websocket extension without headers");
+
+        let extensions = wrapper.extensions.expect("expected extensions");
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::WebSocket {
+                name,
+                description,
+                uri,
+                headers,
+                timeout,
+                bundled,
+                available_tools,
+                ..
+            } => {
+                assert_eq!(name, "test-websocket-no-headers");
+                assert_eq!(description, "");
+                assert_eq!(uri, "wss://example.com/mcp");
+                assert!(headers.is_empty());
                 assert!(timeout.is_none());
                 assert!(bundled.is_none());
                 assert!(available_tools.is_empty());

@@ -54,6 +54,7 @@ fn extract_secrets_from_extensions(
             ExtensionConfig::Sse { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::Stdio { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::StreamableHttp { name, env_keys, .. } => (name, env_keys),
+            ExtensionConfig::WebSocket { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::Builtin { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Platform { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Frontend { name, .. } => (name, &Vec::new()),

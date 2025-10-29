@@ -774,4 +774,60 @@ isGlobal: true"#;
             panic!("Expected Stdio extension");
         }
     }
+
+    #[test]
+    fn test_websocket_extension_with_headers() {
+        let content = r#"
+version: "1.0.0"
+title: "Test WebSocket Headers"
+description: "Test recipe to verify WebSocket extension headers"
+instructions: "Test WebSocket extension with custom headers"
+
+extensions:
+  - type: websocket
+    name: test-websocket-server
+    description: "Test WebSocket MCP server"
+    uri: "ws://localhost:8080/mcp"
+    headers:
+      Authorization: "Bearer test-token-123"
+      X-Custom-Header: "custom-value"
+      X-API-Key: "api-key-456"
+    timeout: 60
+"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert_eq!(recipe.title, "Test WebSocket Headers");
+        assert!(recipe.extensions.is_some());
+
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::WebSocket {
+                name,
+                uri,
+                headers,
+                timeout,
+                description,
+                ..
+            } => {
+                assert_eq!(name, "test-websocket-server");
+                assert_eq!(uri, "ws://localhost:8080/mcp");
+                assert_eq!(description, "Test WebSocket MCP server");
+                assert_eq!(*timeout, Some(60));
+                assert_eq!(headers.len(), 3);
+                assert_eq!(
+                    headers.get("Authorization"),
+                    Some(&"Bearer test-token-123".to_string())
+                );
+                assert_eq!(
+                    headers.get("X-Custom-Header"),
+                    Some(&"custom-value".to_string())
+                );
+                assert_eq!(headers.get("X-API-Key"), Some(&"api-key-456".to_string()));
+            }
+            _ => panic!("Expected WebSocket extension"),
+        }
+    }
 }

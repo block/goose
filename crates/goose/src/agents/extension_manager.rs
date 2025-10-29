@@ -499,6 +499,45 @@ impl ExtensionManager {
 
                 Box::new(client)
             }
+            ExtensionConfig::WebSocket {
+                uri,
+                timeout,
+                headers,
+                ..
+            } => {
+                use crate::agents::websocket_transport::{
+                    WebSocketTransport, WebSocketTransportConfig,
+                };
+                use tracing::debug;
+
+                debug!("Setting up WebSocket extension for URI: {}", uri);
+
+                // Convert HTTP/HTTPS URLs to WebSocket URLs if needed, with custom headers
+                let config =
+                    WebSocketTransportConfig::from_http_url_with_headers(uri, headers.clone());
+                let transport = WebSocketTransport::new(config);
+
+                debug!("Connecting WebSocket transport");
+                let transport = transport.connect().await.map_err(|e| {
+                    error!("WebSocket connection failed: {:?}", e);
+                    ExtensionError::SetupError(format!(
+                        "Failed to connect to WebSocket at {}: {:?}",
+                        uri, e
+                    ))
+                })?;
+
+                debug!("WebSocket transport connected, starting MCP client initialization");
+                let client = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                )
+                .await?;
+
+                debug!("MCP client initialized successfully over WebSocket");
+                Box::new(client)
+            }
             ExtensionConfig::Frontend { .. } => {
                 return Err(ExtensionError::ConfigError(
                     "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
@@ -1069,7 +1108,8 @@ impl ExtensionManager {
                     | ExtensionConfig::StreamableHttp { description, .. }
                     | ExtensionConfig::Stdio { description, .. }
                     | ExtensionConfig::Frontend { description, .. }
-                    | ExtensionConfig::InlinePython { description, .. } => description,
+                    | ExtensionConfig::InlinePython { description, .. }
+                    | ExtensionConfig::WebSocket { description, .. } => description,
                 };
                 disabled_extensions.push(format!("- {} - {}", config.name(), description));
             }

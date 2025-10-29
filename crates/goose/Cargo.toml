@@ -24,6 +24,7 @@ rmcp = { workspace = true, features = [
     "transport-sse-client-reqwest",
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
+    "transport-async-rw",
 ] }
 anyhow = "1.0"
 thiserror = "1.0"
@@ -108,6 +109,10 @@ insta = "1.43.2"
 paste = "1.0.0"
 shellexpand = "3.1.1"
 
+
+# WebSocket support
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
