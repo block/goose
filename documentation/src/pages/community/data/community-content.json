@@ -146,9 +146,9 @@
         "handle": "Shreyanshsingh23"
       },
       "type": "blog",
-      "url": "YOUR_BLOG_POST_URL",
+      "url": "https://medium.com/@shreyanshrewa/creating-and-sharing-effective-goose-recipes-abf9767d5128",
       "thumbnail": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=400&h=225&fit=crop&crop=entropy&auto=format",
-      "submittedDate": "YYYY-MM-DD",
+      "submittedDate": "2025-10-29",
       "tags": [
         "hacktoberfest",
         "goose",
