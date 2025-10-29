@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,11 +15,11 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
@@ -81,9 +81,7 @@ struct DiskCache {
 
 impl DiskCache {
     fn new() -> Self {
-        let cache_path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("githubcopilot/info.json");
+        let cache_path = Paths::in_config_dir("githubcopilot/info.json");
         Self { cache_path }
     }
 
@@ -115,12 +113,12 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(GithubCopilotProvider);
-
 impl GithubCopilotProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -131,6 +129,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -396,6 +395,10 @@ impl Provider for GithubCopilotProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -412,6 +415,7 @@ impl Provider for GithubCopilotProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
         let response = self
@@ -428,7 +432,7 @@ impl Provider for GithubCopilotProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

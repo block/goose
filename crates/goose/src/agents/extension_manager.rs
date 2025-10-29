@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use rmcp::service::ClientInitializeError;
+use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
 };
@@ -32,7 +32,8 @@ use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::search_path::search_path_var;
+use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use rmcp::model::{
@@ -40,6 +41,7 @@ use rmcp::model::{
     ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
+use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
@@ -181,6 +183,12 @@ async fn child_process_client(
     command.process_group(0);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW_FLAG);
+
+    command.env(
+        "PATH",
+        search_path_var().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
+    );
+
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;
@@ -238,7 +246,11 @@ impl ExtensionManager {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
-            context: Mutex::new(PlatformExtensionContext { session_id: None }),
+            context: Mutex::new(PlatformExtensionContext {
+                session_id: None,
+                extension_manager: None,
+                tool_route_manager: None,
+            }),
         }
     }
 
@@ -451,9 +463,13 @@ impl ExtensionManager {
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
-                let def = PLATFORM_EXTENSIONS.get(name.as_str()).ok_or_else(|| {
-                    ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
-                })?;
+                // Normalize the name to match the key used in PLATFORM_EXTENSIONS
+                let normalized_key = normalize(name.clone());
+                let def = PLATFORM_EXTENSIONS
+                    .get(normalized_key.as_str())
+                    .ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
+                    })?;
                 let context = self.get_context().await;
                 (def.client_factory)(context)
             }
@@ -540,7 +556,7 @@ impl ExtensionManager {
         Ok(())
     }
 
-    pub async fn suggest_disable_extensions_prompt(&self) -> Value {
+    pub async fn get_extension_and_tool_counts(&self) -> (usize, usize) {
         let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
@@ -549,31 +565,20 @@ impl ExtensionManager {
             .map(|tools| tools.len())
             .unwrap_or(0);
 
-        // Check if either condition is met
-        const MIN_EXTENSIONS: usize = 5;
-        const MIN_TOOLS: usize = 50;
-
-        if enabled_extensions_count > MIN_EXTENSIONS || total_tools > MIN_TOOLS {
-            Value::String(format!(
-                "The user currently has enabled {} extensions with a total of {} tools. \
-                Since this exceeds the recommended limits ({} extensions or {} tools), \
-                you should ask the user if they would like to disable some extensions for this session.\n\n\
-                Use the search_available_extensions tool to find extensions available to disable. \
-                You should only disable extensions found from the search_available_extensions tool. \
-                List all the extensions available to disable in the response. \
-                Explain that minimizing extensions helps with the recall of the correct tools to use.",
-                enabled_extensions_count,
-                total_tools,
-                MIN_EXTENSIONS,
-                MIN_TOOLS,
-            ))
-        } else {
-            Value::String(String::new()) // Empty string if under limits
-        }
+        (enabled_extensions_count, total_tools)
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.extensions.lock().await.keys().cloned().collect())
+    }
+
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .map(|ext| ext.config.clone())
+            .collect()
     }
 
     /// Get all tools from all clients with proper prefixing
@@ -696,9 +701,13 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-        for extension_name in self.extensions.lock().await.keys() {
+
+        // Collect extension names first to avoid holding the lock during iteration
+        let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
+
+        for extension_name in extension_names {
             let result = self
-                .read_resource_from_extension(uri, extension_name, cancellation_token.clone())
+                .read_resource_from_extension(uri, &extension_name, cancellation_token.clone())
                 .await;
             match result {
                 Ok(result) => return Ok(result),
@@ -924,7 +933,12 @@ impl ExtensionManager {
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
                 .map(|call| call.content)
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+                .map_err(|e| match e {
+                    ServiceError::McpError(error_data) => error_data,
+                    _ => {
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
+                    }
+                })
         };
 
         Ok(ToolCallResult {
@@ -1035,7 +1049,7 @@ impl ExtensionManager {
 
         // First get disabled extensions from current config
         let mut disabled_extensions: Vec<String> = vec![];
-        for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
+        for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
                 let description = match &config {

@@ -29,7 +29,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 }
 
 use super::agent::{tool_stream, ToolStream};
-use crate::agents::Agent;
+use crate::agents::{Agent, SessionConfig};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::tool_inspection::get_security_finding_id_from_results;
 
@@ -53,6 +53,7 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
+        session: Option<SessionConfig>,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
@@ -83,6 +84,8 @@ impl Agent {
                             // Log user decision if this was a security alert
                             if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                                 tracing::info!(
+                                    counter.goose.prompt_injection_user_decisions = 1,
+                                    decision = ?confirmation.permission,
                                     "🔒 User security decision: {:?} for finding ID: {}",
                                     confirmation.permission,
                                     finding_id
@@ -90,7 +93,7 @@ impl Agent {
                             }
 
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session.clone()).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {

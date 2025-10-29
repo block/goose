@@ -86,7 +86,9 @@ export function SessionInsights() {
 
   const handleSessionClick = async (session: Session) => {
     try {
-      resumeSession(session);
+      resumeSession(session, (sessionId: string) => {
+        navigate(`/pair?resumeSessionId=${sessionId}`);
+      });
     } catch (error) {
       console.error('Failed to start session:', error);
       navigate('/sessions', {
@@ -332,9 +334,7 @@ export function SessionInsights() {
                     >
                       <div className="flex items-center space-x-2">
                         <ChatSmart className="h-4 w-4 text-text-muted" />
-                        <span className="truncate max-w-[300px]">
-                          {session.description || session.id}
-                        </span>
+                        <span className="truncate max-w-[300px]">{session.name}</span>
                       </div>
                       <span className="text-text-muted font-mono font-light">
                         {formatDateOnly(session.updated_at)}

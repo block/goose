@@ -12,7 +12,7 @@ import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
-import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api';
@@ -329,6 +329,20 @@ export default function ExtensionModal({
             </div>
           ) : (
             <div className="py-4 space-y-6">
+              {formData.installation_notes && (
+                <div className="bg-bgSubtle border border-borderSubtle rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-medium text-textStandard mb-1">
+                        Installation Notes
+                      </h4>
+                      <p className="text-sm text-textSubtle">{formData.installation_notes}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Form Fields */}
               {/* Name and Type */}
               <ExtensionInfoFields
@@ -339,7 +353,6 @@ export default function ExtensionModal({
                 submitAttempted={submitAttempted}
               />
 
-              {/* Divider */}
               <hr className="border-t border-borderSubtle" />
 
               {/* Command */}
@@ -360,40 +373,41 @@ export default function ExtensionModal({
                 />
               </div>
 
-              {/* Divider */}
-              <hr className="border-t border-borderSubtle" />
+              {formData.type === 'stdio' && (
+                <>
+                  <hr className="border-t border-borderSubtle" />
 
-              {/* Environment Variables */}
-              <div>
-                <EnvVarsSection
-                  envVars={formData.envVars}
-                  onAdd={handleAddEnvVar}
-                  onRemove={handleRemoveEnvVar}
-                  onChange={handleEnvVarChange}
-                  submitAttempted={submitAttempted}
-                  onPendingInputChange={setHasPendingEnvVars}
-                />
-              </div>
+                  <div>
+                    <EnvVarsSection
+                      envVars={formData.envVars}
+                      onAdd={handleAddEnvVar}
+                      onRemove={handleRemoveEnvVar}
+                      onChange={handleEnvVarChange}
+                      submitAttempted={submitAttempted}
+                      onPendingInputChange={setHasPendingEnvVars}
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.type === 'streamable_http' && (
+                <>
+                  {/* Divider */}
+                  <hr className="border-t border-borderSubtle" />
+
+                  <div>
+                    <HeadersSection
+                      headers={formData.headers}
+                      onAdd={handleAddHeader}
+                      onRemove={handleRemoveHeader}
+                      onChange={handleHeaderChange}
+                      submitAttempted={submitAttempted}
+                      onPendingInputChange={handlePendingHeaderChange}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          )}
-
-          {/* Request Headers - Only for streamable_http */}
-          {formData.type === 'streamable_http' && (
-            <>
-              {/* Divider */}
-              <hr className="border-t border-borderSubtle mb-4" />
-
-              <div className="mb-6">
-                <HeadersSection
-                  headers={formData.headers}
-                  onAdd={handleAddHeader}
-                  onRemove={handleRemoveHeader}
-                  onChange={handleHeaderChange}
-                  submitAttempted={submitAttempted}
-                  onPendingInputChange={handlePendingHeaderChange}
-                />
-              </div>
-            </>
           )}
 
           <DialogFooter className="pt-2">

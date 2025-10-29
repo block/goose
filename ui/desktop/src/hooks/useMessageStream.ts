@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
+import {
+  createUserMessage,
+  getThinkingMessage,
+  getCompactingMessage,
+  hasCompletedToolCalls,
+} from '../types/message';
+import { Conversation, Message, Role } from '../api';
+
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
@@ -32,6 +39,7 @@ type MessageEvent =
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -304,6 +312,12 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
+                    if (getCompactingMessage(newMessage)) {
+                      mutateChatState(ChatState.Compacting);
+                    } else if (getThinkingMessage(newMessage)) {
+                      mutateChatState(ChatState.Thinking);
+                    }
+
                     mutate(currentMessages, false);
                     break;
                   }
@@ -323,6 +337,12 @@ export function useMessageStream({
                       mode: parsedEvent.mode,
                     };
                     setCurrentModelInfo(modelInfo);
+                    break;
+                  }
+
+                  case 'UpdateConversation': {
+                    currentMessages = parsedEvent.conversation;
+                    setMessages(parsedEvent.conversation);
                     break;
                   }
 
@@ -382,6 +402,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
@@ -578,6 +599,7 @@ export function useMessageStream({
         id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
+        metadata: { userVisible: true, agentVisible: true },
         content: [
           {
             type: 'toolResponse' as const,
@@ -626,7 +648,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    session: session,
+    session,
     setError,
   };
 }

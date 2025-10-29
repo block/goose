@@ -1,0 +1,23 @@
+version: "1.0.0"
+title: "Weather Data Collector"
+description: "Fetch current weather conditions for a location"
+instructions: |
+  You are a weather data specialist. Gather current weather information
+  including temperature, conditions, and seasonal context.
+
+parameters:
+  - key: location
+    input_type: string
+    requirement: required
+    description: "City or location to get weather data for"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  Get the current weather conditions for {{ location }}.
+  Include temperature, weather conditions (sunny, rainy, etc.), 
+  and any relevant seasonal information.

@@ -69,7 +69,7 @@ jobs:
            run: |
               mkdir -p /home/runner/.local/bin
               curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-              | CONFIGURE=false INSTALL_PATH=/home/runner/.local/bin bash
+              | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
               echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
          - name: Configure Goose
@@ -159,7 +159,7 @@ steps:
       run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-            | CONFIGURE=false INSTALL_PATH=/home/runner/.local/bin bash
+            | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
           echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
     - name: Configure Goose

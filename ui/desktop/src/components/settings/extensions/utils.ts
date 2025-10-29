@@ -36,6 +36,7 @@ export interface ExtensionFormData {
     value: string;
     isEdited?: boolean;
   }[];
+  installation_notes?: string;
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -110,6 +111,9 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
     headers,
+    installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
+      | string
+      | undefined,
   };
 }
 
@@ -184,41 +188,6 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
   return [cmd, ...args].join(' ');
-}
-
-export async function replaceWithShims(cmd: string) {
-  const binaryPathMap: Record<string, string> = {
-    goosed: await window.electron.getBinaryPath('goosed'),
-    jbang: await window.electron.getBinaryPath('jbang'),
-    npx: await window.electron.getBinaryPath('npx'),
-    uvx: await window.electron.getBinaryPath('uvx'),
-  };
-
-  if (binaryPathMap[cmd]) {
-    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
-    cmd = binaryPathMap[cmd];
-  }
-
-  return cmd;
-}
-
-export function removeShims(cmd: string) {
-  // Only remove shims if the path matches our known shim patterns
-  const shimPatterns = [/cu$/, /goosed$/, /docker$/, /jbang$/, /npx$/, /uvx$/, /npx.cmd$/];
-
-  // Check if the command matches any shim pattern
-  const isShim = shimPatterns.some((pattern) => pattern.test(cmd));
-
-  if (isShim) {
-    const segments = cmd.split('/');
-    // Filter out any empty segments (which can happen with trailing slashes)
-    const nonEmptySegments = segments.filter((segment) => segment.length > 0);
-    // Return the last segment or empty string if there are no segments
-    return nonEmptySegments.length > 0 ? nonEmptySegments[nonEmptySegments.length - 1] : '';
-  }
-
-  // If it's not a shim, return the original command
-  return cmd;
 }
 
 export function extractCommand(link: string): string {

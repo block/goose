@@ -1,9 +1,7 @@
+use crate::config::paths::Paths;
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
-
-use crate::config::APP_STRATEGY;
 
 /// Returns the directory where log files should be stored for a specific component.
 /// Creates the directory structure if it doesn't exist.
@@ -12,17 +10,8 @@ use crate::config::APP_STRATEGY;
 ///
 /// * `component` - The component name (e.g., "cli", "server", "debug")
 /// * `use_date_subdir` - Whether to create a date-based subdirectory
-///
-/// # Returns
-///
-/// The path to the log directory for the specified component
 pub fn get_log_directory(component: &str, use_date_subdir: bool) -> Result<PathBuf> {
-    let home_dir =
-        choose_app_strategy(APP_STRATEGY.clone()).context("HOME environment variable not set")?;
-
-    let base_log_dir = home_dir
-        .in_state_dir("logs")
-        .unwrap_or_else(|| home_dir.in_data_dir("logs"));
+    let base_log_dir = Paths::in_state_dir("logs");
 
     let component_dir = base_log_dir.join(component);
 

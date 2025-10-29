@@ -19,13 +19,13 @@ This guide will cover enabling and using the Auto Visualiser MCP Server.
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Auto Visualiser"
     description="Automatically generate interactive data visualizations"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -61,6 +61,7 @@ The Auto Visualiser is a powerful extension that integrates with Goose's MCP-UI 
 | **Treemap Visualizations** | Hierarchical data with proportional area representation | Hierarchical data <br/>(nested categories, organizational structures) |
 | **Chord Diagrams** | Relationship and flow visualization between entities | Relationship matrices <br/>(network connections, cross-references) |
 | **Interactive Maps** | Geographic data visualization with location markers using Leaflet | Geographic information <br/>(location data, coordinates, addresses) |
+| **Mermaid Diagrams** | Flowcharts, sequence diagrams, Gantt charts, and other diagram types using Mermaid syntax | Diagram creation <br/>(flowcharts, sequence diagrams, architecture diagrams) |
 | **Line/Bar/Scatter Charts** | Traditional chart types for data analysis | Time series data <br/>(historical data, trends over time) |
 
 ### Example Visualizations

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use console::style;
-use etcetera::{choose_app_strategy, AppStrategy};
+use goose::config::paths::Paths;
 use goose::config::Config;
 use serde_yaml;
 
@@ -9,11 +9,8 @@ fn print_aligned(label: &str, value: &str, width: usize) {
 }
 
 pub fn handle_info(verbose: bool) -> Result<()> {
-    let data_dir = choose_app_strategy(crate::APP_STRATEGY.clone())?;
-    let logs_dir = data_dir
-        .in_state_dir("logs")
-        .unwrap_or_else(|| data_dir.in_data_dir("logs"));
-    let sessions_dir = data_dir.in_data_dir("sessions");
+    let logs_dir = Paths::in_state_dir("logs");
+    let sessions_dir = Paths::in_data_dir("sessions");
 
     // Get paths using a stored reference to the global config
     let config = Config::global();

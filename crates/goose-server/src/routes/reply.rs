@@ -121,9 +121,9 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
-enum MessageEvent {
+pub enum MessageEvent {
     Message {
         message: Message,
     },
@@ -139,7 +139,11 @@ enum MessageEvent {
     },
     Notification {
         request_id: String,
+        #[schema(value_type = Object)]
         message: ServerNotification,
+    },
+    UpdateConversation {
+        conversation: Conversation,
     },
     Ping,
 }
@@ -167,7 +171,9 @@ async fn stream_event(
     path = "/reply",
     request_body = ChatRequest,
     responses(
-        (status = 200, description = "Streaming response initiated", content_type = "text/event-stream"),
+        (status = 200, description = "Streaming response initiated",
+         body = MessageEvent,
+         content_type = "text/event-stream"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )
@@ -299,17 +305,12 @@ pub async fn reply(
                             }
 
                             all_messages.push(message.clone());
-
-                            // Only send message to client if it's user_visible
-                            if message.is_user_visible() {
-                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
-                            }
+                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
-                            // Replace the message history with the compacted messages
-                            all_messages = Conversation::new_unvalidated(new_messages);
-                            // Note: We don't send this as a stream event since it's an internal operation
-                            // The client will see the compaction notification message that was sent before this event
+                            all_messages = new_messages.clone();
+                            stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
+
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
