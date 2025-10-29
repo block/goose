@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::{env, fs};
 
 use rmcp::model::{CallToolRequestParam, Content};
@@ -10,6 +11,8 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::ExtensionManager;
+use goose::model::ModelConfig;
+use goose::providers::openai::OpenAiProvider;
 
 use test_case::test_case;
 
@@ -27,6 +30,17 @@ struct CargoBuildMessage {
 struct Target {
     name: String,
     kind: Vec<String>,
+}
+
+// Use an OPENAI_API_KEY when recording
+async fn create_recording_provider() -> Result<
+    Arc<tokio::sync::Mutex<Option<Arc<dyn goose::providers::base::Provider>>>>,
+    Box<dyn std::error::Error>,
+> {
+    let provider = OpenAiProvider::from_env(ModelConfig::new("gpt-5-mini")?).await?;
+    Ok(Arc::new(tokio::sync::Mutex::new(Some(
+        Arc::new(provider) as Arc<dyn goose::providers::base::Provider>
+    ))))
 }
 
 fn build_and_get_binary_path() -> PathBuf {
@@ -79,6 +93,7 @@ enum TestMode {
         CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
         CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
         CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
+        CallToolRequestParam { name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
@@ -205,7 +220,16 @@ async fn test_replayed_session(
         bundled: Some(false),
         available_tools: vec![],
     };
-    let extension_manager = ExtensionManager::new_without_provider();
+    let extension_manager = if matches!(mode, TestMode::Record) {
+        match create_recording_provider().await {
+            Ok(provider) => ExtensionManager::new(provider),
+            Err(e) => {
+                panic!("Failed to create OpenAI provider: {:?}", e);
+            }
+        }
+    } else {
+        ExtensionManager::new_without_provider()
+    };
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
