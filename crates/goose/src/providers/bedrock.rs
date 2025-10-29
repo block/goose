@@ -42,8 +42,6 @@ pub struct BedrockProvider {
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
-    #[serde(skip)]
-    name: String,
 }
 
 impl BedrockProvider {
@@ -51,7 +49,7 @@ impl BedrockProvider {
         let config = crate::config::Config::global();
 
         // Attempt to load config and secrets to get AWS_ prefixed keys
-        // to re-export them into the environment for aws_config::load_from_env()
+        // to re-export them into the environment for aws_config to use as fallback
         let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
             if let Ok(map) = res {
                 map.into_iter()
@@ -64,14 +62,33 @@ impl BedrockProvider {
         set_aws_env_vars(config.load_values());
         set_aws_env_vars(config.load_secrets());
 
-        let sdk_config = aws_config::load_from_env().await;
+        // Use load_defaults() which supports AWS SSO, profiles, and environment variables
+        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
 
-        // validate credentials or return error back up
+        // Check for AWS_PROFILE configuration
+        if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
+            if !profile_name.is_empty() {
+                loader = loader.profile_name(&profile_name);
+            }
+        }
+
+        // Check for AWS_REGION configuration
+        if let Ok(region) = config.get_param::<String>("AWS_REGION") {
+            if !region.is_empty() {
+                loader = loader.region(aws_config::Region::new(region));
+            }
+        }
+
+        let sdk_config = loader.load().await;
+
+        // Validate credentials or return error back up
         sdk_config
             .credentials_provider()
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("No AWS credentials provider configured"))?
             .provide_credentials()
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to load AWS credentials: {}. Make sure to run 'aws sso login --profile <your-profile>' if using SSO", e))?;
+
         let client = Client::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
@@ -80,7 +97,6 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
-            name: Self::metadata().name,
         })
     }
 
@@ -179,16 +195,15 @@ impl Provider for BedrockProvider {
         ProviderMetadata::new(
             "aws_bedrock",
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock. You may have to set 'AWS_' environment variables to configure authentication.",
+            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, or use environment variables/credentials.",
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
-            vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
+            vec![
+                ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
+                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1")),
+            ],
         )
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {
