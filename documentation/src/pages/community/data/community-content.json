@@ -122,9 +122,7 @@
       "url": "https://dev.to/lymah/configuring-goose-for-team-environments-and-shared-workflows-5ehn",
       "thumbnail": "https://i.imgur.com/pltI1bv.jpeg",
       "submittedDate": "2025-10-26",
-      "tags": [
-        "hacktoberfest"
-      ],
+      "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
     {
@@ -136,6 +134,19 @@
       "type": "blog",
       "url": "https://goose123.hashnode.dev/adopting-goose-in-the-enterprise-a-guide-to-security-scalability-and-governance",
       "submittedDate": "2025-10-26",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Creating and Sharing Effective goose Recipes",
+      "author": {
+        "name": "Shreyansh Singh Gautam",
+        "handle": "Shreyanshsingh23"
+      },
+      "type": "blog",
+      "url": "https://medium.com/@shreyanshrewa/creating-and-sharing-effective-goose-recipes-abf9767d5128",
+      "thumbnail": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=400&h=225&fit=crop&crop=entropy&auto=format",
+      "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
