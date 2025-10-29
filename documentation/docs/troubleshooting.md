@@ -11,7 +11,7 @@ goose can and will edit files as part of its workflow. To avoid losing personal 
 
 ---
 
-### Interrupting Goose
+### Interrupting goose
 If goose is heading in the wrong direction or gets stuck, you can [interrupt it](/docs/guides/sessions/in-session-actions#interrupt-task) to correct its actions or provide additional information.
 
 ---
@@ -32,15 +32,24 @@ For particularly large or complex tasks, consider breaking them into smaller ses
 
 ### Preventing Long-Running Commands
 
-If you use goose CLI and work with web development projects, you may encounter commands that cause Goose to hang indefinitely. Commands like `npm run dev`, `python -m http.server`, or `webpack serve` start development servers that never exit on their own.
+If you use goose CLI and work with web development projects, you may encounter commands that cause goose to hang indefinitely. Commands like `npm run dev`, `python -m http.server`, or `webpack serve` start development servers that never exit on their own.
 
 You can prevent these issues by customizing your shell to handle these commands differently when goose runs them. See [Customizing Shell Behavior](/docs/guides/environment-variables#customizing-shell-behavior) for details on using the `GOOSE_TERMINAL` environment variable.
 
 ---
 
+### Debugging and Diagnostics
+
+To help with troubleshooting issues, you can:
+
+- View [session and system logs](/docs/guides/logs) for debugging individual sessions
+- Configure [telemetry export](/docs/guides/environment-variables#observability) for performance analysis, trend monitoring, or production/CI debugging
+
+---
+
 ### Context Length Exceeded Error
 
-This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use [`.goosehints`][goosehints] as a way to provide goose with detailed context and use [message queues](/docs/guides/sessions/in-session-actions#queue-messages) in goose Desktop.
+This error occurs when the input provided to goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use [`.goosehints`][goosehints] as a way to provide goose with detailed context and use [message queues](/docs/guides/sessions/in-session-actions#queue-messages) in goose Desktop.
 
 ---
 
@@ -136,7 +145,7 @@ goose tries to use the system keyring (which requires DBus and X11) to securely 
 
 To resolve:
 
-Use the `GOOSE_DISABLE_KEYRING` environment variable to tell Goose to store secrets in files instead. This example sets the variable only while executing the `goose configure` command:
+Use the `GOOSE_DISABLE_KEYRING` environment variable to tell goose to store secrets in files instead. This example sets the variable only while executing the `goose configure` command:
 
 ```bash
 GOOSE_DISABLE_KEYRING=1 goose configure
@@ -296,7 +305,7 @@ If you encounter the error `Node.js installer script not found` when trying to a
 - Error occurs specifically when activating Node.js extensions
 
 #### Solution:
-This issue typically occurs when Node.js is installed in a non-standard location. Goose expects to find Node.js in `C:\Program Files\nodejs\`, but it may be installed elsewhere (e.g., `D:\Program Files\nodejs\`).
+This issue typically occurs when Node.js is installed in a non-standard location. goose expects to find Node.js in `C:\Program Files\nodejs\`, but it may be installed elsewhere (e.g., `D:\Program Files\nodejs\`).
 
 1. **Check your Node.js installation path:**
    ```powershell
@@ -305,7 +314,7 @@ This issue typically occurs when Node.js is installed in a non-standard location
 
 2. **If Node.js is not in `C:\Program Files\nodejs\`, create a symbolic link:**
    - Open PowerShell as Administrator
-   - Create a symbolic link to redirect Goose to your actual Node.js installation:
+   - Create a symbolic link to redirect goose to your actual Node.js installation:
    ```powershell
    mklink /D "C:\Program Files\nodejs" "D:\Program Files\nodejs"
    ```
@@ -451,7 +460,7 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
        args: [mcp-server-example]
    ```
 
-3. **Why this works:** Goose only replaces known command names (`npx`, `uvx`, `jbang`, etc.) with its packaged shims. Custom names are passed through unchanged to your system's actual executables.
+3. **Why this works:** goose only replaces known command names (`npx`, `uvx`, `jbang`, etc.) with its packaged shims. Custom names are passed through unchanged to your system's actual executables.
 
 4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up goose desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, proxies, inability to download required content etc).
 
