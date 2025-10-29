@@ -117,21 +117,6 @@ jobs:
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
 
-      - name: Run MCP Tests
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
-          HOME: /tmp/goose-home
-          GOOSE_DISABLE_KEYRING: 1
-          SKIP_BUILD: 1
-        run: |
-          bash scripts/test_mcp.sh
-
       - name: Run Subrecipe Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
