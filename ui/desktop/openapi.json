@@ -3334,6 +3334,44 @@
           }
         }
       },
+      "ModelConfig": {
+        "type": "object",
+        "required": [
+          "model_name",
+          "toolshim"
+        ],
+        "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "fast_model": {
+            "type": "string",
+            "nullable": true
+          },
+          "max_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "nullable": true
+          },
+          "toolshim": {
+            "type": "boolean"
+          },
+          "toolshim_model": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -4091,12 +4129,24 @@
             "type": "integer",
             "minimum": 0
           },
+          "model_config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelConfig"
+              }
+            ],
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
           "output_tokens": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "provider_name": {
+            "type": "string",
             "nullable": true
           },
           "recipe": {

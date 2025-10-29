@@ -4,6 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
@@ -439,6 +440,7 @@ derive_utoipa!(Icon as IconSchema);
         PermissionLevel,
         PrincipalType,
         ModelInfo,
+        ModelConfig,
         Session,
         SessionInsights,
         Conversation,
