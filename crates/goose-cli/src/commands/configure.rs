@@ -10,6 +10,7 @@ use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
     name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
+use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
 use goose::config::signup_tetrate::TetrateAuth;
 use goose::config::{
@@ -196,15 +197,17 @@ pub async fn handle_configure() -> anyhow::Result<()> {
         }
         Ok(())
     } else {
+        let config_dir = Paths::config_dir().display().to_string();
+
         println!();
         println!(
             "{}",
-            style("This will update your existing config file").dim()
+            style("This will update your existing config files").dim()
         );
         println!(
             "{} {}",
-            style("  if you prefer, you can edit it directly at").dim(),
-            config.path()
+            style("  if you prefer, you can edit them directly at").dim(),
+            config_dir
         );
         println!();
 
@@ -487,7 +490,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                     } else {
                         config.set_param(&key.name, &env_value)?;
                     }
-                    let _ = cliclack::log::info(format!("Saved {} to config file", key.name));
+                    let _ = cliclack::log::info(format!("Saved {} to {}", key.name, config.path()));
                 }
             }
             None => {
@@ -646,10 +649,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     match result {
         Ok((_message, _usage)) => {
-            // Update config with new values only if the test succeeds
             config.set_goose_provider(provider_name)?;
             config.set_goose_model(&model)?;
-            cliclack::outro("Configuration saved successfully")?;
+            print_config_file_saved()?;
             Ok(true)
         }
         Err(e) => {
@@ -710,7 +712,11 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
         );
     }
 
-    cliclack::outro("Extension settings updated successfully")?;
+    let config = Config::global();
+    cliclack::outro(format!(
+        "Extension settings saved successfully to {}",
+        config.path()
+    ))?;
     Ok(())
 }
 
@@ -1124,6 +1130,8 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
         _ => unreachable!(),
     };
 
+    print_config_file_saved()?;
+
     Ok(())
 }
 
@@ -1179,6 +1187,8 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
+    print_config_file_saved()?;
+
     Ok(())
 }
 
@@ -1217,6 +1227,8 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         )
         .interact()?;
 
+    let mut should_print_config_path = true;
+
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
@@ -1226,6 +1238,8 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
+            // No need to print config file path since it's already handled.
+            should_print_config_path = false;
         }
         "tool_output" => {
             configure_tool_output_dialog()?;
@@ -1241,6 +1255,10 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         }
         _ => unreachable!(),
     };
+
+    if should_print_config_path {
+        print_config_file_saved()?;
+    }
 
     Ok(())
 }
@@ -1532,6 +1550,11 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     cliclack::outro(format!(
         "Updated permission level for tool {} to {}.",
         tool.name, permission_label
+    ))?;
+
+    cliclack::outro(format!(
+        "Changes saved to {}",
+        permission_manager.get_config_path().display()
     ))?;
 
     Ok(())
@@ -1880,5 +1903,18 @@ pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
         "add" => add_provider(),
         "remove" => remove_provider(),
         _ => unreachable!(),
-    }
+    }?;
+
+    print_config_file_saved()?;
+
+    Ok(())
+}
+
+fn print_config_file_saved() -> anyhow::Result<()> {
+    let config = Config::global();
+    cliclack::outro(format!(
+        "Configuration saved successfully to {}",
+        config.path()
+    ))?;
+    Ok(())
 }

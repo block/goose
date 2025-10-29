@@ -6,7 +6,7 @@ sidebar_label: Configuration File
 
 # Configuration File
 
-Goose uses a YAML configuration file to manage settings and extensions. This file is located at:
+goose uses a YAML configuration file to manage settings and extensions. This file is located at:
 
 * macOS/Linux: `~/.config/goose/config.yaml`
 * Windows: `%APPDATA%\Block\goose\config\config.yaml`
@@ -35,7 +35,9 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_CLI_SHOW_COST` | Show estimated cost for token use in the CLI | true/false | false | No |
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
-| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
+| `otel_exporter_otlp_endpoint` | OTLP endpoint URL for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | URL (e.g., `http://localhost:4318`) | None | No |
+| `otel_exporter_otlp_timeout` | Export timeout in milliseconds for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | Integer (ms) | 10000 | No |
 | `security_prompt_enabled` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
 | `security_prompt_threshold` | Sensitivity threshold for [prompt injection detection](/docs/guides/security/prompt-injection-detection) (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
 
@@ -75,6 +77,10 @@ GOOSE_CLI_MIN_PRIORITY: 0.2
 # Recipe Configuration
 GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
 
+# Observability (OpenTelemetry)
+otel_exporter_otlp_endpoint: "http://localhost:4318"
+otel_exporter_otlp_timeout: 20000
+
 # Security Configuration
 security_prompt_enabled: true
 
@@ -102,10 +108,10 @@ Extensions are configured under the `extensions` key. Each extension can have th
 ```yaml
 extensions:
   extension_name:
-    bundled: true/false        # Whether it's included with Goose
-    display_name: "Name"       # Human-readable name (optional)
-    enabled: true/false        # Whether the extension is active
-    name: "extension_name"     # Internal name
+    bundled: true/false       # Whether it's included with goose
+    display_name: "Name"      # Human-readable name (optional)
+    enabled: true/false       # Whether the extension is active
+    name: "extension_name"    # Internal name
     timeout: 300              # Operation timeout in seconds
     type: "builtin"/"stdio"   # Extension type
     
@@ -113,8 +119,8 @@ extensions:
     cmd: "command"            # Command to execute
     args: ["arg1", "arg2"]    # Command arguments
     description: "text"       # Extension description
-    env_keys: []             # Required environment variables
-    envs: {}                 # Environment values
+    env_keys: []              # Required environment variables
+    envs: {}                  # Environment values
 ```
 
 ## Configuration Priority
@@ -133,7 +139,7 @@ Settings are applied in the following order of precedence:
 
 ## Updating Configuration
 
-Changes to the config file require restarting Goose to take effect. You can verify your current configuration using:
+Changes to the config file require restarting goose to take effect. You can verify your current configuration using:
 
 ```bash
 goose info -v
