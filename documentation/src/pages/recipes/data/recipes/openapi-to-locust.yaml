@@ -53,18 +53,18 @@ parameters:
 
 sub_recipes:
   - name: analyze_openapi
-    path: "./sub-recipes/analyze-openapi.yaml"
+    path: "./subrecipes/analyze-openapi.yaml"
     values:
       analysis_depth: "comprehensive"
 
   - name: generate_task_sets
-    path: "./sub-recipes/generate-task-sets.yaml"
+    path: "./subrecipes/generate-task-sets.yaml"
 
   - name: generate_locustfile
-    path: "./sub-recipes/generate-locustfile.yaml"
+    path: "./subrecipes/generate-locustfile.yaml"
 
   - name: generate_support_files
-    path: "./sub-recipes/generate-support-files.yaml"
+    path: "./subrecipes/generate-support-files.yaml"
 
 extensions:
   - type: builtin
@@ -87,7 +87,7 @@ prompt: |
   3. generate_locustfile - Generate the main locustfile.py
   4. generate_support_files - Create requirements.txt, README.md, and config files
 
-  After all sub-recipes complete, verify all files were created successfully and provide:
+  After all subrecipes complete, verify all files were created successfully and provide:
   - Summary of generated files
   - Instructions for running the tests
   - Example commands for different load scenarios
