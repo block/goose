@@ -211,15 +211,12 @@ async fn resume_agent(
         let config = Config::global();
 
         let provider_result = async {
-            let provider_name: String =
-                config
-                    .get_param("GOOSE_PROVIDER")
-                    .map_err(|_| ErrorResponse {
-                        message: "Could not configure agent: missing provider".into(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
+            let provider_name: String = config.get_goose_provider().map_err(|_| ErrorResponse {
+                message: "Could not configure agent: missing provider".into(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
 
-            let model: String = config.get_param("GOOSE_MODEL").map_err(|_| ErrorResponse {
+            let model: String = config.get_goose_model().map_err(|_| ErrorResponse {
                 message: "Could not configure agent: missing model".into(),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
@@ -348,7 +345,7 @@ async fn get_tools(
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
-    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+    let goose_mode = config.get_goose_mode().unwrap_or("auto".to_string());
     let agent = state.get_agent_for_route(query.session_id).await?;
     let permission_manager = PermissionManager::default();
 
@@ -406,10 +403,7 @@ async fn update_agent_provider(
         .await?;
 
     let config = Config::global();
-    let model = match payload
-        .model
-        .or_else(|| config.get_param("GOOSE_MODEL").ok())
-    {
+    let model = match payload.model.or_else(|| config.get_goose_model().ok()) {
         Some(m) => m,
         None => {
             tracing::error!("No model specified");

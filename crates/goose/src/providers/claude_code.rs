@@ -529,7 +529,7 @@ mod tests {
         std::env::set_var("GOOSE_MODE", "auto");
 
         let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
+        let goose_mode: String = config.get_goose_mode().unwrap();
         assert_eq!(goose_mode, "auto");
 
         std::env::remove_var("GOOSE_MODE");

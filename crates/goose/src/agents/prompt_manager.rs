@@ -107,7 +107,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         let config = Config::global();
         let goose_mode = config
-            .get_param("GOOSE_MODE")
+            .get_goose_mode()
             .unwrap_or_else(|_| Cow::from("auto"));
 
         let extension_tool_limits = self

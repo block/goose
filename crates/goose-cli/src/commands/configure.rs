@@ -447,7 +447,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .collect();
 
     // Get current default provider if it exists
-    let current_provider: Option<String> = config.get_param("GOOSE_PROVIDER").ok();
+    let current_provider: Option<String> = config.get_goose_provider().ok();
     let default_provider = current_provider.unwrap_or_default();
 
     // Select provider
@@ -1422,11 +1422,11 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
+        .get_goose_provider()
         .expect("No provider configured. Please set model provider first");
 
     let model: String = config
-        .get_param("GOOSE_MODEL")
+        .get_goose_model()
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
@@ -1627,7 +1627,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     // Test configuration - get the model that was configured
     println!("\nTesting configuration...");
-    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
         Ok(config) => config,
         Err(e) => {
@@ -1705,7 +1705,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     // Test configuration
     println!("\nTesting configuration...");
-    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
         Ok(config) => config,
         Err(e) => {

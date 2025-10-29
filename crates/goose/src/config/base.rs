@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::config::GooseMode;
 use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::OnceCell;
@@ -742,6 +743,9 @@ impl Config {
     }
 
     declare_param!(GOOSE_SEARCH_PATHS, Vec<String>);
+    declare_param!(GOOSE_MODE, GooseMode);
+    declare_param!(GOOSE_PROVIDER, String);
+    declare_param!(GOOSE_MODEL, String);
 }
 
 /// Load init-config.yaml from workspace root if it exists.

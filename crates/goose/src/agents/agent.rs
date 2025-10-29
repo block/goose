@@ -1246,14 +1246,14 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
+    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> GooseMode {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
             Some("foreground") => "chat".to_string(),
             Some("background") => "auto".to_string(),
             _ => config
-                .get_param("GOOSE_MODE")
+                .get_goose_mode()
                 .unwrap_or_else(|_| "auto".to_string()),
         }
     }
@@ -1513,7 +1513,7 @@ impl Agent {
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first");
 
         let settings = Settings {

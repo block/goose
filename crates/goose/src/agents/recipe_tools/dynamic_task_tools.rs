@@ -93,7 +93,7 @@ pub struct TaskParameter {
 
 pub fn should_enabled_subagents(model_name: &str) -> bool {
     let config = crate::config::Config::global();
-    let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
+    let is_autonomous = config.get_goose_mode().unwrap_or("auto".to_string()) == "auto";
     if !is_autonomous {
         return false;
     }
