@@ -50,26 +50,53 @@ for provider_config in "${PROVIDERS[@]}"; do
     echo "Provider: ${PROVIDER}"
     echo "Model: ${MODEL}"
     echo ""
+
+    echo "Test 1: Basic tool calling..."
     TMPFILE=$(mktemp)
     (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "please list files in the current directory" --with-builtin developer,autovisualiser,computercontroller,tutorial  2>&1) | tee "$TMPFILE"
     echo ""
     if grep -q "shell | developer" "$TMPFILE"; then
-      echo "✓ SUCCESS: Test passed - developer tool called"
-      RESULTS+=("✓ ${PROVIDER}: ${MODEL}")
+      echo "✓ SUCCESS: Basic tool calling - developer tool called"
+      RESULTS+=("✓ ${PROVIDER}: ${MODEL} - Basic tool calling")
     else
-      echo "✗ FAILED: Test failed - no developer tools called"
-      RESULTS+=("✗ ${PROVIDER}: ${MODEL}")
+      echo "✗ FAILED: Basic tool calling - no developer tools called"
+      RESULTS+=("✗ ${PROVIDER}: ${MODEL} - Basic tool calling")
     fi
+    rm "$TMPFILE"
+
+    echo "Test 2: MCP Sampling..."
+    TMPFILE=$(mktemp)
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "use the everything extension to call the sampleLLM tool with a prompt asking for a famous quote" --with-extension npx:-y:@modelcontextprotocol/server-everything 2>&1) | tee "$TMPFILE"
+    echo ""
+
+    if grep -q "sampleLLM | everything" "$TMPFILE"; then
+      echo "✓ SUCCESS: MCP Sampling - sampleLLM tool called"
+      RESULTS+=("✓ ${PROVIDER}: ${MODEL} - MCP Sampling (tool called)")
+    else
+      echo "✗ FAILED: MCP Sampling - sampleLLM tool not called"
+      RESULTS+=("✗ ${PROVIDER}: ${MODEL} - MCP Sampling (tool called)")
+    fi
+
+    if grep -q "LLM sampling result" "$TMPFILE"; then
+      echo "✓ SUCCESS: MCP Sampling - sampling completed with result"
+      RESULTS+=("✓ ${PROVIDER}: ${MODEL} - MCP Sampling (result)")
+    else
+      echo "✗ FAILED: MCP Sampling - no sampling result found"
+      RESULTS+=("✗ ${PROVIDER}: ${MODEL} - MCP Sampling (result)")
+    fi
+
     rm "$TMPFILE"
     rm -rf "$TESTDIR"
     echo "---"
   done
 done
+
 echo ""
 echo "=== Test Summary ==="
 for result in "${RESULTS[@]}"; do
   echo "$result"
 done
+
 if echo "${RESULTS[@]}" | grep -q "✗"; then
   echo ""
   echo "Some tests failed!"
