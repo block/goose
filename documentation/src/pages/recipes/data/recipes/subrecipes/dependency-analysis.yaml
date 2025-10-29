@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Dependency Health Analyzer"
 description: "Analyzes dependencies for outdated versions, vulnerabilities, and maintenance issues"
 instructions: |
