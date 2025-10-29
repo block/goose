@@ -150,6 +150,18 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
+      "submittedDate": "2025-10-29",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
