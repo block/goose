@@ -539,7 +539,7 @@ pre:has(> code.bg-inline-code) {
 
 li > code.bg-inline-code,
 p > code.bg-inline-code {
-  color: var(--color-block-orange);
+  color: var(--code-font-color, var(--color-block-orange));
   padding: 2px 4px;
 }
 
