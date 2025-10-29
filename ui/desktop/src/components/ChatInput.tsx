@@ -73,11 +73,15 @@ interface ChatInputProps {
   numTokens?: number;
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   messages?: Message[];
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
       outputTokens: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
       totalCost: number;
     };
   };
@@ -106,6 +110,8 @@ export default function ChatInput({
   numTokens,
   inputTokens,
   outputTokens,
+  cacheReadTokens,
+  cacheWriteTokens,
   messages = [],
   disableAnimation = false,
   sessionCosts,
@@ -1542,6 +1548,8 @@ export default function ChatInput({
                 <CostTracker
                   inputTokens={inputTokens}
                   outputTokens={outputTokens}
+                  cacheReadTokens={cacheReadTokens}
+                  cacheWriteTokens={cacheWriteTokens}
                   sessionCosts={sessionCosts}
                 />
               </div>
