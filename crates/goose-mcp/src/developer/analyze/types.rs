@@ -13,7 +13,7 @@ where
         N(u32),
     }
     match StrOrU32::deserialize(d)? {
-        StrOrU32::S(s) => Ok(s.parse().unwrap()),
+        StrOrU32::S(s) => s.parse().map_err(serde::de::Error::custom),
         StrOrU32::N(n) => Ok(n),
     }
 }
