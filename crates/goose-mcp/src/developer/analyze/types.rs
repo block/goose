@@ -2,6 +2,22 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+fn flex<'de, D>(d: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StrOrU32 {
+        S(String),
+        N(u32),
+    }
+    match StrOrU32::deserialize(d)? {
+        StrOrU32::S(s) => Ok(s.parse().unwrap()),
+        StrOrU32::N(n) => Ok(n),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
     pub path: String,
@@ -9,11 +25,11 @@ pub struct AnalyzeParams {
     pub focus: Option<String>,
 
     /// Call graph depth. 0=where defined, 1=direct callers/callees, 2+=transitive chains
-    #[serde(default = "default_follow_depth")]
+    #[serde(default = "default_follow_depth", deserialize_with = "flex")]
     pub follow_depth: u32,
 
     /// Directory recursion limit. 0=unlimited (warning: fails on binary files)
-    #[serde(default = "default_max_depth")]
+    #[serde(default = "default_max_depth", deserialize_with = "flex")]
     pub max_depth: u32,
 
     /// Maximum depth for recursive AST traversal (prevents stack overflow in deeply nested code)
