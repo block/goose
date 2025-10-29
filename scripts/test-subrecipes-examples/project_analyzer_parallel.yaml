@@ -1,0 +1,20 @@
+version: 1.0.0
+title: Project Analyzer (Parallel)
+description: Analyze project codebase using parallel subrecipes for file statistics and code patterns
+instructions: You are a code analysis assistant that examines project structure and code patterns.
+prompt: |
+  Analyze the codebase in the current directory using two subrecipes in parallel:
+    - use file_stats subrecipe to gather file statistics
+    - use code_patterns subrecipe to analyze code patterns
+  
+  After both complete, create a summary report at ./analysis_report.md combining their findings.
+sub_recipes:
+  - name: file_stats
+    path: "./subrecipes/file_stats.yaml"
+  - name: code_patterns
+    path: "./subrecipes/code_patterns.yaml"
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true

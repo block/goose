@@ -1,0 +1,40 @@
+version: 1.0.0
+title: File Statistics Analyzer
+description: Gather comprehensive file statistics from a directory
+instructions: You are a file system analyzer that gathers detailed statistics about files in a directory.
+prompt: |
+  Analyze the current directory and generate file statistics:
+  
+  1. Count total files by extension (.rs, .yaml, .md, .toml, etc.)
+  2. Calculate total lines of code across all text files
+  3. Determine total file sizes
+  4. Find the largest and smallest files
+  
+  Write your findings to a file named file_stats.json with this structure:
+  ```json
+  {
+    "total_files": <number>,
+    "files_by_extension": {
+      ".rs": <count>,
+      ".yaml": <count>,
+      ...
+    },
+    "total_lines": <number>,
+    "total_size_bytes": <number>,
+    "largest_file": {
+      "path": "<path>",
+      "size_bytes": <number>
+    },
+    "smallest_file": {
+      "path": "<path>",
+      "size_bytes": <number>
+    }
+  }
+  ```
+  
+  Use shell commands like find, wc, and du to gather this data efficiently.
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
