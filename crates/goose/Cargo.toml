@@ -105,6 +105,8 @@ sys-info = "0.9"
 oauth2 = "5.0.0"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
+paste = "1.0.0"
+shellexpand = "3.1.1"
 
 
 [target.'cfg(target_os = "windows")'.dependencies]
