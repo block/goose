@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Code Duplication Detector"
 description: "Identifies duplicated code blocks that should be refactored into reusable components"
 instructions: |
