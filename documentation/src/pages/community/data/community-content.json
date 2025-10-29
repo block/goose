@@ -186,6 +186,19 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Optimizing Goose performance on Windows",
+      "author": {
+        "name": "Mohammed Thaha",
+        "handle": "mohammed-thaha"
+      },
+      "type": "blog",
+      "url": "https://dev.to/mohammed_thaha/boosting-goose-performance-on-windows-real-benchmarks-power-tweaks-and-results-54gf",
+      "thumbnail": "https://media2.dev.to/dynamic/image/width=400,height=225,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fkxdtne8rxn4l2nctajv1.png",
+      "submittedDate": "2025-10-29",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
