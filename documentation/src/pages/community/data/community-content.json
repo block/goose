@@ -152,13 +152,13 @@
       "hacktoberfest": true
     },
     {
-      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "title": "Stop Chasing Stale Docs: Creating Automated Documentation Workflows with goose",
       "author": {
         "name": "Anudhyan Datta",
         "handle": "Anudhyan"
       },
       "type": "blog",
-      "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
+      "url": "https://anudhyan.hashnode.dev/stop-chasing-stale-docs-creating-automated-documentation-workflows-with-goose",
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
