@@ -205,8 +205,7 @@ async fn test_replayed_session(
         bundled: Some(false),
         available_tools: vec![],
     };
-
-    let extension_manager = ExtensionManager::new();
+    let extension_manager = ExtensionManager::new_without_provider();
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
