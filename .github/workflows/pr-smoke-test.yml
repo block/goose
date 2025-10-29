@@ -115,3 +115,14 @@ jobs:
 
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
+
+      - name: Run Subrecipe Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+          HOME: /tmp/goose-home
+          GOOSE_DISABLE_KEYRING: 1
+          SKIP_BUILD: 1
+        run: |
+          bash scripts/test_subrecipes.sh
