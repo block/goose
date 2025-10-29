@@ -22,6 +22,11 @@ instructions: |
   6. Recommended test scenarios based on endpoint relationships
 
 parameters:
+  - key: output_dir
+    input_type: string
+    requirement: required
+    description: "Output directory"
+
   - key: openapi_spec_path
     input_type: string
     requirement: required

@@ -22,11 +22,6 @@ instructions: |
   - Add descriptive names for better reporting
 
 parameters:
-  - key: openapi_spec_path
-    input_type: string
-    requirement: required
-    description: "Path to the OpenAPI spec"
-
   - key: output_dir
     input_type: string
     requirement: required
@@ -42,11 +37,6 @@ parameters:
     input_type: string
     requirement: required
     description: "Whether to include auth handling"
-
-  - key: api_analysis
-    input_type: string
-    requirement: required
-    description: "JSON string containing the API analysis from previous step"
 
 extensions:
   - type: builtin

@@ -25,11 +25,6 @@ parameters:
     requirement: required
     description: "Base URL for API"
 
-  - key: api_analysis
-    input_type: string
-    requirement: required
-    description: "API analysis summary"
-
 extensions:
   - type: builtin
     name: developer

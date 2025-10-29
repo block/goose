@@ -38,16 +38,6 @@ parameters:
     requirement: required
     description: "Test complexity level"
 
-  - key: api_analysis
-    input_type: string
-    requirement: required
-    description: "API analysis data"
-
-  - key: taskset_files
-    input_type: string
-    requirement: required
-    description: "List of generated TaskSet files"
-
 extensions:
   - type: builtin
     name: developer
