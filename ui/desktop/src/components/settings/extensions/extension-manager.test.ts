@@ -37,26 +37,22 @@ describe('Extension Manager', () => {
       mockAddToAgent.mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
-        addToConfig: mockAddToConfig,
         sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
       expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, 'test-session', true);
-      expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
     it('should successfully add extension on startup with custom toast options', async () => {
       mockAddToAgent.mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
-        addToConfig: mockAddToConfig,
         sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
 
       expect(mockAddToAgent).toHaveBeenCalledWith(mockExtensionConfig, 'test-session', true);
-      expect(mockAddToConfig).not.toHaveBeenCalled();
     });
 
     it('should retry on 428 errors', async () => {
@@ -67,7 +63,6 @@ describe('Extension Manager', () => {
         .mockResolvedValue(undefined);
 
       await addToAgentOnStartup({
-        addToConfig: mockAddToConfig,
         sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
@@ -75,14 +70,13 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledTimes(3);
     });
 
-    it('should disable extension after max retries', async () => {
+    it('should show error toast after max retries but keep extension enabled', async () => {
       const error428 = new Error('428 Precondition Required');
       mockAddToAgent.mockRejectedValue(error428);
       mockToastService.configure = vi.fn();
       mockToastService.error = vi.fn();
 
       await addToAgentOnStartup({
-        addToConfig: mockAddToConfig,
         sessionId: 'test-session',
         extensionConfig: mockExtensionConfig,
       });
@@ -90,7 +84,7 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledTimes(4); // Initial + 3 retries
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
-        msg: 'Extension failed to start and will be disabled.',
+        msg: 'Extension failed to start and will retry on a new session.',
         traceback: '428 Precondition Required',
       });
     });

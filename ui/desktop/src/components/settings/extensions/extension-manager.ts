@@ -83,7 +83,6 @@ export async function activateExtension({
 }
 
 interface AddToAgentOnStartupProps {
-  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
   toastOptions?: ToastServiceOptions;
   sessionId: string;
@@ -95,7 +94,6 @@ interface AddToAgentOnStartupProps {
  * TODO(Douwe): Delete this after basecamp lands
  */
 export async function addToAgentOnStartup({
-  addToConfig,
   extensionConfig,
   sessionId,
 }: AddToAgentOnStartupProps): Promise<void> {
@@ -113,21 +111,9 @@ export async function addToAgentOnStartup({
     toastService.configure({ silent: false });
     toastService.error({
       title: extensionConfig.name,
-      msg: 'Extension failed to start and will be disabled.',
+      msg: 'Extension failed to start and will retry on a new session.',
       traceback: finalError instanceof Error ? finalError.message : String(finalError),
     });
-
-    try {
-      await toggleExtension({
-        toggle: 'toggleOff',
-        extensionConfig,
-        addToConfig,
-        toastOptions: { silent: true },
-        sessionId,
-      });
-    } catch (toggleErr) {
-      console.error('Failed to toggle off after error:', toggleErr);
-    }
   }
 }
 
