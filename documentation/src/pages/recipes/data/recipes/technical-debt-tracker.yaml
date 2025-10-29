@@ -59,29 +59,29 @@ parameters:
 
 sub_recipes:
   - name: "complexity_analyzer"
-    path: "./sub-recipes/complexity-analysis.yaml"
+    path: "./subrecipes/complexity-analysis.yaml"
     values:
       complexity_threshold: "{{ complexity_threshold }}"
   
   - name: "test_coverage_analyzer"
-    path: "./sub-recipes/test-coverage-analysis.yaml"
+    path: "./subrecipes/test-coverage-analysis.yaml"
     values:
       min_coverage: "{{ min_test_coverage }}"
   
   - name: "documentation_analyzer"
-    path: "./sub-recipes/documentation-analysis.yaml"
+    path: "./subrecipes/documentation-analysis.yaml"
     values:
       check_readme: "true"
       check_api_docs: "true"
   
   - name: "dependency_analyzer"
-    path: "./sub-recipes/dependency-analysis.yaml"
+    path: "./subrecipes/dependency-analysis.yaml"
     values:
       max_age_days: "{{ max_dependency_age_days }}"
       check_vulnerabilities: "true"
   
   - name: "duplication_detector"
-    path: "./sub-recipes/duplication-detection.yaml"
+    path: "./subrecipes/duplication-detection.yaml"
     values:
       min_lines: "10"
       similarity_threshold: "0.85"
