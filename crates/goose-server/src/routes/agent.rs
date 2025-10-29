@@ -11,6 +11,7 @@ use axum::{
 };
 use goose::config::PermissionManager;
 
+use goose::agents::ExtensionConfig;
 use goose::config::Config;
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
@@ -68,6 +69,18 @@ pub struct StartAgentRequest {
 pub struct ResumeAgentRequest {
     session_id: String,
     load_model_and_extensions: bool,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct AddExtensionRequest {
+    session_id: String,
+    config: ExtensionConfig,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct RemoveExtensionRequest {
+    name: String,
+    session_id: String,
 }
 
 #[utoipa::path(
@@ -451,6 +464,88 @@ async fn update_router_tool_selector(
     ))
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/add_extension",
+    request_body = AddExtensionRequest,
+    responses(
+        (status = 200, description = "Extension added", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn agent_add_extension(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<AddExtensionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    // If this is a Stdio extension that uses npx, check for Node.js installation
+    #[cfg(target_os = "windows")]
+    if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
+        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+
+            if !node_exists {
+                let cmd_path = std::path::Path::new(&cmd);
+                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+                let install_script = script_dir.join("install-node.cmd");
+
+                if install_script.exists() {
+                    eprintln!("Installing Node.js...");
+                    let output = std::process::Command::new(&install_script)
+                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                        .output()
+                        .map_err(|e| {
+                            eprintln!("Failed to run Node.js installer: {}", e);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        })?;
+
+                    if !output.status.success() {
+                        return Err(ErrorResponse::internal(format!(
+                            "Failed to install Node.js: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        )));
+                    }
+                    eprintln!("Node.js installation completed");
+                } else {
+                    return Err(ErrorResponse::internal(format!(
+                        "Node.js not detected and no installer script not found at: {}",
+                        install_script.display()
+                    )));
+                }
+            }
+        }
+    }
+
+    let agent = state.get_agent(request.session_id).await?;
+    agent
+        .add_extension(request.config)
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/remove_extension",
+    request_body = RemoveExtensionRequest,
+    responses(
+        (status = 200, description = "Extension removed", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn agent_remove_extension(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RemoveExtensionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state.get_agent(request.session_id).await?;
+    agent.remove_extension(&request.name).await?;
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -462,5 +557,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(update_router_tool_selector),
         )
         .route("/agent/update_from_session", post(update_from_session))
+        .route("/agent/add_extension", post(agent_add_extension))
+        .route("/agent/remove_extension", post(agent_remove_extension))
         .with_state(state)
 }

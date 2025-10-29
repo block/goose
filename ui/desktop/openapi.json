@@ -13,6 +13,84 @@
     "version": "1.11.0"
   },
   "paths": {
+    "/agent/add_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_add_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension added",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/remove_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_remove_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension removed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -1989,6 +2067,21 @@
   },
   "components": {
     "schemas": {
+      "AddExtensionRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -3808,6 +3901,21 @@
         ],
         "properties": {
           "data": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoveExtensionRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "session_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           }
         }
