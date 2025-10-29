@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Test Coverage Analyzer"
 description: "Identifies code with insufficient test coverage and missing test cases"
 instructions: |
