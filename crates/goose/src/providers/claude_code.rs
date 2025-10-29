@@ -525,12 +525,14 @@ mod tests {
 
     #[test]
     fn test_permission_mode_flag_construction() {
+        use crate::config::GooseMode;
+
         // Test that in auto mode, the --permission-mode acceptEdits flag is added
         std::env::set_var("GOOSE_MODE", "auto");
 
         let config = Config::global();
-        let goose_mode: String = config.get_goose_mode().unwrap();
-        assert_eq!(goose_mode, "auto");
+        let goose_mode: GooseMode = config.get_goose_mode().unwrap();
+        assert_eq!(goose_mode, GooseMode::Auto);
 
         std::env::remove_var("GOOSE_MODE");
     }

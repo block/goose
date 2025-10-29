@@ -28,7 +28,7 @@ use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
 use input::InputResult;
@@ -787,8 +787,8 @@ impl CliSession {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode = config.get_goose_mode().unwrap_or("auto".to_string());
-                    if curr_goose_mode != "auto" {
+                    let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+                    if curr_goose_mode != GooseMode::Auto {
                         config
                             .set_param("GOOSE_MODE", Value::String("auto".to_string()))
                             .unwrap();
@@ -806,7 +806,7 @@ impl CliSession {
                     output::hide_thinking();
 
                     // Reset run & goose mode
-                    if curr_goose_mode != "auto" {
+                    if curr_goose_mode != GooseMode::Auto {
                         config
                             .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
                             .unwrap();

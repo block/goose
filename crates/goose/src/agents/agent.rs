@@ -29,7 +29,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, Config};
+use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -73,7 +73,7 @@ pub struct ReplyContext {
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
-    pub goose_mode: String,
+    pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
     pub config: &'static Config,
 }
@@ -262,7 +262,7 @@ impl Agent {
 
         // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.clone())
+            .update_permission_inspector_mode(goose_mode.to_string())
             .await;
 
         Ok(ReplyContext {
@@ -1024,8 +1024,8 @@ impl Agent {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                let mode = goose_mode.clone();
-                                if mode.as_str() == "chat" {
+                                let mode = goose_mode;
+                                if mode == GooseMode::Chat {
                                     // Skip all tool calls in chat mode
                                     for request in remaining_requests {
                                         let mut response = message_tool_response.lock().await;
@@ -1250,11 +1250,9 @@ impl Agent {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "chat".to_string(),
-            Some("background") => "auto".to_string(),
-            _ => config
-                .get_goose_mode()
-                .unwrap_or_else(|_| "auto".to_string()),
+            Some("foreground") => GooseMode::Chat,
+            Some("background") => GooseMode::Auto,
+            _ => config.get_goose_mode().unwrap_or(GooseMode::Auto),
         }
     }
 
