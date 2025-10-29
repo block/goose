@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Documentation Quality Analyzer"
 description: "Identifies missing, outdated, or inadequate documentation"
 instructions: |
