@@ -63,13 +63,10 @@ export async function activateExtension({
     await addToAgent(extensionConfig, sessionId, true);
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
-    // add to config with enabled = false
     await addToConfig(extensionConfig.name, extensionConfig, false);
-    // Rethrow the error to inform the caller
     throw error;
   }
 
-  // Then add to config
   try {
     await addToConfig(extensionConfig.name, extensionConfig, true);
   } catch (error) {

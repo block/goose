@@ -11,3 +11,13 @@ export async function safeJsonParse<T>(
     throw error;
   }
 }
+
+export function errorMessage(err: Error | unknown, default_value?: string) {
+  if (err instanceof Error) {
+    return err.message;
+  } else if (typeof err === 'object' && err !== null && 'message' in err) {
+    return String(err.message);
+  } else {
+    return default_value || String(err);
+  }
+}

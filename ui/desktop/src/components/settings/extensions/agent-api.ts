@@ -1,5 +1,6 @@
 import { toastService } from '../../../toasts';
 import { agentAddExtension, ExtensionConfig, agentRemoveExtension } from '../../../api';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 export async function addToAgent(
   extensionConfig: ExtensionConfig,
@@ -10,7 +11,7 @@ export async function addToAgent(
   let toastId = showToast
     ? toastService.loading({
         title: extensionName,
-        msg: `$adding ${extensionName} extension...`,
+        msg: `adding ${extensionName} extension...`,
       })
     : 0;
 
@@ -30,12 +31,12 @@ export async function addToAgent(
     if (showToast) {
       toastService.dismiss(toastId);
     }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const msg = errorMessage.length < 70 ? errorMessage : `Failed to add extension`;
+    const errMsg = errorMessage(error);
+    const msg = errMsg.length < 70 ? errMsg : `Failed to add extension`;
     toastService.error({
       title: extensionName,
       msg: msg,
-      traceback: errorMessage,
+      traceback: errMsg,
     });
     throw error;
   }

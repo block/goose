@@ -478,7 +478,7 @@ async fn update_router_tool_selector(
 async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     // If this is a Stdio extension that uses npx, check for Node.js installation
     #[cfg(target_os = "windows")]
     if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
@@ -502,29 +502,27 @@ async fn agent_add_extension(
                         })?;
 
                     if !output.status.success() {
-                        eprintln!(
+                        return Err(ErrorResponse::internal(format!(
                             "Failed to install Node.js: {}",
                             String::from_utf8_lossy(&output.stderr)
-                        );
-                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                        )));
                     }
                     eprintln!("Node.js installation completed");
                 } else {
-                    eprintln!(
+                    return Err(ErrorResponse::internal(format!(
                         "Node.js installer script not found at: {}",
                         install_script.display()
-                    );
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    )));
                 }
             }
         }
     }
 
-    let agent = state.get_agent_for_route(request.session_id).await?;
-    agent.add_extension(request.config).await.map_err(|e| {
-        error!("Failed to add extension: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let agent = state.get_agent(request.session_id).await?;
+    agent
+        .add_extension(request.config)
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
     Ok(StatusCode::OK)
 }
 
@@ -542,13 +540,9 @@ async fn agent_add_extension(
 async fn agent_remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let agent = state.get_agent_for_route(request.session_id).await?;
-
-    agent.remove_extension(&request.name).await.map_err(|e| {
-        error!("Failed to remove extension: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state.get_agent(request.session_id).await?;
+    agent.remove_extension(&request.name).await?;
     Ok(StatusCode::OK)
 }
 
