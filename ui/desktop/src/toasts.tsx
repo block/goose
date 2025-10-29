@@ -1,12 +1,14 @@
 import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
+import { startNewSession } from './sessions';
+import { useNavigation } from './hooks/useNavigation';
 
 export interface ToastServiceOptions {
   silent?: boolean;
   shouldThrow?: boolean;
 }
 
-export default class ToastService {
+class ToastService {
   private silent: boolean = false;
   private shouldThrow: boolean = false;
 
@@ -30,13 +32,13 @@ export default class ToastService {
     }
   }
 
-  error({ title, msg, traceback }: { title: string; msg: string; traceback: string }): void {
+  error(props: ToastErrorProps): void {
     if (!this.silent) {
-      toastError({ title, msg, traceback });
+      toastError(props);
     }
 
     if (this.shouldThrow) {
-      throw new Error(msg);
+      throw new Error(props.msg);
     }
   }
 
@@ -68,7 +70,7 @@ export default class ToastService {
   handleError(title: string, message: string, options: ToastServiceOptions = {}): void {
     this.configure(options);
     this.error({
-      title: title || 'Error',
+      title: title,
       msg: message,
       traceback: message,
     });
@@ -88,6 +90,7 @@ const commonToastOptions: ToastOptions = {
 };
 
 type ToastSuccessProps = { title?: string; msg?: string; toastOptions?: ToastOptions };
+
 export function toastSuccess({ title, msg, toastOptions = {} }: ToastSuccessProps) {
   return toast.success(
     <div>
@@ -99,26 +102,42 @@ export function toastSuccess({ title, msg, toastOptions = {} }: ToastSuccessProp
 }
 
 type ToastErrorProps = {
-  title?: string;
-  msg?: string;
+  title: string;
+  msg: string;
   traceback?: string;
-  toastOptions?: ToastOptions;
+  recoverHints?: string;
 };
 
-export function toastError({ title, msg, traceback, toastOptions }: ToastErrorProps) {
-  return toast.error(
+function ToastErrorContent({
+  title,
+  msg,
+  traceback,
+  recoverHints,
+}: Omit<ToastErrorProps, 'setView'>) {
+  const setView = useNavigation();
+  const showRecovery = recoverHints && setView;
+
+  return (
     <div className="flex gap-4">
       <div className="flex-grow">
-        {title ? <strong className="font-medium">{title}</strong> : null}
-        {msg ? <div>{msg}</div> : null}
+        {title && <strong className="font-medium">{title}</strong>}
+        {msg && <div>{msg}</div>}
       </div>
-      <div className="flex-none flex items-center">
-        {traceback ? (
+      <div className="flex-none flex items-center gap-2">
+        {showRecovery ? (
+          <Button onClick={() => startNewSession(recoverHints, null, setView)}>Recover</Button>
+        ) : traceback ? (
           <Button onClick={() => navigator.clipboard.writeText(traceback)}>Copy error</Button>
         ) : null}
       </div>
-    </div>,
-    { ...commonToastOptions, autoClose: traceback ? false : 5000, ...toastOptions }
+    </div>
+  );
+}
+
+export function toastError({ title, msg, traceback, recoverHints }: ToastErrorProps) {
+  return toast.error(
+    <ToastErrorContent title={title} msg={msg} traceback={traceback} recoverHints={recoverHints} />,
+    { ...commonToastOptions, autoClose: traceback ? false : 5000 }
   );
 }
 
@@ -135,21 +154,5 @@ export function toastLoading({ title, msg, toastOptions }: ToastLoadingProps) {
       {title ? <div>{msg}</div> : null}
     </div>,
     { ...commonToastOptions, autoClose: false, ...toastOptions }
-  );
-}
-
-type ToastInfoProps = {
-  title?: string;
-  msg?: string;
-  toastOptions?: ToastOptions;
-};
-
-export function toastInfo({ title, msg, toastOptions }: ToastInfoProps) {
-  return toast.info(
-    <div>
-      {title ? <strong className="font-medium">{title}</strong> : null}
-      {msg ? <div>{msg}</div> : null}
-    </div>,
-    { ...commonToastOptions, ...toastOptions }
   );
 }

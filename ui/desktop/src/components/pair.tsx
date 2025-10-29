@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -10,6 +9,7 @@ import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
 import { useSearchParams } from 'react-router-dom';
+import { setViewType } from '../hooks/useNavigation';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -19,7 +19,7 @@ export interface PairRouteState {
 interface PairProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setView: setViewType;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   setAgentWaitingMessage: (msg: string | null) => void;
