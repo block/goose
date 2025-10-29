@@ -191,7 +191,7 @@ impl Agent {
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            "smart_approve".to_string(),
+            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
@@ -262,7 +262,7 @@ impl Agent {
 
         // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.to_string())
+            .update_permission_inspector_mode(goose_mode)
             .await;
 
         Ok(ReplyContext {
@@ -1024,8 +1024,7 @@ impl Agent {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                let mode = goose_mode;
-                                if mode == GooseMode::Chat {
+                                if goose_mode == GooseMode::Chat {
                                     // Skip all tool calls in chat mode
                                     for request in remaining_requests {
                                         let mut response = message_tool_response.lock().await;

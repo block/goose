@@ -262,16 +262,10 @@ mod tests {
 
         // Set values in config
         test_config
-            .set_param(
-                "otel_exporter_otlp_endpoint",
-                serde_json::Value::String("http://config:4318".to_string()),
-            )
+            .set_param("otel_exporter_otlp_endpoint", "http://config:4318")
             .unwrap();
         test_config
-            .set_param(
-                "otel_exporter_otlp_timeout",
-                serde_json::Value::Number(3000.into()),
-            )
+            .set_param("otel_exporter_otlp_timeout", 3000)
             .unwrap();
 
         // Test that from_config reads from the config file

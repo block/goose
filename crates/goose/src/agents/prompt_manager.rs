@@ -37,7 +37,7 @@ struct SystemPromptContext {
     current_date_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extension_tool_limits: Option<(usize, usize)>,
-    goose_mode: String,
+    goose_mode: GooseMode,
     is_autonomous: bool,
     enable_subagents: bool,
     max_extensions: usize,
@@ -120,7 +120,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
-            goose_mode: goose_mode.to_string(),
+            goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
             enable_subagents: should_enabled_subagents(self.model_name.as_str()),
             max_extensions: MAX_EXTENSIONS,

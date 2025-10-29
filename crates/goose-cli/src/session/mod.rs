@@ -545,21 +545,18 @@ impl CliSession {
                     save_history(&mut editor);
 
                     let config = Config::global();
-                    let mode = mode.to_lowercase();
-
-                    // Check if mode is valid
-                    if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
-                        output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
-                            mode
-                        ));
-                        continue;
-                    }
-
-                    config
-                        .set_param("GOOSE_MODE", Value::String(mode.to_string()))
-                        .unwrap();
-                    output::goose_mode_message(&format!("Goose mode set to '{}'", mode));
+                    let mode = match GooseMode::try_from(&mode.to_lowercase()) {
+                        Ok(mode) => mode,
+                        Err(_) => {
+                            output::render_error(&format!(
+                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                                mode
+                            ));
+                            continue;
+                        }
+                    };
+                    config.set_goose_mode(mode)?;
+                    output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
                     continue;
                 }
                 input::InputResult::Plan(options) => {
@@ -789,9 +786,7 @@ impl CliSession {
                     let config = Config::global();
                     let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
                     if curr_goose_mode != GooseMode::Auto {
-                        config
-                            .set_param("GOOSE_MODE", Value::String("auto".to_string()))
-                            .unwrap();
+                        config.set_goose_mode(GooseMode::Auto).unwrap();
                     }
 
                     // clear the messages before acting on the plan
@@ -807,9 +802,7 @@ impl CliSession {
 
                     // Reset run & goose mode
                     if curr_goose_mode != GooseMode::Auto {
-                        config
-                            .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
-                            .unwrap();
+                        config.set_goose_mode(curr_goose_mode)?;
                     }
                 } else {
                     // add the plan response (assistant message) & carry the conversation forward

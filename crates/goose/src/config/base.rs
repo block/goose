@@ -3,7 +3,7 @@ use crate::config::GooseMode;
 use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::OnceCell;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
@@ -142,6 +142,11 @@ macro_rules! declare_param {
         paste::paste! {
             pub fn [<get_ $param_name:lower>](&self) -> Result<$param_type, ConfigError> {
                 self.get_param(stringify!($param_name))
+            }
+        }
+        paste::paste! {
+            pub fn [<set_ $param_name:lower>](&self, v: impl Into<$param_type>) -> Result<(), ConfigError> {
+                self.set_param(stringify!($param_name), &v.into())
             }
         }
     };
@@ -552,7 +557,10 @@ impl Config {
     }
 
     // save a parameter in the appropriate location based on if it's secret or not
-    pub fn set(&self, key: &str, value: Value, is_secret: bool) -> Result<(), ConfigError> {
+    pub fn set<V>(&self, key: &str, value: &V, is_secret: bool) -> Result<(), ConfigError>
+    where
+        V: Serialize,
+    {
         if is_secret {
             self.set_secret(key, value)
         } else {
@@ -607,17 +615,10 @@ impl Config {
     /// Returns a ConfigError if:
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
-    pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        // Lock before reading to prevent race condition.
+    pub fn set_param<V: Serialize>(&self, key: &str, value: V) -> Result<(), ConfigError> {
         let _guard = self.guard.lock().unwrap();
-
-        // Load current values with recovery if needed
         let mut values = self.load_values()?;
-
-        // Modify values
-        values.insert(key.to_string(), value);
-
-        // Save all values using the atomic write approach
+        values.insert(key.to_string(), serde_json::to_value(&value)?);
         self.save_values(values)
     }
 
@@ -690,12 +691,15 @@ impl Config {
     /// Returns a ConfigError if:
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
-    pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+    pub fn set_secret<V>(&self, key: &str, value: &V) -> Result<(), ConfigError>
+    where
+        V: Serialize,
+    {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
 
         let mut values = self.load_secrets()?;
-        values.insert(key.to_string(), value);
+        values.insert(key.to_string(), serde_json::to_value(value)?);
 
         match &self.secrets {
             SecretStorage::Keyring { service } => {
@@ -823,7 +827,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set a simple string value
-        config.set_param("test_key", Value::String("test_value".to_string()))?;
+        config.set_param("test_key", "test_value")?;
 
         // Test simple string retrieval
         let value: String = config.get_param("test_key")?;
@@ -878,8 +882,8 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
-        config.set_param("key1", Value::String("value1".to_string()))?;
-        config.set_param("key2", Value::Number(42.into()))?;
+        config.set_param("key1", "value1")?;
+        config.set_param("key2", 42)?;
 
         // Read the file directly to check YAML formatting
         let content = std::fs::read_to_string(temp_file.path())?;
@@ -894,12 +898,11 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
-        config.set_param("key", Value::String("value".to_string()))?;
+        config.set_param("test_key", "test_value")?;
+        config.set_param("another_key", 42)?;
+        config.set_param("third_key", true)?;
 
-        let value: String = config.get_param("key")?;
-        assert_eq!(value, "value");
-
-        config.delete("key")?;
+        let _values = config.load_values()?;
 
         let result: Result<String, ConfigError> = config.get_param("key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
@@ -913,7 +916,7 @@ mod tests {
         let secrets_file = NamedTempFile::new().unwrap();
         let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
 
-        config.set_secret("key", Value::String("value".to_string()))?;
+        config.set_secret("key", &"value")?;
 
         let value: String = config.get_secret("key")?;
         assert_eq!(value, "value");
@@ -934,7 +937,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Test setting and getting a simple secret
-        config.set_secret("api_key", Value::String("secret123".to_string()))?;
+        config.set_secret("api_key", &Value::String("secret123".to_string()))?;
         let value: String = config.get_secret("api_key")?;
         assert_eq!(value, "secret123");
 
@@ -961,8 +964,8 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set multiple secrets
-        config.set_secret("key1", Value::String("secret1".to_string()))?;
-        config.set_secret("key2", Value::String("secret2".to_string()))?;
+        config.set_secret("key1", &Value::String("secret1".to_string()))?;
+        config.set_secret("key2", &Value::String("secret2".to_string()))?;
 
         // Verify both exist
         let value1: String = config.get_secret("key1")?;
@@ -1060,7 +1063,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Create a valid config first
-        config.set_param("key1", Value::String("value1".to_string()))?;
+        config.set_param("key1", "value1")?;
 
         // Verify the backup was created by the first write
         let backup_paths = config.get_backup_paths();
@@ -1070,7 +1073,7 @@ mod tests {
         }
 
         // Make another write to ensure backup is created
-        config.set_param("key2", Value::Number(42.into()))?;
+        config.set_param("key2", 42)?;
 
         // Check again
         for (i, path) in backup_paths.iter().enumerate() {
@@ -1164,15 +1167,15 @@ mod tests {
         let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
 
         // First, create a config with some data
-        config.set_param("test_key_backup", Value::String("backup_value".to_string()))?;
-        config.set_param("another_key", Value::Number(42.into()))?;
+        config.set_param("test_key_backup", "backup_value")?;
+        config.set_param("another_key", 42)?;
 
         // Verify the backup was created
         let backup_paths = config.get_backup_paths();
         let primary_backup = &backup_paths[0]; // .bak file
 
         // Make sure we have a backup by doing another write
-        config.set_param("third_key", Value::Bool(true))?;
+        config.set_param("third_key", true)?;
         assert!(primary_backup.exists(), "Backup should exist after writes");
 
         // Now delete the main config file to simulate it being lost
@@ -1208,7 +1211,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set initial values
-        config.set_param("key1", Value::String("value1".to_string()))?;
+        config.set_param("key1", "value1")?;
 
         // Verify the config file exists and is valid
         assert!(temp_file.path().exists());
@@ -1229,7 +1232,7 @@ mod tests {
 
         // Create multiple versions to test rotation
         for i in 1..=7 {
-            config.set_param("version", Value::Number(i.into()))?;
+            config.set_param("version", i)?;
         }
 
         let backup_paths = config.get_backup_paths();
@@ -1464,7 +1467,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set value in config file
-        config.set_param("test_precedence", Value::String("file_value".to_string()))?;
+        config.set_param("test_precedence", "file_value")?;
 
         // Verify file value is returned when no env var
         let value: String = config.get_param("test_precedence")?;

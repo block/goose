@@ -101,7 +101,7 @@ pub async fn upsert_config(
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     let config = Config::global();
-    let result = config.set(&query.key, query.value, query.is_secret);
+    let result = config.set(&query.key, &query.value, query.is_secret);
 
     match result {
         Ok(_) => Ok(Json(Value::String(format!("Upserted key {}", query.key)))),
