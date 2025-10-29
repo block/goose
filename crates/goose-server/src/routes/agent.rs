@@ -510,7 +510,7 @@ async fn agent_add_extension(
                     eprintln!("Node.js installation completed");
                 } else {
                     return Err(ErrorResponse::internal(format!(
-                        "Node.js installer script not found at: {}",
+                        "Node.js not detected and no installer script not found at: {}",
                         install_script.display()
                     )));
                 }
