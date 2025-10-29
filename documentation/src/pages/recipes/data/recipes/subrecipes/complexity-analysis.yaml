@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: 1.0.0
 title: "Code Complexity Analyzer"
 description: "Analyzes cyclomatic complexity and identifies overly complex functions and classes"
 instructions: |
