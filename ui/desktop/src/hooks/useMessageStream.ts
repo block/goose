@@ -35,7 +35,7 @@ export interface NotificationEvent {
 
 // Event types for SSE stream
 type MessageEvent =
-  | { type: 'Message'; message: Message; token_state?: TokenState | null }
+  | { type: 'Message'; message: Message; token_state: TokenState }
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
@@ -167,7 +167,7 @@ export interface UseMessageStreamHelpers {
   setError: (error: Error | undefined) => void;
 
   /** Real-time token state from server */
-  tokenState?: TokenState;
+  tokenState: TokenState;
 }
 
 /**
@@ -200,7 +200,14 @@ export function useMessageStream({
     null
   );
   const [session, setSession] = useState<Session | null>(null);
-  const [tokenState, setTokenState] = useState<TokenState>();
+  const [tokenState, setTokenState] = useState<TokenState>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    accumulatedInputTokens: 0,
+    accumulatedOutputTokens: 0,
+    accumulatedTotalTokens: 0,
+  });
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -284,9 +291,7 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
-                    if (parsedEvent.token_state) {
-                      setTokenState(parsedEvent.token_state);
-                    }
+                    setTokenState(parsedEvent.token_state);
 
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage: Message = {
