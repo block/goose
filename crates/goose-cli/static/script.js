@@ -474,6 +474,10 @@ async function loadSessionIfExists() {
                 resumeDiv.innerHTML = `<em>Session resumed: ${sessionData.messages.length} messages loaded</em>`;
                 messagesContainer.appendChild(resumeDiv);
                 
+                // Load all messages from session
+                sessionData.messages.forEach(msg => {
+                    addMessage(msg.content, msg.role, msg.timestamp);
+                });
                 
                 // Update page title with session description if available
                 if (sessionData.metadata && sessionData.metadata.description) {
@@ -508,6 +512,18 @@ messageInput.addEventListener('input', () => {
 
 // Initialize WebSocket connection
 connectWebSocket();
+
+// Read 'q' parameter from URL and set it to the message input
+function getQueryParam() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryParam = urlParams.get('q');
+    if (queryParam) {
+        messageInput.value = queryParam;
+    }
+}
+
+// Populate query parameter if present
+getQueryParam();
 
 // Focus on input
 messageInput.focus();
