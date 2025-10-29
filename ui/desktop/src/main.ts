@@ -770,7 +770,7 @@ const createTray = () => {
   // If tray already exists, destroy it first
   destroyTray();
 
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = !app.isPackaged;
   let iconPath: string;
 
   if (isDev) {
