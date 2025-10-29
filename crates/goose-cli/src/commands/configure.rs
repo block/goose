@@ -196,7 +196,7 @@ pub async fn handle_configure() -> anyhow::Result<()> {
         }
         Ok(())
     } else {
-        let config_dir = Paths::config_dir().to_string_lossy().to_string();
+        let config_dir = Paths::config_dir().display().to_string();
 
         println!();
         println!(
@@ -1924,7 +1924,7 @@ pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_config_file_saved() -> Result<(), Box<dyn Error>> {
+fn print_config_file_saved() -> anyhow::Result<()> {
     let config = Config::global();
     cliclack::outro(format!(
         "Configuration saved successfully to {}",
