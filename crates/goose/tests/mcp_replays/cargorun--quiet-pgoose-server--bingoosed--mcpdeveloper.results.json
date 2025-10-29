@@ -90,7 +90,7 @@
   [
     {
       "type": "text",
-      "text": "Available windows:\nMenubar",
+      "text": "Available windows:\n\nbb3cc23c-6950-4e96-8b40-850e09f46934\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nBattery\nWiFi\nItem-0\nBentoBox\nSiri\nClock\nMenubar\nDock\njust record-mcp-tests",
       "annotations": {
         "audience": [
           "assistant"
@@ -99,7 +99,7 @@
     },
     {
       "type": "text",
-      "text": "Available windows:\nMenubar",
+      "text": "Available windows:\n\nbb3cc23c-6950-4e96-8b40-850e09f46934\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nBattery\nWiFi\nItem-0\nBentoBox\nSiri\nClock\nMenubar\nDock\njust record-mcp-tests",
       "annotations": {
         "audience": [
           "user"

@@ -2,7 +2,7 @@
   [
     {
       "type": "text",
-      "text": "Command '['npm', 'install']' returned non-zero exit status 1."
+      "text": "Contents of https://example.com/:\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)"
     }
   ]
 ]
