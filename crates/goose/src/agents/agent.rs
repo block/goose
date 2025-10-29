@@ -449,21 +449,10 @@ impl Agent {
                     );
                 }
             };
-            let session = match session.as_ref() {
-                Some(s) => s,
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Session is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
+            let (parent_session_id, parent_working_dir) = match session.as_ref() {
+                Some(s) => (Some(s.id.clone()), s.working_dir.clone()),
+                None => (None, std::env::current_dir().unwrap_or_default()),
             };
-            let parent_session_id = session.id.to_string();
-            let parent_working_dir = session.working_dir.clone();
 
             // Get extensions from the agent's runtime state rather than global config
             // This ensures subagents inherit extensions that were dynamically enabled by the parent
