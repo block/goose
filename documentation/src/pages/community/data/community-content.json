@@ -173,6 +173,19 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Building Effective Prompts and Workflows for Code Review with goose",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/building-effective-prompts-and-workflows-for-code-review-with-goose-51m1",
+      "thumbnail": "https://i.imgur.com/2cRXct5.png",
+      "submittedDate": "2025-10-29",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
