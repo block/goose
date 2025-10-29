@@ -351,7 +351,7 @@ export const scanRecipe = <ThrowOnError extends boolean = false>(options: Option
 };
 
 export const reply = <ThrowOnError extends boolean = false>(options: Options<ReplyData, ThrowOnError>) => {
-    return (options.client ?? client).post<ReplyResponses, ReplyErrors, ThrowOnError>({
+    return (options.client ?? client).sse.post<ReplyResponses, ReplyErrors, ThrowOnError>({
         url: '/reply',
         ...options,
         headers: {

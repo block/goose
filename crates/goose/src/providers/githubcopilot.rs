@@ -113,6 +113,8 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GithubCopilotProvider {
@@ -127,6 +129,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -390,6 +393,10 @@ impl Provider for GithubCopilotProvider {
                 None,
             )],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

@@ -47,6 +47,7 @@ pub struct OllamaProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    name: String,
 }
 
 impl OllamaProvider {
@@ -92,6 +93,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
@@ -131,6 +133,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -174,6 +177,10 @@ impl Provider for OllamaProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

@@ -1361,6 +1361,10 @@ mod tests {
             )
         }
 
+        fn get_name(&self) -> &str {
+            "mock-scheduler"
+        }
+
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
         }

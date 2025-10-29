@@ -78,6 +78,8 @@ pub struct VeniceProvider {
     base_path: String,
     models_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl VeniceProvider {
@@ -105,6 +107,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
+            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -208,6 +211,10 @@ impl Provider for VeniceProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

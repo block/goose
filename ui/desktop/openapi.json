@@ -1247,7 +1247,14 @@
         },
         "responses": {
           "200": {
-            "description": "Streaming response initiated"
+            "description": "Streaming response initiated",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
           },
           "424": {
             "description": "Agent not initialized"
@@ -3168,6 +3175,143 @@
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "MessageEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "message",
+              "type"
+            ],
+            "properties": {
+              "message": {
+                "$ref": "#/components/schemas/Message"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Message"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error",
+              "type"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Error"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "reason",
+              "type"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Finish"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "model",
+              "mode",
+              "type"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ModelChange"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "request_id",
+              "message",
+              "type"
+            ],
+            "properties": {
+              "message": {
+                "type": "object"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Notification"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "conversation",
+              "type"
+            ],
+            "properties": {
+              "conversation": {
+                "$ref": "#/components/schemas/Conversation"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "UpdateConversation"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Ping"
+                ]
+              }
+            }
+          }
+        ],
         "discriminator": {
           "propertyName": "type"
         }

@@ -54,6 +54,7 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
+    name: String,
 }
 
 impl OpenAiProvider {
@@ -107,6 +108,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
@@ -163,6 +165,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -201,6 +204,10 @@ impl Provider for OpenAiProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -231,6 +238,7 @@ impl Provider for OpenAiProvider {
                 tracing::debug!("Failed to get usage data");
                 Usage::default()
             });
+
         let model = get_model(&json_response);
         log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))
