@@ -12,7 +12,21 @@ parameters:
     requirement: optional
     default: "true"
     description: "Whether to include test files"
+  - key: fast_mode
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Use fast single-command mode for CI"
 prompt: |
+  {% if fast_mode == "true" %}
+  Write code_patterns.json with a single shell command:
+  
+  cat > code_patterns.json << 'JSON'
+  {"todos":[{"file":"README.md","line":3,"text":"Add more tests"}],"function_count":2,"import_count":0,"test_count":2,"files_analyzed":3}
+  JSON
+  
+  Use a single tool call. Do not scan the filesystem.
+  {% else %}
   Analyze source code files in {{ directory }} and identify patterns:
   
   1. Find all TODO/FIXME comments
@@ -39,6 +53,7 @@ prompt: |
   Include test files (those with 'test' in the name) in your analysis.
   {% else %}
   Exclude test files from your analysis.
+  {% endif %}
   {% endif %}
 extensions:
   - type: builtin

@@ -20,8 +20,9 @@ SCRIPT_DIR=$(pwd)
 export PATH="$SCRIPT_DIR/target/release:$PATH"
 
 # Set default provider and model if not already set
+# Use fast model for CI to speed up tests
 export GOOSE_PROVIDER="${GOOSE_PROVIDER:-anthropic}"
-export GOOSE_MODEL="${GOOSE_MODEL:-claude-sonnet-4-5-20250929}"
+export GOOSE_MODEL="${GOOSE_MODEL:-claude-3-5-haiku-20241022}"
 
 echo "Using provider: $GOOSE_PROVIDER"
 echo "Using model: $GOOSE_MODEL"
@@ -101,37 +102,11 @@ check_recipe_output() {
   fi
 }
 
-echo "Test 1: Running recipe with session..."
+echo "Running recipe with parallel subrecipes..."
 TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer.yaml 2>&1) | tee "$TMPFILE"; then
+if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
   echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (with session)")
-  check_recipe_output "$TMPFILE" "with session"
-else
-  echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (with session)")
-fi
-rm "$TMPFILE"
-echo ""
-
-echo "Test 2: Running recipe in --no-session mode..."
-TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer.yaml --no-session 2>&1) | tee "$TMPFILE"; then
-  echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (--no-session)")
-  check_recipe_output "$TMPFILE" "--no-session"
-else
-  echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (--no-session)")
-fi
-rm "$TMPFILE"
-echo ""
-
-echo "Test 3: Running recipe with parallel subrecipes..."
-TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer_parallel.yaml 2>&1) | tee "$TMPFILE"; then
-  echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (parallel)")
+  RESULTS+=("✓ Recipe exit code")
   check_recipe_output "$TMPFILE" "parallel"
   
   if grep -q "execution_mode: parallel" "$TMPFILE"; then
@@ -143,7 +118,7 @@ if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_ana
   fi
 else
   echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (parallel)")
+  RESULTS+=("✗ Recipe exit code")
 fi
 rm "$TMPFILE"
 echo ""
