@@ -1,5 +1,6 @@
 pub mod anthropic;
 mod api_client;
+pub mod auto_detect;
 pub mod azure;
 pub mod azureauth;
 pub mod base;

@@ -118,6 +118,21 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
+export type DetectProviderError = {
+    detected_format?: string | null;
+    error: string;
+    suggestions: Array<string>;
+};
+
+export type DetectProviderRequest = {
+    api_key: string;
+};
+
+export type DetectProviderResponse = {
+    models: Array<string>;
+    provider_name: string;
+};
+
 export type EmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -1323,6 +1338,35 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
+
+export type DetectProviderData = {
+    body: DetectProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/detect-provider';
+};
+
+export type DetectProviderErrors = {
+    /**
+     * Invalid API key format or key validation failed
+     */
+    400: DetectProviderError;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DetectProviderError2 = DetectProviderErrors[keyof DetectProviderErrors];
+
+export type DetectProviderResponses = {
+    /**
+     * Provider detected successfully
+     */
+    200: DetectProviderResponse;
+};
+
+export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;

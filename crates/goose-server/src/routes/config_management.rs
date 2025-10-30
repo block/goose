@@ -11,6 +11,7 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
+use goose::providers::auto_detect::{detect_provider_from_api_key, detect_cloud_provider_from_api_key};
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
@@ -88,6 +89,23 @@ pub struct UpdateCustomProviderRequest {
     pub supports_streaming: Option<bool>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct DetectProviderRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderResponse {
+    pub provider_name: String,
+    pub models: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderError {
+    pub error: String,
+    pub detected_format: Option<String>,
+    pub suggestions: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -518,6 +536,48 @@ pub async fn upsert_permissions(
 
 #[utoipa::path(
     post,
+    path = "/config/detect-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
+        (status = 400, description = "Invalid API key format or key validation failed", body = DetectProviderError),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn detect_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    let api_key = detect_request.api_key.trim();
+
+    match detect_provider_from_api_key(api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+fn detect_key_format(api_key: &str) -> Option<String> {
+    let trimmed_key = api_key.trim();
+
+    if trimmed_key.starts_with("sk-ant-") {
+        Some("Anthropic".to_string())
+    } else if trimmed_key.starts_with("sk-") {
+        Some("OpenAI".to_string())
+    } else if trimmed_key.starts_with("AIza") {
+        Some("Google".to_string())
+    } else if trimmed_key.starts_with("gsk_") {
+        Some("Groq".to_string())
+    } else if trimmed_key.starts_with("xai-") {
+        Some("xAI".to_string())
+    } else {
+        None
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/config/backup",
     responses(
         (status = 200, description = "Config file backed up", body = String),
@@ -606,6 +666,28 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
         }
     }
 }
+#[utoipa::path(
+    post,
+    path = "/config/detect-cloud-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Cloud provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching cloud provider found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn detect_cloud_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    match detect_cloud_provider_from_api_key(&detect_request.api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 
 #[utoipa::path(
     post,
@@ -718,6 +800,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/detect-provider", post(detect_provider))
+        .route("/config/detect-cloud-provider", post(detect_cloud_provider))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
