@@ -1211,7 +1211,7 @@ async fn run_scheduled_job_internal(
         id: session.id.clone(),
         working_dir: current_dir.clone(),
         schedule_id: Some(job.id.clone()),
-        execution_mode: job.execution_mode.clone(),
+        goose_mode: job.execution_mode.clone(),
         max_turns: None,
         retry_config: None,
     };

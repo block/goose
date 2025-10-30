@@ -259,7 +259,7 @@ pub async fn reply(
             id: session_id.clone(),
             working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            execution_mode: None,
+            goose_mode: None,
             max_turns: None,
             retry_config: None,
         };

@@ -565,7 +565,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             id: session_id.clone(),
             working_dir: std::env::current_dir().unwrap_or_default(),
             schedule_id: None,
-            execution_mode: None,
+            goose_mode: None,
             max_turns: None,
             retry_config: None,
         };

@@ -840,7 +840,7 @@ impl CliSession {
             id: session_id.clone(),
             working_dir: std::env::current_dir().unwrap_or_default(),
             schedule_id: self.scheduled_job_id.clone(),
-            execution_mode: None,
+            goose_mode: None,
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
         });

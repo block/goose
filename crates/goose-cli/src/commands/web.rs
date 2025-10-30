@@ -473,7 +473,7 @@ async fn process_message_streaming(
         id: session.id.clone(),
         working_dir: session.working_dir,
         schedule_id: None,
-        execution_mode: None,
+        goose_mode: None,
         max_turns: None,
         retry_config: None,
     };

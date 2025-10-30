@@ -104,34 +104,17 @@ fn get_agent_messages(
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
         let parent_session_id = task_config.parent_session_id;
         let working_dir = task_config.parent_working_dir;
-        let (agent, session_id) = match parent_session_id {
-            Some(parent_session_id) => {
-                let session = SessionManager::create_session(
-                    working_dir.clone(),
-                    format!("Subagent task for: {}", parent_session_id),
-                )
-                .await
-                .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
+        let session = SessionManager::create_session(
+            working_dir.clone(),
+            format!("Subagent task for: {}", parent_session_id),
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
 
-                let agent = agent_manager
-                    .get_or_create_agent(session.id.clone())
-                    .await
-                    .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
-                (agent, Some(session.id))
-            }
-            None => {
-                let agent = Arc::new(Agent::new());
-                agent
-                    .extension_manager
-                    .set_context(PlatformExtensionContext {
-                        session_id: None,
-                        extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-                        tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
-                    })
-                    .await;
-                (agent, None)
-            }
-        };
+        let agent = agent_manager
+            .get_or_create_agent(session.id.clone())
+            .await
+            .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
 
         agent
             .update_provider(task_config.provider)
@@ -157,7 +140,7 @@ fn get_agent_messages(
                 id: session_id,
                 working_dir,
                 schedule_id: None,
-                execution_mode: None,
+                goose_mode: None,
                 max_turns: task_config.max_turns.map(|v| v as u32),
                 retry_config: None,
             })

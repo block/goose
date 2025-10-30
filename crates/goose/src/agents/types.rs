@@ -1,3 +1,4 @@
+use crate::config::GooseMode;
 use crate::mcp_utils::ToolResult;
 use crate::providers::base::Provider;
 use rmcp::model::{Content, Tool};
@@ -91,7 +92,7 @@ pub struct SessionConfig {
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
     /// Execution mode for scheduled jobs: "foreground" or "background"
-    pub execution_mode: Option<String>,
+    pub goose_mode: Option<GooseMode>,
     /// Maximum number of turns (iterations) allowed without user input
     pub max_turns: Option<u32>,
     /// Retry configuration for automated validation and recovery
