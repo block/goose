@@ -23,6 +23,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [userInActiveSetup, setUserInActiveSetup] = useState(false);
 
   const [openRouterSetupState, setOpenRouterSetupState] = useState<{
     show: boolean;
@@ -77,6 +78,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
   const handleApiKeySuccess = (_provider: string, _model: string) => {
     // Mark as having provider and close setup
+    console.log("✅ API key success - clearing userInActiveSetup and redirecting");
+    setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);
     navigate('/', { replace: true });
@@ -153,10 +156,24 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
         const hasConfiguredProvider = provider.trim() !== '';
 
-        if (hasConfiguredProvider || didSelectProvider) {
+        console.log('🔍 ProviderGuard checkProvider:', {
+          userInActiveSetup,
+          hasConfiguredProvider,
+          didSelectProvider,
+          provider
+        });
+
+        // If user is actively testing keys, don't redirect
+        if (userInActiveSetup) {
+          console.log('🚫 User in active setup - staying on setup screen');
+          setHasProvider(false);
+          setShowFirstTimeSetup(true);
+        } else if (hasConfiguredProvider || didSelectProvider) {
+          console.log('✅ Has provider or did select - redirecting to app');
           setHasProvider(true);
           setShowFirstTimeSetup(false);
         } else {
+          console.log('❌ No provider - showing setup screen');
           setHasProvider(false);
           setShowFirstTimeSetup(true);
         }
@@ -175,7 +192,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     };
 
     checkProvider();
-  }, [read, didSelectProvider]);
+  }, [read, didSelectProvider, userInActiveSetup]);
 
   if (isChecking) {
     return (
@@ -212,7 +229,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               </div>
 
               {/* API Key Tester - Only grey container */}
-              <ApiKeyTester onSuccess={handleApiKeySuccess} />
+              <ApiKeyTester onSuccess={handleApiKeySuccess} onStartTesting={() => { console.log("🔧 Setting userInActiveSetup = true"); setUserInActiveSetup(true); }} />
 
               {/* Provider options - Grid layout */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

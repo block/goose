@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 
 interface ApiKeyTesterProps {
   onSuccess: (provider: string, model: string) => void;
+  onStartTesting?: () => void;
 }
 
 interface TestResult {
@@ -32,7 +33,7 @@ interface ApiError {
   message?: string;
 }
 
-export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
+export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTesterProps) {
   const [apiKey, setApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -48,6 +49,9 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
       });
       return;
     }
+
+    // Notify parent that user is actively testing
+    onStartTesting?.();
 
     setIsLoading(true);
     setTestResults([]);
@@ -66,7 +70,53 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
         const { provider_name, models } = response.data;
         
         console.log(`✅ Detected ${provider_name} with ${models.length} models`);
-        
+        console.log(`🔍 API Key format check: "${apiKey.substring(0, 10)}..." (length: ${apiKey.length})`);
+
+        // Quick Setup should not use Ollama - reject it (unless it might be OpenRouter)
+        if (provider_name === 'ollama') {
+          // Check if this might be an OpenRouter key that fell back to Ollama
+          const isOpenRouterKey = apiKey.trim().startsWith('sk-or-');
+          
+          if (isOpenRouterKey) {
+            // This looks like OpenRouter - show a specific message
+            setTestResults([{
+              provider: 'OpenRouter',
+              success: false,
+              error: 'OpenRouter key detected but validation failed',
+              suggestions: [
+                'Check that your OpenRouter API key is correct and complete',
+                'Verify your OpenRouter account has sufficient credits',
+                'Try setting up OpenRouter manually in the "Other Providers" section'
+              ],
+            }]);
+
+            toastService.error({
+              title: 'OpenRouter Key Invalid',
+              msg: 'OpenRouter API key detected but validation failed. Please check your key.',
+              traceback: '',
+            });
+          } else {
+            // Generic rejection for other Ollama fallbacks
+            setTestResults([{
+              provider: 'Unknown',
+              success: false,
+              error: 'Could not detect a valid cloud API provider from this key',
+              suggestions: [
+                'Make sure you are using a valid API key from OpenAI, Anthropic, Google, Groq, or OpenRouter',
+                'For Ollama setup, use the "Other Providers" section below'
+              ],
+            }]);
+
+            toastService.error({
+              title: 'API Key Not Recognized',
+              msg: 'Could not detect a valid cloud API provider. Please check your API key format.',
+              traceback: '',
+            });
+          }
+          
+          return;
+        }
+
         // Show success
         setTestResults([{
           provider: provider_name,
@@ -210,7 +260,7 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
           {/* Results */}
           {showResults && testResults.length > 0 && (
             <div className="space-y-2">
-              <h4 className="font-medium text-text-standard text-sm">Test Results:</h4>
+
               <div className="space-y-1">
                 {testResults.map((result, index) => (
                   <div key={index} className="space-y-2">
@@ -241,18 +291,7 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
                         )}
                       </div>
                     </div>
-                    
-                    {/* Show suggestions for failed attempts */}
-                    {!result.success && result.suggestions && result.suggestions.length > 0 && (
-                      <div className="ml-6 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
-                        <div className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">Suggestions:</div>
-                        <ul className="text-yellow-700 dark:text-yellow-300 space-y-1">
-                          {result.suggestions.map((suggestion, i) => (
-                            <li key={i}>• {suggestion}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+
                   </div>
                 ))}
               </div>
