@@ -146,6 +146,8 @@ async function streamFromResponse(
         }
         case 'UpdateConversation': {
           log.messages('conversation-update', event.conversation.length);
+          // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+          // Longterm fix is to only send the agent the new messages, not the entire conversation.
           currentMessages = event.conversation;
           updateMessages(event.conversation);
           break;
