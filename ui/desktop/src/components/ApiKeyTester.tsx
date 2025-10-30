@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { detectCloudProvider } from '../api';
+import { detectProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
 import { Key } from './icons/Key';
@@ -60,8 +60,8 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
     try {
       console.log('Testing API key with backend...');
       
-      // Call backend API to detect cloud provider (excludes Ollama)
-      const response = await detectCloudProvider({ 
+      // Call backend API to detect provider
+      const response = await detectProvider({ 
         body: { api_key: apiKey },
         throwOnError: true 
       });
