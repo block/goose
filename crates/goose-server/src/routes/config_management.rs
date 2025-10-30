@@ -11,7 +11,7 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::auto_detect;
+use goose::providers::auto_detect::{detect_provider_from_api_key, detect_cloud_provider_from_api_key};
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
@@ -549,7 +549,7 @@ pub async fn detect_provider(
 ) -> Result<Json<DetectProviderResponse>, StatusCode> {
     let api_key = detect_request.api_key.trim();
 
-    match auto_detect::detect_provider_from_api_key(api_key).await {
+    match detect_provider_from_api_key(api_key).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,
