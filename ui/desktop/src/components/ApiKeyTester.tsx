@@ -16,12 +16,17 @@ interface TestResult {
   model?: string;
   totalModels?: number;
   error?: string;
+  detectedFormat?: string;
+  suggestions?: string[];
 }
 
 interface ApiError {
   response?: {
+    status?: number;
     data?: {
-      message?: string;
+      error?: string;
+      detected_format?: string;
+      suggestions?: string[];
     };
   };
   message?: string;
@@ -90,21 +95,48 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
       console.error('Detection failed:', error);
       
       const apiError = error as ApiError;
-      const errorMessage = apiError.response?.data?.message || 
-                          apiError.message || 
-                          'Could not detect provider. Please check your API key.';
       
-      setTestResults([{
-        provider: 'Unknown',
-        success: false,
-        error: errorMessage,
-      }]);
+      // Handle the new structured error response
+      if (apiError.response?.status === 400 && apiError.response.data) {
+        const errorData = apiError.response.data;
+        
+        setTestResults([{
+          provider: errorData.detected_format || 'Unknown',
+          success: false,
+          error: errorData.error || 'API key validation failed',
+          detectedFormat: errorData.detected_format,
+          suggestions: errorData.suggestions,
+        }]);
 
-      toastService.error({
-        title: 'Detection Failed',
-        msg: 'Could not validate API key. Please check the key and try again.',
-        traceback: error instanceof Error ? error.stack || '' : '',
-      });
+        // Show detailed error message
+        let errorMessage = errorData.error || 'Could not validate API key.';
+        if (errorData.suggestions && errorData.suggestions.length > 0) {
+          errorMessage += '\n\nSuggestions:\n' + errorData.suggestions.map(s => `• ${s}`).join('\n');
+        }
+
+        toastService.error({
+          title: errorData.detected_format ? `${errorData.detected_format} Key Invalid` : 'Detection Failed',
+          msg: errorMessage,
+          traceback: '',
+        });
+      } else {
+        // Fallback for other errors
+        const errorMessage = apiError.response?.data?.error || 
+                            apiError.message || 
+                            'Could not detect provider. Please check your API key.';
+        
+        setTestResults([{
+          provider: 'Unknown',
+          success: false,
+          error: errorMessage,
+        }]);
+
+        toastService.error({
+          title: 'Detection Failed',
+          msg: 'Could not validate API key. Please check the key and try again.',
+          traceback: error instanceof Error ? error.stack || '' : '',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -167,14 +199,10 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
           {/* Loading state */}
           {isLoading && (
             <div className="space-y-2">
-              <p className="text-sm text-text-muted">Testing providers...</p>
-              <div className="flex flex-wrap gap-2">
-                {['Anthropic', 'OpenAI', 'Google', 'Groq', 'xAI', 'Ollama'].map(provider => (
-                  <div key={provider} className="flex items-center gap-1 px-2 py-1 bg-background-muted rounded text-xs">
-                    <div className="w-2 h-2 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                    <span>{provider}</span>
-                  </div>
-                ))}
+              <p className="text-sm text-text-muted">Testing API key...</p>
+              <div className="flex items-center gap-2 px-3 py-2 bg-background-muted rounded text-sm">
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                <span>Validating key format and testing connection...</span>
               </div>
             </div>
           )}
@@ -185,24 +213,45 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
               <h4 className="font-medium text-text-standard text-sm">Test Results:</h4>
               <div className="space-y-1">
                 {testResults.map((result, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-center gap-2 text-sm p-2 rounded ${
-                      result.success
-                        ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-200 dark:border-green-800'
-                        : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-800'
-                    }`}
-                  >
-                    <span>{result.success ? '✅' : '❌'}</span>
-                    <span className="font-medium">{result.provider}</span>
-                    {result.success && result.model && (
-                      <span className="text-green-600 dark:text-green-400">
-                        - {result.model}
-                        {result.totalModels && ` (${result.totalModels} models available)`}
-                      </span>
-                    )}
-                    {!result.success && result.error && (
-                      <span className="text-red-600 dark:text-red-400">- {result.error}</span>
+                  <div key={index} className="space-y-2">
+                    <div
+                      className={`flex items-center gap-2 text-sm p-3 rounded-lg ${
+                        result.success
+                          ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-200 dark:border-green-800'
+                          : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-800'
+                      }`}
+                    >
+                      <span>{result.success ? '✅' : '❌'}</span>
+                      <div className="flex-1">
+                        <div className="font-medium">
+                          {result.success ? `Detected ${result.provider}` : 
+                           result.detectedFormat ? `${result.detectedFormat} Key Invalid` : 
+                           'Detection Failed'}
+                        </div>
+                        {result.success && result.model && (
+                          <div className="text-green-600 dark:text-green-400 text-xs mt-1">
+                            Model: {result.model}
+                            {result.totalModels && ` (${result.totalModels} models available)`}
+                          </div>
+                        )}
+                        {!result.success && result.error && (
+                          <div className="text-red-600 dark:text-red-400 text-xs mt-1">
+                            {result.error}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Show suggestions for failed attempts */}
+                    {!result.success && result.suggestions && result.suggestions.length > 0 && (
+                      <div className="ml-6 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                        <div className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">Suggestions:</div>
+                        <ul className="text-yellow-700 dark:text-yellow-300 space-y-1">
+                          {result.suggestions.map((suggestion, i) => (
+                            <li key={i}>• {suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 ))}

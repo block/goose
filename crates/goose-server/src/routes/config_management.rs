@@ -99,6 +99,13 @@ pub struct DetectProviderResponse {
     pub provider_name: String,
     pub models: Vec<String>,
 }
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderError {
+    pub error: String,
+    pub detected_format: Option<String>,
+    pub suggestions: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -533,19 +540,71 @@ pub async fn upsert_permissions(
     request_body = DetectProviderRequest,
     responses(
         (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
-        (status = 404, description = "No matching provider found"),
+        (status = 400, description = "Invalid API key format or key validation failed", body = DetectProviderError),
         (status = 500, description = "Internal server error")
     )
 )]
 pub async fn detect_provider(
     Json(detect_request): Json<DetectProviderRequest>,
-) -> Result<Json<DetectProviderResponse>, StatusCode> {
-    match auto_detect::detect_provider_from_api_key(&detect_request.api_key).await {
+) -> Result<Json<DetectProviderResponse>, (StatusCode, Json<DetectProviderError>)> {
+    let api_key = detect_request.api_key.trim();
+
+    // Detect the expected provider from key format
+    let detected_format = detect_key_format(api_key);
+
+    match auto_detect::detect_provider_from_api_key(api_key).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,
         })),
-        None => Err(StatusCode::NOT_FOUND),
+        None => {
+            let (error_msg, suggestions) = if let Some(format) = &detected_format {
+                (
+                    format!("API key appears to be for {} but validation failed", format),
+                    vec![
+                        "Check that your API key is correct and complete".to_string(),
+                        "Verify your account has sufficient credits or is active".to_string(),
+                        "Ensure the API key has the necessary permissions".to_string(),
+                    ],
+                )
+            } else {
+                (
+                    "Could not determine provider from API key format".to_string(),
+                    vec![
+                        "Supported formats: Anthropic (sk-ant-...), OpenAI (sk-...), Google (AIza...), Groq (gsk_...)".to_string(),
+                        "Make sure you copied the complete API key".to_string(),
+                        "Try setting up the provider manually in settings".to_string(),
+                    ]
+                )
+            };
+
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(DetectProviderError {
+                    error: error_msg,
+                    detected_format,
+                    suggestions,
+                }),
+            ))
+        }
+    }
+}
+
+fn detect_key_format(api_key: &str) -> Option<String> {
+    let trimmed_key = api_key.trim();
+
+    if trimmed_key.starts_with("sk-ant-") {
+        Some("Anthropic".to_string())
+    } else if trimmed_key.starts_with("sk-") {
+        Some("OpenAI".to_string())
+    } else if trimmed_key.starts_with("AIza") {
+        Some("Google".to_string())
+    } else if trimmed_key.starts_with("gsk_") {
+        Some("Groq".to_string())
+    } else if trimmed_key.starts_with("xai-") {
+        Some("xAI".to_string())
+    } else {
+        None
     }
 }
 

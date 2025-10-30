@@ -559,8 +559,15 @@
               }
             }
           },
-          "404": {
-            "description": "No matching provider found"
+          "400": {
+            "description": "Invalid API key format or key validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectProviderError"
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error"
@@ -2437,6 +2444,28 @@
         "properties": {
           "id": {
             "type": "string"
+          }
+        }
+      },
+      "DetectProviderError": {
+        "type": "object",
+        "required": [
+          "error",
+          "suggestions"
+        ],
+        "properties": {
+          "detected_format": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
