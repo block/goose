@@ -88,6 +88,19 @@ pub struct UpdateCustomProviderRequest {
     pub supports_streaming: Option<bool>,
 }
 
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MaskedSecret {
+    pub masked_value: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum ConfigValueResponse {
+    Value(Value),
+    MaskedValue(MaskedSecret),
+}
+
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -134,6 +147,22 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
     }
 }
 
+const SECRET_MASK_SHOW_LEN: usize = 8;
+
+fn mask_secret(secret: Value) -> String {
+    let as_string = match secret {
+        Value::String(s) => s,
+        _ => serde_json::to_string(&secret).unwrap_or_else(|_| secret.to_string()),
+    };
+
+    let chars: Vec<_> = as_string.chars().collect();
+    let show_len = std::cmp::min(chars.len() / 2, SECRET_MASK_SHOW_LEN);
+    let visible: String = chars.iter().take(show_len).collect();
+    let mask = "*".repeat(chars.len() - show_len);
+
+    format!("{}{}", visible, mask)
+}
+
 #[utoipa::path(
     post,
     path = "/config/read",
@@ -143,12 +172,14 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
         (status = 500, description = "Unable to get the configuration value"),
     )
 )]
-pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value>, StatusCode> {
+pub async fn read_config(
+    Json(query): Json<ConfigKeyQuery>,
+) -> Result<Json<ConfigValueResponse>, StatusCode> {
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(
+        return Ok(Json(ConfigValueResponse::Value(
             serde_json::to_value(limits).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-        ));
+        )));
     }
 
     let config = Config::global();
@@ -156,18 +187,14 @@ pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value
     let response_value = match config.get(&query.key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
-                Value::Bool(true)
+                ConfigValueResponse::MaskedValue(MaskedSecret {
+                    masked_value: mask_secret(value),
+                })
             } else {
-                value
+                ConfigValueResponse::Value(value)
             }
         }
-        Err(ConfigError::NotFound(_)) => {
-            if query.is_secret {
-                Value::Bool(false)
-            } else {
-                Value::Null
-            }
-        }
+        Err(ConfigError::NotFound(_)) => ConfigValueResponse::Value(Value::Null),
         Err(_) => {
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -752,10 +779,12 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        let response = result.unwrap();
+        let response = match result.unwrap().0 {
+            ConfigValueResponse::Value(value) => value,
+            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
+        };
 
-        let limits: Vec<goose::model::ModelLimitConfig> =
-            serde_json::from_value(response.0).unwrap();
+        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
         assert!(!limits.is_empty());
 
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
