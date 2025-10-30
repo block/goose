@@ -285,7 +285,7 @@ export type GetToolsQuery = {
 
 export type Icon = {
     mimeType?: string;
-    sizes?: string;
+    sizes?: Array<string>;
     src: string;
 };
 
@@ -367,6 +367,7 @@ export type MessageContent = (TextContent & {
 
 export type MessageEvent = {
     message: Message;
+    token_state: TokenState;
     type: 'Message';
 } | {
     error: string;
@@ -787,6 +788,15 @@ export type TextContent = {
 export type ThinkingContent = {
     signature: string;
     thinking: string;
+};
+
+export type TokenState = {
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
 };
 
 export type Tool = {

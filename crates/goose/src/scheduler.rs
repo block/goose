@@ -1104,7 +1104,7 @@ async fn run_scheduled_job_internal(
         agent_provider = provider;
     } else {
         let global_config = Config::global();
-        let provider_name: String = match global_config.get_param("GOOSE_PROVIDER") {
+        let provider_name: String = match global_config.get_goose_provider() {
             Ok(name) => name,
             Err(_) => return Err(JobExecutionError {
                 job_id: job.id.clone(),
@@ -1114,7 +1114,7 @@ async fn run_scheduled_job_internal(
             }),
         };
         let model_name: String =
-            match global_config.get_param("GOOSE_MODEL") {
+            match global_config.get_goose_model() {
                 Ok(name) => name,
                 Err(_) => return Err(JobExecutionError {
                     job_id: job.id.clone(),
