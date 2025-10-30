@@ -590,17 +590,6 @@
     ]
   },
   {
-    "id": "todo",
-    "name": "Todo",
-    "description": "Built-in task management system goose uses to track complex multi-step work",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose/src/agents/todo_extension.rs",
-    "installation_notes": "This is a built-in extension that comes with goose and is enabled by default. No installation required.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "tutorial-mcp",
     "name": "Tutorial",
     "description": "Built-in tutorial and learning management system",
