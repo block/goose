@@ -484,7 +484,6 @@ let appConfig = {
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
 const windowPowerSaveBlockers = new Map<number, number>();
-const windowAlwaysOnTop = new Map<number, boolean>();
 
 const createChat = async (
   app: App,
@@ -731,7 +730,6 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    windowAlwaysOnTop.delete(windowId);
 
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
@@ -1898,7 +1896,6 @@ async function appMain() {
           click(menuItem) {
             const focusedWindow = BrowserWindow.getFocusedWindow();
             if (focusedWindow) {
-              const windowId = focusedWindow.id;
               const isAlwaysOnTop = menuItem.checked;
 
               if (process.platform === 'darwin') {
@@ -1907,8 +1904,9 @@ async function appMain() {
                 focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
               }
 
-              windowAlwaysOnTop.set(windowId, isAlwaysOnTop);
-              console.log(`[Main] Set always-on-top to ${isAlwaysOnTop} for window ${windowId}`);
+              console.log(
+                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+              );
             }
           },
         })
