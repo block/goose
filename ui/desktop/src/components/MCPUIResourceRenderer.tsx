@@ -5,6 +5,7 @@ import {
   UIActionResultNotification,
   UIActionResultPrompt,
   UIActionResultToolCall,
+  UIActionResult,
 } from '@mcp-ui/client';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -14,41 +15,6 @@ interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };
   appendPromptToChat?: (value: string) => void;
 }
-
-type UISizeChange = {
-  type: 'ui-size-change';
-  payload: {
-    height: number;
-    width: number;
-  };
-};
-
-// Reserved message types from iframe to host
-type UILifecycleIframeReady = {
-  type: 'ui-lifecycle-iframe-ready';
-  payload?: Record<string, unknown>;
-};
-
-type UIRequestData = {
-  type: 'ui-request-data';
-  messageId: string;
-  payload: {
-    requestType: string;
-    params: Record<string, unknown>;
-  };
-};
-
-// We are creating a new type to support all reserved message types that may come from the iframe
-// Not all reserved message types are currently exported by @mcp-ui/client
-type ActionEventsFromIframe =
-  | UIActionResultIntent
-  | UIActionResultLink
-  | UIActionResultNotification
-  | UIActionResultPrompt
-  | UIActionResultToolCall
-  | UISizeChange
-  | UILifecycleIframeReady
-  | UIRequestData;
 
 // More specific result types using discriminated unions
 type UIActionHandlerSuccess<T = unknown> = {
@@ -133,13 +99,11 @@ export default function MCPUIResourceRenderer({
     console.log('[MCP-UI] Current theme value:', theme);
   }, []);
 
-  const handleUIAction = async (
-    actionEvent: ActionEventsFromIframe
-  ): Promise<UIActionHandlerResult> => {
+  const handleUIAction = async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
     // result to pass back to the MCP-UI
     let result: UIActionHandlerResult;
 
-    const handleToolCase = async (
+    const handleToolAction = async (
       actionEvent: UIActionResultToolCall
     ): Promise<UIActionHandlerResult> => {
       const { toolName, params } = actionEvent.payload;
@@ -156,7 +120,7 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handlePromptCase = async (
+    const handlePromptAction = async (
       actionEvent: UIActionResultPrompt
     ): Promise<UIActionHandlerResult> => {
       const { prompt } = actionEvent.payload;
@@ -191,7 +155,7 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handleLinkCase = async (actionEvent: UIActionResultLink) => {
+    const handleLinkAction = async (actionEvent: UIActionResultLink) => {
       const { url } = actionEvent.payload;
 
       try {
@@ -244,7 +208,7 @@ export default function MCPUIResourceRenderer({
       }
     };
 
-    const handleNotifyCase = async (
+    const handleNotifyAction = async (
       actionEvent: UIActionResultNotification
     ): Promise<UIActionHandlerResult> => {
       const { message } = actionEvent.payload;
@@ -262,7 +226,7 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handleIntentCase = async (
+    const handleIntentAction = async (
       actionEvent: UIActionResultIntent
     ): Promise<UIActionHandlerResult> => {
       toast.info(
@@ -285,77 +249,27 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handleSizeChangeCase = async (
-      actionEvent: UISizeChange
-    ): Promise<UIActionHandlerResult> => {
-      return {
-        status: 'success' as const,
-        message: 'Size change handled',
-        data: actionEvent.payload,
-      };
-    };
-
-    const handleIframeReadyCase = async (
-      actionEvent: UILifecycleIframeReady
-    ): Promise<UIActionHandlerResult> => {
-      console.log('[MCP-UI] Iframe ready to receive messages');
-      return {
-        status: 'success' as const,
-        message: 'Iframe is ready to receive messages',
-        data: actionEvent.payload,
-      };
-    };
-
-    const handleRequestDataCase = async (
-      actionEvent: UIRequestData
-    ): Promise<UIActionHandlerResult> => {
-      const { messageId, payload } = actionEvent;
-      const { requestType, params } = payload;
-      console.log('[MCP-UI] Data request received:', { messageId, requestType, params });
-      return {
-        status: 'success' as const,
-        message: `Data request received: ${requestType}`,
-        data: {
-          messageId,
-          requestType,
-          params,
-          response: { status: 'acknowledged' },
-        },
-      };
-    };
-
+    console.log('ACTION EVENT:', actionEvent);
     try {
       switch (actionEvent.type) {
         case 'tool':
-          result = await handleToolCase(actionEvent);
+          result = await handleToolAction(actionEvent);
           break;
 
         case 'prompt':
-          result = await handlePromptCase(actionEvent);
+          result = await handlePromptAction(actionEvent);
           break;
 
         case 'link':
-          result = await handleLinkCase(actionEvent);
+          result = await handleLinkAction(actionEvent);
           break;
 
         case 'notify':
-          result = await handleNotifyCase(actionEvent);
+          result = await handleNotifyAction(actionEvent);
           break;
 
         case 'intent':
-          result = await handleIntentCase(actionEvent);
-          break;
-
-        case 'ui-size-change':
-          result = await handleSizeChangeCase(actionEvent);
-          break;
-
-        case 'ui-lifecycle-iframe-ready':
-          result = await handleIframeReadyCase(actionEvent);
-          break;
-
-        case 'ui-request-data':
-          result = await handleRequestDataCase(actionEvent);
+          result = await handleIntentAction(actionEvent);
           break;
 
         default: {
@@ -372,7 +286,7 @@ export default function MCPUIResourceRenderer({
         }
       }
     } catch (error) {
-      console.error('[MCP-UI] Unexpected error:', error);
+      console.error('Unexpected error:', error);
       result = {
         status: 'error',
         error: {
@@ -381,12 +295,6 @@ export default function MCPUIResourceRenderer({
           details: error instanceof Error ? error.stack : error,
         },
       };
-    }
-
-    if (result.status === 'error') {
-      console.error('[MCP-UI] Action failed:', result);
-    } else {
-      console.log('[MCP-UI] Action succeeded:', result);
     }
 
     return result;
