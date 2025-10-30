@@ -610,7 +610,7 @@ impl Config {
     /// - There is an error serializing the value
     pub fn set_param<V: Serialize>(&self, key: &str, value: V) -> Result<(), ConfigError> {
         let _guard = self.guard.lock().unwrap();
-        let mut values = self.load_values()?;
+        let mut values = self.load()?;
         values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(value)?);
         self.save_values(values)
     }
@@ -879,7 +879,7 @@ mod tests {
         config.set_param("another_key", 42)?;
         config.set_param("third_key", true)?;
 
-        let _values = config.load_values()?;
+        let _values = config.load()?;
 
         let result: Result<String, ConfigError> = config.get_param("key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
