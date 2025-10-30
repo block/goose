@@ -738,9 +738,6 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Extract session ID for task-local propagation
-        let session_id = session.as_ref().map(|s| s.id.clone());
-
         let is_manual_compact = unfixed_conversation.messages().last().is_some_and(|msg| {
             msg.content.iter().any(|c| {
                 if let MessageContent::Text(text) = c {
@@ -769,79 +766,71 @@ impl Agent {
             .await?;
 
             if !needs_auto_compact {
-                return crate::session_context::SESSION_ID
-                    .scope(session_id, async {
-                        self.reply_internal(unfixed_conversation, session, cancel_token)
-                            .await
-                    })
+                return self
+                    .reply_internal(unfixed_conversation, session, cancel_token)
                     .await;
             }
         }
 
         let conversation_to_compact = unfixed_conversation.clone();
 
-        crate::session_context::SESSION_ID
-            .scope(session_id, async {
-                let result: Result<BoxStream<'_, Result<AgentEvent>>> = Ok(Box::pin(async_stream::try_stream! {
-                    if !is_manual_compact {
-                        let config = crate::config::Config::global();
-                        let threshold = config
-                            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                        let threshold_percentage = (threshold * 100.0) as u32;
+        Ok(Box::pin(async_stream::try_stream! {
+            if !is_manual_compact {
+                let config = crate::config::Config::global();
+                let threshold = config
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                let threshold_percentage = (threshold * 100.0) as u32;
 
-                        let inline_msg = format!(
-                            "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                            threshold_percentage
-                        );
+                let inline_msg = format!(
+                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                    threshold_percentage
+                );
 
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::InlineMessage,
-                                inline_msg,
-                            )
-                        );
+                yield AgentEvent::Message(
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::InlineMessage,
+                        inline_msg,
+                    )
+                );
+            }
+
+            yield AgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::ThinkingMessage,
+                    COMPACTION_THINKING_TEXT,
+                )
+            );
+
+            match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+                Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
+                    if let Some(session_to_store) = &session {
+                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
                     }
+
+                    yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
                     yield AgentEvent::Message(
                         Message::assistant().with_system_notification(
-                            SystemNotificationType::ThinkingMessage,
-                            COMPACTION_THINKING_TEXT,
+                            SystemNotificationType::InlineMessage,
+                            "Compaction complete",
                         )
                     );
 
-                    match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
-                        Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
-                            if let Some(session_to_store) = &session {
-                                SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
-                            }
-
-                            yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
-
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification(
-                                    SystemNotificationType::InlineMessage,
-                                    "Compaction complete",
-                                )
-                            );
-
-                            if !is_manual_compact {
-                                let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
-                                while let Some(event) = reply_stream.next().await {
-                                    yield event?;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                            ));
+                    if !is_manual_compact {
+                        let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
+                        while let Some(event) = reply_stream.next().await {
+                            yield event?;
                         }
                     }
-                }));
-                result
-            })
-            .await
+                }
+                Err(e) => {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                    ));
+                }
+            }
+        }))
     }
 
     /// Main reply method that handles the actual agent processing

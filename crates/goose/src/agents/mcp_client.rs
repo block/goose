@@ -1,4 +1,5 @@
 use crate::agents::types::SharedProvider;
+use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{Content, ErrorCode, JsonObject};
 /// MCP client implementation for Goose
 use rmcp::{
@@ -477,30 +478,22 @@ impl McpClientTrait for McpClient {
     }
 }
 
-/// Injects session ID into Extensions._meta, preserving existing metadata.
-/// Removes existing session IDs (case-insensitive).
+/// Replaces session ID, case-insensitively, in Extensions._meta.
 fn inject_session_into_extensions(
     mut extensions: rmcp::model::Extensions,
 ) -> rmcp::model::Extensions {
     use rmcp::model::Meta;
 
-    // Only inject session ID if one is available
     if let Some(session_id) = crate::session_context::current_session_id() {
-        // Get existing Meta or create new one
         let mut meta_map = extensions
             .get::<Meta>()
             .map(|meta| meta.0.clone())
             .unwrap_or_default();
 
-        // Remove any existing session ID keys with different casings (case-insensitive)
-        // Note: JsonObject (serde_json::Map) is case-sensitive, so we use retain to filter
-        meta_map.retain(|k, _| !k.eq_ignore_ascii_case("goose-session-id"));
+        // JsonObject is case-sensitive, so we use retain for case-insensitive removal
+        meta_map.retain(|k, _| !k.eq_ignore_ascii_case(SESSION_ID_HEADER));
 
-        // Insert with canonical casing
-        meta_map.insert(
-            "goose-session-id".to_string(),
-            serde_json::Value::String(session_id),
-        );
+        meta_map.insert(SESSION_ID_HEADER.to_string(), Value::String(session_id));
 
         extensions.insert(Meta(meta_map));
     }
@@ -515,24 +508,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_id_in_mcp_meta() {
-        crate::session_context::with_session_id(Some("test-session-789".to_string()), async {
+        use serde_json::json;
+
+        let session_id = "test-session-789";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
             let extensions = inject_session_into_extensions(Default::default());
-            let meta = extensions.get::<Meta>();
-
-            assert!(meta.is_some(), "Extensions should contain Meta");
-
-            let meta = meta.unwrap();
-            let session_id = meta.0.get("goose-session-id");
-
-            assert!(
-                session_id.is_some(),
-                "Meta should contain goose-session-id when session is set"
-            );
+            let meta = extensions.get::<Meta>().unwrap();
 
             assert_eq!(
-                session_id.unwrap().as_str(),
-                Some("test-session-789"),
-                "Session ID should match the value from context"
+                &meta.0,
+                json!({
+                    SESSION_ID_HEADER: session_id
+                })
+                .as_object()
+                .unwrap()
             );
         })
         .await;
@@ -540,118 +529,64 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_session_id_in_mcp_when_absent() {
-        // Call without setting session ID
         let extensions = inject_session_into_extensions(Default::default());
         let meta = extensions.get::<Meta>();
 
-        // When no session ID, meta should not be present (or should be empty)
-        if let Some(meta) = meta {
-            let session_id = meta.0.get("goose-session-id");
-            assert!(
-                session_id.is_none(),
-                "Meta should not contain goose-session-id when session is not set"
-            );
-        }
+        assert!(meta.is_none());
     }
 
     #[tokio::test]
     async fn test_all_mcp_operations_include_session() {
-        // This test verifies that all MCP operations use inject_session_into_extensions()
-        // and therefore will include session ID when available.
-        // We test this by verifying the helper function is called consistently.
+        use serde_json::json;
 
-        crate::session_context::with_session_id(Some("consistent-session-id".to_string()), async {
-            // Create multiple extensions as would happen in different MCP operations
-            let ext1 = inject_session_into_extensions(Default::default()); // e.g., list_resources
-            let ext2 = inject_session_into_extensions(Default::default()); // e.g., call_tool
-            let ext3 = inject_session_into_extensions(Default::default()); // e.g., get_prompt
+        let session_id = "consistent-session-id";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
+            let ext1 = inject_session_into_extensions(Default::default());
+            let ext2 = inject_session_into_extensions(Default::default());
+            let ext3 = inject_session_into_extensions(Default::default());
 
-            // All should have the same session ID
-            let verify_session_id = |ext: &rmcp::model::Extensions| {
-                let meta = ext.get::<Meta>().expect("Should have Meta");
-                let session_id = meta
-                    .0
-                    .get("goose-session-id")
-                    .expect("Should have session ID");
+            for ext in [&ext1, &ext2, &ext3] {
                 assert_eq!(
-                    session_id.as_str(),
-                    Some("consistent-session-id"),
-                    "All operations should have the same session ID"
+                    &ext.get::<Meta>().unwrap().0,
+                    json!({
+                        SESSION_ID_HEADER: session_id
+                    })
+                    .as_object()
+                    .unwrap()
                 );
-            };
-
-            verify_session_id(&ext1);
-            verify_session_id(&ext2);
-            verify_session_id(&ext3);
+            }
         })
         .await;
     }
 
     #[tokio::test]
     async fn test_session_id_case_insensitive_replacement() {
-        // This test verifies that case-insensitive replacement works correctly
-        use rmcp::model::{Extensions, JsonObject, Meta};
+        use rmcp::model::{Extensions, Meta};
+        use serde_json::{from_value, json};
 
-        crate::session_context::with_session_id(Some("new-session-id".to_string()), async {
-            // Create extensions with existing Meta containing different casings
-            let mut existing_meta = JsonObject::new();
-            existing_meta.insert(
-                "GOOSE-SESSION-ID".to_string(),
-                serde_json::Value::String("old-session-1".to_string()),
-            );
-            existing_meta.insert(
-                "Goose-Session-Id".to_string(),
-                serde_json::Value::String("old-session-2".to_string()),
-            );
-            existing_meta.insert(
-                "other-key".to_string(),
-                serde_json::Value::String("preserve-me".to_string()),
-            );
-
+        let session_id = "new-session-id";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
             let mut extensions = Extensions::new();
-            extensions.insert(Meta(existing_meta));
+            extensions.insert(
+                from_value::<Meta>(json!({
+                    "GOOSE-SESSION-ID": "old-session-1",
+                    "Goose-Session-Id": "old-session-2",
+                    "other-key": "preserve-me"
+                }))
+                .unwrap(),
+            );
 
-            // Inject session ID - should replace all casings
             let extensions = inject_session_into_extensions(extensions);
-            let meta = extensions.get::<Meta>().expect("Should have Meta");
+            let meta = extensions.get::<Meta>().unwrap();
 
-            // Verify only the canonical casing exists
-            assert!(
-                meta.0.get("goose-session-id").is_some(),
-                "Should have canonical casing goose-session-id"
-            );
             assert_eq!(
-                meta.0.get("goose-session-id").unwrap().as_str(),
-                Some("new-session-id"),
-                "Should have the new session ID value"
-            );
-
-            // Verify no other casings exist
-            assert!(
-                meta.0.get("GOOSE-SESSION-ID").is_none(),
-                "Should not have GOOSE-SESSION-ID"
-            );
-            assert!(
-                meta.0.get("Goose-Session-Id").is_none(),
-                "Should not have Goose-Session-Id"
-            );
-
-            // Verify only one session ID key exists
-            let session_id_count = meta
-                .0
-                .keys()
-                .filter(|k| k.eq_ignore_ascii_case("goose-session-id"))
-                .count();
-            assert_eq!(
-                session_id_count, 1,
-                "Should have exactly one session ID key"
-            );
-
-            // Verify other metadata is preserved
-            assert_eq!(
-                meta.0.get("other-key").unwrap().as_str(),
-                Some("preserve-me"),
-                "Other metadata should be preserved"
+                &meta.0,
+                json!({
+                    SESSION_ID_HEADER: session_id,
+                    "other-key": "preserve-me"
+                })
+                .as_object()
+                .unwrap()
             );
         })
         .await;

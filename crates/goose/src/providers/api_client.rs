@@ -1,3 +1,4 @@
+use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
@@ -369,9 +370,8 @@ impl<'a> ApiRequestBuilder<'a> {
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(self.headers.clone());
 
-        // Inject session ID header if available
         if let Some(session_id) = crate::session_context::current_session_id() {
-            request = request.header("goose-session-id", session_id);
+            request = request.header(SESSION_ID_HEADER, session_id);
         }
 
         request = match &self.client.auth {
@@ -410,7 +410,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_id_header_injection() {
-        // Create API client
         let client = ApiClient::new(
             "http://localhost:8080".to_string(),
             AuthMethod::BearerToken("test-token".to_string()),
@@ -419,25 +418,18 @@ mod tests {
 
         // Execute request within session context
         crate::session_context::with_session_id(Some("test-session-456".to_string()), async {
-            // Build a request
             let builder = client.request("/test");
             let request = builder
                 .send_request(|url, client| client.get(url))
                 .await
                 .unwrap();
 
-            // Extract headers from the request
             let headers = request.build().unwrap().headers().clone();
 
-            // Verify session ID header was injected
-            assert!(
-                headers.contains_key("goose-session-id"),
-                "goose-session-id header should be present when session ID is set"
-            );
+            assert!(headers.contains_key(SESSION_ID_HEADER));
             assert_eq!(
-                headers.get("goose-session-id").unwrap().to_str().unwrap(),
-                "test-session-456",
-                "goose-session-id should match the session ID"
+                headers.get(SESSION_ID_HEADER).unwrap().to_str().unwrap(),
+                "test-session-456"
             );
         })
         .await;
@@ -445,7 +437,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_session_id_header_when_absent() {
-        // Create API client
         let client = ApiClient::new(
             "http://localhost:8080".to_string(),
             AuthMethod::BearerToken("test-token".to_string()),
@@ -459,13 +450,8 @@ mod tests {
             .await
             .unwrap();
 
-        // Extract headers from the request
         let headers = request.build().unwrap().headers().clone();
 
-        // Verify session ID header was NOT injected
-        assert!(
-            !headers.contains_key("goose-session-id"),
-            "goose-session-id header should not be present when no session ID is set"
-        );
+        assert!(!headers.contains_key(SESSION_ID_HEADER));
     }
 }

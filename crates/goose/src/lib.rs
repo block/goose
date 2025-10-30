@@ -18,7 +18,6 @@ pub mod scheduler_trait;
 pub mod security;
 pub mod session;
 pub mod session_context;
-pub mod temporal_scheduler;
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;
