@@ -40,7 +40,7 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     // Print verbose info if requested
     if verbose {
         println!("\n{}", style("goose Configuration:").cyan().bold());
-        match config.load_values() {
+        match config.all_values() {
             Ok(values) => {
                 if values.is_empty() {
                     println!("  No configuration values set");
