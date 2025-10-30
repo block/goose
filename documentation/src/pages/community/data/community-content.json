@@ -298,6 +298,19 @@
         "hacktoberfest"
       ],
       "hacktoberfest": true
+    },
+    {
+      "title": "Managing goose Configurations Across Multiple Projects",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/managing-goose-configurations-across-multiple-projects-58i3",
+      "thumbnail": "https://i.imgur.com/VvM8sMR.png",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
