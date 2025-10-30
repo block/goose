@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -9,16 +11,16 @@ pub enum GooseMode {
     Chat,
 }
 
-impl TryFrom<&String> for GooseMode {
-    type Error = String;
+impl FromStr for GooseMode {
+    type Err = String;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
-        match value.as_str() {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             "auto" => Ok(GooseMode::Auto),
             "approve" => Ok(GooseMode::Approve),
             "smart_approve" => Ok(GooseMode::SmartApprove),
             "chat" => Ok(GooseMode::Chat),
-            _ => Err(format!("invalid mode: {}", value)),
+            _ => Err(format!("invalid mode: {}", s)),
         }
     }
 }

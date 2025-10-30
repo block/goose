@@ -1346,15 +1346,15 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
 
     match tool_log_level {
         "high" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", &0.8)?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.8)?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
         "medium" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", &0.2)?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.2)?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
         "all" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", &0.0)?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.0)?;
             cliclack::outro("Showing all tool output.")?;
         }
         _ => unreachable!(),
@@ -1604,7 +1604,7 @@ pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
             .interact()?;
 
     let max_turns: u32 = max_turns_input.parse()?;
-    config.set_param("GOOSE_MAX_TURNS", &max_turns)?;
+    config.set_param("GOOSE_MAX_TURNS", max_turns)?;
 
     cliclack::outro(format!(
         "Set maximum turns to {} - goose will ask for input after {} consecutive actions",

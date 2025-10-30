@@ -68,7 +68,7 @@ thread_local! {
 pub fn set_theme(theme: Theme) {
     let config = Config::global();
     config
-        .set_param("GOOSE_CLI_THEME", &theme.as_config_string())
+        .set_param("GOOSE_CLI_THEME", theme.as_config_string())
         .expect("Failed to set theme");
     CURRENT_THEME.with(|t| *t.borrow_mut() = theme);
 
@@ -79,7 +79,7 @@ pub fn set_theme(theme: Theme) {
         Theme::Ansi => "ansi",
     };
 
-    if let Err(e) = config.set_param("GOOSE_CLI_THEME", &theme_str) {
+    if let Err(e) = config.set_param("GOOSE_CLI_THEME", theme_str) {
         eprintln!("Failed to save theme setting to config: {}", e);
     }
 }

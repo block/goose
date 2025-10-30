@@ -12,6 +12,7 @@ use crate::session::task_execution_display::{
 };
 use goose::conversation::Conversation;
 use std::io::Write;
+use std::str::FromStr;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -545,7 +546,7 @@ impl CliSession {
                     save_history(&mut editor);
 
                     let config = Config::global();
-                    let mode = match GooseMode::try_from(&mode.to_lowercase()) {
+                    let mode = match GooseMode::from_str(&mode.to_lowercase()) {
                         Ok(mode) => mode,
                         Err(_) => {
                             output::render_error(&format!(
