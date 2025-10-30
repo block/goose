@@ -1,3 +1,29 @@
+const pillStyles = `
+@keyframes pillExpandIn {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+}
+.pill-expand-in {
+  animation: pillExpandIn 0.25s ease-out forwards;
+}
+`;
+
+// Inject styles
+if (typeof document !== "undefined" && !document.getElementById("pill-styles-mention")) {
+  const style = document.createElement("style");
+  style.id = "pill-styles-mention";
+  style.textContent = pillStyles;
+  document.head.appendChild(style);
+}
+
 import React from 'react';
 import { X, Diamond } from 'lucide-react';
 
@@ -30,7 +56,7 @@ export const MentionPill: React.FC<MentionPillProps> = ({
 
   return (
     <div 
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 zoom-in-95 duration-300`}
+      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors pill-expand-in`}
       title={filePath} // Show full path on hover
     >
       <span className="flex items-center gap-1">
