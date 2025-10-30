@@ -930,6 +930,37 @@
         }
       }
     },
+    "/database/status": {
+      "get": {
+        "tags": [
+          "Database Management"
+        ],
+        "operationId": "database_status",
+        "responses": {
+          "200": {
+            "description": "Database status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/diagnostics/{session_id}": {
       "get": {
         "tags": [
@@ -2126,6 +2157,28 @@
           }
         }
       },
+      "BackupInfoSanitized": {
+        "type": "object",
+        "required": [
+          "filename",
+          "createdAt",
+          "size"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
@@ -2313,6 +2366,61 @@
           },
           "recipe_source": {
             "type": "string"
+          }
+        }
+      },
+      "DatabaseStatusResponse": {
+        "type": "object",
+        "required": [
+          "dbSize",
+          "schemaVersion",
+          "isLatestVersion",
+          "sessionCount",
+          "messageCount",
+          "totalTokens",
+          "backupCount",
+          "timestamp"
+        ],
+        "properties": {
+          "backupCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dbSize": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "isLatestVersion": {
+            "type": "boolean"
+          },
+          "latestBackup": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BackupInfoSanitized"
+              }
+            ],
+            "nullable": true
+          },
+          "messageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sessionCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

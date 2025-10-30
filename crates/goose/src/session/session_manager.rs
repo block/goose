@@ -8,12 +8,12 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::{Pool, Sqlite};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection};
+use sqlx::{Connection, Pool, Sqlite};
 use std::collections::HashMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
@@ -70,6 +70,32 @@ pub struct SessionUpdateBuilder {
 pub struct SessionInsights {
     total_sessions: usize,
     total_tokens: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseStats {
+    #[schema(value_type = String)]
+    pub db_path: PathBuf,
+    pub db_size: u64,
+    pub schema_version: i32,
+    pub is_latest_version: bool,
+    pub session_count: usize,
+    pub message_count: usize,
+    pub total_tokens: i64,
+    #[schema(value_type = String)]
+    pub backup_dir: PathBuf,
+    pub latest_backup: Option<BackupInfo>,
+    pub backup_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    #[schema(value_type = String)]
+    pub path: PathBuf,
+    pub created_at: DateTime<Utc>,
+    pub size: u64,
 }
 
 impl SessionUpdateBuilder {
@@ -276,17 +302,33 @@ impl SessionManager {
             .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
             .await
     }
+
+    pub async fn get_database_stats() -> Result<DatabaseStats> {
+        Self::instance().await?.get_database_stats().await
+    }
+
+    pub async fn create_backup(backup_name: Option<String>) -> Result<PathBuf> {
+        Self::instance().await?.create_backup(backup_name).await
+    }
+
+    pub async fn list_backups() -> Result<Vec<BackupInfo>> {
+        Self::instance().await?.list_backups().await
+    }
+
+    pub async fn restore_backup(backup_path: &Path) -> Result<()> {
+        Self::instance().await?.restore_backup(backup_path).await
+    }
 }
 
 pub struct SessionStorage {
     pool: Pool<Sqlite>,
 }
 
-pub fn ensure_session_dir() -> Result<PathBuf> {
+pub async fn ensure_session_dir() -> Result<PathBuf> {
     let session_dir = Paths::data_dir().join("sessions");
 
     if !session_dir.exists() {
-        fs::create_dir_all(&session_dir)?;
+        fs::create_dir_all(&session_dir).await?;
     }
 
     Ok(session_dir)
@@ -379,7 +421,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 
 impl SessionStorage {
     async fn new() -> Result<Self> {
-        let session_dir = ensure_session_dir()?;
+        let session_dir = ensure_session_dir().await?;
         let db_path = session_dir.join("sessions.db");
 
         let storage = if db_path.exists() {
@@ -593,6 +635,28 @@ impl SessionStorage {
                 "Running database migrations from v{} to v{}...",
                 current_version, CURRENT_SCHEMA_VERSION
             );
+
+            let backup_name = format!(
+                "pre_migration_v{}_to_v{}",
+                current_version, CURRENT_SCHEMA_VERSION
+            );
+
+            let _backup_path = match self.create_backup(Some(backup_name)).await {
+                Ok(backup_path) => {
+                    info!("✓ Backup created and validated: {}", backup_path.display());
+                    info!(
+                        "  If migration fails, restore with: goose db restore {}",
+                        backup_path.display()
+                    );
+                    backup_path
+                }
+                Err(e) => {
+                    anyhow::bail!(
+                        "Failed to create or validate backup before migration: {}. Migration aborted for safety.",
+                        e
+                    );
+                }
+            };
 
             for version in (current_version + 1)..=CURRENT_SCHEMA_VERSION {
                 info!("  Applying migration v{}...", version);
@@ -1058,6 +1122,227 @@ impl SessionStorage {
         .execute()
         .await
     }
+
+    pub async fn get_database_stats(&self) -> Result<DatabaseStats> {
+        let session_dir = ensure_session_dir().await?;
+        let db_path = session_dir.join("sessions.db");
+
+        let db_size = if db_path.exists() {
+            fs::metadata(&db_path).await?.len()
+        } else {
+            0
+        };
+
+        let schema_version = self.get_schema_version().await?;
+        let is_latest_version = schema_version == CURRENT_SCHEMA_VERSION;
+
+        let session_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sessions")
+            .fetch_one(&self.pool)
+            .await? as usize;
+
+        let message_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages")
+            .fetch_one(&self.pool)
+            .await? as usize;
+
+        let insights = self.get_insights().await?;
+
+        let backup_dir = Paths::backup_dir();
+        let backups = Self::scan_backup_directory().await?;
+        let latest_backup = backups.first().cloned();
+        let backup_count = backups.len();
+
+        Ok(DatabaseStats {
+            db_path,
+            db_size,
+            schema_version,
+            is_latest_version,
+            session_count,
+            message_count,
+            total_tokens: insights.total_tokens,
+            backup_dir,
+            latest_backup,
+            backup_count,
+        })
+    }
+
+    pub async fn create_backup(&self, backup_name: Option<String>) -> Result<PathBuf> {
+        let session_dir = ensure_session_dir().await?;
+        let db_path = session_dir.join("sessions.db");
+
+        if !db_path.exists() {
+            anyhow::bail!("Database file does not exist at {}", db_path.display());
+        }
+
+        let backup_dir = Paths::backup_dir();
+        fs::create_dir_all(&backup_dir).await?;
+
+        let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+        let name = if let Some(custom_name) = backup_name {
+            format!("{}_{}", custom_name, timestamp)
+        } else {
+            format!("backup_{}", timestamp)
+        };
+
+        let backup_path = backup_dir.join(format!("{}.db", name));
+
+        fs::copy(&db_path, &backup_path).await?;
+
+        // Validate backup
+        let original_size = fs::metadata(&db_path).await?.len();
+        let backup_size = match fs::metadata(&backup_path).await {
+            Ok(metadata) => metadata.len(),
+            Err(e) => {
+                anyhow::bail!("Backup verification failed: backup file not found - {}", e);
+            }
+        };
+
+        if original_size != backup_size {
+            fs::remove_file(&backup_path).await?;
+            anyhow::bail!(
+                "Backup verification failed: size mismatch (original: {}, backup: {})",
+                original_size,
+                backup_size
+            );
+        }
+
+        // Optional: SQLite integrity check
+        let options = SqliteConnectOptions::new()
+            .filename(&backup_path)
+            .create_if_missing(false);
+
+        match SqliteConnection::connect_with(&options).await {
+            Ok(mut conn) => {
+                match sqlx::query_scalar::<_, String>("PRAGMA quick_check")
+                    .fetch_one(&mut conn)
+                    .await
+                {
+                    Ok(result) => {
+                        if result != "ok" {
+                            fs::remove_file(&backup_path).await?;
+                            anyhow::bail!("Backup integrity check failed: {}", result);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Backup integrity check could not complete: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Could not open backup for integrity check: {}", e);
+            }
+        }
+
+        info!(
+            "Created and validated database backup: {}",
+            backup_path.display()
+        );
+
+        Ok(backup_path)
+    }
+
+    async fn scan_backup_directory() -> Result<Vec<BackupInfo>> {
+        let backup_dir = Paths::backup_dir();
+
+        if !backup_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut backups: Vec<BackupInfo> = Vec::new();
+
+        let mut entries = fs::read_dir(&backup_dir).await?;
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            if let Ok(metadata) = entry.metadata().await {
+                if metadata.is_file() && entry.path().extension().is_some_and(|ext| ext == "db") {
+                    if let Ok(modified) = metadata.modified() {
+                        let created_at: DateTime<Utc> = modified.into();
+                        backups.push(BackupInfo {
+                            path: entry.path(),
+                            created_at,
+                            size: metadata.len(),
+                        });
+                    }
+                }
+            }
+        }
+
+        backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        Ok(backups)
+    }
+
+    pub async fn list_backups(&self) -> Result<Vec<BackupInfo>> {
+        Self::scan_backup_directory().await
+    }
+
+    pub async fn restore_backup(&self, backup_path: &Path) -> Result<()> {
+        if !backup_path.exists() {
+            anyhow::bail!("Backup file does not exist: {}", backup_path.display());
+        }
+
+        if backup_path.extension().is_none_or(|ext| ext != "db") {
+            warn!(
+                "Restoring from file without .db extension: {}",
+                backup_path.display()
+            );
+        }
+
+        let backup_dir = Paths::backup_dir();
+        if let Ok(canonical_backup) = backup_path.canonicalize() {
+            if let Ok(canonical_backup_dir) = backup_dir.canonicalize() {
+                if !canonical_backup.starts_with(&canonical_backup_dir) {
+                    warn!(
+                        "Restoring from file outside official backup directory: {}",
+                        backup_path.display()
+                    );
+                }
+            }
+        }
+
+        let session_dir = ensure_session_dir().await?;
+        let db_path = session_dir.join("sessions.db");
+
+        let options = SqliteConnectOptions::new()
+            .filename(backup_path)
+            .create_if_missing(false);
+
+        match SqliteConnection::connect_with(&options).await {
+            Ok(mut conn) => {
+                match sqlx::query_scalar::<_, String>("PRAGMA integrity_check")
+                    .fetch_one(&mut conn)
+                    .await
+                {
+                    Ok(result) => {
+                        if result != "ok" {
+                            anyhow::bail!("Backup file integrity check failed: {}", result);
+                        }
+                    }
+                    Err(e) => {
+                        anyhow::bail!("Could not validate backup file: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                anyhow::bail!("Backup file is not a valid SQLite database: {}", e);
+            }
+        }
+
+        let safety_backup_name = format!("pre_restore_{}", Utc::now().format("%Y%m%d_%H%M%S"));
+        let safety_backup = self.create_backup(Some(safety_backup_name)).await?;
+
+        info!(
+            "Created safety backup before restore: {}",
+            safety_backup.display()
+        );
+
+        self.pool.close().await;
+
+        fs::copy(backup_path, &db_path).await?;
+
+        info!("Database restored from: {}", backup_path.display());
+        info!("Please restart the application for changes to take full effect.");
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1259,5 +1544,83 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_backup_restore_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_backup_restore.db");
+
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session1 = storage
+            .create_session(PathBuf::from("/tmp/test1"), "Original session".to_string())
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session1.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("test message")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let session1_with_messages = storage.get_session(&session1.id, true).await.unwrap();
+        assert_eq!(session1_with_messages.message_count, 1);
+
+        let backup_path = temp_dir.path().join("backup.db");
+        fs::copy(&db_path, &backup_path).await.unwrap();
+
+        storage.delete_session(&session1.id).await.unwrap();
+
+        let sessions_after_delete = storage.list_sessions().await.unwrap();
+        assert_eq!(sessions_after_delete.len(), 0);
+
+        storage.pool.close().await;
+
+        fs::copy(&backup_path, &db_path).await.unwrap();
+
+        let storage2 = Arc::new(SessionStorage::open(&db_path).await.unwrap());
+        let sessions_after_restore = storage2.list_sessions().await.unwrap();
+        assert_eq!(sessions_after_restore.len(), 1);
+        assert_eq!(sessions_after_restore[0].id, session1.id);
+    }
+
+    #[tokio::test]
+    async fn test_backup_validation() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_validation.db");
+
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        storage
+            .create_session(PathBuf::from("/tmp/test"), "Test session".to_string())
+            .await
+            .unwrap();
+
+        let backup_dir = temp_dir.path().join("backups");
+        fs::create_dir_all(&backup_dir).await.unwrap();
+        let valid_backup_path = backup_dir.join("valid_backup.db");
+        fs::copy(&db_path, &valid_backup_path).await.unwrap();
+
+        assert!(valid_backup_path.exists());
+
+        let backup_size = tokio::fs::metadata(&valid_backup_path).await.unwrap().len();
+        assert!(backup_size > 0);
+
+        let corrupted_backup = backup_dir.join("corrupted.db");
+        tokio::fs::write(&corrupted_backup, b"not a database")
+            .await
+            .unwrap();
+
+        let result = storage.restore_backup(&corrupted_backup).await;
+        assert!(result.is_err());
     }
 }

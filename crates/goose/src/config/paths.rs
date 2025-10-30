@@ -40,6 +40,10 @@ impl Paths {
         Self::get_dir(DirType::State)
     }
 
+    pub fn backup_dir() -> PathBuf {
+        Self::data_dir().join("backups")
+    }
+
     pub fn in_state_dir(subpath: &str) -> PathBuf {
         Self::state_dir().join(subpath)
     }

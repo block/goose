@@ -25,6 +25,12 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+export type BackupInfoSanitized = {
+    createdAt: string;
+    filename: string;
+    size: number;
+};
+
 export type ChatRequest = {
     messages: Array<Message>;
     recipe_name?: string | null;
@@ -89,6 +95,18 @@ export type CreateScheduleRequest = {
     execution_mode?: string | null;
     id: string;
     recipe_source: string;
+};
+
+export type DatabaseStatusResponse = {
+    backupCount: number;
+    dbSize: number;
+    isLatestVersion: boolean;
+    latestBackup?: BackupInfoSanitized | null;
+    messageCount: number;
+    schemaVersion: number;
+    sessionCount: number;
+    timestamp: string;
+    totalTokens: number;
 };
 
 export type DeclarativeProviderConfig = {
@@ -1646,6 +1664,33 @@ export type ConfirmPermissionResponses = {
      */
     200: unknown;
 };
+
+export type DatabaseStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/database/status';
+};
+
+export type DatabaseStatusErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DatabaseStatusResponses = {
+    /**
+     * Database status retrieved successfully
+     */
+    200: DatabaseStatusResponse;
+};
+
+export type DatabaseStatusResponse2 = DatabaseStatusResponses[keyof DatabaseStatusResponses];
 
 export type DiagnosticsData = {
     body?: never;

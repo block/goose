@@ -326,6 +326,7 @@ derive_utoipa!(Icon as IconSchema);
     paths(
         super::routes::status::status,
         super::routes::status::diagnostics,
+        super::routes::database::database_status,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
@@ -444,6 +445,8 @@ derive_utoipa!(Icon as IconSchema);
         ModelInfo,
         Session,
         SessionInsights,
+        super::routes::database::DatabaseStatusResponse,
+        super::routes::database::BackupInfoSanitized,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,
