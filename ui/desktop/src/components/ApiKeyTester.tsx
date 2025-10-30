@@ -40,6 +40,18 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
   const [showResults, setShowResults] = useState(false);
   const { upsert } = useConfig();
 
+  // Detect API key format to provide better error messages
+  const detectKeyFormat = (apiKey: string): string | null => {
+    const trimmed = apiKey.trim();
+    if (trimmed.startsWith('sk-ant-')) return 'Anthropic';
+    if (trimmed.startsWith('sk-') && !trimmed.startsWith('sk-ant-')) return 'OpenAI';
+    if (trimmed.startsWith('AIza')) return 'Google';
+    if (trimmed.startsWith('gsk_')) return 'Groq';
+    if (trimmed.startsWith('xai-')) return 'xAI';
+    if (trimmed.startsWith('sk-or-')) return 'OpenRouter';
+    return null;
+  };
+
   const testApiKey = async () => {
     if (!apiKey.trim()) {
       toastService.error({
@@ -52,6 +64,9 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
 
     // Notify parent that user is actively testing
     onStartTesting?.();
+    
+    const detectedFormat = detectKeyFormat(apiKey);
+    console.log(`🔍 Frontend key analysis: format="${detectedFormat}", length=${apiKey.length}, prefix="${apiKey.substring(0, 10)}..."`);
 
     setIsLoading(true);
     setTestResults([]);
@@ -126,11 +141,20 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       
       // Handle 404 (no provider found) and other errors
       if (apiError.response?.status === 404) {
+        const detectedFormat = detectKeyFormat(apiKey);
+        
         setTestResults([{
-          provider: 'Unknown',
+          provider: detectedFormat || 'Unknown',
           success: false,
-          error: 'No matching provider found for this API key',
-          suggestions: [
+          error: detectedFormat 
+            ? `${detectedFormat} API key validation failed`
+            : 'No matching provider found for this API key',
+          suggestions: detectedFormat ? [
+            `Check that your ${detectedFormat} API key is correct and complete`,
+            `Verify your ${detectedFormat} account has sufficient credits or is active`,
+            `Ensure the API key has the necessary permissions for ${detectedFormat}`,
+            'The key format was recognized but validation failed'
+          ] : [
             'Check that your API key is correct and complete',
             'Make sure you are using a supported provider (OpenAI, Anthropic, Google, Groq, etc.)',
             'Try setting up the provider manually in settings'
@@ -138,8 +162,10 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         }]);
 
         toastService.error({
-          title: 'No Provider Found',
-          msg: 'Could not find a matching provider for this API key. Please check the key and try again.',
+          title: detectedFormat ? `${detectedFormat} Key Invalid` : 'No Provider Found',
+          msg: detectedFormat 
+            ? `${detectedFormat} API key format detected but validation failed. Please check your key.`
+            : 'Could not find a matching provider for this API key. Please check the key and try again.',
           traceback: '',
         });
       } else {
