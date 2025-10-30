@@ -259,10 +259,11 @@ pub async fn reply(
             id: session_id.clone(),
             working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            goose_mode: None,
             max_turns: None,
             retry_config: None,
         };
+
+        const user_message = messages
 
         let mut stream = match agent
             .reply(

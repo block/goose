@@ -21,6 +21,7 @@ use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflic
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
 // Track running tasks with their abort handles
@@ -152,8 +153,6 @@ pub struct ScheduledJob {
     pub current_session_id: Option<String>,
     #[serde(default)]
     pub process_start_time: Option<DateTime<Utc>>,
-    #[serde(default)]
-    pub execution_mode: Option<String>, // "foreground" or "background"
 }
 
 async fn persist_jobs_from_arc(
@@ -1160,8 +1159,6 @@ async fn run_scheduled_job_internal(
         });
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
-    let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
-    tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
 
     let current_dir = match std::env::current_dir() {
         Ok(cd) => cd,
@@ -1173,10 +1170,10 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    // Create session upfront
     let session = match SessionManager::create_session(
         current_dir.clone(),
         format!("Scheduled job: {}", job.id),
+        SessionType::Scheduled,
     )
     .await
     {
@@ -1204,22 +1201,18 @@ async fn run_scheduled_job_internal(
         .or(recipe.instructions.as_ref())
         .unwrap();
 
-    let mut conversation =
-        Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
+    let user_message = Message::user().with_text(prompt_text);
+    let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
     let session_config = SessionConfig {
         id: session.id.clone(),
         working_dir: current_dir.clone(),
         schedule_id: Some(job.id.clone()),
-        goose_mode: job.execution_mode.clone(),
         max_turns: None,
         retry_config: None,
     };
 
-    match agent
-        .reply(conversation.clone(), Some(session_config.clone()), None)
-        .await
-    {
+    match agent.reply(user_message, session_config, None).await {
         Ok(mut stream) => {
             use futures::StreamExt;
 
@@ -1451,7 +1444,6 @@ mod tests {
             paused: false,
             current_session_id: None,
             process_start_time: None,
-            execution_mode: Some("background".to_string()), // Default for test
         };
 
         let mock_model_config = ModelConfig::new_or_fail("test_model");

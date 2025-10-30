@@ -1,8 +1,6 @@
+use crate::session::session_manager::SessionType;
 use crate::{
-    agents::{
-        extension::PlatformExtensionContext, subagent_task_config::TaskConfig, Agent, AgentEvent,
-        SessionConfig,
-    },
+    agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
     session::SessionManager,
@@ -10,8 +8,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use std::future::Future;
 use std::pin::Pin;
-use std::{future::Future, sync::Arc};
 use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
@@ -107,6 +105,7 @@ fn get_agent_messages(
         let session = SessionManager::create_session(
             working_dir.clone(),
             format!("Subagent task for: {}", parent_session_id),
+            SessionType::SubAgent,
         )
         .await
         .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
@@ -131,24 +130,18 @@ fn get_agent_messages(
             }
         }
 
-        let mut conversation =
-            Conversation::new_unvalidated(
-                vec![Message::user().with_text(text_instruction.clone())],
-            );
-        let session_config = if let Some(session_id) = session_id {
-            Some(SessionConfig {
-                id: session_id,
-                working_dir,
-                schedule_id: None,
-                goose_mode: None,
-                max_turns: task_config.max_turns.map(|v| v as u32),
-                retry_config: None,
-            })
-        } else {
-            None
+        let user_message = Message::user().with_text(text_instruction);
+        let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+
+        let session_config = SessionConfig {
+            id: session.id.clone(),
+            working_dir,
+            schedule_id: None,
+            max_turns: task_config.max_turns.map(|v| v as u32),
+            retry_config: None,
         };
         let mut stream = agent
-            .reply(conversation.clone(), session_config, None)
+            .reply(user_message, session_config, None)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {

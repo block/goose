@@ -53,7 +53,7 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
-        session: &SessionConfig,
+        session: &'a SessionConfig,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {

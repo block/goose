@@ -186,7 +186,6 @@ impl Agent {
             paused: false,
             current_session_id: None,
             process_start_time: None,
-            execution_mode: Some(execution_mode.to_string()),
         };
 
         match scheduler.add_scheduled_job(job).await {

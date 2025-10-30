@@ -75,7 +75,6 @@ pub struct ReplyContext {
     pub system_prompt: String,
     pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
-    pub config: &'static Config,
 }
 
 pub struct ToolCategorizeResult {
@@ -246,7 +245,6 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
-        session_config: &SessionConfig,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -264,11 +262,8 @@ impl Agent {
         let config = Config::global();
 
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-        let goose_mode = session_config
-            .goose_mode
-            .unwrap_or_else(|| config.get_goose_mode().unwrap_or(GooseMode::Auto));
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
-        // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
             .update_permission_inspector_mode(goose_mode)
             .await;
@@ -280,7 +275,6 @@ impl Agent {
             system_prompt,
             goose_mode,
             initial_messages,
-            config,
         })
     }
 
@@ -749,25 +743,22 @@ impl Agent {
         });
 
         SessionManager::add_message(&session_config.id, &user_message).await?;
-        let mut session = SessionManager::get_session(&session_config.id, true).await?;
+        let session = SessionManager::get_session(&session_config.id, true).await?;
 
-        let mut unfixed_conversation = session
+        let conversation = session
             .conversation
+            .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact = crate::context_mgmt::check_if_compaction_needed(
-            self,
-            &unfixed_conversation,
-            None,
-            &session,
-        )
-        .await?;
+        let needs_auto_compact =
+            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+                .await?;
 
-        let conversation_to_compact = unfixed_conversation.clone();
+        let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
             let final_conversation = if !needs_auto_compact {
-                unfixed_conversation
+                conversation
             } else {
                 if !is_manual_compact {
                     let config = crate::config::Config::global();
@@ -837,9 +828,7 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self
-            .prepare_reply_context(conversation, &session_config)
-            .await?;
+        let context = self.prepare_reply_context(conversation).await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -847,7 +836,6 @@ impl Agent {
             mut system_prompt,
             goose_mode,
             initial_messages,
-            config,
         } = context;
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
@@ -1087,10 +1075,8 @@ impl Agent {
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
-                                        if let Some(ref session_config) = session_config {
-                                            if let Err(e) = self.save_extension_state(session_config).await {
-                                                warn!("Failed to save extension state after runtime changes: {}", e);
-                                            }
+                                        if let Err(e) = self.save_extension_state(&session_config).await {
+                                            warn!("Failed to save extension state after runtime changes: {}", e);
                                         }
                                         tools_updated = true;
                                     }
@@ -1119,13 +1105,9 @@ impl Agent {
 
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
                                 Ok((compacted_conversation, _token_counts, _usage)) => {
-                                    if let Some(session_to_store) = &session_config {
-                                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
-                                    }
-
+                                    SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
-
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     continue;
                                 }
@@ -1192,10 +1174,8 @@ impl Agent {
                     }
                 }
 
-                if let Some(session_config) = &session_config {
-                    for msg in &messages_to_add {
-                        SessionManager::add_message(&session_config.id, msg).await?;
-                    }
+                for msg in &messages_to_add {
+                    SessionManager::add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
                 if exit_chat {
