@@ -18,6 +18,15 @@ interface TestResult {
   error?: string;
 }
 
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
 export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
   const [apiKey, setApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -77,19 +86,24 @@ export default function ApiKeyTester({ onSuccess }: ApiKeyTesterProps) {
 
         onSuccess(provider_name, models[0]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Detection failed:', error);
+      
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || 
+                          apiError.message || 
+                          'Could not detect provider. Please check your API key.';
       
       setTestResults([{
         provider: 'Unknown',
         success: false,
-        error: error.response?.data?.message || 'Could not detect provider. Please check your API key.',
+        error: errorMessage,
       }]);
 
       toastService.error({
         title: 'Detection Failed',
         msg: 'Could not validate API key. Please check the key and try again.',
-        traceback: error.stack || '',
+        traceback: error instanceof Error ? error.stack || '' : '',
       });
     } finally {
       setIsLoading(false);
