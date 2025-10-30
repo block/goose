@@ -1,25 +1,36 @@
 const pillStyles = `
-@keyframes pillExpandIn {
+@keyframes typewriter {
   from {
-    opacity: 0;
-    transform: scaleX(0);
-    transform-origin: left center;
+    width: 0;
   }
   to {
-    opacity: 1;
-    transform: scaleX(1);
-    transform-origin: left center;
+    width: 100%;
   }
 }
+
+@keyframes blink-caret {
+  from, to {
+    border-color: transparent;
+  }
+  50% {
+    border-color: currentColor;
+  }
+}
+
 .pill-expand-in {
-  animation: pillExpandIn 0.25s ease-out forwards;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid currentColor;
+  animation: 
+    typewriter 0.4s steps(20, end) forwards,
+    blink-caret 0.5s step-end 3;
 }
 `;
 
 // Inject styles
-if (typeof document !== "undefined" && !document.getElementById("pill-styles-mention")) {
+if (typeof document !== "undefined" && !document.getElementById("pill-styles")) {
   const style = document.createElement("style");
-  style.id = "pill-styles-mention";
+  style.id = "pill-styles";
   style.textContent = pillStyles;
   document.head.appendChild(style);
 }
