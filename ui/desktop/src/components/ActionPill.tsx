@@ -20,7 +20,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   const baseClasses = "inline-flex items-center gap-1.5 font-medium border rounded-full";
   
   const variantClasses = {
-    default: "bg-bgProminent text-textProminentInverse border-borderProminent",
+    default: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900",
     message: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700"
   };
   
@@ -30,7 +30,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]}`}>
+    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors`}>
       <span className="flex items-center gap-1">
         <span className="relative">
           <div className="w-3 h-3 bg-blue-500 rounded-full absolute inset-0" />
@@ -44,7 +44,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
         <button
           type="button"
           onClick={onRemove}
-          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-white/20 transition-colors"
+          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
           aria-label={`Remove ${label} action`}
         >
           <X size={10} />
