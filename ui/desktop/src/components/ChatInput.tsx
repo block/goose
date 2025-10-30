@@ -668,7 +668,7 @@ export default function ChatInput({
     };
   }, [clearAlerts]);
 
-  const maxHeight = 10 * 24;
+  const maxHeight = 15 * 24; // Increased from 10 to 15 lines
 
   // Immediate function to update actual value - no debounce for better responsiveness
   const updateValue = React.useCallback((value: string) => {
@@ -1502,7 +1502,7 @@ export default function ChatInput({
         />
       )}
       {/* Input row with inline action buttons wrapped in form */}
-      <form onSubmit={onFormSubmit} className="relative flex items-end">
+      <form onSubmit={onFormSubmit} className="relative flex items-stretch">
         <div className="relative flex-1">
                   
 

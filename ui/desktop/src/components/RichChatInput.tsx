@@ -211,7 +211,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Calculate line height more accurately based on actual font metrics
       const lineHeight = 21; // 14px * 1.5 line-height = 21px
       const minHeight = rows * lineHeight;
-      const maxHeight = parseInt((style?.maxHeight as string)?.replace("px", "")) || 300;
+      const maxHeight = parseInt((style?.maxHeight as string)?.replace("px", "")) || 360; // Increased default
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
