@@ -67,23 +67,10 @@ pub async fn handle_db_status() -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_db_backup(output: Option<PathBuf>) -> Result<()> {
+pub async fn handle_db_backup(name: Option<String>) -> Result<()> {
     println!("{}", "Creating database backup...".cyan());
 
-    let backup_path = if let Some(custom_output) = output {
-        let backup_name = custom_output
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .ok_or_else(|| anyhow::anyhow!("Invalid output path"))?
-            .to_string();
-
-        let backup_path = SessionManager::create_backup(Some(backup_name)).await?;
-
-        std::fs::rename(&backup_path, &custom_output)?;
-        custom_output
-    } else {
-        SessionManager::create_backup(None).await?
-    };
+    let backup_path = SessionManager::create_backup(name).await?;
 
     let size = std::fs::metadata(&backup_path)?.len();
 

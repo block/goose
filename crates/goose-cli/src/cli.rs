@@ -289,8 +289,12 @@ enum DbCommand {
 
     #[command(about = "Create a manual database backup")]
     Backup {
-        #[arg(short, long, help = "Custom backup output path")]
-        output: Option<PathBuf>,
+        #[arg(
+            short,
+            long,
+            help = "Custom backup name (saved in default backup directory)"
+        )]
+        name: Option<String>,
     },
 
     #[command(about = "Restore database from a backup file")]
@@ -898,9 +902,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Db { command }) => {
             match command {
                 DbCommand::Status => crate::commands::db::handle_db_status().await?,
-                DbCommand::Backup { output } => {
-                    crate::commands::db::handle_db_backup(output).await?
-                }
+                DbCommand::Backup { name } => crate::commands::db::handle_db_backup(name).await?,
                 DbCommand::Restore { backup_file, force } => {
                     crate::commands::db::handle_db_restore(backup_file, force).await?
                 }
