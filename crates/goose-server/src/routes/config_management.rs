@@ -741,7 +741,9 @@ pub async fn get_security_models() -> Result<Json<SecurityModelsResponse>, Statu
                 "deberta-prompt-injection-v2" => SecurityModel {
                     name: model_name,
                     display_name: "DeBERTa v2 (Prompt Injection)".to_string(),
-                    description: "BERT-based model specialized for detecting prompt injection attacks".to_string(),
+                    description:
+                        "BERT-based model specialized for detecting prompt injection attacks"
+                            .to_string(),
                     version: Some("gmv-zve9abhxe9s7fq1zep5dxd807".to_string()),
                 },
                 _ => SecurityModel {

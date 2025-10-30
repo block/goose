@@ -1,8 +1,8 @@
 use crate::conversation::message::Message;
-use crate::security::patterns::{PatternMatcher, RiskLevel};
-use crate::security::model_scanner::GenericModelScanner;
-use crate::providers::gondola::{GondolaProvider, PromptInjectionResult};
 use crate::model::ModelConfig;
+use crate::providers::gondola::GondolaProvider;
+use crate::security::model_scanner::{GenericModelScanner, ModelScanResult};
+use crate::security::patterns::{PatternMatcher, RiskLevel};
 use anyhow::Result;
 use rmcp::model::CallToolRequestParam;
 use serde_json::Value;
@@ -25,18 +25,16 @@ async fn initialize_gondola_provider() -> Option<Arc<GondolaProvider>> {
 
     // Try to create a Gondola provider with a default model config
     match ModelConfig::new("deberta-prompt-injection-v2") {
-        Ok(model_config) => {
-            match GondolaProvider::from_env(model_config).await {
-                Ok(provider) => {
-                    tracing::info!("🔒 ✅ Gondola provider initialized successfully");
-                    Some(Arc::new(provider))
-                }
-                Err(e) => {
-                    tracing::warn!("🔒 Failed to initialize Gondola provider: {}", e);
-                    None
-                }
+        Ok(model_config) => match GondolaProvider::from_env(model_config).await {
+            Ok(provider) => {
+                tracing::info!("🔒 ✅ Gondola provider initialized successfully");
+                Some(Arc::new(provider))
             }
-        }
+            Err(e) => {
+                tracing::warn!("🔒 Failed to initialize Gondola provider: {}", e);
+                None
+            }
+        },
         Err(e) => {
             tracing::warn!("🔒 Failed to create model config for Gondola: {}", e);
             None
@@ -101,7 +99,10 @@ impl PromptInjectionScanner {
 
     /// Core scanning logic - tries model-based scanning first, falls back to pattern matching
     pub async fn scan_for_dangerous_patterns(&self, text: &str) -> Result<ScanResult> {
-        tracing::info!("🔒 Starting security scan for text (length: {})", text.len());
+        tracing::info!(
+            "🔒 Starting security scan for text (length: {})",
+            text.len()
+        );
 
         // Always run pattern-based scanning first as a baseline
         let pattern_result = self.scan_with_patterns(text).await?;
@@ -111,7 +112,9 @@ impl PromptInjectionScanner {
             tracing::info!("🔒 Model scanner available, running generic model scan...");
 
             // Use the generic model scanner instead of calling Gondola directly
-            match GenericModelScanner::scan_for_prompt_injection(gondola_provider.as_ref(), text).await {
+            match GenericModelScanner::scan_for_prompt_injection(gondola_provider.as_ref(), text)
+                .await
+            {
                 Ok(model_result) => {
                     tracing::info!(
                         "🔒 Model scan completed: is_injection={}, confidence={:.3}",
@@ -119,15 +122,8 @@ impl PromptInjectionScanner {
                         model_result.confidence
                     );
 
-                    // Convert ModelScanResult to PromptInjectionResult for compatibility
-                    let gondola_result = PromptInjectionResult {
-                        is_injection: model_result.is_injection,
-                        confidence: model_result.confidence,
-                        raw_scores: model_result.raw_scores,
-                    };
-
                     // Combine model and pattern results
-                    let combined_result = self.combine_scan_results(&pattern_result, &gondola_result);
+                    let combined_result = self.combine_scan_results(&pattern_result, &model_result);
 
                     tracing::info!(
                         "🔒 Combined scan result: malicious={}, confidence={:.3}",
@@ -210,43 +206,47 @@ impl PromptInjectionScanner {
         })
     }
 
-    /// Combine Gondola BERT model results with pattern matching results
-    fn combine_scan_results(&self, pattern_result: &ScanResult, gondola_result: &PromptInjectionResult) -> ScanResult {
-        // Convert Gondola confidence (f64) to our scale (f32)
-        let gondola_confidence = gondola_result.confidence as f32;
-        let gondola_is_malicious = gondola_result.is_injection;
+    /// Combine model-based BERT results with pattern matching results
+    fn combine_scan_results(
+        &self,
+        pattern_result: &ScanResult,
+        model_result: &ModelScanResult,
+    ) -> ScanResult {
+        // Convert model confidence (f64) to our scale (f32)
+        let model_confidence = model_result.confidence as f32;
+        let model_is_malicious = model_result.is_injection;
 
         // Take the higher confidence score
-        let final_confidence = pattern_result.confidence.max(gondola_confidence);
+        let final_confidence = pattern_result.confidence.max(model_confidence);
 
         // Mark as malicious if either method detects it
-        let final_is_malicious = pattern_result.is_malicious || gondola_is_malicious;
+        let final_is_malicious = pattern_result.is_malicious || model_is_malicious;
 
         // Create combined explanation
-        let combined_explanation = match (pattern_result.is_malicious, gondola_is_malicious) {
+        let combined_explanation = match (pattern_result.is_malicious, model_is_malicious) {
             (true, true) => {
                 format!(
                     "Detected by both BERT model (confidence: {:.3}) and pattern analysis:\n{}",
-                    gondola_confidence,
-                    pattern_result.explanation.replace("Pattern-based detection found ", "")
+                    model_confidence,
+                    pattern_result
+                        .explanation
+                        .replace("Pattern-based detection found ", "")
                 )
             }
             (false, true) => {
                 format!(
                     "Detected by BERT model (confidence: {:.3}): Prompt injection detected",
-                    gondola_confidence
+                    model_confidence
                 )
             }
             (true, false) => {
                 format!(
                     "Detected by pattern analysis (BERT model found no injection, confidence: {:.3}):\n{}",
-                    gondola_confidence,
+                    model_confidence,
                     pattern_result.explanation.replace("Pattern-based detection found ", "")
                 )
             }
-            (false, false) => {
-                "No threats detected by BERT model or pattern analysis".to_string()
-            }
+            (false, false) => "No threats detected by BERT model or pattern analysis".to_string(),
         };
 
         ScanResult {
