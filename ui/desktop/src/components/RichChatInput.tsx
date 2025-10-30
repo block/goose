@@ -190,16 +190,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         display.scrollTop = textarea.scrollTop;
         display.scrollLeft = textarea.scrollLeft;
       
-      // Minimal cursor visibility adjustment for large text
-      if (textareaScrollHeight > finalHeight) {
-        const cursorAtEnd = textarea.selectionStart === textarea.value.length;
-        if (cursorAtEnd) {
-          // If typing at the end and content is scrollable, ensure bottom is visible
-          const maxScroll = textarea.scrollHeight - finalHeight;
-          if (maxScroll > 0 && textarea.scrollTop < maxScroll) {
-            textarea.scrollTop = maxScroll;
-            display.scrollTop = maxScroll;
-          }
+      // Simple fix: if typing at end and content overflows, scroll to bottom
+      if (textareaScrollHeight > finalHeight && textarea.selectionStart === textarea.value.length) {
+        const shouldScrollToBottom = textarea.scrollTop < (textarea.scrollHeight - finalHeight);
+        if (shouldScrollToBottom) {
+          textarea.scrollTop = textarea.scrollHeight - finalHeight;
+          display.scrollTop = textarea.scrollTop;
         }
       }
       });
@@ -252,16 +248,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
       
-      // Minimal cursor visibility adjustment for large text
-      if (textareaScrollHeight > finalHeight) {
-        const cursorAtEnd = textarea.selectionStart === textarea.value.length;
-        if (cursorAtEnd) {
-          // If typing at the end and content is scrollable, ensure bottom is visible
-          const maxScroll = textarea.scrollHeight - finalHeight;
-          if (maxScroll > 0 && textarea.scrollTop < maxScroll) {
-            textarea.scrollTop = maxScroll;
-            display.scrollTop = maxScroll;
-          }
+      // Simple fix: if typing at end and content overflows, scroll to bottom
+      if (textareaScrollHeight > finalHeight && textarea.selectionStart === textarea.value.length) {
+        const shouldScrollToBottom = textarea.scrollTop < (textarea.scrollHeight - finalHeight);
+        if (shouldScrollToBottom) {
+          textarea.scrollTop = textarea.scrollHeight - finalHeight;
+          display.scrollTop = textarea.scrollTop;
         }
       }
       
@@ -822,22 +814,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
     
-    // Simple keyboard shortcuts for navigation
-    if ((e.ctrlKey || e.metaKey) && e.key === "Home") {
-      e.preventDefault();
-      e.currentTarget.setSelectionRange(0, 0);
-      e.currentTarget.scrollTop = 0;
-      if (displayRef.current) displayRef.current.scrollTop = 0;
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "End") {
-      e.preventDefault();
-      const length = e.currentTarget.value.length;
-      e.currentTarget.setSelectionRange(length, length);
-      // Let the normal sync handle scrolling
-      return;
-    }
-    
     // Handle backspace on action and mention pills
     if (e.key === 'Backspace') {
       const cursorPos = e.currentTarget.selectionStart;
@@ -902,22 +878,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const handleTextareaPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // Update cursor position after paste
     setTimeout(updateCursorPosition, 0);
-    
-    // Simple keyboard shortcuts for navigation
-    if ((e.ctrlKey || e.metaKey) && e.key === "Home") {
-      e.preventDefault();
-      e.currentTarget.setSelectionRange(0, 0);
-      e.currentTarget.scrollTop = 0;
-      if (displayRef.current) displayRef.current.scrollTop = 0;
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "End") {
-      e.preventDefault();
-      const length = e.currentTarget.value.length;
-      e.currentTarget.setSelectionRange(length, length);
-      // Let the normal sync handle scrolling
-      return;
-    }
     
     // Create proper synthetic event
     const syntheticEvent = {
@@ -1104,6 +1064,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           ...style,
           minHeight: `${rows * 1.5}em`,
           maxHeight: style?.maxHeight || 'none', // Respect parent max height constraints
+          width: "100%",
+          overflowX: "hidden",
           zIndex: 3, // Higher z-index, above textarea for misspelled word interactions
           pointerEvents: 'none', // Don't interfere with text selection by default
           userSelect: 'none', // Prevent selection on visual layer
