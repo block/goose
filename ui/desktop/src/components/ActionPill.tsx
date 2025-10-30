@@ -32,11 +32,8 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   return (
     <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors`}>
       <span className="flex items-center gap-1">
-        <span className="relative">
-          <div className="w-3 h-3 bg-blue-500 rounded-full absolute inset-0" />
-          <span className="relative text-white text-[8px] flex items-center justify-center w-3 h-3">
-            {icon}
-          </span>
+        <span className="text-blue-500 flex items-center justify-center w-3 h-3">
+          {icon}
         </span>
         {label}
       </span>
