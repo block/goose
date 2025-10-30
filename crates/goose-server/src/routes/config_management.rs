@@ -272,7 +272,7 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     let config = Config::global();
 
     let values = config
-        .load_values()
+        .all_values()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
 
     Ok(Json(ConfigResponse { config: values }))
@@ -509,7 +509,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 
     // Use the shared function to load init-config.yaml
     match goose::config::base::load_init_config_from_workspace() {
-        Ok(init_values) => match config.save_values(init_values) {
+        Ok(init_values) => match config.initialize_if_empty(init_values) {
             Ok(_) => Ok(Json("Config initialized successfully".to_string())),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         },
@@ -584,7 +584,7 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     // Force a reload which will trigger recovery if needed
-    match config.load_values() {
+    match config.all_values() {
         Ok(values) => {
             let recovered_keys: Vec<String> = values.keys().cloned().collect();
             if recovered_keys.is_empty() {

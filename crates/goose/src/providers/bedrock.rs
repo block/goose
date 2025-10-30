@@ -59,8 +59,8 @@ impl BedrockProvider {
             }
         };
 
-        set_aws_env_vars(config.load_values());
-        set_aws_env_vars(config.load_secrets());
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(config.all_secrets());
 
         // Use load_defaults() which supports AWS SSO, profiles, and environment variables
         let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
