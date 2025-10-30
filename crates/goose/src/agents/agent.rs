@@ -806,7 +806,7 @@ impl Agent {
                 Ok((compacted_conversation, summarization_usage)) => {
                     if let Some(session_to_store) = &session {
                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
-                        Self::update_session_metrics(session_to_store, &summarization_usage).await?;
+                        Self::update_session_metrics(session_to_store, &summarization_usage, true).await?;
                     }
 
                     yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
@@ -994,7 +994,7 @@ impl Agent {
                             // Record usage for the session
                             if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage).await?;
+                                    Self::update_session_metrics(session_config, usage, false).await?;
                                 }
                             }
 
@@ -1173,7 +1173,7 @@ impl Agent {
                                 Ok((compacted_conversation, usage)) => {
                                     if let Some(session_to_store) = &session {
                                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
-                                        Self::update_session_metrics(session_to_store, &usage).await?;
+                                        Self::update_session_metrics(session_to_store, &usage, true).await?;
                                     }
 
                                     conversation = compacted_conversation;
