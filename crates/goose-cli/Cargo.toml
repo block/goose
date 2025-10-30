@@ -40,6 +40,7 @@ rustyline = "15.0.0"
 tracing = "0.1"
 chrono = "0.4"
 colored = "2.2"
+comfy-table = "7.1"
 humansize = "2.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
 tracing-appender = "0.2"

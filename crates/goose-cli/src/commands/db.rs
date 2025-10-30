@@ -1,6 +1,7 @@
 use anyhow::Result;
 use cliclack::confirm;
 use colored::Colorize;
+use comfy_table::{presets::UTF8_FULL, Cell, CellAlignment, ContentArrangement, Table};
 use goose::config::paths::Paths;
 use goose::session::session_manager::SessionManager;
 use humansize::{format_size, BINARY};
@@ -174,10 +175,16 @@ pub async fn handle_db_list_backups(format: String) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&backups)?);
         }
         "table" => {
-            println!("\n{}", "Database Backups".bold().cyan());
-            println!("{}", "─".repeat(80));
-            println!("{:<45} {:>12} {:>15}", "Filename", "Size", "Age");
-            println!("{}", "─".repeat(80));
+            let mut table = Table::new();
+            table
+                .load_preset(UTF8_FULL)
+                .set_content_arrangement(ContentArrangement::Dynamic)
+                .set_header(vec![
+                    Cell::new("Filename").set_alignment(CellAlignment::Left),
+                    Cell::new("Version").set_alignment(CellAlignment::Right),
+                    Cell::new("Size").set_alignment(CellAlignment::Right),
+                    Cell::new("Age").set_alignment(CellAlignment::Right),
+                ]);
 
             for backup in &backups {
                 let filename = backup
@@ -185,6 +192,13 @@ pub async fn handle_db_list_backups(format: String) -> Result<()> {
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown");
+
+                let version_str = backup
+                    .schema_version
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "?".to_string());
+
+                let size_str = format_size(backup.size, BINARY);
 
                 let age = chrono::Utc::now() - backup.created_at;
                 let age_str = if age.num_days() > 0 {
@@ -197,15 +211,17 @@ pub async fn handle_db_list_backups(format: String) -> Result<()> {
                     "just now".to_string()
                 };
 
-                println!(
-                    "{:<45} {:>12} {:>15}",
-                    filename,
-                    format_size(backup.size, BINARY),
-                    age_str
-                );
+                table.add_row(vec![
+                    Cell::new(filename).set_alignment(CellAlignment::Left),
+                    Cell::new(version_str).set_alignment(CellAlignment::Right),
+                    Cell::new(size_str).set_alignment(CellAlignment::Right),
+                    Cell::new(age_str).set_alignment(CellAlignment::Right),
+                ]);
             }
 
-            println!("\n{} backups found\n", backups.len());
+            println!("\n{}", "Database Backups".bold().cyan());
+            println!("{}", table);
+            println!("{} backups found\n", backups.len());
         }
         _ => {
             println!("Invalid format: {}", format);

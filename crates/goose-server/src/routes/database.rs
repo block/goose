@@ -6,10 +6,11 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct BackupInfoSanitized {
+pub struct BackupInfo {
     pub filename: String,
     pub created_at: DateTime<Utc>,
     pub size: u64,
+    pub schema_version: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -21,7 +22,7 @@ pub struct DatabaseStatusResponse {
     pub session_count: usize,
     pub message_count: usize,
     pub total_tokens: i64,
-    pub latest_backup: Option<BackupInfoSanitized>,
+    pub latest_backup: Option<BackupInfo>,
     pub backup_count: usize,
     pub timestamp: DateTime<Utc>,
 }
@@ -53,10 +54,11 @@ pub async fn database_status() -> Result<Json<DatabaseStatusResponse>, StatusCod
             .unwrap_or("unknown")
             .to_string();
 
-        BackupInfoSanitized {
+        BackupInfo {
             filename,
             created_at: backup.created_at,
             size: backup.size,
+            schema_version: backup.schema_version,
         }
     });
 

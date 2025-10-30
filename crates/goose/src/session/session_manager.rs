@@ -96,6 +96,7 @@ pub struct BackupInfo {
     pub path: PathBuf,
     pub created_at: DateTime<Utc>,
     pub size: u64,
+    pub schema_version: Option<i32>,
 }
 
 impl SessionUpdateBuilder {
@@ -1240,6 +1241,39 @@ impl SessionStorage {
         Ok(backup_path)
     }
 
+    async fn read_backup_schema_version(path: &Path) -> Option<i32> {
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(false)
+            .read_only(true);
+
+        let mut conn = match SqliteConnection::connect_with(&options).await {
+            Ok(conn) => conn,
+            Err(_) => return None,
+        };
+
+        let table_exists = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='schema_version'
+            )
+        "#,
+        )
+        .fetch_one(&mut conn)
+        .await
+        .ok()?;
+
+        if !table_exists {
+            return Some(0);
+        }
+
+        sqlx::query_scalar::<_, i32>("SELECT MAX(version) FROM schema_version")
+            .fetch_one(&mut conn)
+            .await
+            .ok()
+    }
+
     async fn scan_backup_directory() -> Result<Vec<BackupInfo>> {
         let backup_dir = Paths::backup_dir();
 
@@ -1255,10 +1289,13 @@ impl SessionStorage {
                 if metadata.is_file() && entry.path().extension().is_some_and(|ext| ext == "db") {
                     if let Ok(modified) = metadata.modified() {
                         let created_at: DateTime<Utc> = modified.into();
+                        let path = entry.path();
+                        let schema_version = Self::read_backup_schema_version(&path).await;
                         backups.push(BackupInfo {
-                            path: entry.path(),
+                            path,
                             created_at,
                             size: metadata.len(),
+                            schema_version,
                         });
                     }
                 }

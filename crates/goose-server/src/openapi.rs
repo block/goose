@@ -446,7 +446,7 @@ derive_utoipa!(Icon as IconSchema);
         Session,
         SessionInsights,
         super::routes::database::DatabaseStatusResponse,
-        super::routes::database::BackupInfoSanitized,
+        super::routes::database::BackupInfo,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,

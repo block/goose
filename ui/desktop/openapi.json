@@ -2157,7 +2157,7 @@
           }
         }
       },
-      "BackupInfoSanitized": {
+      "BackupInfo": {
         "type": "object",
         "required": [
           "filename",
@@ -2171,6 +2171,11 @@
           },
           "filename": {
             "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           },
           "size": {
             "type": "integer",
@@ -2397,7 +2402,7 @@
           "latestBackup": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/BackupInfoSanitized"
+                "$ref": "#/components/schemas/BackupInfo"
               }
             ],
             "nullable": true

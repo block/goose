@@ -25,9 +25,10 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
-export type BackupInfoSanitized = {
+export type BackupInfo = {
     createdAt: string;
     filename: string;
+    schemaVersion?: number | null;
     size: number;
 };
 
@@ -101,7 +102,7 @@ export type DatabaseStatusResponse = {
     backupCount: number;
     dbSize: number;
     isLatestVersion: boolean;
-    latestBackup?: BackupInfoSanitized | null;
+    latestBackup?: BackupInfo | null;
     messageCount: number;
     schemaVersion: number;
     sessionCount: number;
