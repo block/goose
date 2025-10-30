@@ -193,6 +193,19 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Advanced Prompt Engineering for goose: A Comprehensive Guide",
+      "author": {
+        "name": "Abhi",
+        "handle": "Better-Boy"
+      },
+      "type": "blog",
+      "url": "https://dev.to/better-boy/advanced-prompt-engineering-for-goose-a-comprehensive-guide-3j6n",
+      "thumbnail": "https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1f4ps3e6ihgxkxexd9sn.png",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
