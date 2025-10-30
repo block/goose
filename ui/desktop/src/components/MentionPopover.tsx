@@ -1,3 +1,24 @@
+const popoverStyles = `
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scaleY(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scaleY(1);
+  }
+}
+`;
+
+// Inject styles
+if (typeof document !== "undefined" && !document.getElementById("popover-styles-mention")) {
+  const style = document.createElement("style");
+  style.id = "popover-styles-mention";
+  style.textContent = popoverStyles;
+  document.head.appendChild(style);
+}
+
 import {
   useState,
   useEffect,
@@ -468,11 +489,11 @@ const MentionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
-      style={{
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-96 max-w-lg max-h-80 "
+      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)", transformOrigin: "bottom", animation: "popoverFadeIn 0.2s ease-out forwards", opacity: 0, transform: "translateY(-100%) scaleY(0.8)",
         left: position.x,
         top: position.y - 10, // Position above the chat input
-        transform: 'translateY(-100%)', // Move it fully above
+        
       }}
     >
       <div className="p-3 flex flex-col max-h-80">
@@ -497,7 +518,7 @@ const MentionPopover = forwardRef<
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
-                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 p-2 rounded-2xl cursor-pointer transition-all ${
                     index === selectedIndex
                       ? 'bg-gray-100 dark:bg-gray-700'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700'

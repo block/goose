@@ -1,3 +1,24 @@
+const popoverStyles = `
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scaleY(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scaleY(1);
+  }
+}
+`;
+
+// Inject styles
+if (typeof document !== "undefined" && !document.getElementById("popover-styles")) {
+  const style = document.createElement("style");
+  style.id = "popover-styles";
+  style.textContent = popoverStyles;
+  document.head.appendChild(style);
+}
+
 import React, {
   useEffect,
   useRef,
@@ -5,7 +26,7 @@ import React, {
   useImperativeHandle,
   useState,
 } from 'react';
-import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus } from 'lucide-react';
+import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus, SearchX } from 'lucide-react';
 import { CustomCommand, BUILT_IN_COMMANDS } from '../types/customCommands';
 import { Button } from './ui/button';
 
@@ -240,11 +261,11 @@ const ActionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-80 max-w-md"
-      style={{
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-80 max-w-md "
+      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)", transformOrigin: "bottom", animation: "popoverFadeIn 0.2s ease-out forwards", opacity: 0, transform: "translateY(-100%) scaleY(0.8)",
         left: position.x,
         top: position.y - 10,
-        transform: 'translateY(-100%)',
+        
       }}
     >
       <div className="p-3">
@@ -263,7 +284,7 @@ const ActionPopover = forwardRef<
               <div
                 key={action.id}
                 onClick={() => handleItemClick(index)}
-                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                className={`flex items-center gap-3 p-2 rounded-2xl cursor-pointer transition-all ${
                   index === selectedIndex
                     ? 'bg-gray-100 dark:bg-gray-700'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -273,17 +294,10 @@ const ActionPopover = forwardRef<
                   {action.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mx-auto">
                     <div className="text-sm font-medium text-textStandard">
                       {action.label}
                     </div>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      action.isCustom 
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                    }`}>
-                      {action.isCustom ? 'Custom' : 'Built-in'}
-                    </span>
                   </div>
                   <div className="text-xs text-textSubtle">
                     {action.description}
@@ -293,9 +307,9 @@ const ActionPopover = forwardRef<
             ))
           ) : (
             <div className="p-3 text-center text-textSubtle">
-              <div className="text-sm mb-2">
+              <div className="text-sm mb-2 text-textMuted">
                 {query 
-                  ? `No commands match "${query}"` 
+                  ? <><SearchX size={24} className="text-textMuted mx-auto mb-1" /></> 
                   : allCommands.length === 0 
                     ? 'No commands found'
                     : 'No starred commands found'
@@ -307,8 +321,8 @@ const ActionPopover = forwardRef<
                     onCreateCommand();
                     onClose();
                   }}
-                  size="sm"
-                  className="flex items-center gap-2"
+                  variant="ghost" size="sm"
+                  className="flex items-center gap-2 mx-auto"
                 >
                   <Plus size={14} />
                   Create Command
@@ -320,8 +334,8 @@ const ActionPopover = forwardRef<
                       onCreateCommand();
                       onClose();
                     }}
-                    size="sm"
-                    className="flex items-center gap-2"
+                    variant="ghost" size="sm"
+                    className="flex items-center gap-2 mx-auto"
                   >
                     <Plus size={14} />
                     Create Command
