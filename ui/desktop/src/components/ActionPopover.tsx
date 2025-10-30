@@ -294,7 +294,7 @@ const ActionPopover = forwardRef<
                   {action.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mx-auto">
                     <div className="text-sm font-medium text-textStandard">
                       {action.label}
                     </div>
@@ -307,7 +307,7 @@ const ActionPopover = forwardRef<
             ))
           ) : (
             <div className="p-3 text-center text-textSubtle">
-              <div className="text-sm mb-2">
+              <div className="text-sm mb-2 text-textMuted">
                 {query 
                   ? `No commands match "${query}"` 
                   : allCommands.length === 0 
@@ -322,7 +322,7 @@ const ActionPopover = forwardRef<
                     onClose();
                   }}
                   variant="ghost" size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 mx-auto"
                 >
                   <Plus size={14} />
                   Create Command
@@ -335,7 +335,7 @@ const ActionPopover = forwardRef<
                       onClose();
                     }}
                     variant="ghost" size="sm"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 mx-auto"
                   >
                     <Plus size={14} />
                     Create Command
