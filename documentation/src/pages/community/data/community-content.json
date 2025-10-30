@@ -19,7 +19,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Running Goose in Containers (Without Losing Your Mind)",
+      "title": "Running goose in Containers (Without Losing Your Mind)",
       "author": {
         "name": "Rupam Golui",
         "handle": "Itz-Agasta"
@@ -32,7 +32,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Goose Docs MCP",
+      "title": "Goose with goose Docs MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -44,7 +44,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "title": "Best Practices for Using goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",
         "handle": "Anudhyan"
@@ -56,7 +56,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Getting started with Goose on Windows",
+      "title": "Getting started with goose on Windows",
       "author": {
         "name": "Halimah",
         "handle": "lymah123"
@@ -133,7 +133,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Context7 MCP",
+      "title": "goose with Context7 MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -170,7 +170,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Optimizing Goose performance on Windows",
+      "title": "Optimizing goose Performance on Windows",
       "author": {
         "name": "Mohammed Thaha",
         "handle": "mohammed-thaha"
@@ -183,7 +183,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Neon MCP",
+      "title": "goose with Neon MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -195,6 +195,18 @@
       "hacktoberfest": true
     },
     {
+      "title": "goose with Apify MCP",
+      "author": {
+        "name": "abhi",
+        "handle": "Better-Boy"
+      },
+      "type": "video",
+      "url": "https://youtube.com/shorts/XhA2YqjNF7M",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+      {
       "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
       "author": {
         "name": "Anudhyan Datta",
