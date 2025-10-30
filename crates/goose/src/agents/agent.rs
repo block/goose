@@ -803,9 +803,13 @@ impl Agent {
             );
 
             match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
-                Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
+                Ok((compacted_conversation, _token_counts, summarization_usage)) => {
                     if let Some(session_to_store) = &session {
                         SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
+
+                        if let Some(ref usage) = summarization_usage {
+                            Self::update_session_metrics(session_to_store, usage).await?;
+                        }
                     }
 
                     yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
@@ -1169,9 +1173,13 @@ impl Agent {
                             );
 
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
-                                Ok((compacted_conversation, _token_counts, _usage)) => {
+                                Ok((compacted_conversation, _token_counts, usage)) => {
                                     if let Some(session_to_store) = &session {
-                                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
+                                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
+
+                                        if let Some(ref usage) = usage {
+                                            Self::update_session_metrics(session_to_store, usage).await?;
+                                        }
                                     }
 
                                     conversation = compacted_conversation;
