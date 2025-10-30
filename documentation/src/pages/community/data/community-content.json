@@ -15,7 +15,7 @@
       "url": "https://block.github.io/goose/blog/2025/09/26/hacktoberfest-2025",
       "thumbnail": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-09-26",
-      "tags": ["hacktoberfest", "open-source", "contributing"],
+      "tags": ["hacktoberfest", "open-source"],
       "hacktoberfest": true
     },
     {
@@ -52,7 +52,7 @@
       "type": "blog",
       "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
       "submittedDate": "2025-10-15",
-      "tags": ["hacktoberfest", "goose", "enterprise"],
+      "tags": ["hacktoberfest", "enterprise"],
       "hacktoberfest": true
     },
     {
@@ -192,6 +192,18 @@
       "url": "https://www.youtube.com/shorts/IxUPo2QDg_8",
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/building-custom-tools-and-extensions-for-goose-a-developers-guide",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest", "mcp"],
       "hacktoberfest": true
     },
     {
