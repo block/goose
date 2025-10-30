@@ -31,7 +31,6 @@ export default function TunnelSection() {
   const [tunnelMode, setTunnelMode] = useState<TunnelMode>('lapstone');
   const [showOtherOptions, setShowOtherOptions] = useState(false);
 
-  // Load tunnel mode preference on mount
   useEffect(() => {
     const loadTunnelMode = async () => {
       try {
@@ -44,7 +43,6 @@ export default function TunnelSection() {
     loadTunnelMode();
   }, []);
 
-  // Check tunnel status on mount
   useEffect(() => {
     checkTunnelStatus();
   }, []);

@@ -59,12 +59,9 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
 
   const req = http.request(options, (res) => {
     const responseHeaders = res.headers;
-
-    // Check if this is a streaming response (SSE, etc.)
     const isStreamingResponse = responseHeaders['content-type']?.includes('text/event-stream');
 
     if (isStreamingResponse) {
-      // Real-time streaming: send each chunk as it arrives
       log.info(`← ${res.statusCode} ${path} [${requestId}] (streaming)`);
       let isFirstChunk = true;
       let chunkIndex = 0;
@@ -88,7 +85,6 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
       });
 
       res.on('end', () => {
-        // Send final chunk marker
         const response = {
           requestId,
           status: res.statusCode,
@@ -103,19 +99,15 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
         log.info(`← ${res.statusCode} ${path} [${requestId}] (complete, ${chunkIndex} chunks)`);
       });
     } else {
-      // Regular response: buffer and potentially split if too large
       const chunks: Buffer[] = [];
 
       res.on('data', (chunk) => chunks.push(chunk));
 
       res.on('end', () => {
         const responseBody = Buffer.concat(chunks).toString();
-
-        // Check if response is too large for single WebSocket message (1MB limit)
-        const MAX_WS_SIZE = 900000; // 900KB to be safe
+        const MAX_WS_SIZE = 900000; // 900KB limit for WebSocket messages
 
         if (responseBody.length > MAX_WS_SIZE) {
-          // Send in chunks
           const totalChunks = Math.ceil(responseBody.length / MAX_WS_SIZE);
           log.info(
             `← ${res.statusCode} ${path} [${requestId}] (${responseBody.length} bytes, ${totalChunks} chunks)`
@@ -139,7 +131,6 @@ async function handleRequest(message: TunnelMessage): Promise<void> {
             ws?.send(JSON.stringify(response));
           }
         } else {
-          // Send as single message
           const response = {
             requestId,
             status: res.statusCode,
@@ -192,21 +183,19 @@ function connect(port: number, agentId: string): void {
 
     // Enable TCP keepalive to detect dead connections faster
     const socket = (ws as WebSocket & { _socket: net.Socket })._socket;
-    socket.setKeepAlive(true, 30000); // Send keepalive probe every 30s of idle
+    socket.setKeepAlive(true, 30000);
 
-    // Update activity timestamp
     lastActivityTime = Date.now();
 
-    // Start idle check - reconnect if no activity for 10 minutes
+    // Reconnect if no activity for 10 minutes
     if (idleCheckInterval) clearInterval(idleCheckInterval);
     idleCheckInterval = setInterval(() => {
       const idleTime = Date.now() - lastActivityTime;
       if (idleTime > 10 * 60 * 1000) {
-        // 10 minutes
         log.warn('No activity for 10 minutes, reconnecting...');
         ws?.close();
       }
-    }, 60000); // Check every minute
+    }, 60000);
   });
 
   ws.on('message', async (data) => {
@@ -218,7 +207,6 @@ function connect(port: number, agentId: string): void {
   ws.on('close', () => {
     log.info('✗ Connection closed, reconnecting immediately...');
     if (idleCheckInterval) clearInterval(idleCheckInterval);
-    // Reconnect immediately, not after 5 seconds
     if (isRunning) {
       reconnectTimeout = setTimeout(() => connect(currentPort, currentAgentId), 100);
     }
