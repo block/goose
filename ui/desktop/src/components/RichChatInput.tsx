@@ -89,6 +89,8 @@ export interface RichChatInputRef {
   blur: () => void;
   setSelectionRange: (start: number, end: number) => void;
   getBoundingClientRect: () => DOMRect;
+  contentRef: React.RefObject<HTMLTextAreaElement>;
+  resetHeight: () => void;
 }
 
 // Use Electron's system spell checking
@@ -311,6 +313,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     },
     getBoundingClientRect: () => {
       return displayRef.current?.getBoundingClientRect() || new DOMRect();
+    },
+    contentRef: hiddenTextareaRef,
+    resetHeight: () => {
+      if (hiddenTextareaRef.current && displayRef.current) {
+        const textarea = hiddenTextareaRef.current;
+        const display = displayRef.current;
+        const lineHeight = 21;
+        const minHeight = rows * lineHeight;
+        
+        textarea.style.height = "auto";
+        textarea.style.height = `${minHeight}px`;
+        display.style.height = `${minHeight}px`;
+        
+        syncDisplayHeight();
+      }
     },
   }), []);
 

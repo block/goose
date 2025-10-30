@@ -619,8 +619,11 @@ export default function ChatInput({
   }, [debouncedAutosize, displayValue]);
   // Reset textarea height when displayValue is empty
   useEffect(() => {
-    if (textAreaRef.current && displayValue === '') {
-      const element = (textAreaRef.current as any)?.contentRef?.current; if (element && element.style) { element.style.height = 'auto'; }
+    if (textAreaRef.current && displayValue === "") {
+      // Use the RichChatInput resetHeight method if available
+      if ((textAreaRef.current as any).resetHeight) {
+        (textAreaRef.current as any).resetHeight();
+      }
     }
   }, [displayValue]);
   //   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
