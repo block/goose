@@ -126,6 +126,7 @@ export type DetectProviderError = {
 
 export type DetectProviderRequest = {
     api_key: string;
+    disable_ollama_fallback?: boolean;
 };
 
 export type DetectProviderResponse = {

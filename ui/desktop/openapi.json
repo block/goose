@@ -2477,6 +2477,10 @@
         "properties": {
           "api_key": {
             "type": "string"
+          },
+          "disable_ollama_fallback": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

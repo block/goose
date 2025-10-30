@@ -33,7 +33,7 @@ fn detect_provider_from_key_format(api_key: &str) -> Option<&'static str> {
     None
 }
 
-pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<String>)> {
+pub async fn detect_provider_from_api_key(api_key: &str, disable_ollama_fallback: bool) -> Option<(String, Vec<String>)> {
     // First, try to detect the provider from the key format
     if let Some(detected_provider) = detect_provider_from_key_format(api_key) {
         // Test only the detected provider
@@ -70,8 +70,12 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
         return result;
     }
 
-    // If we can't detect the format, try Ollama as a fallback
+    // If we can't detect the format, try Ollama as a fallback (unless disabled)
     // (since Ollama keys don't have a standard format)
+    if disable_ollama_fallback {
+        return None;
+    }
+
     let original_value = std::env::var("OLLAMA_API_KEY").ok();
     std::env::set_var("OLLAMA_API_KEY", api_key);
 

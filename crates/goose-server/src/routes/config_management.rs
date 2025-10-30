@@ -92,6 +92,8 @@ pub struct UpdateCustomProviderRequest {
 #[derive(Deserialize, ToSchema)]
 pub struct DetectProviderRequest {
     pub api_key: String,
+    #[serde(default)]
+    pub disable_ollama_fallback: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -552,7 +554,7 @@ pub async fn detect_provider(
     // Detect the expected provider from key format
     let detected_format = detect_key_format(api_key);
 
-    match auto_detect::detect_provider_from_api_key(api_key).await {
+    match auto_detect::detect_provider_from_api_key(api_key, detect_request.disable_ollama_fallback).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,
