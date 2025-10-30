@@ -468,8 +468,8 @@ const MentionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl shadow-lg min-w-96 max-w-lg max-h-80"
-      style={{
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-96 max-w-lg max-h-80"
+      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)",
         left: position.x,
         top: position.y - 10, // Position above the chat input
         transform: 'translateY(-100%)', // Move it fully above
@@ -491,7 +491,7 @@ const MentionPopover = forwardRef<
             <div
               ref={listRef}
               className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
-              style={{ maxHeight: '280px' }}
+              style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)", maxHeight: '280px' }}
             >
               {displayFiles.map((file, index) => (
                 <div

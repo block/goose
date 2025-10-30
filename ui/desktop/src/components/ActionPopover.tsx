@@ -240,8 +240,8 @@ const ActionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl shadow-lg min-w-80 max-w-md"
-      style={{
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-80 max-w-md"
+      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)",
         left: position.x,
         top: position.y - 10,
         transform: 'translateY(-100%)',
