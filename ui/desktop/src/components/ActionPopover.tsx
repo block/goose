@@ -26,7 +26,7 @@ import React, {
   useImperativeHandle,
   useState,
 } from 'react';
-import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus } from 'lucide-react';
+import { Zap, FileText, Code, Settings, Search, Play, Hash, Plus, SearchX } from 'lucide-react';
 import { CustomCommand, BUILT_IN_COMMANDS } from '../types/customCommands';
 import { Button } from './ui/button';
 
@@ -309,7 +309,7 @@ const ActionPopover = forwardRef<
             <div className="p-3 text-center text-textSubtle">
               <div className="text-sm mb-2 text-textMuted">
                 {query 
-                  ? `No commands match "${query}"` 
+                  ? <><SearchX size={24} className="text-textMuted mx-auto mb-1" /></> 
                   : allCommands.length === 0 
                     ? 'No commands found'
                     : 'No starred commands found'
