@@ -70,7 +70,30 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         const { provider_name, models } = response.data;
         
         console.log(`✅ Detected ${provider_name} with ${models.length} models`);
-        console.log(`🔍 API Key format check: "${apiKey.substring(0, 10)}..." (length: ${apiKey.length})`);
+        console.log(`🔍 API Key format check: "${apiKey.substring(0, 10)}..." (length: ${apiKey.length}`);
+
+        // Quick Setup should not use Ollama - reject it
+        if (provider_name === 'ollama') {
+          console.log('🚨 Rejecting Ollama result in Quick Setup - cloud providers only');
+          
+          setTestResults([{
+            provider: 'Unknown',
+            success: false,
+            error: 'Could not detect a valid cloud API provider from this key',
+            suggestions: [
+              'Make sure you are using a valid API key from OpenAI, Anthropic, Google, or Groq',
+              'For local Ollama setup, use the "Other Providers" section below'
+            ],
+          }]);
+
+          toastService.error({
+            title: 'API Key Not Recognized',
+            msg: 'Quick Setup is for cloud API providers only. Please use a valid API key from a supported cloud provider.',
+            traceback: '',
+          });
+          
+          return; // Don't proceed with success flow
+        }
 
         // Show success
         setTestResults([{
