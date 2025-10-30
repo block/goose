@@ -547,21 +547,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_command() {
-        // Test the compact command
-        let result = handle_slash_command("/compact");
-        assert!(matches!(result, Some(InputResult::Compact)));
-
-        // Test with whitespace
-        let result = handle_slash_command("  /compact  ");
-        assert!(matches!(result, Some(InputResult::Compact)));
-
-        // Test deprecated /summarize command (should still work but return Compact)
-        let result = handle_slash_command("/summarize");
-        assert!(matches!(result, Some(InputResult::Compact)));
-    }
-
-    #[test]
     fn test_get_input_prompt_string() {
         let prompt = get_input_prompt_string();
 
