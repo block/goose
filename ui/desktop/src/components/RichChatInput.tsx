@@ -89,6 +89,7 @@ export interface RichChatInputRef {
   blur: () => void;
   setSelectionRange: (start: number, end: number) => void;
   getBoundingClientRect: () => DOMRect;
+  contentRef: React.RefObject<HTMLTextAreaElement>;
 }
 
 // Use Electron's system spell checking
@@ -312,6 +313,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     getBoundingClientRect: () => {
       return displayRef.current?.getBoundingClientRect() || new DOMRect();
     },
+    contentRef: hiddenTextareaRef,
   }), []);
 
   // Update cursor position when selection changes
