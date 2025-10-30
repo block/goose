@@ -163,7 +163,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         if (provider_name === 'ollama') {
           // For known providers that fall back to Ollama, configure them directly
           if (formatCheck.provider === 'Anthropic') {
-            const anthropicModel = 'claude-3-opus-20240229';
+            const anthropicModel = 'claude-sonnet-4-0';
             setTestResults([{
               provider: 'anthropic',
               success: true,
@@ -177,7 +177,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
 
             toastService.success({
               title: 'Success!',
-              msg: 'Configured Anthropic with Claude Opus model',
+              msg: 'Configured Anthropic with Claude Sonnet model',
             });
 
             onSuccess('anthropic', anthropicModel);
@@ -186,7 +186,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
           }
           
           if (formatCheck.provider === 'OpenRouter') {
-            const openrouterModel = 'anthropic/claude-3-opus';
+            const openrouterModel = 'anthropic/claude-sonnet-4-0';
             setTestResults([{
               provider: 'openrouter',
               success: true,
@@ -200,7 +200,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
 
             toastService.success({
               title: 'Success!',
-              msg: 'Configured OpenRouter with Claude Opus model',
+              msg: 'Configured OpenRouter with Claude Sonnet model',
             });
 
             onSuccess('openrouter', openrouterModel);
@@ -261,7 +261,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       if (apiError.response?.status === 404) {
         // For known providers that get 404, configure them directly
         if (formatCheck.provider === 'Anthropic') {
-          const anthropicModel = 'claude-3-opus-20240229';
+          const anthropicModel = 'claude-sonnet-4-0';
           setTestResults([{
             provider: 'anthropic',
             success: true,
@@ -275,7 +275,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
 
           toastService.success({
             title: 'Success!',
-            msg: 'Configured Anthropic with Claude Opus model',
+            msg: 'Configured Anthropic with Claude Sonnet model',
           });
 
           onSuccess('anthropic', anthropicModel);
@@ -284,7 +284,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         }
         
         if (formatCheck.provider === 'OpenRouter') {
-          const openrouterModel = 'anthropic/claude-3-opus';
+          const openrouterModel = 'anthropic/claude-sonnet-4-0';
           setTestResults([{
             provider: 'openrouter',
             success: true,
@@ -298,7 +298,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
 
           toastService.success({
             title: 'Success!',
-            msg: 'Configured OpenRouter with Claude Opus model',
+            msg: 'Configured OpenRouter with Claude Sonnet model',
           });
 
           onSuccess('openrouter', openrouterModel);
