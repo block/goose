@@ -235,9 +235,39 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions
+      // Sync scroll positions first
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
+      
+      // Then ensure cursor is visible and update both layers together
+      if (textareaScrollHeight > finalHeight) {
+        const cursorPosition = textarea.selectionStart;
+        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+        const linesBeforeCursor = textBeforeCursor.split("\n").length;
+        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
+        const cursorLineBottom = cursorLineTop + 21;
+        
+        const currentScrollTop = textarea.scrollTop;
+        const visibleTop = currentScrollTop;
+        const visibleBottom = currentScrollTop + finalHeight;
+        
+        let newScrollTop = currentScrollTop;
+        
+        // Calculate new scroll position if cursor is not visible
+        if (cursorLineBottom > visibleBottom) {
+          // Cursor is below visible area - scroll down to show it
+          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
+        } else if (cursorLineTop < visibleTop) {
+          // Cursor is above visible area - scroll up to show it
+          newScrollTop = Math.max(0, cursorLineTop - 21);
+        }
+        
+        // Update both layers together if scroll position changed
+        if (newScrollTop !== currentScrollTop) {
+          textarea.scrollTop = newScrollTop;
+          display.scrollTop = newScrollTop;
+        }
+      }
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -1041,7 +1071,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
