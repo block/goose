@@ -559,43 +559,15 @@
               }
             }
           },
-          "404": {
-            "description": "No matching provider found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },    "/config/detect-cloud-provider": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "detect_cloud_provider",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DetectProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Cloud provider detected successfully",
+          "400": {
+            "description": "Invalid API key format or key validation failed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DetectProviderResponse"
+                  "$ref": "#/components/schemas/DetectProviderError"
                 }
               }
             }
-          },
-          "404": {
-            "description": "No matching cloud provider found"
           },
           "500": {
             "description": "Internal server error"
@@ -2505,9 +2477,6 @@
         "properties": {
           "api_key": {
             "type": "string"
-          },
-          "disable_ollama_fallback": {
-            "type": "boolean"
           }
         }
       },
