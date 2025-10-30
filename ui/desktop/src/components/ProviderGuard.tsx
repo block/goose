@@ -7,9 +7,9 @@ import { startTetrateSetup } from '../utils/tetrateSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
+import ApiKeyTester from './ApiKeyTester';
 
-import { Goose } from './icons/Goose';
-import { OpenRouter } from './icons';
+import { Goose, OpenRouter } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -99,6 +99,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         showRetry: true,
       });
     }
+  };
+
+  const handleApiKeySuccess = (_provider: string, _model: string) => {
+    // Mark as having provider and close setup
+    setShowFirstTimeSetup(false);
+    setHasProvider(true);
+    navigate('/', { replace: true });
   };
 
   const handleOpenRouterSetup = async () => {
@@ -284,6 +291,9 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </p>
               </div>
 
+
+              {/* API Key Tester - TOP OPTION */}
+              <ApiKeyTester onSuccess={handleApiKeySuccess} />
               {/* Setup options - same width container */}
 
               <div className="space-y-3 sm:space-y-4">
