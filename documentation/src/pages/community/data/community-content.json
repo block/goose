@@ -15,7 +15,7 @@
       "url": "https://block.github.io/goose/blog/2025/09/26/hacktoberfest-2025",
       "thumbnail": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-09-26",
-      "tags": ["hacktoberfest", "open-source", "contributing"],
+      "tags": ["hacktoberfest", "open-source"],
       "hacktoberfest": true
     },
     {
@@ -52,7 +52,7 @@
       "type": "blog",
       "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
       "submittedDate": "2025-10-15",
-      "tags": ["hacktoberfest", "goose", "enterprise"],
+      "tags": ["hacktoberfest", "enterprise"],
       "hacktoberfest": true
     },
     {
@@ -203,7 +203,20 @@
       "type": "blog",
       "url": "https://anudhyan.hashnode.dev/building-custom-tools-and-extensions-for-goose-a-developers-guide",
       "submittedDate": "2025-10-30",
-      "tags": ["hacktoberfest", "goose", "extensions", "mcp"],
+      "tags": ["hacktoberfest", "mcp"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Managing goose Configurations Across Multiple Projects",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/managing-goose-configurations-across-multiple-projects-58i3",
+      "thumbnail": "https://i.imgur.com/VvM8sMR.png",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
       "hacktoberfest": true
     }
   ]
