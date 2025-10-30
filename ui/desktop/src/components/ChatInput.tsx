@@ -1036,9 +1036,10 @@ export default function ChatInput({
                         type="button"
                         size="sm"
                         shape="round"
+                        variant="outline"
                         onClick={() => {}}
                         disabled={true}
-                        className="bg-background-default text-textSubtle cursor-not-allowed opacity-50 border-borderSubtle rounded-full p-2"
+                        className="!bg-background-default !text-textSubtle cursor-not-allowed opacity-50 !border-borderSubtle rounded-full p-2"
                       >
                         <Microphone />
                       </Button>
@@ -1057,6 +1058,7 @@ export default function ChatInput({
                   type="button"
                   size="sm"
                   shape="round"
+                  variant="outline"
                   onClick={() => {
                     if (isRecording) {
                       stopRecording();
@@ -1069,8 +1071,8 @@ export default function ChatInput({
                     isRecording
                       ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                       : isTranscribing
-                        ? 'bg-background-default text-textSubtle cursor-not-allowed animate-pulse border-borderSubtle'
-                        : 'bg-background-default text-textSubtle hover:bg-bgSubtle border-borderSubtle'
+                        ? '!bg-background-default !text-textSubtle cursor-not-allowed animate-pulse !border-borderSubtle'
+                        : '!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle'
                   }`}
                 >
                   <Microphone />
@@ -1086,7 +1088,8 @@ export default function ChatInput({
               onClick={onStop}
               size="sm"
               shape="round"
-              className="bg-background-default text-textSubtle hover:bg-bgSubtle border-borderSubtle rounded-full px-6 py-2"
+              variant="outline"
+              className="!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle rounded-full px-6 py-2"
             >
               <Stop />
             </Button>
@@ -1095,6 +1098,7 @@ export default function ChatInput({
               type="submit"
               size="sm"
               shape="round"
+              variant="outline"
               disabled={
                 !hasSubmittableContent ||
                 isAnyImageLoading ||
@@ -1111,7 +1115,7 @@ export default function ChatInput({
                 isTranscribing ||
                 isLoadingCompaction
                   ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                  : 'bg-background-default text-textSubtle hover:bg-bgSubtle border-borderSubtle hover:cursor-pointer'
+                  : '!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle hover:cursor-pointer'
               }`}
               title={
                 isLoadingCompaction
@@ -1182,6 +1186,7 @@ export default function ChatInput({
                       type="button"
                       onClick={() => handleRetryImageSave(img.id)}
                       title="Retry saving image"
+                      variant="outline"
                       size="xs"
                     >
                       Retry
@@ -1196,6 +1201,7 @@ export default function ChatInput({
                   onClick={() => handleRemovePastedImage(img.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                   aria-label="Remove image"
+                  variant="outline"
                   size="xs"
                 >
                   <Close />
@@ -1251,6 +1257,7 @@ export default function ChatInput({
                   onClick={() => handleRemoveDroppedFile(file.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                   aria-label="Remove file"
+                  variant="outline"
                   size="xs"
                 >
                   <Close />
