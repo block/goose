@@ -193,6 +193,18 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/building-custom-tools-and-extensions-for-goose-a-developers-guide",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest", "goose", "extensions", "mcp"],
+      "hacktoberfest": true
     }
   ]
 }
