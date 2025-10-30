@@ -567,6 +567,41 @@
           }
         }
       }
+    },    "/config/detect-cloud-provider": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "detect_cloud_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cloud provider detected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectProviderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No matching cloud provider found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     },
     "/config/extensions": {
       "get": {

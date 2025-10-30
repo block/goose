@@ -666,6 +666,28 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
         }
     }
 }
+#[utoipa::path(
+    post,
+    path = "/config/detect-cloud-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Cloud provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching cloud provider found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn detect_cloud_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    match detect_cloud_provider_from_api_key(&detect_request.api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 
 #[utoipa::path(
     post,
@@ -779,6 +801,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/detect-provider", post(detect_provider))
+        .route("/config/detect-cloud-provider", post(detect_cloud_provider))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))

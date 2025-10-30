@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { detectProvider } from '../api';
+import { detectCloudProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
 import { Key } from './icons/Key';
@@ -60,8 +60,8 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
     try {
       console.log('Testing API key with backend...');
       
-      // Call backend API to detect provider
-      const response = await detectProvider({ 
+      // Call backend API to detect cloud provider (excludes Ollama)
+      const response = await detectCloudProvider({ 
         body: { api_key: apiKey },
         throwOnError: true 
       });
@@ -71,28 +71,6 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         
         console.log(`✅ Detected ${provider_name} with ${models.length} models`);
         console.log(`🔍 API Key format check: "${apiKey.substring(0, 10)}..." (length: ${apiKey.length})`);
-
-        // With parallel testing, we should get the correct provider
-        // Only reject Ollama if we're sure it's not intentional
-        if (provider_name === 'ollama' && !apiKey.trim().toLowerCase().includes('ollama')) {
-          setTestResults([{
-            provider: 'Unknown',
-            success: false,
-            error: 'Could not detect a cloud API provider from this key',
-            suggestions: [
-              'Make sure you are using a valid API key from a supported provider',
-              'For Ollama setup, use the "Other Providers" section below'
-            ],
-          }]);
-
-          toastService.error({
-            title: 'API Key Not Recognized',
-            msg: 'Could not detect a valid cloud API provider. Please check your API key.',
-            traceback: '',
-          });
-          
-          return;
-        }
 
         // Show success
         setTestResults([{

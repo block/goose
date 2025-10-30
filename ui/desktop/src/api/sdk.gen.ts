@@ -162,6 +162,16 @@ export const detectProvider = <ThrowOnError extends boolean = false>(options: Op
         }
     });
 };
+export const detectCloudProvider = <ThrowOnError extends boolean = false>(options: Options<DetectProviderData, ThrowOnError>) => {
+    return (options.client ?? client).post<DetectProviderResponses, DetectProviderErrors, ThrowOnError>({
+        url: '/config/detect-cloud-provider',
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
+    });
+};
 
 export const getExtensions = <ThrowOnError extends boolean = false>(options?: Options<GetExtensionsData, ThrowOnError>) => {
     return (options?.client ?? client).get<GetExtensionsResponses, GetExtensionsErrors, ThrowOnError>({
