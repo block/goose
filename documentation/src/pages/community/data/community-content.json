@@ -193,6 +193,18 @@
       "submittedDate": "2025-10-29",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
+    },
+    {
+      "title": "Goose with apify MCP",
+      "author": {
+        "name": "abhi",
+        "handle": "Better-Boy"
+      },
+      "type": "video",
+      "url": "https://youtube.com/shorts/AnfROFQBXa8",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
     }
   ]
 }
