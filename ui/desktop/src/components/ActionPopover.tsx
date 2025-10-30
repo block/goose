@@ -1,3 +1,24 @@
+const popoverStyles = `
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scaleY(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scaleY(1);
+  }
+}
+`;
+
+// Inject styles
+if (typeof document !== "undefined" && !document.getElementById("popover-styles")) {
+  const style = document.createElement("style");
+  style.id = "popover-styles";
+  style.textContent = popoverStyles;
+  document.head.appendChild(style);
+}
+
 import React, {
   useEffect,
   useRef,
@@ -240,11 +261,11 @@ const ActionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-80 max-w-md"
-      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl min-w-80 max-w-md "
+      style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)", transformOrigin: "bottom", animation: "popoverFadeIn 0.2s ease-out forwards", opacity: 0, transform: "translateY(-100%) scaleY(0.8)",
         left: position.x,
         top: position.y - 10,
-        transform: 'translateY(-100%)',
+        
       }}
     >
       <div className="p-3">
