@@ -11,11 +11,11 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
+use goose::providers::auto_detect;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
-use goose::providers::auto_detect;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::StatusCode;
@@ -88,7 +88,6 @@ pub struct UpdateCustomProviderRequest {
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
 }
-
 
 #[derive(Deserialize, ToSchema)]
 pub struct DetectProviderRequest {
@@ -527,7 +526,6 @@ pub async fn upsert_permissions(
 
     Ok(Json("Permissions updated successfully".to_string()))
 }
-
 
 #[utoipa::path(
     post,
