@@ -49,7 +49,7 @@ use rmcp::model::{
     CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
@@ -383,15 +383,66 @@ impl Agent {
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
     }
 
+    /// Apply schema-aware numeric coercion to tool arguments
+    /// Converts string representations of numbers to actual numbers based on the tool's schema
+    async fn coerce_numeric_arguments(&self, tool_call: &mut CallToolRequestParam) {
+        let Some(ref mut args) = tool_call.arguments else {
+            return;
+        };
+
+        let tools = self.list_tools(None).await;
+        let Some(tool_schema) = tools
+            .iter()
+            .find(|t| t.name == tool_call.name)
+            .map(|t| &t.input_schema)
+        else {
+            return;
+        };
+
+        let Some(properties) = tool_schema.get("properties").and_then(|p| p.as_object()) else {
+            return;
+        };
+
+        for (key, value) in args.iter_mut() {
+            let Value::String(s) = value else {
+                continue;
+            };
+
+            let Some(prop_schema) = properties.get(key) else {
+                continue;
+            };
+
+            let should_be_number = match prop_schema.get("type") {
+                Some(Value::String(t)) => t == "number" || t == "integer",
+                Some(Value::Array(types)) => types
+                    .iter()
+                    .any(|t| t.as_str().is_some_and(|s| s == "number" || s == "integer")),
+                _ => false,
+            };
+
+            if should_be_number {
+                if let Ok(n) = s.parse::<f64>() {
+                    // Preserve integer types when possible
+                    *value = if n.fract() == 0.0 && n >= i64::MIN as f64 && n <= i64::MAX as f64 {
+                        json!(n as i64)
+                    } else {
+                        json!(n)
+                    };
+                }
+            }
+        }
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: CallToolRequestParam,
+        mut tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        self.coerce_numeric_arguments(&mut tool_call).await;
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
