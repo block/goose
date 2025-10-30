@@ -52,6 +52,8 @@ import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import express from 'express';
+import http from 'node:http';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -1024,6 +1026,13 @@ ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
 });
 
+ipcMain.handle('get-mcp-ui-proxy-url', () => {
+  if (mcpUIProxyServerPort) {
+    return `http://localhost:${mcpUIProxyServerPort}/mcp-ui-proxy.html`;
+  }
+  return undefined;
+});
+
 ipcMain.handle('get-goosed-host-port', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
   if (!windowId) {
@@ -1642,9 +1651,50 @@ const registerGlobalHotkey = (accelerator: string) => {
   }
 };
 
+// HTTP server for serving MCP proxy files
+let mcpUIProxyServerPort: number | null = null;
+let mcpUIProxyServer: http.Server | null = null;
+
+async function startMcpUIProxyServer(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const expressApp = express();
+    const staticPath = path.join(__dirname, '../../static');
+
+    // Serve static files from the static directory
+    expressApp.use(express.static(staticPath));
+
+    // Create HTTP server
+    mcpUIProxyServer = http.createServer(expressApp);
+
+    // Listen on a dynamic port (0 = let the OS choose an available port)
+    mcpUIProxyServer.listen(0, 'localhost', () => {
+      const address = mcpUIProxyServer?.address();
+      if (address && typeof address === 'object') {
+        mcpUIProxyServerPort = address.port;
+        log.info(`MCP UI Proxy server started on port ${mcpUIProxyServerPort}`);
+        resolve(mcpUIProxyServerPort);
+      } else {
+        reject(new Error('Failed to get server address'));
+      }
+    });
+
+    mcpUIProxyServer.on('error', (error) => {
+      log.error('MCP Proxy server error:', error);
+      reject(error);
+    });
+  });
+}
+
 async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
+
+  // Start MCP proxy server
+  try {
+    await startMcpUIProxyServer();
+  } catch (error) {
+    log.error('Failed to start MCP proxy server:', error);
+  }
 
   registerUpdateIpcHandlers();
 
@@ -2191,6 +2241,13 @@ app.on('will-quit', async () => {
     }
   }
   windowPowerSaveBlockers.clear();
+
+  // Close MCP proxy server
+  if (mcpUIProxyServer) {
+    mcpUIProxyServer.close(() => {
+      log.info('MCP UI Proxy server closed');
+    });
+  }
 
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();

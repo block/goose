@@ -92,11 +92,27 @@ export default function MCPUIResourceRenderer({
   appendPromptToChat,
 }: MCPUIResourceRendererProps) {
   const [currentThemeValue, setCurrentThemeValue] = useState<string>('light');
+  const [proxyUrl, setProxyUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const theme = localStorage.getItem('theme') || 'light';
     setCurrentThemeValue(theme);
-    console.log('[MCP-UI] Current theme value:', theme);
+
+    // Fetch the MCP proxy URL from the main process
+    const fetchProxyUrl = async () => {
+      try {
+        const url = await window.electron.getMcpUIProxyUrl();
+        if (url) {
+          setProxyUrl(url);
+        } else {
+          console.error('Failed to get proxy URL');
+        }
+      } catch (error) {
+        console.error('Error fetching proxy URL:', error);
+      }
+    };
+
+    fetchProxyUrl();
   }, []);
 
   const handleUIAction = async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
@@ -312,7 +328,6 @@ export default function MCPUIResourceRenderer({
               height: true,
               width: false, // set to false to allow for responsive design
             },
-            sandboxPermissions: 'allow-forms', // enabled for experimentation, is spread into underlying iframe defaults
             iframeRenderData: {
               // iframeRenderData allows us to pass data down to MCP-UIs
               // MPC-UIs might find stuff like host and theme for conditional rendering
@@ -320,6 +335,7 @@ export default function MCPUIResourceRenderer({
               host: 'goose',
               theme: currentThemeValue,
             },
+            proxy: proxyUrl, // refer to https://mcpui.dev/guide/client/using-a-proxy
           }}
         />
       </div>
