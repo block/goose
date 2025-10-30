@@ -1039,7 +1039,7 @@ export default function ChatInput({
                         variant="outline"
                         onClick={() => {}}
                         disabled={true}
-                        className="!bg-background-default !text-textSubtle cursor-not-allowed opacity-50 !border-borderSubtle rounded-full p-2"
+                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full p-2"
                       >
                         <Microphone />
                       </Button>
@@ -1071,8 +1071,8 @@ export default function ChatInput({
                     isRecording
                       ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                       : isTranscribing
-                        ? '!bg-background-default !text-textSubtle cursor-not-allowed animate-pulse !border-borderSubtle'
-                        : '!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle'
+                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
                   }`}
                 >
                   <Microphone />
@@ -1089,7 +1089,7 @@ export default function ChatInput({
               size="sm"
               shape="round"
               variant="outline"
-              className="!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle rounded-full px-6 py-2"
+              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full p-2"
             >
               <Stop />
             </Button>
@@ -1115,7 +1115,7 @@ export default function ChatInput({
                 isTranscribing ||
                 isLoadingCompaction
                   ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                  : '!bg-background-default !text-textSubtle hover:!bg-bgSubtle !border-borderSubtle hover:cursor-pointer'
+                  : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
               }`}
               title={
                 isLoadingCompaction
