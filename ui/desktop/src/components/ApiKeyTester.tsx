@@ -72,47 +72,24 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         console.log(`✅ Detected ${provider_name} with ${models.length} models`);
         console.log(`🔍 API Key format check: "${apiKey.substring(0, 10)}..." (length: ${apiKey.length})`);
 
-        // Quick Setup should not use Ollama - reject it (unless it might be OpenRouter)
-        if (provider_name === 'ollama') {
-          // Check if this might be an OpenRouter key that fell back to Ollama
-          const isOpenRouterKey = apiKey.trim().startsWith('sk-or-');
-          
-          if (isOpenRouterKey) {
-            // This looks like OpenRouter - show a specific message
-            setTestResults([{
-              provider: 'OpenRouter',
-              success: false,
-              error: 'OpenRouter key detected but validation failed',
-              suggestions: [
-                'Check that your OpenRouter API key is correct and complete',
-                'Verify your OpenRouter account has sufficient credits',
-                'Try setting up OpenRouter manually in the "Other Providers" section'
-              ],
-            }]);
+        // With parallel testing, we should get the correct provider
+        // Only reject Ollama if we're sure it's not intentional
+        if (provider_name === 'ollama' && !apiKey.trim().toLowerCase().includes('ollama')) {
+          setTestResults([{
+            provider: 'Unknown',
+            success: false,
+            error: 'Could not detect a cloud API provider from this key',
+            suggestions: [
+              'Make sure you are using a valid API key from a supported provider',
+              'For Ollama setup, use the "Other Providers" section below'
+            ],
+          }]);
 
-            toastService.error({
-              title: 'OpenRouter Key Invalid',
-              msg: 'OpenRouter API key detected but validation failed. Please check your key.',
-              traceback: '',
-            });
-          } else {
-            // Generic rejection for other Ollama fallbacks
-            setTestResults([{
-              provider: 'Unknown',
-              success: false,
-              error: 'Could not detect a valid cloud API provider from this key',
-              suggestions: [
-                'Make sure you are using a valid API key from OpenAI, Anthropic, Google, Groq, or OpenRouter',
-                'For Ollama setup, use the "Other Providers" section below'
-              ],
-            }]);
-
-            toastService.error({
-              title: 'API Key Not Recognized',
-              msg: 'Could not detect a valid cloud API provider. Please check your API key format.',
-              traceback: '',
-            });
-          }
+          toastService.error({
+            title: 'API Key Not Recognized',
+            msg: 'Could not detect a valid cloud API provider. Please check your API key.',
+            traceback: '',
+          });
           
           return;
         }
@@ -146,34 +123,27 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       
       const apiError = error as ApiError;
       
-      // Handle the new structured error response
-      if (apiError.response?.status === 400 && apiError.response.data) {
-        const errorData = apiError.response.data;
-        
+      // Handle 404 (no provider found) and other errors
+      if (apiError.response?.status === 404) {
         setTestResults([{
-          provider: errorData.detected_format || 'Unknown',
+          provider: 'Unknown',
           success: false,
-          error: errorData.error || 'API key validation failed',
-          detectedFormat: errorData.detected_format,
-          suggestions: errorData.suggestions,
+          error: 'No matching provider found for this API key',
+          suggestions: [
+            'Check that your API key is correct and complete',
+            'Make sure you are using a supported provider (OpenAI, Anthropic, Google, Groq, etc.)',
+            'Try setting up the provider manually in settings'
+          ],
         }]);
 
-        // Show detailed error message
-        let errorMessage = errorData.error || 'Could not validate API key.';
-        if (errorData.suggestions && errorData.suggestions.length > 0) {
-          errorMessage += '\n\nSuggestions:\n' + errorData.suggestions.map(s => `• ${s}`).join('\n');
-        }
-
         toastService.error({
-          title: errorData.detected_format ? `${errorData.detected_format} Key Invalid` : 'Detection Failed',
-          msg: errorMessage,
+          title: 'No Provider Found',
+          msg: 'Could not find a matching provider for this API key. Please check the key and try again.',
           traceback: '',
         });
       } else {
-        // Fallback for other errors
-        const errorMessage = apiError.response?.data?.error || 
-                            apiError.message || 
-                            'Could not detect provider. Please check your API key.';
+        // Other errors
+        const errorMessage = apiError.message || 'Could not detect provider. Please check your API key.';
         
         setTestResults([{
           provider: 'Unknown',

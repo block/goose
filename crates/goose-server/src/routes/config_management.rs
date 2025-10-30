@@ -92,8 +92,6 @@ pub struct UpdateCustomProviderRequest {
 #[derive(Deserialize, ToSchema)]
 pub struct DetectProviderRequest {
     pub api_key: String,
-    #[serde(default)]
-    pub disable_ollama_fallback: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -548,47 +546,15 @@ pub async fn upsert_permissions(
 )]
 pub async fn detect_provider(
     Json(detect_request): Json<DetectProviderRequest>,
-) -> Result<Json<DetectProviderResponse>, (StatusCode, Json<DetectProviderError>)> {
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
     let api_key = detect_request.api_key.trim();
 
-    // Detect the expected provider from key format
-    let detected_format = detect_key_format(api_key);
-
-    match auto_detect::detect_provider_from_api_key(api_key, detect_request.disable_ollama_fallback).await {
+    match auto_detect::detect_provider_from_api_key(api_key).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,
         })),
-        None => {
-            let (error_msg, suggestions) = if let Some(format) = &detected_format {
-                (
-                    format!("API key appears to be for {} but validation failed", format),
-                    vec![
-                        "Check that your API key is correct and complete".to_string(),
-                        "Verify your account has sufficient credits or is active".to_string(),
-                        "Ensure the API key has the necessary permissions".to_string(),
-                    ],
-                )
-            } else {
-                (
-                    "Could not determine provider from API key format".to_string(),
-                    vec![
-                        "Supported formats: Anthropic (sk-ant-...), OpenAI (sk-...), Google (AIza...), Groq (gsk_...)".to_string(),
-                        "Make sure you copied the complete API key".to_string(),
-                        "Try setting up the provider manually in settings".to_string(),
-                    ]
-                )
-            };
-
-            Err((
-                StatusCode::BAD_REQUEST,
-                Json(DetectProviderError {
-                    error: error_msg,
-                    detected_format,
-                    suggestions,
-                }),
-            ))
-        }
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 

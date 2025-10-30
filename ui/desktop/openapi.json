@@ -559,15 +559,8 @@
               }
             }
           },
-          "400": {
-            "description": "Invalid API key format or key validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DetectProviderError"
-                }
-              }
-            }
+          "404": {
+            "description": "No matching provider found"
           },
           "500": {
             "description": "Internal server error"
@@ -2479,8 +2472,7 @@
             "type": "string"
           },
           "disable_ollama_fallback": {
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
           }
         }
       },
