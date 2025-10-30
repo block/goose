@@ -204,7 +204,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const computedStyle = window.getComputedStyle(textarea);
       const fontSize = parseFloat(computedStyle.fontSize);
       const lineHeightValue = computedStyle.lineHeight;
-      const lineHeight = lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue);
+      const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
       const minHeight = rows * lineHeight;
       const maxHeight = 300;
       
@@ -291,17 +291,31 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   }, [rows]);
 
   // Ensure line height consistency between layers
-  const ensureLineHeightConsistency = useCallback(() => {
+  // Comprehensive style synchronization between layers
+  const ensureStyleConsistency = useCallback(() => {
     if (hiddenTextareaRef.current && displayRef.current) {
       const textarea = hiddenTextareaRef.current;
       const display = displayRef.current;
       
-      // Get the computed line height from textarea
+      // Get all computed styles that affect text layout
       const computedStyle = window.getComputedStyle(textarea);
-      const lineHeightValue = computedStyle.lineHeight;
       
-      // Apply the same line height to display layer
-      display.style.lineHeight = lineHeightValue;
+      // Apply critical layout styles to ensure perfect alignment
+      display.style.lineHeight = computedStyle.lineHeight;
+      display.style.fontSize = computedStyle.fontSize;
+      display.style.fontFamily = computedStyle.fontFamily;
+      display.style.letterSpacing = computedStyle.letterSpacing;
+      display.style.wordSpacing = computedStyle.wordSpacing;
+      // Ensure identical padding (critical for alignment)
+      display.style.paddingTop = computedStyle.paddingTop;
+      display.style.paddingRight = computedStyle.paddingRight;
+      display.style.paddingBottom = computedStyle.paddingBottom;
+      display.style.paddingLeft = computedStyle.paddingLeft;
+      
+      // Ensure identical text rendering to prevent subpixel drift
+      display.style.textRendering = computedStyle.textRendering;
+      display.style.webkitFontSmoothing = computedStyle.webkitFontSmoothing;
+      display.style.mozOsxFontSmoothing = computedStyle.mozOsxFontSmoothing;
     }
   }, []);
 
@@ -313,7 +327,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Use ResizeObserver to detect when textarea dimensions change
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
-      ensureLineHeightConsistency();
+      ensureStyleConsistency();
       });
       
       resizeObserver.observe(textarea);
@@ -324,7 +338,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         if (textarea.scrollHeight !== lastScrollHeight) {
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
-      ensureLineHeightConsistency();
+      ensureStyleConsistency();
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -376,7 +390,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         const computedStyle = window.getComputedStyle(textarea);
         const fontSize = parseFloat(computedStyle.fontSize);
         const lineHeightValue = computedStyle.lineHeight;
-        const lineHeight = lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue);
+        const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
         const minHeight = rows * lineHeight;
         
         textarea.style.height = "auto";
@@ -384,7 +398,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         display.style.height = `${minHeight}px`;
         
         syncDisplayHeight();
-      ensureLineHeightConsistency();
+      ensureStyleConsistency();
       }
     },
   }), []);
@@ -844,7 +858,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
-      ensureLineHeightConsistency();
+      ensureStyleConsistency();
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
@@ -1089,6 +1103,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match leading-relaxed
           padding: '12px 80px 12px 12px', // Match top and bottom padding: 12px each
           margin: '0',
+          boxSizing: "border-box", // Match textarea box model
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
@@ -1114,6 +1129,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match textarea line height
           padding: '12px 80px 12px 12px', // Match textarea padding: 12px top and bottom
           margin: '0',
+          boxSizing: "border-box", // Match textarea box model
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
           // Hide scrollbars but keep scrolling functionality
