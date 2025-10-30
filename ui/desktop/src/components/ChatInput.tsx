@@ -526,9 +526,18 @@ export default function ChatInput({
   const debouncedAutosize = useMemo(
     () =>
       debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
+        if (!element) return;
+        // Store current scroll position
+        const scrollTop = element.scrollTop;
+        // Reset height to get accurate scrollHeight
+        element.style.height = "auto";
         const scrollHeight = element.scrollHeight;
-        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+        // Apply the calculated height with max limit
+        element.style.height = Math.min(scrollHeight, maxHeight) + "px";
+        // Restore scroll position if needed
+        if (scrollHeight > maxHeight) {
+          element.scrollTop = scrollTop;
+        }
       }, 50),
     [maxHeight]
   );
@@ -541,10 +550,15 @@ export default function ChatInput({
 
   // Reset textarea height when displayValue is empty
   useEffect(() => {
-    if (textAreaRef.current && displayValue === '') {
-      textAreaRef.current.style.height = 'auto';
+    if (textAreaRef.current && displayValue === "") {
+      // Cancel any pending debounced autosize calls
+      debouncedAutosize.cancel?.();
+      // Reset to auto height immediately
+      textAreaRef.current.style.height = "auto";
+      // Force a synchronous recalculation to single line height
+      textAreaRef.current.style.height = textAreaRef.current.scrollHeight + "px";
     }
-  }, [displayValue]);
+  }, [displayValue, debouncedAutosize]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
