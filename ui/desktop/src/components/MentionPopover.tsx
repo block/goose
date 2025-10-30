@@ -491,7 +491,7 @@ const MentionPopover = forwardRef<
             <div
               ref={listRef}
               className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
-              style={{ boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)", maxHeight: '280px' }}
+              style={{ maxHeight: '280px' }}
             >
               {displayFiles.map((file, index) => (
                 <div
