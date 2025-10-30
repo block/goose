@@ -27,7 +27,6 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
-import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -638,13 +637,11 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ModelAndProviderProvider>
+      <HashRouter>
+        <AppInner />
+      </HashRouter>
+      <AnnouncementModal />
+    </ModelAndProviderProvider>
   );
 }
