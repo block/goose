@@ -30,7 +30,7 @@ export const MentionPill: React.FC<MentionPillProps> = ({
 
   return (
     <div 
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors`}
+      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 zoom-in-95 duration-300`}
       title={filePath} // Show full path on hover
     >
       <span className="flex items-center gap-1">

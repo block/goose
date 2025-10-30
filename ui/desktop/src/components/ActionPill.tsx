@@ -30,7 +30,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors`}>
+    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 zoom-in-95 duration-300`}>
       <span className="flex items-center gap-1">
         <span className="text-blue-500 flex items-center justify-center w-3 h-3">
           {icon}
