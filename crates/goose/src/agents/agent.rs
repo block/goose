@@ -65,7 +65,7 @@ use crate::session::SessionManager;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
 /// Context needed for the reply function
 pub struct ReplyContext {

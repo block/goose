@@ -27,7 +27,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig};
+use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
 use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
@@ -652,7 +652,7 @@ impl CliSession {
                             Ok(choice) => choice,
                             Err(e) => {
                                 if e.kind() == std::io::ErrorKind::Interrupted {
-                                    false // If interrupted, set should_summarize to false
+                                    false
                                 } else {
                                     return Err(e.into());
                                 }
@@ -660,77 +660,11 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        println!("{}", console::style("Summarizing conversation...").yellow());
+                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGER));
                         output::show_thinking();
-
-                        let (summarized_messages, summarization_usage) =
-                            goose::context_mgmt::compact_messages(
-                                &self.agent,
-                                &self.messages,
-                                false,
-                            )
+                        self.process_agent_response(true, CancellationToken::default())
                             .await?;
-
-                        // Update the session messages with the summarized ones
-                        self.messages = summarized_messages.clone();
-
-                        // Persist the summarized messages and update session metadata
-                        if let Some(session_id) = &self.session_id {
-                            // Replace all messages with the summarized version
-                            SessionManager::replace_conversation(session_id, &summarized_messages)
-                                .await?;
-
-                            // Update session metadata with the new token counts from summarization
-                            let session = SessionManager::get_session(session_id, false).await?;
-
-                            // Update token counts with the summarization usage
-                            let summary_tokens =
-                                summarization_usage.usage.output_tokens.unwrap_or(0);
-
-                            // Update accumulated tokens (add the summarization cost)
-                            let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-                                match (a, b) {
-                                    (Some(x), Some(y)) => Some(x + y),
-                                    _ => a.or(b),
-                                }
-                            };
-
-                            let accumulated_total = accumulate(
-                                session.accumulated_total_tokens,
-                                summarization_usage.usage.total_tokens,
-                            );
-                            let accumulated_input = accumulate(
-                                session.accumulated_input_tokens,
-                                summarization_usage.usage.input_tokens,
-                            );
-                            let accumulated_output = accumulate(
-                                session.accumulated_output_tokens,
-                                summarization_usage.usage.output_tokens,
-                            );
-
-                            SessionManager::update_session(session_id)
-                                .total_tokens(Some(summary_tokens))
-                                .input_tokens(None)
-                                .output_tokens(Some(summary_tokens))
-                                .accumulated_total_tokens(accumulated_total)
-                                .accumulated_input_tokens(accumulated_input)
-                                .accumulated_output_tokens(accumulated_output)
-                                .apply()
-                                .await?;
-                        }
-
                         output::hide_thinking();
-                        println!(
-                            "{}",
-                            console::style("Conversation has been summarized.").green()
-                        );
-                        println!(
-                            "{}",
-                            console::style(
-                                "Key information has been preserved while reducing context length."
-                            )
-                            .green()
-                        );
                     } else {
                         println!("{}", console::style("Summarization cancelled.").yellow());
                     }
