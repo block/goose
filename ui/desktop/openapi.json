@@ -3278,11 +3278,15 @@
             "type": "object",
             "required": [
               "message",
+              "token_state",
               "type"
             ],
             "properties": {
               "message": {
                 "$ref": "#/components/schemas/Message"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
@@ -4523,6 +4527,43 @@
           },
           "thinking": {
             "type": "string"
+          }
+        }
+      },
+      "TokenState": {
+        "type": "object",
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "accumulatedInputTokens",
+          "accumulatedOutputTokens",
+          "accumulatedTotalTokens"
+        ],
+        "properties": {
+          "accumulatedInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedOutputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
