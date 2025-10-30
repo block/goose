@@ -81,7 +81,7 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
     (mock_server, capture, provider)
 }
 
-async fn make_request(provider: &Box<dyn Provider>, session_id: Option<&str>) {
+async fn make_request(provider: &dyn Provider, session_id: Option<&str>) {
     let message = Message::user().with_text("test message");
     let request_fn = async {
         provider
@@ -104,7 +104,7 @@ async fn make_request(provider: &Box<dyn Provider>, session_id: Option<&str>) {
 async fn test_session_id_propagation_to_llm() {
     let (_, capture, provider) = setup_mock_server().await;
 
-    make_request(&provider, Some("integration-test-session-123")).await;
+    make_request(provider.as_ref(), Some("integration-test-session-123")).await;
 
     assert_eq!(
         capture.get_captured(),
@@ -116,7 +116,7 @@ async fn test_session_id_propagation_to_llm() {
 async fn test_no_session_id_when_absent() {
     let (_, capture, provider) = setup_mock_server().await;
 
-    make_request(&provider, None).await;
+    make_request(provider.as_ref(), None).await;
 
     assert_eq!(capture.get_captured(), vec![None]);
 }
@@ -126,9 +126,9 @@ async fn test_session_id_matches_across_calls() {
     let (_, capture, provider) = setup_mock_server().await;
 
     let test_session_id = "consistent-session-456";
-    make_request(&provider, Some(test_session_id)).await;
-    make_request(&provider, Some(test_session_id)).await;
-    make_request(&provider, Some(test_session_id)).await;
+    make_request(provider.as_ref(), Some(test_session_id)).await;
+    make_request(provider.as_ref(), Some(test_session_id)).await;
+    make_request(provider.as_ref(), Some(test_session_id)).await;
 
     assert_eq!(
         capture.get_captured(),
@@ -142,8 +142,8 @@ async fn test_different_sessions_have_different_ids() {
 
     let session_id_1 = "session-one";
     let session_id_2 = "session-two";
-    make_request(&provider, Some(session_id_1)).await;
-    make_request(&provider, Some(session_id_2)).await;
+    make_request(provider.as_ref(), Some(session_id_1)).await;
+    make_request(provider.as_ref(), Some(session_id_2)).await;
 
     assert_eq!(
         capture.get_captured(),
