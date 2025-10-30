@@ -301,7 +301,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const computedStyle = window.getComputedStyle(textarea);
       
       // Apply critical layout styles to ensure perfect alignment
-      display.style.lineHeight = computedStyle.lineHeight;
+      // Force exact line height match with higher specificity
+      const exactLineHeight = computedStyle.lineHeight;
+      display.style.setProperty("line-height", exactLineHeight, "important");
+      
+      // Also set minHeight using the computed line height for consistency
+      const computedLineHeight = parseFloat(exactLineHeight);
+      const calculatedMinHeight = rows * computedLineHeight;
+      display.style.setProperty("min-height", `${calculatedMinHeight}px`, "important");
+      
+      // Ensure all child elements inherit the exact line height
+      const allChildren = display.querySelectorAll("*");
+      allChildren.forEach(child => {
+        (child as HTMLElement).style.setProperty("line-height", "inherit", "important");
+      });
       display.style.fontSize = computedStyle.fontSize;
       display.style.fontFamily = computedStyle.fontFamily;
       display.style.letterSpacing = computedStyle.letterSpacing;
@@ -495,7 +508,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed relative">
+        <div className="whitespace-pre-wrap relative">
           {/* Placeholder text positioned absolutely to prevent movement */}
           <span className="text-text-muted pointer-events-none select-none absolute inset-0">
             {placeholder}
@@ -820,7 +833,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
     
     return (
-      <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
+      <div className="whitespace-pre-wrap">
         {parts.length > 0 ? parts : (
           isFocused && (
             <span className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
