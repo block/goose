@@ -1036,7 +1036,6 @@ export default function ChatInput({
                         type="button"
                         size="sm"
                         shape="round"
-                        variant="outline"
                         onClick={() => {}}
                         disabled={true}
                         className="bg-background-default text-textSubtle cursor-not-allowed opacity-50 border-borderSubtle rounded-full p-2"
@@ -1058,7 +1057,6 @@ export default function ChatInput({
                   type="button"
                   size="sm"
                   shape="round"
-                  variant="outline"
                   onClick={() => {
                     if (isRecording) {
                       stopRecording();
@@ -1088,7 +1086,6 @@ export default function ChatInput({
               onClick={onStop}
               size="sm"
               shape="round"
-              variant="outline"
               className="bg-background-default text-textSubtle hover:bg-bgSubtle border-borderSubtle rounded-full px-6 py-2"
             >
               <Stop />
@@ -1098,7 +1095,6 @@ export default function ChatInput({
               type="submit"
               size="sm"
               shape="round"
-              variant="outline"
               disabled={
                 !hasSubmittableContent ||
                 isAnyImageLoading ||
@@ -1186,7 +1182,6 @@ export default function ChatInput({
                       type="button"
                       onClick={() => handleRetryImageSave(img.id)}
                       title="Retry saving image"
-                      variant="outline"
                       size="xs"
                     >
                       Retry
@@ -1201,7 +1196,6 @@ export default function ChatInput({
                   onClick={() => handleRemovePastedImage(img.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                   aria-label="Remove image"
-                  variant="outline"
                   size="xs"
                 >
                   <Close />
@@ -1257,7 +1251,6 @@ export default function ChatInput({
                   onClick={() => handleRemoveDroppedFile(file.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                   aria-label="Remove file"
-                  variant="outline"
                   size="xs"
                 >
                   <Close />
