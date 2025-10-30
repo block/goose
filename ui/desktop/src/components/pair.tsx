@@ -9,7 +9,7 @@ import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
 import { useSearchParams } from 'react-router-dom';
-import { setViewType } from '../hooks/useNavigation';
+import type { setViewType } from '../hooks/useNavigation';
 
 export interface PairRouteState {
   resumeSessionId?: string;

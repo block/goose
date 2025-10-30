@@ -1,5 +1,5 @@
 import { Session, startAgent } from './api';
-import { setViewType } from './hooks/useNavigation';
+import type { setViewType } from './hooks/useNavigation';
 
 export function resumeSession(session: Session, setView: setViewType) {
   if (process.env.ALPHA) {
