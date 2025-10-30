@@ -321,7 +321,7 @@ const ActionPopover = forwardRef<
                     onCreateCommand();
                     onClose();
                   }}
-                  size="sm"
+                  variant="ghost" size="sm"
                   className="flex items-center gap-2"
                 >
                   <Plus size={14} />
@@ -334,7 +334,7 @@ const ActionPopover = forwardRef<
                       onCreateCommand();
                       onClose();
                     }}
-                    size="sm"
+                    variant="ghost" size="sm"
                     className="flex items-center gap-2"
                   >
                     <Plus size={14} />
