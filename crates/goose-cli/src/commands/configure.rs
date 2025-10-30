@@ -14,7 +14,8 @@ use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
 use goose::config::signup_tetrate::TetrateAuth;
 use goose::config::{
-    configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, PermissionManager,
+    configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
+    PermissionManager,
 };
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
@@ -421,7 +422,7 @@ fn select_model_from_list(
 }
 
 fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
-    match config.set_secret(key_name, Value::String(value)) {
+    match config.set_secret(key_name, &value) {
         Ok(_) => Ok(true),
         Err(e) => {
             cliclack::outro(style(format!(
@@ -450,7 +451,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .collect();
 
     // Get current default provider if it exists
-    let current_provider: Option<String> = config.get_param("GOOSE_PROVIDER").ok();
+    let current_provider: Option<String> = config.get_goose_provider().ok();
     let default_provider = current_provider.unwrap_or_default();
 
     // Select provider
@@ -487,7 +488,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             return Ok(false);
                         }
                     } else {
-                        config.set_param(&key.name, Value::String(env_value))?;
+                        config.set_param(&key.name, &env_value)?;
                     }
                     let _ = cliclack::log::info(format!("Saved {} to {}", key.name, config.path()));
                 }
@@ -529,7 +530,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                         return Ok(false);
                                     }
                                 } else {
-                                    config.set_param(&key.name, Value::String(value))?;
+                                    config.set_param(&key.name, &value)?;
                                 }
                             }
                         }
@@ -558,9 +559,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, Value::String(value))?;
+                                config.set_secret(&key.name, &value)?;
                             } else {
-                                config.set_param(&key.name, Value::String(value))?;
+                                config.set_param(&key.name, &value)?;
                             }
                         }
                     }
@@ -648,9 +649,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     match result {
         Ok((_message, _usage)) => {
-            // Update config with new values only if the test succeeds
-            config.set_param("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
-            config.set_param("GOOSE_MODEL", Value::String(model.clone()))?;
+            config.set_goose_provider(provider_name)?;
+            config.set_goose_model(&model)?;
             print_config_file_saved()?;
             Ok(true)
         }
@@ -877,7 +877,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 
                     // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                    match config.set_secret(&keychain_key, &value) {
                         Ok(_) => {
                             // Successfully stored in keychain, add to env_keys
                             env_keys.push(keychain_key);
@@ -973,7 +973,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 
                     // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                    match config.set_secret(&keychain_key, &value) {
                         Ok(_) => {
                             // Successfully stored in keychain, add to env_keys
                             env_keys.push(keychain_key);
@@ -1093,7 +1093,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 
                     // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                    match config.set_secret(&keychain_key, &Value::String(value.clone())) {
                         Ok(_) => {
                             // Successfully stored in keychain, add to env_keys
                             env_keys.push(keychain_key);
@@ -1273,46 +1273,35 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
 
     let mode = cliclack::select("Which goose mode would you like to configure?")
         .item(
-            "auto",
+            GooseMode::Auto,
             "Auto Mode",
             "Full file modification, extension usage, edit, create and delete files freely"
         )
         .item(
-            "approve",
+            GooseMode::Approve,
             "Approve Mode",
             "All tools, extensions and file modifications will require human approval"
         )
         .item(
-            "smart_approve",
+            GooseMode::SmartApprove,
             "Smart Approve Mode",
             "Editing, creating, deleting files and using extensions will require human approval"
         )
         .item(
-            "chat",
+            GooseMode::Chat,
             "Chat Mode",
             "Engage with the selected provider without using tools, extensions, or file modification"
         )
         .interact()?;
 
-    match mode {
-        "auto" => {
-            config.set_param("GOOSE_MODE", Value::String("auto".to_string()))?;
-            cliclack::outro("Set to Auto Mode - full file modification enabled")?;
-        }
-        "approve" => {
-            config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
-            cliclack::outro("Set to Approve Mode - all tools and modifications require approval")?;
-        }
-        "smart_approve" => {
-            config.set_param("GOOSE_MODE", Value::String("smart_approve".to_string()))?;
-            cliclack::outro("Set to Smart Approve Mode - modifications require approval")?;
-        }
-        "chat" => {
-            config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
-            cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
-        }
-        _ => unreachable!(),
+    config.set_goose_mode(mode)?;
+    let msg = match mode {
+        GooseMode::Auto => "Set to Auto Mode - full file modification enabled",
+        GooseMode::Approve => "Set to Approve Mode - all tools and modifications require approval",
+        GooseMode::SmartApprove => "Set to Smart Approve Mode - modifications require approval",
+        GooseMode::Chat => "Set to Chat Mode - no tools or modifications enabled",
     };
+    cliclack::outro(msg)?;
     Ok(())
 }
 
@@ -1321,28 +1310,25 @@ pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
 
     let enable_router = cliclack::select("Would you like to enable smart tool routing?")
         .item(
-            "true",
+            true,
             "Enable Router",
             "Use LLM-based intelligence to select tools",
         )
         .item(
-            "false",
+            false,
             "Disable Router",
             "Use the default tool selection strategy",
         )
         .interact()?;
 
-    match enable_router {
-        "true" => {
-            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("true".to_string()))?;
-            cliclack::outro("Router enabled - using LLM-based intelligence for tool selection")?;
-        }
-        "false" => {
-            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("false".to_string()))?;
-            cliclack::outro("Router disabled - using default tool selection")?;
-        }
-        _ => unreachable!(),
+    config.set_param("GOOSE_ENABLE_ROUTER", enable_router)?;
+    let msg = if enable_router {
+        "Router enabled - using LLM-based intelligence for tool selection"
+    } else {
+        "Router disabled - using default tool selection"
     };
+    cliclack::outro(msg)?;
+
     Ok(())
 }
 
@@ -1360,15 +1346,15 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
 
     match tool_log_level {
         "high" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.8)?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
         "medium" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.2)?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
         "all" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.0)?;
             cliclack::outro("Showing all tool output.")?;
         }
         _ => unreachable!(),
@@ -1441,11 +1427,11 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
+        .get_goose_provider()
         .expect("No provider configured. Please set model provider first");
 
     let model: String = config
-        .get_param("GOOSE_MODEL")
+        .get_goose_model()
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
@@ -1591,7 +1577,7 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
     if input_value.clone().trim().is_empty() {
         config.delete(key_name)?;
     } else {
-        config.set_param(key_name, Value::String(input_value))?;
+        config.set_param(key_name, &input_value)?;
     }
     Ok(())
 }
@@ -1618,7 +1604,7 @@ pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
             .interact()?;
 
     let max_turns: u32 = max_turns_input.parse()?;
-    config.set_param("GOOSE_MAX_TURNS", Value::from(max_turns))?;
+    config.set_param("GOOSE_MAX_TURNS", max_turns)?;
 
     cliclack::outro(format!(
         "Set maximum turns to {} - goose will ask for input after {} consecutive actions",
@@ -1651,7 +1637,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     // Test configuration - get the model that was configured
     println!("\nTesting configuration...");
-    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
         Ok(config) => config,
         Err(e) => {
@@ -1729,7 +1715,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     // Test configuration
     println!("\nTesting configuration...");
-    let configured_model: String = config.get_param("GOOSE_MODEL")?;
+    let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
         Ok(config) => config,
         Err(e) => {

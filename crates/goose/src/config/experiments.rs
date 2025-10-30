@@ -35,7 +35,7 @@ impl ExperimentManager {
         Self::refresh_experiments(&mut experiments);
         experiments.insert(name.to_string(), enabled);
 
-        config.set_param("experiments", serde_json::to_value(experiments)?)?;
+        config.set_param("experiments", experiments)?;
         Ok(())
     }
 
