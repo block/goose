@@ -28,7 +28,7 @@ use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, ToolResultReceiver};
+use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
@@ -86,7 +86,8 @@ pub struct ToolCategorizeResult {
 
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
+    pub(super) provider: SharedProvider,
+
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
@@ -159,10 +160,11 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        let provider = Arc::new(Mutex::new(None));
 
         Self {
-            provider: Mutex::new(None),
-            extension_manager: Arc::new(ExtensionManager::new()),
+            provider: provider.clone(),
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -823,9 +825,11 @@ impl Agent {
                     }
                 }
                 Err(e) => {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                    ));
+                    yield AgentEvent::Message(
+                        Message::assistant().with_text(
+                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                        )
+                    );
                 }
             }
         }))
@@ -915,7 +919,7 @@ impl Agent {
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                     if final_output_tool.final_output.is_some() {
                         let final_event = AgentEvent::Message(
-                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
                         );
                         yield final_event;
                         break;
@@ -924,9 +928,11 @@ impl Agent {
 
                 turns_taken += 1;
                 if turns_taken > max_turns {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                    ));
+                    yield AgentEvent::Message(
+                        Message::assistant().with_text(
+                            "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                        )
+                    );
                     break;
                 }
 
@@ -1176,18 +1182,22 @@ impl Agent {
                                 }
                                 Err(e) => {
                                     error!("Error: {}", e);
-                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        ));
+                                        )
+                                    );
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
                                     format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                ));
+                                )
+                            );
                             break;
                         }
                     }
@@ -1222,9 +1232,11 @@ impl Agent {
                             }
                             Err(e) => {
                                 error!("Retry logic failed: {}", e);
-                                yield AgentEvent::Message(Message::assistant().with_text(
-                                    format!("Retry logic encountered an error: {}", e)
-                                ));
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Retry logic encountered an error: {}", e)
+                                    )
+                                );
                                 exit_chat = true;
                             }
                         }

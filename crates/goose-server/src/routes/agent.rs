@@ -479,40 +479,41 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    // If this is a Stdio extension that uses npx, check for Node.js installation
-    #[cfg(target_os = "windows")]
-    if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
-        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
-            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
-                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+    if cfg!(target_os = "windows") {
+        if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
+            if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+                let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe")
+                    .exists()
+                    || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
 
-            if !node_exists {
-                let cmd_path = std::path::Path::new(&cmd);
-                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-                let install_script = script_dir.join("install-node.cmd");
+                if !node_exists {
+                    let cmd_path = std::path::Path::new(&cmd);
+                    let script_dir = cmd_path
+                        .parent()
+                        .ok_or_else(|| ErrorResponse::internal("Invalid command path"))?;
+                    let install_script = script_dir.join("install-node.cmd");
 
-                if install_script.exists() {
-                    eprintln!("Installing Node.js...");
-                    let output = std::process::Command::new(&install_script)
-                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
-                        .output()
-                        .map_err(|e| {
-                            eprintln!("Failed to run Node.js installer: {}", e);
-                            StatusCode::INTERNAL_SERVER_ERROR
-                        })?;
+                    if install_script.exists() {
+                        eprintln!("Installing Node.js...");
+                        let output = std::process::Command::new(&install_script)
+                            .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                            .output()
+                            .map_err(|_e| {
+                                ErrorResponse::internal("Failed to run Node.js installer")
+                            })?;
 
-                    if !output.status.success() {
+                        if !output.status.success() {
+                            return Err(ErrorResponse::internal(format!(
+                                "Failed to install Node.js: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            )));
+                        }
+                    } else {
                         return Err(ErrorResponse::internal(format!(
-                            "Failed to install Node.js: {}",
-                            String::from_utf8_lossy(&output.stderr)
+                            "Node.js not detected and no installer script not found at: {}",
+                            install_script.display()
                         )));
                     }
-                    eprintln!("Node.js installation completed");
-                } else {
-                    return Err(ErrorResponse::internal(format!(
-                        "Node.js not detected and no installer script not found at: {}",
-                        install_script.display()
-                    )));
                 }
             }
         }

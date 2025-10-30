@@ -57,9 +57,9 @@ export default function Hub({
         commandHistory={[]}
         initialValue=""
         setView={setView}
-        numTokens={0}
-        inputTokens={0}
-        outputTokens={0}
+        totalTokens={0}
+        accumulatedInputTokens={0}
+        accumulatedOutputTokens={0}
         droppedFiles={[]}
         onFilesProcessed={() => {}}
         messages={[]}
