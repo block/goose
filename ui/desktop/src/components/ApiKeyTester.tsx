@@ -185,6 +185,29 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
             return;
           }
           
+          if (formatCheck.provider === 'OpenAI') {
+            const openaiModel = 'gpt-4.1';
+            setTestResults([{
+              provider: 'openai',
+              success: true,
+              model: openaiModel,
+              totalModels: 10,
+            }]);
+
+            await upsert('OPENAI_API_KEY', actualValue, true);
+            await upsert('GOOSE_PROVIDER', 'openai', false);
+            await upsert('GOOSE_MODEL', openaiModel, false);
+
+            toastService.success({
+              title: 'Success!',
+              msg: 'Configured OpenAI with GPT-4.1 model',
+            });
+
+            onSuccess('openai', openaiModel);
+            setIsLoading(false);
+            return;
+          }
+          
           if (formatCheck.provider === 'OpenRouter') {
             const openrouterModel = 'anthropic/claude-sonnet-4-0';
             setTestResults([{
@@ -279,6 +302,29 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
           });
 
           onSuccess('anthropic', anthropicModel);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (formatCheck.provider === 'OpenAI') {
+          const openaiModel = 'gpt-4.1';
+          setTestResults([{
+            provider: 'openai',
+            success: true,
+            model: openaiModel,
+            totalModels: 10,
+          }]);
+
+          await upsert('OPENAI_API_KEY', actualValue, true);
+          await upsert('GOOSE_PROVIDER', 'openai', false);
+          await upsert('GOOSE_MODEL', openaiModel, false);
+
+          toastService.success({
+            title: 'Success!',
+            msg: 'Configured OpenAI with GPT-4.1 model',
+          });
+
+          onSuccess('openai', openaiModel);
           setIsLoading(false);
           return;
         }
