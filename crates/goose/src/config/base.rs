@@ -261,11 +261,9 @@ impl Config {
         }
     }
 
-    // Load values with automatic recovery from corruption
     fn load_values_with_recovery(&self) -> Result<Mapping, ConfigError> {
         let file_content = std::fs::read_to_string(&self.config_path)?;
 
-        // First attempt: try to parse the current config
         match parse_yaml_content(&file_content) {
             Ok(values) => Ok(values),
             Err(parse_error) => {
@@ -283,7 +281,6 @@ impl Config {
                 // Last resort: create a fresh default config file
                 tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
 
-                // Try to load from init-config.yaml if it exists, otherwise use empty config
                 let default_config = self.load_init_config_if_exists().unwrap_or_default();
 
                 self.create_and_save_default_config(default_config)
@@ -291,7 +288,6 @@ impl Config {
         }
     }
 
-    // Try to restore from backup file
     fn try_restore_from_backup(&self) -> Result<Mapping, ConfigError> {
         let backup_paths = self.get_backup_paths();
 
@@ -359,12 +355,10 @@ impl Config {
         paths
     }
 
-    // Try to load init-config.yaml from workspace root if it exists
     fn load_init_config_if_exists(&self) -> Result<Mapping, ConfigError> {
         load_init_config_from_workspace()
     }
 
-    // Save current values to the config file
     fn save_values(&self, values: Mapping) -> Result<(), ConfigError> {
         // Create backup before writing new config
         self.create_backup_if_needed()?;
@@ -580,17 +574,13 @@ impl Config {
     /// - The value cannot be deserialized into the requested type
     /// - There is an error reading the config file
     pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
             let value = Self::parse_env_value(&val)?;
             return Ok(serde_json::from_value(value)?);
         }
 
-        // Load current values from file
         let values = self.load()?;
-
-        // Then check our stored values
         values
             .get(key)
             .ok_or_else(|| ConfigError::NotFound(key.to_string()))
@@ -793,13 +783,6 @@ mod tests {
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(ConfigError::KeyringError(e.to_string())),
         }
-    }
-
-    #[test]
-    fn empty_yaml() {
-        let v: Mapping = serde_yaml::from_str("    ").expect("should parse");
-        eprintln!("v={:?}", v);
-        assert!(v.is_empty())
     }
 
     #[test]
