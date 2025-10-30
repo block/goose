@@ -91,7 +91,6 @@ export interface RichChatInputRef {
   getBoundingClientRect: () => DOMRect;
   contentRef: React.RefObject<HTMLTextAreaElement>;
   resetHeight: () => void;
-  scrollToCursor: () => void;
 }
 
 // Use Electron's system spell checking
@@ -242,8 +241,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         const cursorPosition = textarea.selectionStart;
         const textBeforeCursor = textarea.value.substring(0, cursorPosition);
         const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * lineHeight;
-        const cursorLineBottom = cursorLineTop + lineHeight;
+        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
+        const cursorLineBottom = cursorLineTop + 21;
         
         const currentScrollTop = textarea.scrollTop;
         const visibleTop = currentScrollTop;
@@ -252,10 +251,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         // Only adjust scroll if cursor is not visible
         if (cursorLineBottom > visibleBottom) {
           // Cursor is below visible area - scroll down to show it
-          textarea.scrollTop = Math.max(0, cursorLineBottom - finalHeight + lineHeight);
+          textarea.scrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
         } else if (cursorLineTop < visibleTop) {
           // Cursor is above visible area - scroll up to show it
-          textarea.scrollTop = Math.max(0, cursorLineTop - lineHeight);
+          textarea.scrollTop = Math.max(0, cursorLineTop - 21);
         }
       }
       
@@ -285,23 +284,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Use ResizeObserver to detect when textarea dimensions change
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
-    },
-    scrollToCursor: () => {
-      if (hiddenTextareaRef.current && displayRef.current) {
-        const textarea = hiddenTextareaRef.current;
-        const display = displayRef.current;
-        const lineHeight = 21;
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * lineHeight;
-        
-        // Center the cursor in the visible area
-        const textareaHeight = parseInt(textarea.style.height) || textarea.offsetHeight;
-        const targetScrollTop = Math.max(0, cursorLineTop - textareaHeight / 2);
-        textarea.scrollTop = targetScrollTop;
-        display.scrollTop = targetScrollTop;
-      }
       });
       
       resizeObserver.observe(textarea);
@@ -312,23 +294,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         if (textarea.scrollHeight !== lastScrollHeight) {
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
-    },
-    scrollToCursor: () => {
-      if (hiddenTextareaRef.current && displayRef.current) {
-        const textarea = hiddenTextareaRef.current;
-        const display = displayRef.current;
-        const lineHeight = 21;
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * lineHeight;
-        
-        // Center the cursor in the visible area
-        const textareaHeight = parseInt(textarea.style.height) || textarea.offsetHeight;
-        const targetScrollTop = Math.max(0, cursorLineTop - textareaHeight / 2);
-        textarea.scrollTop = targetScrollTop;
-        display.scrollTop = targetScrollTop;
-      }
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -384,23 +349,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         display.style.height = `${minHeight}px`;
         
         syncDisplayHeight();
-    },
-    scrollToCursor: () => {
-      if (hiddenTextareaRef.current && displayRef.current) {
-        const textarea = hiddenTextareaRef.current;
-        const display = displayRef.current;
-        const lineHeight = 21;
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * lineHeight;
-        
-        // Center the cursor in the visible area
-        const textareaHeight = parseInt(textarea.style.height) || textarea.offsetHeight;
-        const targetScrollTop = Math.max(0, cursorLineTop - textareaHeight / 2);
-        textarea.scrollTop = targetScrollTop;
-        display.scrollTop = targetScrollTop;
-      }
       }
     },
   }), []);
@@ -860,23 +808,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
-    },
-    scrollToCursor: () => {
-      if (hiddenTextareaRef.current && displayRef.current) {
-        const textarea = hiddenTextareaRef.current;
-        const display = displayRef.current;
-        const lineHeight = 21;
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * lineHeight;
-        
-        // Center the cursor in the visible area
-        const textareaHeight = parseInt(textarea.style.height) || textarea.offsetHeight;
-        const targetScrollTop = Math.max(0, cursorLineTop - textareaHeight / 2);
-        textarea.scrollTop = targetScrollTop;
-        display.scrollTop = targetScrollTop;
-      }
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
@@ -901,7 +832,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         e.preventDefault();
         const length = e.currentTarget.value.length;
         e.currentTarget.setSelectionRange(length, length);
-        setTimeout(() => syncDisplayHeight(), 0);
+        // Trigger sync to scroll to bottom
+        setTimeout(() => {
+          if (hiddenTextareaRef.current && displayRef.current) {
+            const textarea = hiddenTextareaRef.current;
+            const display = displayRef.current;
+            textarea.scrollTop = textarea.scrollHeight;
+            display.scrollTop = textarea.scrollTop;
+          }
+        }, 0);
         return;
       }
     }
@@ -965,7 +904,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     } as React.KeyboardEvent<HTMLDivElement>;
     
     onKeyDown?.(syntheticEvent);
-  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition, syncDisplayHeight]);
+  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition]);
 
   const handleTextareaPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // Update cursor position after paste
@@ -985,7 +924,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         e.preventDefault();
         const length = e.currentTarget.value.length;
         e.currentTarget.setSelectionRange(length, length);
-        setTimeout(() => syncDisplayHeight(), 0);
+        // Trigger sync to scroll to bottom
+        setTimeout(() => {
+          if (hiddenTextareaRef.current && displayRef.current) {
+            const textarea = hiddenTextareaRef.current;
+            const display = displayRef.current;
+            textarea.scrollTop = textarea.scrollHeight;
+            display.scrollTop = textarea.scrollTop;
+          }
+        }, 0);
         return;
       }
     }
