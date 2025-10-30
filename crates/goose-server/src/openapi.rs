@@ -327,6 +327,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::status::status,
         super::routes::status::diagnostics,
         super::routes::config_management::backup_config,
+        super::routes::config_management::detect_provider,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
         super::routes::config_management::init_config,
@@ -386,6 +387,8 @@ derive_utoipa!(Icon as IconSchema);
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
         super::routes::config_management::ConfigKeyQuery,
+        super::routes::config_management::DetectProviderRequest,
+        super::routes::config_management::DetectProviderResponse,
         super::routes::config_management::ConfigResponse,
         super::routes::config_management::ProvidersResponse,
         super::routes::config_management::ProviderDetails,

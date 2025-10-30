@@ -15,6 +15,7 @@ use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
+use goose::providers::auto_detect;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::StatusCode;
@@ -88,6 +89,17 @@ pub struct UpdateCustomProviderRequest {
     pub supports_streaming: Option<bool>,
 }
 
+
+#[derive(Deserialize, ToSchema)]
+pub struct DetectProviderRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderResponse {
+    pub provider_name: String,
+    pub models: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -516,6 +528,29 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
+
+#[utoipa::path(
+    post,
+    path = "/config/detect-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching provider found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn detect_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    match auto_detect::detect_provider_from_api_key(&detect_request.api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/config/backup",
@@ -718,6 +753,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/detect-provider", post(detect_provider))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
