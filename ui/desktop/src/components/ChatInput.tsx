@@ -1387,7 +1387,7 @@ export default function ChatInput({
                         variant="outline"
                         onClick={() => {}}
                         disabled={true}
-                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
+                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-3 py-2"
                       >
                         <Microphone />
                       </Button>
@@ -1429,7 +1429,7 @@ export default function ChatInput({
                     }
                   }}
                   disabled={isTranscribing}
-                  className={`rounded-full px-6 py-2 ${
+                  className={`rounded-full px-3 py-2 ${
                     isRecording
                       ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                       : isTranscribing
@@ -1450,7 +1450,7 @@ export default function ChatInput({
               size="sm"
               shape="round"
               variant="outline"
-              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-3 py-2"
             >
               <Stop />
             </Button>
@@ -1464,7 +1464,7 @@ export default function ChatInput({
                     shape="round"
                     variant="outline"
                     disabled={isSubmitButtonDisabled}
-                    className={`rounded-full px-3 py-2 flex items-center justify-center ${
+                    className={`rounded-full px-6 py-2 flex items-center justify-center ${
                       isSubmitButtonDisabled
                         ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                         : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
