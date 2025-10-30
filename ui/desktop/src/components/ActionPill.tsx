@@ -67,7 +67,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors pill-expand-in`}>
+    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200`}>
       <span className="flex items-center gap-1">
         <span className="text-blue-500 flex items-center justify-center w-3 h-3">
           {icon}
@@ -78,7 +78,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
         <button
           type="button"
           onClick={onRemove}
-          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200"
           aria-label={`Remove ${label} action`}
         >
           <X size={10} />

@@ -67,7 +67,7 @@ export const MentionPill: React.FC<MentionPillProps> = ({
 
   return (
     <div 
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors pill-expand-in`}
+      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200`}
       title={filePath} // Show full path on hover
     >
       <span className="flex items-center gap-1">
@@ -78,7 +78,7 @@ export const MentionPill: React.FC<MentionPillProps> = ({
         <button
           type="button"
           onClick={onRemove}
-          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
+          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200"
           aria-label={`Remove ${fileName} mention`}
         >
           <X size={10} />
