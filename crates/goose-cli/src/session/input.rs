@@ -20,7 +20,7 @@ pub enum InputResult {
     EndPlan,
     Clear,
     Recipe(Option<String>),
-    Summarize,
+    Compact,
 }
 
 #[derive(Debug)]
@@ -120,7 +120,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_ENDPLAN: &str = "/endplan";
     const CMD_CLEAR: &str = "/clear";
     const CMD_RECIPE: &str = "/recipe";
-    const CMD_SUMMARIZE: &str = "/summarize";
+    const CMD_COMPACT: &str = "/compact";
+    const CMD_SUMMARIZE_DEPRECATED: &str = "/summarize";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -180,7 +181,11 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s == CMD_CLEAR => Some(InputResult::Clear),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
-        s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
+        s if s == CMD_COMPACT => Some(InputResult::Compact),
+        s if s == CMD_SUMMARIZE_DEPRECATED => {
+            println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
+            Some(InputResult::Compact)
+        }
         _ => None,
     }
 }
@@ -305,7 +310,7 @@ fn print_help() {
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
-/summarize - Summarize the current conversation to reduce context length while preserving key information.
+/compact - Compact the current conversation to reduce context length while preserving key information.
 /? or /help - Display this help message
 /clear - Clears the current chat history
 
@@ -542,14 +547,18 @@ mod tests {
     }
 
     #[test]
-    fn test_summarize_command() {
-        // Test the summarize command
-        let result = handle_slash_command("/summarize");
-        assert!(matches!(result, Some(InputResult::Summarize)));
+    fn test_compact_command() {
+        // Test the compact command
+        let result = handle_slash_command("/compact");
+        assert!(matches!(result, Some(InputResult::Compact)));
 
         // Test with whitespace
-        let result = handle_slash_command("  /summarize  ");
-        assert!(matches!(result, Some(InputResult::Summarize)));
+        let result = handle_slash_command("  /compact  ");
+        assert!(matches!(result, Some(InputResult::Compact)));
+
+        // Test deprecated /summarize command (should still work but return Compact)
+        let result = handle_slash_command("/summarize");
+        assert!(matches!(result, Some(InputResult::Compact)));
     }
 
     #[test]

@@ -643,10 +643,10 @@ impl CliSession {
 
                     continue;
                 }
-                InputResult::Summarize => {
+                InputResult::Compact => {
                     save_history(&mut editor);
 
-                    let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
+                    let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
                     let should_summarize =
                         match cliclack::confirm(prompt).initial_value(true).interact() {
                             Ok(choice) => choice,
@@ -666,7 +666,7 @@ impl CliSession {
                             .await?;
                         output::hide_thinking();
                     } else {
-                        println!("{}", console::style("Summarization cancelled.").yellow());
+                        println!("{}", console::style("Compaction cancelled.").yellow());
                     }
                     continue;
                 }
