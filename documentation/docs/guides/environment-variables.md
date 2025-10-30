@@ -152,6 +152,7 @@ These variables control how goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
@@ -175,6 +176,9 @@ export GOOSE_MAX_TURNS=25
 
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
+
+# Customize subagent turn limit
+export GOOSE_SUBAGENT_MAX_TURNS=50
 
 # Use multiple context files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
