@@ -468,7 +468,7 @@ const MentionPopover = forwardRef<
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-2xl shadow-lg min-w-96 max-w-lg max-h-80"
       style={{
         left: position.x,
         top: position.y - 10, // Position above the chat input
@@ -497,7 +497,7 @@ const MentionPopover = forwardRef<
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
-                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 p-2 rounded-2xl cursor-pointer transition-all ${
                     index === selectedIndex
                       ? 'bg-gray-100 dark:bg-gray-700'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700'
