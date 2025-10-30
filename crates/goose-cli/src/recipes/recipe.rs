@@ -11,7 +11,6 @@ use goose::recipe::build_recipe::{
 };
 use goose::recipe::validate_recipe::parse_and_validate_parameters;
 use goose::recipe::Recipe;
-use serde_json::Value;
 
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
@@ -98,7 +97,7 @@ pub fn collect_missing_secrets(requirements: &[SecretRequirement]) -> Result<()>
         .unwrap_or_else(|_| String::new());
 
         if !value.trim().is_empty() {
-            config.set_secret(&req.key, Value::String(value))?;
+            config.set_secret(&req.key, &value)?;
             println!("✅ Secret stored securely for {}", req.extension_name);
         } else {
             println!("⏭️  Skipped {} for {}", req.key, req.extension_name);

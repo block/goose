@@ -13,6 +13,84 @@
     "version": "1.11.0"
   },
   "paths": {
+    "/agent/add_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_add_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension added",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/remove_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_remove_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension removed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -1989,6 +2067,21 @@
   },
   "components": {
     "schemas": {
+      "AddExtensionRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -2827,7 +2920,10 @@
             "type": "string"
           },
           "sizes": {
-            "type": "string"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "src": {
             "type": "string"
@@ -3185,11 +3281,15 @@
             "type": "object",
             "required": [
               "message",
+              "token_state",
               "type"
             ],
             "properties": {
               "message": {
                 "$ref": "#/components/schemas/Message"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
@@ -3812,6 +3912,21 @@
           }
         }
       },
+      "RemoveExtensionRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "session_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "ResourceContents": {
         "anyOf": [
           {
@@ -4415,6 +4530,43 @@
           },
           "thinking": {
             "type": "string"
+          }
+        }
+      },
+      "TokenState": {
+        "type": "object",
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "accumulatedInputTokens",
+          "accumulatedOutputTokens",
+          "accumulatedTotalTokens"
+        ],
+        "properties": {
+          "accumulatedInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedOutputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

@@ -208,7 +208,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 .as_ref()
                 .and_then(|s| s.goose_provider.clone())
         })
-        .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
+        .or_else(|| config.get_goose_provider().ok())
         .expect("No provider configured. Run 'goose configure' first");
 
     let model_name = session_config
@@ -219,7 +219,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 .as_ref()
                 .and_then(|s| s.goose_model.clone())
         })
-        .or_else(|| config.get_param("GOOSE_MODEL").ok())
+        .or_else(|| config.get_goose_model().ok())
         .expect("No model configured. Run 'goose configure' first");
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);

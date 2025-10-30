@@ -28,8 +28,8 @@ use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, Config};
+use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -73,7 +73,7 @@ pub struct ReplyContext {
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
-    pub goose_mode: String,
+    pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
     pub config: &'static Config,
 }
@@ -86,7 +86,8 @@ pub struct ToolCategorizeResult {
 
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
+    pub(super) provider: SharedProvider,
+
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
@@ -159,10 +160,11 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        let provider = Arc::new(Mutex::new(None));
 
         Self {
-            provider: Mutex::new(None),
-            extension_manager: Arc::new(ExtensionManager::new()),
+            provider: provider.clone(),
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -191,7 +193,7 @@ impl Agent {
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            "smart_approve".to_string(),
+            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
@@ -262,7 +264,7 @@ impl Agent {
 
         // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.clone())
+            .update_permission_inspector_mode(goose_mode)
             .await;
 
         Ok(ReplyContext {
@@ -823,9 +825,11 @@ impl Agent {
                     }
                 }
                 Err(e) => {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                    ));
+                    yield AgentEvent::Message(
+                        Message::assistant().with_text(
+                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                        )
+                    );
                 }
             }
         }))
@@ -915,7 +919,7 @@ impl Agent {
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                     if final_output_tool.final_output.is_some() {
                         let final_event = AgentEvent::Message(
-                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
                         );
                         yield final_event;
                         break;
@@ -924,9 +928,11 @@ impl Agent {
 
                 turns_taken += 1;
                 if turns_taken > max_turns {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                    ));
+                    yield AgentEvent::Message(
+                        Message::assistant().with_text(
+                            "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                        )
+                    );
                     break;
                 }
 
@@ -1024,8 +1030,7 @@ impl Agent {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                let mode = goose_mode.clone();
-                                if mode.as_str() == "chat" {
+                                if goose_mode == GooseMode::Chat {
                                     // Skip all tool calls in chat mode
                                     for request in remaining_requests {
                                         let mut response = message_tool_response.lock().await;
@@ -1176,18 +1181,22 @@ impl Agent {
                                 }
                                 Err(e) => {
                                     error!("Error: {}", e);
-                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        ));
+                                        )
+                                    );
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
                                     format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                ));
+                                )
+                            );
                             break;
                         }
                     }
@@ -1222,9 +1231,11 @@ impl Agent {
                             }
                             Err(e) => {
                                 error!("Retry logic failed: {}", e);
-                                yield AgentEvent::Message(Message::assistant().with_text(
-                                    format!("Retry logic encountered an error: {}", e)
-                                ));
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Retry logic encountered an error: {}", e)
+                                    )
+                                );
                                 exit_chat = true;
                             }
                         }
@@ -1246,15 +1257,13 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
+    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> GooseMode {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "chat".to_string(),
-            Some("background") => "auto".to_string(),
-            _ => config
-                .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| "auto".to_string()),
+            Some("foreground") => GooseMode::Chat,
+            Some("background") => GooseMode::Auto,
+            _ => config.get_goose_mode().unwrap_or(GooseMode::Auto),
         }
     }
 
@@ -1513,7 +1522,7 @@ impl Agent {
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first");
 
         let settings = Settings {

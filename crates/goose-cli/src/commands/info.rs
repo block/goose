@@ -14,11 +14,11 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     // Get paths using a stored reference to the global config
     let config = Config::global();
-    let config_file = config.path();
+    let config_dir = Paths::config_dir().display().to_string();
 
     // Define the labels and their corresponding path values once.
     let paths = [
-        ("Config file:", config_file.to_string()),
+        ("Config dir:", config_dir),
         ("Sessions dir:", sessions_dir.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
@@ -40,26 +40,22 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     // Print verbose info if requested
     if verbose {
         println!("\n{}", style("goose Configuration:").cyan().bold());
-        match config.load_values() {
-            Ok(values) => {
-                if values.is_empty() {
-                    println!("  No configuration values set");
-                    println!(
-                        "  Run '{}' to configure goose",
-                        style("goose configure").cyan()
-                    );
-                } else {
-                    let sorted_values: std::collections::BTreeMap<_, _> =
-                        values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let values = config.all_values()?;
+        if values.is_empty() {
+            println!("  No configuration values set");
+            println!(
+                "  Run '{}' to configure goose",
+                style("goose configure").cyan()
+            );
+        } else {
+            let sorted_values: std::collections::BTreeMap<_, _> =
+                values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-                    if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
-                        for line in yaml.lines() {
-                            println!("  {}", line);
-                        }
-                    }
+            if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
+                for line in yaml.lines() {
+                    println!("  {}", line);
                 }
             }
-            Err(e) => println!("  Error loading configuration: {}", e),
         }
     }
 

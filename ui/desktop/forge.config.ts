@@ -86,7 +86,8 @@ module.exports = {
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
-          icon: 'src/images/icon.png'
+          icon: 'src/images/icon.png',
+          prefix: '/opt'
         }
       },
     },
@@ -100,7 +101,8 @@ module.exports = {
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
-          icon: 'src/images/icon.png'
+          icon: 'src/images/icon.png',
+          prefix: '/opt'
         }
       },
     },
