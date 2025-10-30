@@ -28,7 +28,7 @@ use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, ToolResultReceiver};
+use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
@@ -86,7 +86,8 @@ pub struct ToolCategorizeResult {
 
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
+    pub(super) provider: SharedProvider,
+
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
@@ -159,10 +160,11 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        let provider = Arc::new(Mutex::new(None));
 
         Self {
-            provider: Mutex::new(None),
-            extension_manager: Arc::new(ExtensionManager::new()),
+            provider: provider.clone(),
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Arc::new(Mutex::new(None)),

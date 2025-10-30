@@ -84,7 +84,6 @@ export const initializeSystem = async (
 
       try {
         await addToAgentOnStartup({
-          addToConfig: options.addExtension!,
           extensionConfig,
           toastOptions: { silent: false },
           sessionId,
