@@ -101,15 +101,9 @@ fn get_extensions_map() -> HashMap<String, ExtensionEntry> {
 
 fn save_extensions_map(extensions: HashMap<String, ExtensionEntry>) {
     let config = Config::global();
-    match serde_json::to_value(extensions) {
-        Ok(value) => {
-            if let Err(e) = config.set_param(EXTENSIONS_CONFIG_KEY, value) {
-                tracing::debug!("Failed to save extensions config: {}", e);
-            }
-        }
-        Err(e) => {
-            tracing::debug!("Failed to serialize extensions: {}", e);
-        }
+    if let Err(e) = config.set_param(EXTENSIONS_CONFIG_KEY, &extensions) {
+        // TODO(jack) why is this just a debug statement?
+        tracing::debug!("Failed to save extensions config: {}", e);
     }
 }
 

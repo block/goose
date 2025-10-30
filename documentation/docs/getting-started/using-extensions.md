@@ -523,7 +523,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 
   <TabItem value="cli" label="Config file">
   
-  1. Navigate to the Goose [configuration file](/docs/guides/config-file). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  1. Navigate to the Goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
   2. Edit the extension properties as needed and save your changes.
 
   </TabItem>

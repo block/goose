@@ -1,0 +1,66 @@
+version: 1.0.0
+title: "Code Duplication Detector"
+description: "Identifies duplicated code blocks that should be refactored into reusable components"
+instructions: |
+  You are analyzing code for duplication to identify refactoring opportunities.
+  
+  Your tasks:
+  1. Scan all source code files in {{ repository_path }}
+  2. Identify duplicated code blocks:
+     - Similar functions/methods (>{{ similarity_threshold }} similarity)
+     - Copy-pasted code sections (>{{ min_lines }} lines)
+     - Repeated patterns and logic
+     - Similar class structures
+  
+  3. For each duplication found:
+     - Show both/all locations (file paths and line numbers)
+     - Calculate similarity percentage
+     - Estimate lines of duplicated code
+     - Assess refactoring complexity
+  
+  4. Suggest refactoring strategies:
+     - Extract common functions/utilities
+     - Create base classes or mixins
+     - Use composition or inheritance
+     - Apply design patterns (Strategy, Template Method, etc.)
+  
+  5. Prioritize by impact:
+     - Critical: >100 lines duplicated, appears 3+ times
+     - High: >50 lines duplicated, appears 2+ times
+     - Medium: >20 lines duplicated
+     - Low: Minor code similarities
+  
+  Focus on duplications that will provide the most maintenance benefit when refactored.
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository"
+  
+  - key: min_lines
+    input_type: number
+    requirement: optional
+    default: 10
+    description: "Minimum lines for a code block to be considered duplicate"
+  
+  - key: similarity_threshold
+    input_type: number
+    requirement: optional
+    default: 0.85
+    description: "Similarity threshold (0.0-1.0) for detecting duplicates"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+settings:
+  temperature: 0.2
+
+prompt: |
+  Detect code duplication in {{ repository_path }}.
+  Find blocks >{{ min_lines }} lines with >{{ similarity_threshold }} similarity.
+  
+  Provide specific locations and refactoring recommendations for each duplication.

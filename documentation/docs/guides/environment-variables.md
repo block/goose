@@ -4,7 +4,7 @@ title: Environment Variables
 sidebar_label: Environment Variables
 ---
 
-Goose supports various environment variables that allow you to customize its behavior. This guide provides a comprehensive list of available environment variables grouped by their functionality.
+goose supports various environment variables that allow you to customize its behavior. This guide provides a comprehensive list of available environment variables grouped by their functionality.
 
 ## Model Configuration
 
@@ -12,7 +12,7 @@ These variables control the [language models](/docs/getting-started/providers) a
 
 ### Basic Provider Configuration
 
-These are the minimum required variables to get started with Goose.
+These are the minimum required variables to get started with goose.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -70,7 +70,7 @@ A _turn_ is one complete prompt-response interaction. Here's how it works with t
 - Fallback to the lead model if the worker model struggles for 2 consecutive turns
 - Use the lead model for 2 turns and then switch back to the worker model
 
-The lead model and worker model names are displayed at the start of the Goose CLI session. If you don't export a `GOOSE_MODEL` for your session, the worker model defaults to the `GOOSE_MODEL` in your [configuration file](/docs/guides/config-file).
+The lead model and worker model names are displayed at the start of the goose CLI session. If you don't export a `GOOSE_MODEL` for your session, the worker model defaults to the `GOOSE_MODEL` in your [configuration file](/docs/guides/config-files).
 
 **Examples**
 
@@ -88,7 +88,7 @@ export GOOSE_LEAD_FALLBACK_TURNS=2
 
 ### Planning Mode Configuration
 
-These variables control Goose's [planning functionality](/docs/guides/multi-model/creating-plans).
+These variables control goose's [planning functionality](/docs/guides/multi-model/creating-plans).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -146,19 +146,17 @@ export DATABRICKS_MAX_RETRY_INTERVAL_MS=60000        # cap the maximum retry del
 
 ## Session Management
 
-These variables control how Goose manages conversation sessions and context.
+These variables control how goose manages conversation sessions and context.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
+| `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
-| `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
-| `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
-| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 
 **Examples**
 
@@ -184,12 +182,6 @@ export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
 
-# Use Temporal for scheduled recipes
-export GOOSE_SCHEDULER_TYPE=temporal
-
-# Custom Temporal binary (optional)
-export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
-
 # Disable random thinking messages for less distraction
 export GOOSE_RANDOM_THINKING_MESSAGES=false
 
@@ -202,7 +194,7 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 
 ### Model Context Limit Overrides
 
-These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match Goose's predefined model patterns.
+These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match goose's predefined model patterns.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -229,11 +221,11 @@ For more details and examples, see [Model Context Limit Overrides](/docs/guides/
 
 ## Tool Configuration
 
-These variables control how Goose handles [tool execution](/docs/guides/goose-permissions) and [tool management](/docs/guides/managing-tools/).
+These variables control how goose handles [tool execution](/docs/guides/goose-permissions) and [tool management](/docs/guides/managing-tools/).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_MODE` | Controls how Goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
+| `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
 | `GOOSE_ENABLE_ROUTER` | Enables [intelligent tool selection strategy](/docs/guides/managing-tools/tool-router) | "true", "false" | "false" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
@@ -302,7 +294,34 @@ When the keyring is disabled, secrets are stored here:
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
 
-## Langfuse Integration
+## Observability
+
+Beyond Goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
+
+### OpenTelemetry Protocol (OTLP)
+
+Configure goose to export traces and metrics to any OTLP-compatible observability platform. 
+OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry](https://opentelemetry.io/docs/). When configured, goose exports telemetry asynchronously and flushes on exit.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|--------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | URL (e.g., `http://localhost:4318`) | None |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
+
+**When to use OTLP:**
+- Diagnosing slow tool execution or LLM response times when goose 
+- Understanding intermittent failures across multiple sessions
+- Monitoring goose performance in production or CI/CD environments
+- Tracking usage patterns, costs, and resource consumption over time
+- Setting up alerts for performance degradation or high error rates
+
+**Example:**
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+export OTEL_EXPORTER_OTLP_TIMEOUT=10000
+```
+
+### Langfuse Integration
 
 These variables configure the [Langfuse integration for observability](/docs/tutorials/langfuse).
 
@@ -357,28 +376,28 @@ export ALPHA_FEATURES=true
 ALPHA_FEATURES=true goose session
 ```
 
-## Variables Controlled by Goose
+## Variables Controlled by goose
 
-These variables are automatically set by Goose during command execution.
+These variables are automatically set by goose during command execution.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_TERMINAL` | Indicates that a command is being executed by Goose, enables customizing shell behavior | "1" when set | Unset |
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables customizing shell behavior | "1" when set | Unset |
 
 ### Customizing Shell Behavior
 
-Sometimes you want Goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want Goose to use a different tool, or prevent Goose from running long-running development servers that could hang the AI agent. This is most useful when using Goose CLI, where shell commands are executed directly in your terminal environment.
+Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, or prevent goose from running long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
 
 **How it works:**
-1. When Goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
-2. Your shell configuration can detect this and direct Goose to change its default behavior while keeping your normal terminal usage unchanged
+1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
+2. Your shell configuration can detect this and direct goose to change its default behavior while keeping your normal terminal usage unchanged
 
 **Example:**
 
 ```bash
 # In your ~/.bashrc or ~/.zshrc
 
-# Guide Goose toward better tool choices
+# Guide goose toward better tool choices
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
@@ -388,6 +407,6 @@ fi
 
 - Environment variables take precedence over configuration files.
 - For security-sensitive variables (like API keys), consider using the system keyring instead of environment variables.
-- Some variables may require restarting Goose to take effect.
-- When using the planning mode, if planner-specific variables are not set, Goose will fall back to the main model configuration.
+- Some variables may require restarting goose to take effect.
+- When using the planning mode, if planner-specific variables are not set, goose will fall back to the main model configuration.
 

@@ -42,6 +42,8 @@ pub struct XaiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl XaiProvider {
@@ -55,7 +57,11 @@ impl XaiProvider {
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            name: Self::metadata().name,
+        })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
@@ -85,6 +91,10 @@ impl Provider for XaiProvider {
                 ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST)),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
