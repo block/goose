@@ -235,8 +235,11 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions
-      // Ensure cursor is always visible regardless of position
+      // Sync scroll positions first
+      display.scrollTop = textarea.scrollTop;
+      display.scrollLeft = textarea.scrollLeft;
+      
+      // Then ensure cursor is visible and update both layers together
       if (textareaScrollHeight > finalHeight) {
         const cursorPosition = textarea.selectionStart;
         const textBeforeCursor = textarea.value.substring(0, cursorPosition);
@@ -248,16 +251,23 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         const visibleTop = currentScrollTop;
         const visibleBottom = currentScrollTop + finalHeight;
         
-        // Only adjust scroll if cursor is not visible
+        let newScrollTop = currentScrollTop;
+        
+        // Calculate new scroll position if cursor is not visible
         if (cursorLineBottom > visibleBottom) {
           // Cursor is below visible area - scroll down to show it
-          textarea.scrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
+          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
         } else if (cursorLineTop < visibleTop) {
           // Cursor is above visible area - scroll up to show it
-          textarea.scrollTop = Math.max(0, cursorLineTop - 21);
+          newScrollTop = Math.max(0, cursorLineTop - 21);
+        }
+        
+        // Update both layers together if scroll position changed
+        if (newScrollTop !== currentScrollTop) {
+          textarea.scrollTop = newScrollTop;
+          display.scrollTop = newScrollTop;
         }
       }
-      
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
       
@@ -1117,7 +1127,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
