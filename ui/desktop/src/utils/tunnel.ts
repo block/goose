@@ -225,6 +225,12 @@ export async function startTunnel(): Promise<TunnelInfo> {
       currentTunnelInfo = startLapstoneTunnel(port, secret, goosedProcess.pid || 0);
       currentState = 'running';
       log.info('Lapstone tunnel started successfully:', currentTunnelInfo);
+
+      // Save auto-start setting when tunnel starts
+      const settings = loadSettings();
+      settings.tunnelAutoStart = true;
+      saveSettings(settings);
+
       return currentTunnelInfo;
     }
 
@@ -280,6 +286,12 @@ export async function startTunnel(): Promise<TunnelInfo> {
     currentState = 'running';
 
     log.info('Tunnel started successfully:', currentTunnelInfo);
+
+    // Save auto-start setting when tunnel starts
+    const settings = loadSettings();
+    settings.tunnelAutoStart = true;
+    saveSettings(settings);
+
     return currentTunnelInfo;
   } catch (error) {
     currentState = 'error';
@@ -293,7 +305,7 @@ export async function startTunnel(): Promise<TunnelInfo> {
   }
 }
 
-export function stopTunnel(): void {
+export function stopTunnel(clearAutoStart: boolean = true): void {
   // Stop Lapstone tunnel if active
   stopLapstoneTunnel();
 
@@ -326,6 +338,13 @@ export function stopTunnel(): void {
   currentState = 'idle';
   currentTunnelInfo = null;
 
+  // Only clear auto-start setting when manually stopping (not on app quit)
+  if (clearAutoStart) {
+    const settings = loadSettings();
+    settings.tunnelAutoStart = false;
+    saveSettings(settings);
+  }
+
   // Clean up output file
   if (outputFilePath && fs.existsSync(outputFilePath)) {
     try {
@@ -348,6 +367,19 @@ export function getTunnelStatus(): { state: TunnelState; info: TunnelInfo | null
 export function setupTunnelCleanup(electronApp: App): void {
   electronApp.on('will-quit', () => {
     log.info('App quitting, stopping tunnel if running');
-    stopTunnel();
+    stopTunnel(false); // Don't clear auto-start flag on quit
   });
+}
+
+// Auto-start tunnel if it was running when app closed
+export async function autoStartTunnel(): Promise<void> {
+  const settings = loadSettings();
+  if (settings.tunnelAutoStart) {
+    log.info('Auto-starting tunnel from previous session');
+    try {
+      await startTunnel();
+    } catch (error) {
+      log.error('Failed to auto-start tunnel:', error);
+    }
+  }
 }

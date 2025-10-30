@@ -1769,6 +1769,10 @@ async function appMain() {
     app.dock?.hide();
   }
 
+  // Setup tunnel cleanup on app quit
+  const { setupTunnelCleanup } = await import('./utils/tunnel');
+  setupTunnelCleanup(app);
+
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
@@ -2193,6 +2197,16 @@ async function appMain() {
 app.whenReady().then(async () => {
   try {
     await appMain();
+
+    // Auto-start tunnel if it was running when app closed (with delay to ensure window is loaded)
+    setTimeout(async () => {
+      try {
+        const { autoStartTunnel } = await import('./utils/tunnel');
+        await autoStartTunnel();
+      } catch (error) {
+        log.error('Failed to auto-start tunnel:', error);
+      }
+    }, 10000); // 10 second delay
   } catch (error) {
     dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
     app.quit();

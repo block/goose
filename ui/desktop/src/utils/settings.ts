@@ -20,6 +20,7 @@ export interface Settings {
   tunnelSecret?: string;
   tunnelAgentId?: string;
   tunnelMode?: TunnelMode;
+  tunnelAutoStart?: boolean;
 }
 
 // Constants
