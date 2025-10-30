@@ -202,7 +202,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Calculate line height more accurately based on actual font metrics
       const lineHeight = 21; // 14px * 1.5 line-height = 21px
       const minHeight = rows * lineHeight;
-      const maxHeight = 300;
+      const maxHeight = parseInt(style?.maxHeight as string) || 300;
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
@@ -235,9 +235,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions
+      // Sync scroll positions and ensure cursor visibility
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
+      
+      // If content exceeds maxHeight, ensure the cursor (bottom) is visible
+      if (textareaScrollHeight > finalHeight) {
+        // Auto-scroll to bottom to keep cursor visible when typing
+        const shouldScrollToBottom = textarea.selectionStart === textarea.value.length;
+        if (shouldScrollToBottom) {
+          requestAnimationFrame(() => {
+            textarea.scrollTop = textarea.scrollHeight - finalHeight;
+            display.scrollTop = textarea.scrollTop;
+          });
+        }
+      }
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -253,6 +265,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       });
     }
   }, [rows]);
+
+  // Ensure cursor is always visible when typing
+  const ensureCursorVisible = useCallback(() => {
+    if (hiddenTextareaRef.current && displayRef.current) {
+      const textarea = hiddenTextareaRef.current;
+      const display = displayRef.current;
+      
+      // Only auto-scroll if cursor is at the end (user is typing)
+      if (textarea.selectionStart === textarea.value.length) {
+        const textareaHeight = parseInt(textarea.style.height) || textarea.offsetHeight;
+        const scrollHeight = textarea.scrollHeight;
+        
+        if (scrollHeight > textareaHeight) {
+          // Calculate the scroll position to show the bottom
+          const targetScrollTop = scrollHeight - textareaHeight;
+          textarea.scrollTop = targetScrollTop;
+          display.scrollTop = targetScrollTop;
+        }
+      }
+    }
+  }, []);
 
   // Monitor textarea for any changes that might affect height
   const monitorTextareaChanges = useCallback(() => {
@@ -780,14 +813,16 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
     
     console.log('🔄 RichChatInput: onChange', { newValue, newCursorPos });
-    onChange(newValue, newCursorPos);
-    setCursorPosition(newCursorPos);
+    syncDisplayHeight();
+    requestAnimationFrame(() => {
+      syncDisplayHeight();
+      ensureCursorVisible();
+    });
     
-    // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
     requestAnimationFrame(() => syncDisplayHeight());
-  }, [onChange, syncDisplayHeight]);
+  }, [onChange, syncDisplayHeight, ensureCursorVisible]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Hide tooltip on any key press
