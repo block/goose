@@ -26,7 +26,7 @@ mod tool_route_manager;
 mod tool_router_index_manager;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent};
+pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGER};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
