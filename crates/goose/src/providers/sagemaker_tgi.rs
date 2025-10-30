@@ -54,7 +54,7 @@ impl SageMakerTgiProvider {
         };
 
         set_aws_env_vars(config.all_values());
-        set_aws_env_vars(config.load_secrets());
+        set_aws_env_vars(config.all_secrets());
 
         let aws_config = aws_config::load_from_env().await;
 

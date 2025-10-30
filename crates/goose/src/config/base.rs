@@ -475,8 +475,7 @@ impl Config {
         Ok(())
     }
 
-    // Load current secrets from the keyring
-    pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
+    pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let entry = Entry::new(service, KEYRING_USERNAME)?;
@@ -656,7 +655,7 @@ impl Config {
         }
 
         // Then check keyring
-        let values = self.load_secrets()?;
+        let values = self.all_secrets()?;
         values
             .get(key)
             .ok_or_else(|| ConfigError::NotFound(key.to_string()))
@@ -681,7 +680,7 @@ impl Config {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
 
-        let mut values = self.load_secrets()?;
+        let mut values = self.all_secrets()?;
         values.insert(key.to_string(), value);
 
         match &self.secrets {
@@ -712,7 +711,7 @@ impl Config {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
 
-        let mut values = self.load_secrets()?;
+        let mut values = self.all_secrets()?;
         values.remove(key);
 
         match &self.secrets {
