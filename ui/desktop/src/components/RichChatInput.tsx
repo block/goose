@@ -200,7 +200,11 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const display = displayRef.current;
       
       // Calculate line height more accurately based on actual font metrics
-      const lineHeight = 21; // 14px * 1.5 line-height = 21px
+      // Calculate actual line height from the textarea
+      const computedStyle = window.getComputedStyle(textarea);
+      const fontSize = parseFloat(computedStyle.fontSize);
+      const lineHeightValue = computedStyle.lineHeight;
+      const lineHeight = lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue);
       const minHeight = rows * lineHeight;
       const maxHeight = 300;
       
@@ -218,10 +222,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       
       // Always update heights to ensure consistency
       textarea.style.height = `${finalHeight}px`;
+      textarea.style.lineHeight = `${lineHeight}px`;
       textarea.style.minHeight = `${minHeight}px`;
       textarea.style.maxHeight = `${maxHeight}px`;
       
       display.style.height = `${finalHeight}px`;
+      display.style.lineHeight = `${lineHeight}px`;
       display.style.minHeight = `${minHeight}px`;
       display.style.maxHeight = `${maxHeight}px`;
       
@@ -284,6 +290,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, [rows]);
 
+  // Ensure line height consistency between layers
+  const ensureLineHeightConsistency = useCallback(() => {
+    if (hiddenTextareaRef.current && displayRef.current) {
+      const textarea = hiddenTextareaRef.current;
+      const display = displayRef.current;
+      
+      // Get the computed line height from textarea
+      const computedStyle = window.getComputedStyle(textarea);
+      const lineHeightValue = computedStyle.lineHeight;
+      
+      // Apply the same line height to display layer
+      display.style.lineHeight = lineHeightValue;
+    }
+  }, []);
+
   // Monitor textarea for any changes that might affect height
   const monitorTextareaChanges = useCallback(() => {
     if (hiddenTextareaRef.current) {
@@ -292,6 +313,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Use ResizeObserver to detect when textarea dimensions change
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
+      ensureLineHeightConsistency();
       });
       
       resizeObserver.observe(textarea);
@@ -302,6 +324,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         if (textarea.scrollHeight !== lastScrollHeight) {
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
+      ensureLineHeightConsistency();
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -349,7 +372,11 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       if (hiddenTextareaRef.current && displayRef.current) {
         const textarea = hiddenTextareaRef.current;
         const display = displayRef.current;
-        const lineHeight = 21;
+        // Calculate actual line height from the textarea
+        const computedStyle = window.getComputedStyle(textarea);
+        const fontSize = parseFloat(computedStyle.fontSize);
+        const lineHeightValue = computedStyle.lineHeight;
+        const lineHeight = lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue);
         const minHeight = rows * lineHeight;
         
         textarea.style.height = "auto";
@@ -357,6 +384,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         display.style.height = `${minHeight}px`;
         
         syncDisplayHeight();
+      ensureLineHeightConsistency();
       }
     },
   }), []);
@@ -816,6 +844,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
+      ensureLineHeightConsistency();
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
