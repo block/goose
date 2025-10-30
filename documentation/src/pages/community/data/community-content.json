@@ -15,11 +15,11 @@
       "url": "https://block.github.io/goose/blog/2025/09/26/hacktoberfest-2025",
       "thumbnail": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=225&fit=crop&crop=entropy&auto=format",
       "submittedDate": "2025-09-26",
-      "tags": ["hacktoberfest", "open-source", "contributing"],
+      "tags": ["hacktoberfest", "open-source"],
       "hacktoberfest": true
     },
     {
-      "title": "Running Goose in Containers (Without Losing Your Mind)",
+      "title": "Running goose in Containers (Without Losing Your Mind)",
       "author": {
         "name": "Rupam Golui",
         "handle": "Itz-Agasta"
@@ -32,7 +32,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Goose Docs MCP",
+      "title": "Goose with goose Docs MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -44,7 +44,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "title": "Best Practices for Using goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",
         "handle": "Anudhyan"
@@ -52,11 +52,11 @@
       "type": "blog",
       "url": "https://anudhyan.hashnode.dev/best-practices-for-using-goose-in-enterprise-environments",
       "submittedDate": "2025-10-15",
-      "tags": ["hacktoberfest", "goose", "enterprise"],
+      "tags": ["hacktoberfest", "enterprise"],
       "hacktoberfest": true
     },
     {
-      "title": "Getting started with Goose on Windows",
+      "title": "Getting started with goose on Windows",
       "author": {
         "name": "Halimah",
         "handle": "lymah123"
@@ -133,7 +133,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Context7 MCP",
+      "title": "goose with Context7 MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -170,7 +170,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Optimizing Goose performance on Windows",
+      "title": "Optimizing goose Performance on Windows",
       "author": {
         "name": "Mohammed Thaha",
         "handle": "mohammed-thaha"
@@ -183,7 +183,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Neon MCP",
+      "title": "goose with Neon MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -195,13 +195,38 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with apify MCP",
+      "title": "goose with Apify MCP",
       "author": {
         "name": "abhi",
         "handle": "Better-Boy"
       },
       "type": "video",
       "url": "https://youtube.com/shorts/XhA2YqjNF7M",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+      {
+      "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/building-custom-tools-and-extensions-for-goose-a-developers-guide",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest", "mcp"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Managing goose Configurations Across Multiple Projects",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/managing-goose-configurations-across-multiple-projects-58i3",
+      "thumbnail": "https://i.imgur.com/VvM8sMR.png",
       "submittedDate": "2025-10-30",
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
