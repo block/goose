@@ -189,6 +189,19 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       requestAnimationFrame(() => {
         display.scrollTop = textarea.scrollTop;
         display.scrollLeft = textarea.scrollLeft;
+      
+      // Minimal cursor visibility adjustment for large text
+      if (textareaScrollHeight > finalHeight) {
+        const cursorAtEnd = textarea.selectionStart === textarea.value.length;
+        if (cursorAtEnd) {
+          // If typing at the end and content is scrollable, ensure bottom is visible
+          const maxScroll = textarea.scrollHeight - finalHeight;
+          if (maxScroll > 0 && textarea.scrollTop < maxScroll) {
+            textarea.scrollTop = maxScroll;
+            display.scrollTop = maxScroll;
+          }
+        }
+      }
       });
     }
   }, []);
@@ -235,41 +248,22 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions first
+      // Sync scroll positions
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
       
-      // Then ensure cursor is visible and update both layers together
+      // Minimal cursor visibility adjustment for large text
       if (textareaScrollHeight > finalHeight) {
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
-        const cursorLineBottom = cursorLineTop + 21;
-        
-        const currentScrollTop = textarea.scrollTop;
-        const visibleTop = currentScrollTop;
-        const visibleBottom = currentScrollTop + finalHeight;
-        
-        let newScrollTop = currentScrollTop;
-        
-        // Calculate new scroll position if cursor is not visible
-        if (cursorLineBottom > visibleBottom) {
-          // Cursor is below visible area - scroll down to show it
-          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
-        } else if (cursorLineTop < visibleTop) {
-          // Cursor is above visible area - scroll up to show it
-          newScrollTop = Math.max(0, cursorLineTop - 21);
-        }
-        
-        // Update both layers together if scroll position changed
-        if (newScrollTop !== currentScrollTop) {
-          textarea.scrollTop = newScrollTop;
-          display.scrollTop = newScrollTop;
+        const cursorAtEnd = textarea.selectionStart === textarea.value.length;
+        if (cursorAtEnd) {
+          // If typing at the end and content is scrollable, ensure bottom is visible
+          const maxScroll = textarea.scrollHeight - finalHeight;
+          if (maxScroll > 0 && textarea.scrollTop < maxScroll) {
+            textarea.scrollTop = maxScroll;
+            display.scrollTop = maxScroll;
+          }
         }
       }
-      display.scrollTop = textarea.scrollTop;
-      display.scrollLeft = textarea.scrollLeft;
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -828,31 +822,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
     
-    // Add keyboard shortcuts for better navigation in large text
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key === "Home") {
-        // Ctrl/Cmd + Home: Go to start and scroll to top
-        e.preventDefault();
-        e.currentTarget.setSelectionRange(0, 0);
-        e.currentTarget.scrollTop = 0;
-        if (displayRef.current) displayRef.current.scrollTop = 0;
-        return;
-      } else if (e.key === "End") {
-        // Ctrl/Cmd + End: Go to end and scroll to bottom
-        e.preventDefault();
-        const length = e.currentTarget.value.length;
-        e.currentTarget.setSelectionRange(length, length);
-        // Trigger sync to scroll to bottom
-        setTimeout(() => {
-          if (hiddenTextareaRef.current && displayRef.current) {
-            const textarea = hiddenTextareaRef.current;
-            const display = displayRef.current;
-            textarea.scrollTop = textarea.scrollHeight;
-            display.scrollTop = textarea.scrollTop;
-          }
-        }, 0);
-        return;
-      }
+    // Simple keyboard shortcuts for navigation
+    if ((e.ctrlKey || e.metaKey) && e.key === "Home") {
+      e.preventDefault();
+      e.currentTarget.setSelectionRange(0, 0);
+      e.currentTarget.scrollTop = 0;
+      if (displayRef.current) displayRef.current.scrollTop = 0;
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "End") {
+      e.preventDefault();
+      const length = e.currentTarget.value.length;
+      e.currentTarget.setSelectionRange(length, length);
+      // Let the normal sync handle scrolling
+      return;
     }
     
     // Handle backspace on action and mention pills
@@ -920,31 +903,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Update cursor position after paste
     setTimeout(updateCursorPosition, 0);
     
-    // Add keyboard shortcuts for better navigation in large text
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key === "Home") {
-        // Ctrl/Cmd + Home: Go to start and scroll to top
-        e.preventDefault();
-        e.currentTarget.setSelectionRange(0, 0);
-        e.currentTarget.scrollTop = 0;
-        if (displayRef.current) displayRef.current.scrollTop = 0;
-        return;
-      } else if (e.key === "End") {
-        // Ctrl/Cmd + End: Go to end and scroll to bottom
-        e.preventDefault();
-        const length = e.currentTarget.value.length;
-        e.currentTarget.setSelectionRange(length, length);
-        // Trigger sync to scroll to bottom
-        setTimeout(() => {
-          if (hiddenTextareaRef.current && displayRef.current) {
-            const textarea = hiddenTextareaRef.current;
-            const display = displayRef.current;
-            textarea.scrollTop = textarea.scrollHeight;
-            display.scrollTop = textarea.scrollTop;
-          }
-        }, 0);
-        return;
-      }
+    // Simple keyboard shortcuts for navigation
+    if ((e.ctrlKey || e.metaKey) && e.key === "Home") {
+      e.preventDefault();
+      e.currentTarget.setSelectionRange(0, 0);
+      e.currentTarget.scrollTop = 0;
+      if (displayRef.current) displayRef.current.scrollTop = 0;
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "End") {
+      e.preventDefault();
+      const length = e.currentTarget.value.length;
+      e.currentTarget.setSelectionRange(length, length);
+      // Let the normal sync handle scrolling
+      return;
     }
     
     // Create proper synthetic event
@@ -1127,7 +1099,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
