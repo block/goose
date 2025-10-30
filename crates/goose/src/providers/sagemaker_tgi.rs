@@ -30,6 +30,8 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SageMakerTgiProvider {
@@ -79,6 +81,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -272,6 +275,10 @@ impl Provider for SageMakerTgiProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -300,11 +307,11 @@ impl Provider for SageMakerTgiProvider {
         let message = self.parse_tgi_response(response)?;
 
         // TGI doesn't provide usage statistics, so we estimate
-        let usage = Usage {
-            input_tokens: Some(0),  // Would need to tokenize input to get accurate count
-            output_tokens: Some(0), // Would need to tokenize output to get accurate count
-            total_tokens: Some(0),
-        };
+        let usage = Usage::new(
+            Some(0), // Would need to tokenize input to get accurate count
+            Some(0), // Would need to tokenize output to get accurate count
+            Some(0),
+        );
 
         // Add debug trace
         let debug_payload = serde_json::json!({

@@ -4,6 +4,11 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
+    session_id: string;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -280,7 +285,7 @@ export type GetToolsQuery = {
 
 export type Icon = {
     mimeType?: string;
-    sizes?: string;
+    sizes?: Array<string>;
     src: string;
 };
 
@@ -359,6 +364,33 @@ export type MessageContent = (TextContent & {
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
 });
+
+export type MessageEvent = {
+    message: Message;
+    token_state: TokenState;
+    type: 'Message';
+} | {
+    error: string;
+    type: 'Error';
+} | {
+    reason: string;
+    type: 'Finish';
+} | {
+    mode: string;
+    model: string;
+    type: 'ModelChange';
+} | {
+    message: {
+        [key: string]: unknown;
+    };
+    request_id: string;
+    type: 'Notification';
+} | {
+    conversation: Conversation;
+    type: 'UpdateConversation';
+} | {
+    type: 'Ping';
+};
 
 /**
  * Metadata for message visibility
@@ -552,6 +584,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -644,11 +681,11 @@ export type Session = {
     accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
-    description: string;
     extension_data: ExtensionData;
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    name: string;
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
@@ -657,6 +694,7 @@ export type Session = {
     user_recipe_values?: {
         [key: string]: string;
     } | null;
+    user_set_name?: boolean;
     working_dir: string;
 };
 
@@ -752,6 +790,15 @@ export type ThinkingContent = {
     thinking: string;
 };
 
+export type TokenState = {
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+};
+
 export type Tool = {
     annotations?: ToolAnnotations | {
         [key: string]: unknown;
@@ -839,11 +886,11 @@ export type UpdateScheduleRequest = {
     cron: string;
 };
 
-export type UpdateSessionDescriptionRequest = {
+export type UpdateSessionNameRequest = {
     /**
-     * Updated description (name) for the session (max 200 characters)
+     * Updated name for the session (max 200 characters)
      */
-    description: string;
+    name: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -868,6 +915,68 @@ export type UpsertConfigQuery = {
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
+
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/add_extension';
+};
+
+export type AgentAddExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
+
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/remove_extension';
+};
+
+export type AgentRemoveExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
@@ -1824,8 +1933,10 @@ export type ReplyResponses = {
     /**
      * Streaming response initiated
      */
-    200: unknown;
+    200: MessageEvent;
 };
+
+export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
@@ -2282,44 +2393,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type UpdateSessionDescriptionData = {
-    body: UpdateSessionDescriptionRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/description';
-};
-
-export type UpdateSessionDescriptionErrors = {
-    /**
-     * Bad request - Description too long (max 200 characters)
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionDescriptionResponses = {
-    /**
-     * Session description updated successfully
-     */
-    200: unknown;
-};
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -2355,6 +2428,44 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type UpdateSessionNameData = {
+    body: UpdateSessionNameRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/name';
+};
+
+export type UpdateSessionNameErrors = {
+    /**
+     * Bad request - Name too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionNameResponses = {
+    /**
+     * Session name updated successfully
+     */
+    200: unknown;
+};
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;

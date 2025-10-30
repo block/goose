@@ -11,6 +11,7 @@ import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
@@ -69,9 +70,9 @@ interface ChatInputProps {
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
-  numTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  totalTokens?: number;
+  accumulatedInputTokens?: number;
+  accumulatedOutputTokens?: number;
   messages?: Message[];
   sessionCosts?: {
     [key: string]: {
@@ -102,9 +103,9 @@ export default function ChatInput({
   droppedFiles = [],
   onFilesProcessed,
   setView,
-  numTokens,
-  inputTokens,
-  outputTokens,
+  totalTokens,
+  accumulatedInputTokens,
+  accumulatedOutputTokens,
   messages = [],
   disableAnimation = false,
   sessionCosts,
@@ -141,7 +142,6 @@ export default function ChatInput({
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
-  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
 
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
@@ -500,37 +500,21 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
-  // Load auto-compact threshold
-  const loadAutoCompactThreshold = useCallback(async () => {
-    try {
-      const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-      if (threshold !== undefined && threshold !== null) {
-        setAutoCompactThreshold(threshold as number);
-      }
-    } catch (err) {
-      console.error('Error fetching auto-compact threshold:', err);
-    }
-  }, [read]);
-
-  useEffect(() => {
-    loadAutoCompactThreshold();
-  }, [loadAutoCompactThreshold]);
-
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
-    if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+    if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: numTokens || 0,
+          current: totalTokens || 0,
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !numTokens,
+        compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
@@ -541,10 +525,6 @@ export default function ChatInput({
           handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
-        autoCompactThreshold: autoCompactThreshold,
-        onThresholdChange: (newThreshold: number) => {
-          setAutoCompactThreshold(newThreshold);
-        },
       });
     }
 
@@ -562,15 +542,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    numTokens,
-    toolCount,
-    tokenLimit,
-    isTokenLimitLoaded,
-    addAlert,
-    clearAlerts,
-    autoCompactThreshold,
-  ]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -1568,8 +1540,8 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
+                  inputTokens={accumulatedInputTokens}
+                  outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
                 />
               </div>
@@ -1590,7 +1562,12 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          {process.env.ALPHA && sessionId && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <BottomMenuExtensionSelection sessionId={sessionId} />
+            </>
+          )}
           <div className="flex items-center h-full">
             <Tooltip>
               <TooltipTrigger asChild>

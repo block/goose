@@ -160,7 +160,6 @@ pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
             "anyOf",
             "allOf",
             "type",
-            // "format", // Google's APIs don't support this well
             "description",
             "nullable",
             "enum",
@@ -169,8 +168,19 @@ pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
             "items",
         ],
         Some("items") => vec!["type", "properties", "items", "required"],
-        // This is the top-level schema.
         _ => vec!["type", "properties", "required", "anyOf", "allOf"],
+    }
+}
+
+pub fn process_value(value: &Value, parent_key: Option<&str>) -> Value {
+    match value {
+        Value::Object(map) => process_map(map, parent_key),
+        Value::Array(arr) if parent_key == Some("type") => arr
+            .iter()
+            .find(|v| v.as_str() != Some("null"))
+            .cloned()
+            .unwrap_or_else(|| json!("string")),
+        _ => value.clone(),
     }
 }
 
@@ -179,16 +189,16 @@ pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
 /// See: https://github.com/google-gemini/gemini-cli/blob/8a6509ffeba271a8e7ccb83066a9a31a5d72a647/packages/core/src/tools/tool-registry.ts#L356
 pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
     let accepted_keys = get_accepted_keys(parent_key);
+
     let filtered_map: Map<String, Value> = map
         .iter()
         .filter_map(|(key, value)| {
             if !accepted_keys.contains(&key.as_str()) {
-                return None; // Skip if key is not accepted
+                return None;
             }
 
-            match key.as_str() {
+            let processed_value = match key.as_str() {
                 "properties" => {
-                    // Process each property within the properties object
                     if let Some(nested_map) = value.as_object() {
                         let processed_properties: Map<String, Value> = nested_map
                             .iter()
@@ -200,29 +210,44 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
                                 }
                             })
                             .collect();
-                        Some((key.clone(), Value::Object(processed_properties)))
+                        Value::Object(processed_properties)
                     } else {
-                        None
+                        value.clone()
                     }
                 }
                 "items" => {
-                    // If it's a nested structure, recurse if it's an object.
-                    value.as_object().map(|nested_map| {
-                        (key.clone(), process_map(nested_map, Some(key.as_str())))
-                    })
+                    if let Some(items_map) = value.as_object() {
+                        process_map(items_map, Some("items"))
+                    } else {
+                        value.clone()
+                    }
                 }
-                _ => {
-                    // For other accepted keys, just clone the value.
-                    Some((key.clone(), value.clone()))
+                "anyOf" | "allOf" => {
+                    if let Some(arr) = value.as_array() {
+                        let processed_arr: Vec<Value> = arr
+                            .iter()
+                            .map(|item| {
+                                item.as_object().map_or_else(
+                                    || item.clone(),
+                                    |obj| process_map(obj, parent_key),
+                                )
+                            })
+                            .collect();
+                        Value::Array(processed_arr)
+                    } else {
+                        value.clone()
+                    }
                 }
-            }
+                _ => value.clone(),
+            };
+
+            Some((key.clone(), processed_value))
         })
         .collect();
 
     Value::Object(filtered_map)
 }
 
-/// Convert Google's API response to internal Message format
 pub fn response_to_message(response: Value) -> Result<Message> {
     let mut content = Vec::new();
     let binding = vec![];

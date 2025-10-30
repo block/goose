@@ -76,6 +76,8 @@ const PairRouteWrapper = ({
   setFatalError,
   agentState,
   loadCurrentChat,
+  activeSessionId,
+  setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -84,6 +86,8 @@ const PairRouteWrapper = ({
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   agentState: AgentState;
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
   const setView = useNavigation();
@@ -96,11 +100,13 @@ const PairRouteWrapper = ({
 
   // Determine which session ID to use:
   // 1. From route state (when navigating from Hub with a new session)
-  // 2. From URL params (when resuming a session)
-  // 3. From the existing chat state (when navigating to Pair directly)
-  const sessionId = routeState.resumeSessionId || resumeSessionId || chat.sessionId;
+  // 2. From URL params (when resuming a session or after refresh)
+  // 3. From active session state (when navigating back from other routes)
+  // 4. From the existing chat state
+  const sessionId =
+    routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
 
-  // Update URL with session ID if it's not already there (new chat from pair)
+  // Update URL with session ID when on /pair route (for refresh support)
   useEffect(() => {
     if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
       setSearchParams((prev) => {
@@ -109,6 +115,13 @@ const PairRouteWrapper = ({
       });
     }
   }, [sessionId, resumeSessionId, setSearchParams]);
+
+  // Update active session state when session ID changes
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessionId, activeSessionId, setActiveSessionId]);
 
   return process.env.ALPHA ? (
     <Pair2
@@ -316,11 +329,14 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    title: 'Pair Chat',
+    name: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
     recipe: null,
   });
+
+  // Store the active session ID for navigation persistence
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
@@ -574,6 +590,8 @@ export function AppInner() {
                   setFatalError={setFatalError}
                   setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  activeSessionId={activeSessionId}
+                  setActiveSessionId={setActiveSessionId}
                 />
               }
             />

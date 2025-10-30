@@ -43,28 +43,22 @@ and platform__list_resources on this extension.
 No extensions are defined. You should let the user know that they should add extensions.
 {% endif %}
 
-{% if suggest_disable is defined %}
-
+{% if extension_tool_limits is defined %}
+{% with (extension_count, tool_count) = extension_tool_limits  %}
 # Suggestion
 
-{{suggest_disable}}
+The user currently has enabled {{extension_count}} extensions with a total of {{tool_count}} tools.
+Since this exceeds the recommended limits ({{max_extensions}} extensions or {{max_tools}} tools),
+you should ask the user if they would like to disable some extensions for this session.
+
+Use the search_available_extensions tool to find extensions available to disable.
+You should only disable extensions found from the search_available_extensions tool.
+List all the extensions available to disable in the response.
+Explain that minimizing extensions helps with the recall of the correct tools to use.
+{% endwith %}
 {% endif %}
 
 {{tool_selection_strategy}}
-{% if enable_subagents %}
-
-# sub agents
-
-Execute self contained tasks where step-by-step visibility is not important through subagents.
-
-- Delegate via `dynamic_task__create_task` for: result-only operations, parallelizable work, multi-part requests,
-  verification, exploration
-- Parallel subagents for multiple operations, single subagents for independent work
-- Explore solutions in parallel — launch parallel subagents with different approaches (if non-interfering)
-- Provide all needed context — subagents cannot see your context
-- Use extension filters to limit resource access
-- Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
-  {% endif %}
 
 # Response Guidelines
 

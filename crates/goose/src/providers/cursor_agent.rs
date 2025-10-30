@@ -23,6 +23,8 @@ pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview"
 pub struct CursorAgentProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl CursorAgentProvider {
@@ -41,6 +43,7 @@ impl CursorAgentProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -393,6 +396,10 @@ impl Provider for CursorAgentProvider {
                 Some("cursor-agent"),
             )],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

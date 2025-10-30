@@ -76,20 +76,6 @@ copy-binary BUILD_MODE="release":
         echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
-    @if [ -f ./temporal-service/temporal-service ]; then \
-        echo "Copying temporal-service binary..."; \
-        cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
-    else \
-        echo "temporal-service binary not found. Building it..."; \
-        cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
-    fi
-    @echo "Checking temporal CLI binary..."
-    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
-        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
-        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
-    else \
-        echo "temporal CLI binary found"; \
-    fi
 
 # Copy binary command for Intel build
 copy-binary-intel:
@@ -107,20 +93,6 @@ copy-binary-intel:
         echo "Intel goose CLI binary not found."; \
         exit 1; \
     fi
-    @if [ -f ./temporal-service/temporal-service ]; then \
-        echo "Copying temporal-service binary..."; \
-        cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
-    else \
-        echo "temporal-service binary not found. Building it..."; \
-        cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
-    fi
-    @echo "Checking temporal CLI binary..."
-    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
-        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
-        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
-    else \
-        echo "temporal CLI binary found"; \
-    fi
 
 # Copy Windows binary command
 copy-binary-windows:
@@ -132,24 +104,6 @@ copy-binary-windows:
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
     }"
-    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe) { \
-        Write-Host 'Copying Windows goose-scheduler-executor binary...'; \
-        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe' -Destination './ui/desktop/src/bin/' -Force; \
-    } else { \
-        Write-Host 'Windows goose-scheduler-executor binary not found.' -ForegroundColor Yellow; \
-    }"
-    @powershell.exe -Command "if (Test-Path './temporal-service/temporal-service.exe') { \
-        Write-Host 'Copying Windows temporal-service binary...'; \
-        Copy-Item -Path './temporal-service/temporal-service.exe' -Destination './ui/desktop/src/bin/' -Force; \
-    } else { \
-        Write-Host 'Windows temporal-service binary not found. Building it...'; \
-        Push-Location 'temporal-service'; \
-        $env:GOOS='windows'; $env:GOARCH='amd64'; \
-        go build -o temporal-service.exe main.go; \
-        Copy-Item -Path 'temporal-service.exe' -Destination '../ui/desktop/src/bin/' -Force; \
-        Pop-Location; \
-    }"
-    @powershell.exe -Command "Write-Host 'Note: Temporal CLI for Windows will be downloaded at runtime if needed'"
 
 # Run UI with latest
 run-ui:
@@ -194,16 +148,10 @@ debug-ui-main-process:
 	npm run start-gui-debug
 
 # Run UI with alpha changes
-run-ui-alpha temporal="true":
+run-ui-alpha:
     @just release-binary
-    @echo "Running UI with {{ if temporal == "true" { "Temporal" } else { "Legacy" } }} scheduler..."
-    cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE={{ if temporal == "true" { "temporal" } else { "legacy" } }} npm run start-alpha-gui
-
-# Run UI with alpha changes using legacy scheduler (no Temporal dependency)
-run-ui-alpha-legacy:
-    @just release-binary
-    @echo "Running UI with Legacy scheduler (no Temporal required)..."
-    cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE=legacy npm run start-alpha-gui
+    @echo "Running UI with alpha features..."
+    cd ui/desktop && npm install && ALPHA=true npm run start-alpha-gui
 
 # Run UI with latest (Windows version)
 run-ui-windows:
@@ -272,50 +220,7 @@ make-ui-intel:
     @just release-intel
     cd ui/desktop && npm run bundle:intel
 
-# Start Temporal services (server and temporal-service)
-start-temporal:
-    @echo "Starting Temporal server..."
-    @if ! pgrep -f "temporal server start-dev" > /dev/null; then \
-        echo "Starting Temporal server in background..."; \
-        nohup temporal server start-dev --db-filename temporal.db --port 7233 --ui-port 8233 --log-level warn > temporal-server.log 2>&1 & \
-        echo "Waiting for Temporal server to start..."; \
-        sleep 5; \
-    else \
-        echo "Temporal server is already running"; \
-    fi
-    @echo "Starting temporal-service..."
-    @if ! pgrep -f "temporal-service" > /dev/null; then \
-        echo "Starting temporal-service in background..."; \
-        cd temporal-service && nohup ./temporal-service > temporal-service.log 2>&1 & \
-        echo "Waiting for temporal-service to start..."; \
-        sleep 3; \
-    else \
-        echo "temporal-service is already running"; \
-    fi
-    @echo "Temporal services started. Check logs: temporal-server.log, temporal-service/temporal-service.log"
 
-# Stop Temporal services
-stop-temporal:
-    @echo "Stopping Temporal services..."
-    @pkill -f "temporal server start-dev" || echo "Temporal server was not running"
-    @pkill -f "temporal-service" || echo "temporal-service was not running"
-    @echo "Temporal services stopped"
-
-# Check status of Temporal services
-status-temporal:
-    @echo "Checking Temporal services status..."
-    @if pgrep -f "temporal server start-dev" > /dev/null; then \
-        echo "✓ Temporal server is running"; \
-    else \
-        echo "✗ Temporal server is not running"; \
-    fi
-    @if pgrep -f "temporal-service" > /dev/null; then \
-        echo "✓ temporal-service is running"; \
-    else \
-        echo "✗ temporal-service is not running"; \
-    fi
-    @echo "Testing temporal-service health..."
-    @curl -s http://localhost:8080/health > /dev/null && echo "✓ temporal-service is responding" || echo "✗ temporal-service is not responding"
 
 # Run UI with debug build
 run-dev:

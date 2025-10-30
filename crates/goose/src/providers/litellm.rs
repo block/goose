@@ -23,6 +23,8 @@ pub struct LiteLLMProvider {
     api_client: ApiClient,
     base_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl LiteLLMProvider {
@@ -67,6 +69,7 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -154,6 +157,10 @@ impl Provider for LiteLLMProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -174,7 +181,7 @@ impl Provider for LiteLLMProvider {
             &ImageFormat::OpenAi,
         )?;
 
-        if self.supports_cache_control() {
+        if self.supports_cache_control().await {
             payload = update_request_for_cache_control(&payload);
         }
 
@@ -197,10 +204,8 @@ impl Provider for LiteLLMProvider {
         true
     }
 
-    fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.fetch_models())
-        }) {
+    async fn supports_cache_control(&self) -> bool {
+        if let Ok(models) = self.fetch_models().await {
             if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
                 return model_info.supports_cache_control.unwrap_or(false);
             }

@@ -25,32 +25,10 @@ extension_name. You should only enable extensions found from the search_availabl
 If Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load
 new ones.
 
-
 No extensions are defined. You should let the user know that they should add extensions.
 
 
 
-
-# Suggestion
-
-""
-
-
-
-
-
-# sub agents
-
-Execute self contained tasks where step-by-step visibility is not important through subagents.
-
-- Delegate via `dynamic_task__create_task` for: result-only operations, parallelizable work, multi-part requests,
-  verification, exploration
-- Parallel subagents for multiple operations, single subagents for independent work
-- Explore solutions in parallel — launch parallel subagents with different approaches (if non-interfering)
-- Provide all needed context — subagents cannot see your context
-- Use extension filters to limit resource access
-- Use return_last_only when only a summary or simple answer is required — inform subagent of this choice.
-  
 
 # Response Guidelines
 

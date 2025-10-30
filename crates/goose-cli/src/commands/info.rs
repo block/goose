@@ -14,11 +14,11 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     // Get paths using a stored reference to the global config
     let config = Config::global();
-    let config_file = config.path();
+    let config_dir = Paths::config_dir().display().to_string();
 
     // Define the labels and their corresponding path values once.
     let paths = [
-        ("Config file:", config_file.to_string()),
+        ("Config dir:", config_dir),
         ("Sessions dir:", sessions_dir.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
