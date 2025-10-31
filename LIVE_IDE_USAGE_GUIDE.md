@@ -212,3 +212,34 @@ The live IDE input makes sharing code in chat feel natural and professional. No 
 
 **Questions or Issues?**  
 Check the console logs (they start with `💻 CODE MODE:`) for debugging info.
+
+## 🆕 Update: Inline Code Mode!
+
+You can now use `#language` **anywhere** in your message, not just at the start!
+
+### Examples:
+
+**Before (only worked at start):**
+```
+#python print("hello")
+```
+
+**Now (works inline too!):**
+```
+Here's the code: #python print("hello")
+```
+
+```
+Let me show you this function #javascript
+const greet = () => console.log("Hi!");
+```
+
+```
+Check this out #typescript
+interface User {
+  name: string;
+}
+```
+
+The text before `#language` is preserved and displayed normally, then everything after becomes highlighted code!
+
