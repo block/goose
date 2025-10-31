@@ -2051,6 +2051,17 @@ async function appMain() {
     }
   });
 
+  ipcMain.on('broadcast-theme-change', (event, themeData) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const allWindows = BrowserWindow.getAllWindows();
+
+    allWindows.forEach((window) => {
+      if (window.id !== senderWindow?.id) {
+        window.webContents.send('theme-changed', themeData);
+      }
+    });
+  });
+
   ipcMain.on('reload-app', (event) => {
     // Get the window that sent the event
     const window = BrowserWindow.fromWebContents(event.sender);
