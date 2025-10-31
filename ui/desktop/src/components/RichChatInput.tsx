@@ -415,12 +415,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         textarea.style.height = "auto";
         textarea.style.height = `${minHeight}px`;
         display.style.height = `${minHeight}px`;
+        setContainerHeight(minHeight);
         
         syncDisplayHeight();
       ensureStyleConsistency();
       }
     },
-  }), []);
+  }), [rows, syncDisplayHeight, ensureStyleConsistency]);
 
   // Update cursor position when selection changes
   const updateCursorPosition = useCallback(() => {
