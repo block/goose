@@ -613,6 +613,18 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const textBefore = value.slice(0, triggerStart);
       const codeContent = value.slice(codeMode.startPos);
       
+      // Calculate cursor position within the code content
+      const cursorInCode = cursorPosition >= codeMode.startPos;
+      const cursorOffsetInCode = cursorInCode ? cursorPosition - codeMode.startPos : -1;
+      
+      // Split code content at cursor position for rendering
+      let codeBeforeCursor = '';
+      let codeAfterCursor = '';
+      if (cursorInCode && cursorOffsetInCode >= 0) {
+        codeBeforeCursor = codeContent.slice(0, cursorOffsetInCode);
+        codeAfterCursor = codeContent.slice(cursorOffsetInCode);
+      }
+      
       return (
         <div className="whitespace-pre-wrap relative w-full">
           {/* Text before the trigger (if any) */}
@@ -628,45 +640,89 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           
           {/* Code content with syntax highlighting - constrained to container width */}
           <div 
-            className="block font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1 w-full overflow-x-auto"
+            className="block font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1 w-full overflow-x-auto relative"
             style={{ 
               fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
               maxWidth: '100%',
               boxSizing: 'border-box',
             }}
           >
-            <SyntaxHighlighter
-              language={codeMode.language}
-              style={vscDarkPlus}
-              customStyle={{
-                margin: 0,
-                padding: 0,
-                background: 'transparent',
-                fontSize: '0.875rem',
-                lineHeight: '1.5',
-                maxWidth: '100%',
-                overflowX: 'auto',
-              }}
-              PreTag="div"
-              CodeTag="code"
-              wrapLines={true}
-              showLineNumbers={false}
-            >
-              {codeContent || ' '}
-            </SyntaxHighlighter>
-            
-            {/* Cursor */}
-            {isFocused && (
-              <span 
-                className="border-l border-text-default inline-block" 
-                style={{ 
-                  animation: "blink 1s step-end infinite", 
-                  height: "1.3em",
-                  width: "1px",
-                  marginLeft: "2px",
-                  position: "relative"
-                }} 
-              />
+            {cursorInCode ? (
+              // Render with cursor at the correct position
+              <div className="relative">
+                <SyntaxHighlighter
+                  language={codeMode.language}
+                  style={vscDarkPlus}
+                  customStyle={{
+                    margin: 0,
+                    padding: 0,
+                    background: 'transparent',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.5',
+                    maxWidth: '100%',
+                    overflowX: 'auto',
+                  }}
+                  PreTag="span"
+                  CodeTag="span"
+                  wrapLines={true}
+                  showLineNumbers={false}
+                >
+                  {codeBeforeCursor || ' '}
+                </SyntaxHighlighter>
+                {/* Cursor at current position */}
+                {isFocused && (
+                  <span 
+                    className="border-l border-text-default inline-block" 
+                    style={{ 
+                      animation: "blink 1s step-end infinite", 
+                      height: "1.3em",
+                      width: "1px",
+                      position: "relative",
+                      verticalAlign: "text-bottom"
+                    }} 
+                  />
+                )}
+                <SyntaxHighlighter
+                  language={codeMode.language}
+                  style={vscDarkPlus}
+                  customStyle={{
+                    margin: 0,
+                    padding: 0,
+                    background: 'transparent',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.5',
+                    maxWidth: '100%',
+                    overflowX: 'auto',
+                  }}
+                  PreTag="span"
+                  CodeTag="span"
+                  wrapLines={true}
+                  showLineNumbers={false}
+                >
+                  {codeAfterCursor}
+                </SyntaxHighlighter>
+              </div>
+            ) : (
+              // No cursor in code area, just render the code
+              <SyntaxHighlighter
+                language={codeMode.language}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  padding: 0,
+                  background: 'transparent',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.5',
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                }}
+                PreTag="div"
+                CodeTag="code"
+                wrapLines={true}
+                showLineNumbers={false}
+              >
+                {codeContent || ' '}
+              </SyntaxHighlighter>
             )}
           </div>
         </div>
