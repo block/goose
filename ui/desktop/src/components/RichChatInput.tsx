@@ -294,7 +294,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         displayHeight: display.style.height
       });
     }
-  }, [rows, style]);
+  }, [rows, style, value]);
 
   // Ensure line height consistency between layers
   // Comprehensive style synchronization between layers
