@@ -175,9 +175,11 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 }, ref) => {
   const hiddenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
   
   // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
@@ -231,6 +233,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       display.style.lineHeight = `${lineHeight}px`;
       display.style.minHeight = `${minHeight}px`;
       display.style.maxHeight = `${maxHeight}px`;
+      
+      // Update container height so it takes up space in the layout
+      setContainerHeight(finalHeight);
       
       // Handle display content height for scrolling
       const displayContent = display.firstElementChild as HTMLElement;
@@ -1078,7 +1083,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   return (
     <div 
+      ref={containerRef}
       className="relative rich-text-input"
+      style={{ height: containerHeight > 0 ? `${containerHeight}px` : 'auto' }}
       onMouseLeave={handleContainerMouseLeave}
     >
       {/* Hidden textarea for actual input handling with spell check disabled (we handle it ourselves) */}
