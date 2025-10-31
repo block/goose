@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Bot, Link, Calendar } from 'lucide-react';
+import { PanelLeft, Bot, SquarePen, Link, Calendar } from 'lucide-react';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
@@ -190,9 +190,10 @@ You can turn your current goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
-   1. While in the session that's using the recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app 
-   2. Click `View/Edit Recipe` 
-   3. Edit any of the following:
+   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+   2. Click `Recipes`
+   3. Find the recipe you want to edit and click the <SquarePen className="inline" size={16} /> button
+   4. In the dialog that appears, edit any of the following:
       - Title
       - Description
       - Instructions
@@ -203,6 +204,10 @@ You can turn your current goose session into a reusable recipe that includes the
       - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
       - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
 
+  :::tip
+  You can also access the edit dialog while using a recipe in a session: Just click the <Bot className="inline" size={16} /> button at the bottom of the app and select `View/Edit Recipe`.
+  :::
+   
   </TabItem>
 
   <TabItem value="cli" label="goose CLI">
