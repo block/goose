@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle, lazy, Suspense } from 'react';
 import SpellCheckTooltip from './SpellCheckTooltip';
 // Custom spell checking with hover tooltips and highlighting
 import { ActionPill } from './ActionPill';
@@ -6,6 +6,9 @@ import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Lazy load Monaco for better performance
+const MonacoCodeInput = lazy(() => import('./MonacoCodeInput').then(m => ({ default: m.MonacoCodeInput })));
 
 interface RichChatInputProps {
   value: string;
