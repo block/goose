@@ -1658,7 +1658,20 @@ let mcpUIProxyServer: http.Server | null = null;
 async function startMcpUIProxyServer(): Promise<number> {
   return new Promise((resolve, reject) => {
     const expressApp = express();
-    const staticPath = path.join(__dirname, '../../static');
+
+    // Determine static path based on environment
+    // In dev: __dirname is like .../ui/desktop/.vite/build, use relative path
+    // In prod: extraResources are in process.resourcesPath (e.g., Goose.app/Contents/Resources/)
+    const staticPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'static')
+      : path.join(__dirname, '../../static');
+
+    if (fsSync.existsSync(staticPath)) {
+      const files = fsSync.readdirSync(staticPath);
+      log.info(`MCP UI Proxy: static dir contents = ${files.join(', ')}`);
+    } else {
+      log.error(`MCP UI Proxy: static directory not found at ${staticPath}`);
+    }
 
     // Serve static files from the static directory
     expressApp.use(express.static(staticPath));
