@@ -1206,7 +1206,6 @@ async fn run_scheduled_job_internal(
 
     let session_config = SessionConfig {
         id: session.id.clone(),
-        working_dir: current_dir.clone(),
         schedule_id: Some(job.id.clone()),
         max_turns: None,
         retry_config: None,

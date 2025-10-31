@@ -2,7 +2,6 @@ use crate::mcp_utils::ToolResult;
 use crate::providers::base::Provider;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use utoipa::ToSchema;
@@ -87,7 +86,7 @@ pub struct SessionConfig {
     /// Unique identifier for the session
     pub id: String,
     /// Working directory for the session
-    pub working_dir: PathBuf,
+    //pub working_dir: PathBuf,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
     /// Maximum number of turns (iterations) allowed without user input

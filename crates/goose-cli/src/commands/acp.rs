@@ -3,14 +3,17 @@ use agent_client_protocol::{
     ToolCallContent,
 };
 use anyhow::Result;
-use goose::agents::Agent;
+use goose::agents::{Agent, SessionConfig};
 use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::providers::create;
+use goose::session::session_manager::SessionType;
+use goose::session::SessionManager;
 use rmcp::model::{RawContent, ResourceContents};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
@@ -28,7 +31,7 @@ struct GooseSession {
 
 /// goose ACP Agent implementation that connects to real goose agents
 struct GooseAcpAgent {
-    session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
+    session_update_tx: mpsc::UnboundedSender<(SessionNotification, oneshot::Sender<()>)>,
     sessions: Arc<Mutex<HashMap<String, GooseSession>>>,
     agent: Agent, // Shared agent instance
 }
@@ -544,30 +547,26 @@ impl acp::Agent for GooseAcpAgent {
         // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
 
-        // Convert ACP prompt to Goose message
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        // Prepare for agent reply
-        let messages = {
-            let mut sessions = self.sessions.lock().await;
-            let session = sessions
-                .get_mut(&session_id)
-                .ok_or_else(acp::Error::invalid_params)?;
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or(PathBuf::new()),
+            "ACP Session".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
-            // Add message to conversation
-            session.messages.push(user_message);
-
-            // Store cancellation token
-            session.cancel_token = Some(cancel_token.clone());
-
-            // Clone what we need for the reply call
-            session.messages.clone()
+        let session_config = SessionConfig {
+            id: session.id.clone(),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
         };
 
         // Get agent's reply through the Goose agent
         let mut stream = self
             .agent
-            .reply(messages, None, Some(cancel_token.clone()))
+            .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
             .map_err(|e| {
                 error!("Error getting agent reply: {}", e);

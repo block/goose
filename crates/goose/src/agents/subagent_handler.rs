@@ -135,7 +135,6 @@ fn get_agent_messages(
 
         let session_config = SessionConfig {
             id: session.id.clone(),
-            working_dir,
             schedule_id: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,

@@ -15,6 +15,7 @@ use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -226,6 +227,7 @@ async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
+        SessionType::User,
     )
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
@@ -467,21 +469,16 @@ async fn process_message_streaming(
 
     let session = SessionManager::get_session(&session_id, true).await?;
     let mut messages = session.conversation.unwrap_or_default();
-    messages.push(user_message);
+    messages.push(user_message.clone());
 
     let session_config = SessionConfig {
         id: session.id.clone(),
-        working_dir: session.working_dir,
         schedule_id: None,
-        goose_mode: None,
         max_turns: None,
         retry_config: None,
     };
 
-    match agent
-        .reply(messages.clone(), Some(session_config), None)
-        .await
-    {
+    match agent.reply(user_message, session_config, None).await {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {

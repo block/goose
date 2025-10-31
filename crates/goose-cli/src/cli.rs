@@ -19,6 +19,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
@@ -86,9 +87,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
             Ok(Some(session_id))
         } else {
-            let session =
-                SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
-                    .await?;
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                "CLI Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
             Ok(Some(session.id))
         };
     };
@@ -105,8 +109,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
             Ok(Some(session_id))
         } else {
-            let session =
-                SessionManager::create_session(std::env::current_dir()?, name.clone()).await?;
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+            )
+            .await?;
 
             SessionManager::update_session(&session.id)
                 .user_provided_name(name)
@@ -123,9 +131,12 @@ async fn get_or_create_session_id(
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
         Ok(Some(session_id))
     } else {
-        let session =
-            SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
-                .await?;
+        let session = SessionManager::create_session(
+            std::env::current_dir()?,
+            "CLI Session".to_string(),
+            SessionType::User,
+        )
+        .await?;
         Ok(Some(session.id))
     }
 }
@@ -977,7 +988,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                     let (total_tokens, message_count) = session
-                        .get_metadata()
+                        .get_session()
                         .await
                         .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
@@ -1198,7 +1209,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                 let (total_tokens, message_count) = session
-                    .get_metadata()
+                    .get_session()
                     .await
                     .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));

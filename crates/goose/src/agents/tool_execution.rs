@@ -29,8 +29,9 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 }
 
 use super::agent::{tool_stream, ToolStream};
-use crate::agents::{Agent, SessionConfig};
+use crate::agents::Agent;
 use crate::conversation::message::{Message, ToolRequest};
+use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
@@ -53,7 +54,7 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
-        session: &'a SessionConfig,
+        session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {

@@ -61,7 +61,7 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::SessionManager;
+use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
@@ -299,7 +299,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: &SessionConfig,
+        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -392,7 +392,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        session: &SessionConfig,
+        session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -814,7 +814,7 @@ impl Agent {
             };
 
             if !is_manual_compact {
-                let mut reply_stream = self.reply_internal(final_conversation, session_config, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -826,6 +826,7 @@ impl Agent {
         &self,
         conversation: Conversation,
         session_config: SessionConfig,
+        session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self.prepare_reply_context(conversation).await?;
@@ -1018,7 +1019,7 @@ impl Agent {
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
-                                        &session_config,
+                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1028,7 +1029,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
-                                        &session_config,
+                                        &session,
                                         &inspection_results,
                                     );
 
