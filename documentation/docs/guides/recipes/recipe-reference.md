@@ -4,6 +4,9 @@ title: Recipe Reference Guide
 description: Complete technical reference for creating and customizing recipes in goose
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 Recipes are reusable goose configurations that package up a specific setup so it can be easily shared and launched by others.
 
 ## Recipe File Format
