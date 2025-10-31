@@ -1314,12 +1314,16 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     ensureStyleConsistency();
   }, [value, syncDisplayHeight, ensureStyleConsistency]);
   
-  // Sync height when code mode changes or when in code mode (for initial render and updates)
+  // Sync height when code mode changes or when there are code blocks (for initial render and updates)
   useEffect(() => {
-    if (codeMode) {
-      // When code mode is active, we need to measure the actual display height
+    // Check if we need display-based height measurement
+    const hasCodeBlocks = /```\w*\n[\s\S]*?```/.test(value);
+    const needsDisplayMeasurement = codeMode || hasCodeBlocks;
+    
+    if (needsDisplayMeasurement) {
+      // When code mode is active or code blocks are present, we need to measure the actual display height
       // because the textarea doesn't know about the styled code block
-      console.log('💻 CODE MODE: Triggering height sync for code mode');
+      console.log('💻 CODE BLOCKS: Triggering height sync for code blocks', { codeMode: !!codeMode, hasCodeBlocks });
       
       // Use a small delay to ensure the SyntaxHighlighter has rendered
       const timer = setTimeout(() => {
@@ -1330,7 +1334,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           // Get the actual rendered height of the display content
           const displayScrollHeight = display.scrollHeight;
           
-          console.log('💻 CODE MODE: Display scrollHeight:', displayScrollHeight);
+          console.log('💻 CODE BLOCKS: Display scrollHeight:', displayScrollHeight);
           
           // Calculate line height
           const computedStyle = window.getComputedStyle(textarea);
@@ -1344,7 +1348,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           const desiredHeight = Math.min(displayScrollHeight, maxHeight);
           const finalHeight = Math.max(desiredHeight, minHeight);
           
-          console.log('💻 CODE MODE: Setting height to', finalHeight);
+          console.log('💻 CODE BLOCKS: Setting height to', finalHeight);
           
           // Update both layers
           textarea.style.height = `${finalHeight}px`;
