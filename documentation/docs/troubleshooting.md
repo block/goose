@@ -465,7 +465,60 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
 4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up goose desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, proxies, inability to download required content etc).
 
 ---
-### Need Further Help? 
+
+### Database Corruption or Recovery Issues
+
+If you experience database corruption, failed migrations, or other database-related problems, Goose provides several recovery options.
+
+#### Automatic Backup Protection
+
+Goose automatically creates backups before schema migrations (during version updates). If you experience issues after an update, you can restore from these automatic backups.
+
+#### Recovery Steps
+
+1. **List available backups:**
+   ```bash
+   goose db list-backups
+   ```
+   This shows all available backups with their creation dates and schema versions. Automatic migration backups follow the pattern `pre_migration_v{old}_to_v{new}_{timestamp}.db`.
+
+2. **Restore from backup:**
+   ```bash
+   goose db restore backup_20251031_143022.db
+   ```
+   You can use either the backup filename (as shown in list-backups) or the full path. A safety backup of your current database is automatically created before restoration.
+
+3. **Verify restoration:**
+   ```bash
+   goose db status
+   ```
+   Check that your database is healthy and contains the expected data.
+
+:::warning Restart Required
+After restoring a database, you must restart any active Goose sessions (CLI or Desktop) for the changes to take effect.
+:::
+
+#### Manual Backup Before Risky Operations
+
+If you're about to perform operations that might affect your database, create a manual backup first:
+
+```bash
+goose db backup --output before-operation
+```
+
+#### Database Location
+
+To find where your database is stored (useful for manual recovery):
+
+```bash
+goose db path
+```
+
+See the [Database Management commands](/docs/guides/goose-cli-commands#database-management) and [Database Backups guide](/docs/guides/sessions/session-management#database-backups-and-recovery) for complete documentation.
+
+---
+
+### Need Further Help?
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
 
