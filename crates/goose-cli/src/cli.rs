@@ -319,6 +319,24 @@ enum DbCommand {
         )]
         format: String,
     },
+
+    #[command(about = "Delete database backup files")]
+    DeleteBackup {
+        #[arg(
+            help = "Backup filename(s) (e.g., backup_YYYYMMDD_HHMMSS.db) or full path(s)",
+            conflicts_with = "all"
+        )]
+        backup_files: Vec<PathBuf>,
+
+        #[arg(long, help = "Delete all backups", conflicts_with = "backup_files")]
+        all: bool,
+
+        #[arg(long, help = "Also clean up orphaned WAL/SHM files")]
+        cleanup: bool,
+
+        #[arg(short, long, help = "Skip confirmation prompt")]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -909,6 +927,15 @@ pub async fn cli() -> anyhow::Result<()> {
                 DbCommand::Path => crate::commands::db::handle_db_path().await?,
                 DbCommand::ListBackups { format } => {
                     crate::commands::db::handle_db_list_backups(format).await?
+                }
+                DbCommand::DeleteBackup {
+                    backup_files,
+                    all,
+                    cleanup,
+                    force,
+                } => {
+                    crate::commands::db::handle_db_delete_backup(backup_files, all, cleanup, force)
+                        .await?
                 }
             }
             return Ok(());

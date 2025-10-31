@@ -5,7 +5,7 @@ use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection};
@@ -642,20 +642,18 @@ impl SessionStorage {
                 current_version, CURRENT_SCHEMA_VERSION
             );
 
-            let _backup_path = match self.create_backup(Some(backup_name)).await {
+            match self.create_backup(Some(backup_name)).await {
                 Ok(backup_path) => {
                     info!("✓ Backup created and validated: {}", backup_path.display());
                     info!(
                         "  If migration fails, restore with: goose db restore {}",
                         backup_path.display()
                     );
-                    backup_path
                 }
                 Err(e) => {
-                    anyhow::bail!(
-                        "Failed to create or validate backup before migration: {}. Migration aborted for safety.",
-                        e
-                    );
+                    warn!("⚠️  Failed to create backup before migration: {}", e);
+                    warn!("⚠️  Proceeding with migration WITHOUT backup");
+                    warn!("   Migration will continue as backups are best-effort");
                 }
             };
 
@@ -1177,7 +1175,7 @@ impl SessionStorage {
         let backup_dir = Paths::backup_dir();
         fs::create_dir_all(&backup_dir).await?;
 
-        let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+        let timestamp = Local::now().format("%Y%m%d_%H%M%S");
         let name = if let Some(custom_name) = backup_name {
             format!("{}_{}", custom_name, timestamp)
         } else {
