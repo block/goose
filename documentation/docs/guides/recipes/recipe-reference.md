@@ -4,10 +4,7 @@ title: Recipe Reference Guide
 description: Complete technical reference for creating and customizing recipes in goose
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
-Recipes are reusable Goose configurations that package up a specific setup so it can be easily shared and launched by others.
+Recipes are reusable goose configurations that package up a specific setup so it can be easily shared and launched by others.
 
 ## Recipe File Format
 
@@ -19,10 +16,10 @@ See [Shareable Recipes](/docs/guides/recipes/session-recipes) to learn how to cr
 
 ### CLI and Desktop Formats
 
-Goose recipes use two formats:
+goose recipes use two formats:
 
 - **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file. This format is used when recipes are created via the CLI `/recipe` command and [Recipe Generator](/recipe-generator) YAML option.
-- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level. This format is used when recipes are created from Goose Desktop.
+- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level. This format is used when recipes are created from goose Desktop.
 
 The CLI automatically detects and handles both formats for `.yaml` and `.json` recipe files when running `goose run --recipe <file>` and `goose recipe` commands. The Desktop can [import](/docs/guides/recipes/storing-recipes#importing-recipes) `.yaml`, `.yml`, and `.json` recipe files (or deeplinks) in either CLI or Desktop format.
 
@@ -105,7 +102,7 @@ isArchived: false
 </Tabs>
 
 :::note
-Goose automatically adds metadata fields to recipes saved from the Desktop app.
+goose automatically adds metadata fields to recipes saved from the Desktop app.
 :::
 
 </details>
@@ -126,16 +123,17 @@ Goose automatically adds metadata fields to recipes saved from the Desktop app.
 |-------|------|-------------|
 | `instructions` | String | Template instructions that can include parameter substitutions |
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
-| `parameters` | Array | List of parameter definitions |
-| `extensions` | Array | List of extension configurations |
-| `settings` | Object | Configuration for model provider, model name, and other settings |
-| `sub_recipes` | Array | List of subrecipes |
-| `response` | Object | Configuration for structured output validation |
-| `retry` | Object | Configuration for automated retry logic with success validation |
+| [`parameters`](#parameters) | Array | List of parameter definitions |
+| [`activities`](#activities) | Array | List of example prompts that appear as clickable bubbles in goose Desktop |
+| [`extensions`](#extensions) | Array | List of extension configurations |
+| [`settings`](#settings) | Object | Configuration for model provider, model name, and other settings |
+| [`sub_recipes`](#subrecipes) | Array | List of subrecipes |
+| [`response`](#structured-output-with-response) | Object | Structured output schema for automation workflows |
+| [`retry`](#automated-retry-with-success-validation) | Object | Configuration for automated retry logic with success validation |
 
 ### Desktop Format Metadata Fields
 
-When recipes are saved from Goose Desktop, additional metadata fields are included at the top level (outside the `recipe` key). These fields are used by the Desktop app for organization and management but are ignored by CLI operations.
+When recipes are saved from goose Desktop, additional metadata fields are included at the top level (outside the `recipe` key). These fields are used by the Desktop app for organization and management but are ignored by CLI operations.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -146,7 +144,9 @@ When recipes are saved from Goose Desktop, additional metadata fields are includ
 
 ## Parameters
 
-Each parameter in the `parameters` array has the following structure:
+The `parameters` field allows you to create dynamic, reusable recipes that can be customized for different contexts. Parameters define placeholders that users fill in when running the recipe, making the recipe more flexible and adaptable.
+
+Parameter substitution uses Jinja-style template syntax with `{{ parameter_name }}` placeholders. Each parameter in the `parameters` array has the following structure:
 
 ### Required Parameter Fields
 
@@ -169,7 +169,7 @@ Each parameter in the `parameters` array has the following structure:
 - `optional`: Can be omitted if a default value is specified
 - `user_prompt`: Will interactively prompt the user for input if not provided
 
-The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
+The `required` and `optional` parameters work best for recipes opened in goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
 
 ### Input Types
 
@@ -189,14 +189,80 @@ parameters:
 prompt: "Please review this code:\n\n{{ source_code }}"
 ```
 
-When you run this recipe with `source_code: /path/to/app.py`, Goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
+When you run this recipe with `source_code: /path/to/app.py`, goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
 
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
 - File parameters cannot have default values regardless of requirement type to prevent unintended importing of sensitive files
-- Parameter keys must match any template variables used in instructions or prompt
+- Parameter keys must match any template variables used in instructions, prompt, or activities
 :::
+
+### Parameter Substitution in Desktop
+
+When a recipe with parameters is opened in goose Desktop, users are presented with a **Recipe Parameters** dialog where they can:
+- Provide values for required parameters
+- Modify or accept default values for optional parameters  
+- Enter values for `user_prompt` parameters
+
+Once parameter values are submitted, they are substituted into the recipe's `instructions`, `prompt`, and `activities` fields before the recipe starts.
+
+## Activities
+
+The `activities` field defines an optional message and clickable activity bubbles (buttons) that appears when a recipe is opened in goose Desktop.
+
+:::info Desktop only
+Activities are a Desktop-only feature. When recipes with activities are run via the CLI or as a scheduled job, the `activities` field is ignored and has no effect on recipe execution.
+:::
+
+### Activity Types
+
+Activities can be defined in two ways:
+
+1. **Message Activity**: Displays the markdown-formatted activity text in an info box above the activity bubbles. For example:
+   
+   ```
+   activities:
+     - "message: **Welcome!** Here's what I can help with:\n\n• 📊 Data analysis\n• 🔍 Code review\n• 📝 Documentation\n\nSelect an option below to begin."
+   ```
+   
+   Only include one `message:` prefixed activity. Additional `message:` prefixed activities become regular clickable bubbles (and display the literal "message:" text).
+
+2. **Button Activities**: Text to display in activity bubbles, which send the activity text as a prompt when clicked
+
+### Parameter Substitution
+
+Activities support [parameter substitution](#parameters), allowing you to create dynamic, personalized activity bubbles. After users provide parameter values in the **Recipe Parameters** dialog, the values are substituted into the activity text before the bubbles are displayed.
+
+### Example Configuration
+
+```yaml
+version: "1.0.0"
+title: "Code Review Assistant"
+description: "Review code with customizable focus areas"
+parameters:
+  - key: language
+    input_type: string
+    requirement: required
+    description: "Programming language to review"
+  - key: focus
+    input_type: string
+    requirement: optional
+    default: "best practices"
+    description: "Review focus area"
+
+activities:
+  - "message: Click an option below to start reviewing {{ language }} code with a focus on {{ focus }}."
+  - "Review the current file for {{ focus }}"
+  - "Suggest improvements for {{ language }} code quality"
+  - "Check for security vulnerabilities"
+  - "Generate unit tests"
+```
+
+In this example:
+- The message activity displays instructions with substituted parameter values, for example: "Click an option below to start reviewing rust code with a focus on best practices."
+- The first two activity bubbles use parameter substitution, for example: "Review the current file for best practices"
+- The last two activity bubbles are static prompts that work regardless of parameters
 
 ## Extensions
 
@@ -212,7 +278,7 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 | `args` | Array | List of arguments for the command |
 | `env_keys` | Array | (Optional) Names of environment variables required by the extension |
 | `timeout` | Number | Timeout in seconds |
-| `bundled` | Boolean | (Optional) Whether the extension is bundled with Goose |
+| `bundled` | Boolean | (Optional) Whether the extension is bundled with goose |
 | `description` | String | Description of what the extension does |
 | `available_tools` | Array | List of tool names within the extension that will be available. When not specified all will be available |
 
@@ -294,10 +360,10 @@ extensions:
 
 This feature is only available through the CLI.
 
-If a recipe uses an extension that requires a secret, Goose can prompt users to provide the secret when running the recipe:
+If a recipe uses an extension that requires a secret, goose can prompt users to provide the secret when running the recipe:
 
-1. When a recipe is loaded, Goose scans all extensions (including those in subrecipes) for `env_keys` fields
-2. If any required environment variables are missing from the secure keyring, Goose prompts the user to enter them
+1. When a recipe is loaded, goose scans all extensions (including those in subrecipes) for `env_keys` fields
+2. If any required environment variables are missing from the secure keyring, goose prompts the user to enter them
 3. Values are stored securely in the system keyring and reused for subsequent runs
 
 To update a stored secret, remove it from the system keyring and run the recipe again to be re-prompted.
@@ -337,7 +403,7 @@ settings:
 ```
 
 :::note
-Settings specified in a recipe will override your default Goose configuration when that recipe is executed. If no settings are specified, Goose will use your configured defaults.
+Settings specified in a recipe will override your default goose configuration when that recipe is executed. If no settings are specified, goose will use your configured defaults.
 :::
 
 ## Subrecipes
@@ -450,12 +516,12 @@ These environment variables are overridden by recipe-specific timeout configurat
 
 ## Structured Output with `response`
 
-The `response` field enables recipes to enforce a final structured JSON output from Goose. When you specify a `json_schema`, Goose will:
+The `response` field enables recipes to enforce a final structured JSON output from goose. When you specify a `json_schema`, goose will:
 
 1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
 2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
 
-This **enables automation** by returning consistent, parseable results for scripts and workflows. Recipes can produce structured output when run from either the Goose CLI or Goose Desktop. See [use cases and ideas for automation workflows](/docs/guides/recipes/session-recipes#structured-output-for-automation).
+This feature is designed for **non-interactive automation** to ensure consistent, parseable output. Recipes can produce structured output when run from either the goose CLI or goose Desktop. See [use cases and ideas for automation workflows](/docs/guides/recipes/session-recipes#structured-output-for-automation).
 
 ### Basic Structure
 
@@ -498,11 +564,13 @@ response:
 
 ## Template Support
 
-Recipes support Jinja-style template syntax in both `instructions` and `prompt` fields:
+Recipes support Jinja-style template syntax in `instructions`, `prompt`, and `activities` fields:
 
 ```yaml
 instructions: "Follow these steps with {{ parameter_name }}"
 prompt: "Your task is to {{ action }}"
+activities:
+  - "Process {{ parameter_name }} with {{ action }}"
 ```
 
 Advanced template features include:
@@ -743,7 +811,7 @@ Common errors to watch for:
 - Invalid extension configurations
 - Invalid retry configuration (missing required fields, invalid shell commands)
 
-When these occur, Goose will provide helpful error messages indicating what needs to be fixed.
+When these occur, goose will provide helpful error messages indicating what needs to be fixed.
 
 ### Retry-Specific Errors
 
@@ -753,4 +821,4 @@ When these occur, Goose will provide helpful error messages indicating what need
 - **Missing required retry fields**: When `max_retries` or `checks` are not specified
 
 ## Learn More
-Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
+Check out the [Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master goose recipes.

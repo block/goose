@@ -32,11 +32,17 @@ export async function addToAgent(
       toastService.dismiss(toastId);
     }
     const errMsg = errorMessage(error);
+    const recoverHints =
+      `Explain the following error: ${errMsg}. ` +
+      'This happened while trying to install an extension. Look out for issues that the ' +
+      "extension tried to run something faulty, didn't exist or there was trouble with " +
+      'the network configuration - VPNs like WARP often cause issues.';
     const msg = errMsg.length < 70 ? errMsg : `Failed to add extension`;
     toastService.error({
       title: extensionName,
       msg: msg,
       traceback: errMsg,
+      recoverHints,
     });
     throw error;
   }
