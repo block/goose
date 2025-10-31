@@ -516,7 +516,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   // Detect code mode triggers (#language) - can be anywhere in the text
   useEffect(() => {
-    const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
+    // Match #language at word boundary (not followed by more letters)
+    const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(?![a-z])/i;
     const match = value.match(languageTriggerRegex);
     
     if (match && !codeMode) {
@@ -526,14 +527,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const triggerLength = match[0].length;
       console.log('💻 CODE MODE ACTIVATED:', language, 'at position', triggerStart);
       
-      // Check if there's a newline right after the trigger
-      const charAfterTrigger = value[triggerStart + triggerLength];
-      const needsNewline = charAfterTrigger !== '\n' && charAfterTrigger !== undefined;
+      // Always insert a newline after the trigger to move cursor into code block
+      const beforeTrigger = value.slice(0, triggerStart + triggerLength);
+      const afterTrigger = value.slice(triggerStart + triggerLength);
       
-      if (needsNewline) {
-        // Insert a newline after the trigger to move cursor into code block
-        const beforeTrigger = value.slice(0, triggerStart + triggerLength);
-        const afterTrigger = value.slice(triggerStart + triggerLength);
+      // Check if there's already a newline
+      const hasNewline = afterTrigger.startsWith('\n');
+      
+      if (!hasNewline) {
         const newValue = beforeTrigger + '\n' + afterTrigger;
         const newCursorPos = triggerStart + triggerLength + 1; // Position after the newline
         
@@ -547,13 +548,19 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             setCursorPosition(newCursorPos);
           }, 0);
         }
+        
+        setCodeMode({
+          active: true,
+          language: language,
+          startPos: triggerStart + triggerLength + 1 // Account for the newline
+        });
+      } else {
+        setCodeMode({
+          active: true,
+          language: language,
+          startPos: triggerStart + triggerLength + 1 // Skip the existing newline
+        });
       }
-      
-      setCodeMode({
-        active: true,
-        language: language,
-        startPos: triggerStart + triggerLength + (needsNewline ? 1 : 0) // Account for the newline
-      });
     } else if (!match && codeMode) {
       // Exit code mode if trigger is removed
       console.log('💻 CODE MODE DEACTIVATED');
@@ -593,8 +600,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     if (codeMode && codeMode.active) {
       console.log('💻 RENDERING IN CODE MODE:', codeMode);
       
-      // Find the trigger position
-      const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
+      // Find the trigger position (use same regex as detection)
+      const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(?![a-z])/i;
       const match = value.match(languageTriggerRegex);
       
       if (!match || match.index === undefined) {
