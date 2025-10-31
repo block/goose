@@ -198,9 +198,11 @@ You can turn your current goose session into a reusable recipe that includes the
       - Instructions
       - Initial prompt
       - Activities
+      - Parameters
+      - Response schema
   4. When you're finished, you can:
       - Copy the recipe link to share the recipe with others
-      - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
+      - Click `Save Recipe` to save your changes
       - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
 
   </TabItem>
@@ -244,10 +246,6 @@ You can turn your current goose session into a reusable recipe that includes the
      - **Optional parameters** show default values that can be changed
 
   4. To run the recipe, click an activity bubble or send the prompt.
-
-  :::info Parameter Creation In Goose CLI Only
-  You can enter parameter values to use in a recipe, but you cannot add parameters to a recipe in Goose Desktop. Parameters can only be defined in recipes created via the CLI.
-  :::
 
   :::info Privacy & Isolation
   - Each person gets their own private session
