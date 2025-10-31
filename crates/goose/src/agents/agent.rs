@@ -825,11 +825,9 @@ impl Agent {
                     }
                 }
                 Err(e) => {
-                    yield AgentEvent::Message(
-                        Message::assistant().with_text(
-                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                        )
-                    );
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                    ));
                 }
             }
         }))

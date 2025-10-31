@@ -1216,9 +1216,13 @@ async fn run_scheduled_job_internal(
         retry_config: None,
     };
 
-    match agent
-        .reply(conversation.clone(), Some(session_config.clone()), None)
-        .await
+    let session_id = Some(session_config.id.clone());
+    match crate::session_context::with_session_id(session_id, async {
+        agent
+            .reply(conversation.clone(), Some(session_config.clone()), None)
+            .await
+    })
+    .await
     {
         Ok(mut stream) => {
             use futures::StreamExt;
