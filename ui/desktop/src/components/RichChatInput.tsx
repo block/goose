@@ -4,6 +4,8 @@ import SpellCheckTooltip from './SpellCheckTooltip';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface RichChatInputProps {
   value: string;
@@ -581,6 +583,26 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         content: mentionMatch[1]
       });
     }
+    
+    // Find all code block matches
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    let codeBlockMatch;
+    codeBlockRegex.lastIndex = 0;
+    console.log('💻 Searching for code blocks in value:', value);
+    while ((codeBlockMatch = codeBlockRegex.exec(value)) !== null) {
+      const language = codeBlockMatch[1] || 'text';
+      const code = codeBlockMatch[2];
+      console.log('💻 Found code block match:', { language, code, index: codeBlockMatch.index });
+      allMatches.push({
+        type: 'codeblock',
+        match: codeBlockMatch,
+        index: codeBlockMatch.index,
+        length: codeBlockMatch[0].length,
+        content: code,
+        language: language
+      });
+    }
+    
     // Add misspelled words
     misspelledWords.forEach(misspelled => {
       allMatches.push({
@@ -695,6 +717,48 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             size="sm"
             onRemove={() => handleRemoveMention(fileName)}
           />
+        );
+      } else if (type === 'codeblock') {
+        // Handle code blocks with syntax highlighting
+        const language = (matchData as any).language || 'text';
+        const code = content;
+        
+        console.log('💻 Creating code block:', { language, code });
+        
+        parts.push(
+          <div
+            key={`codeblock-${keyCounter++}`}
+            className="block my-2"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="relative rounded-lg overflow-hidden bg-[#1E1E1E] border border-gray-700">
+              {/* Language badge */}
+              {language && language !== 'text' && (
+                <div className="absolute top-2 right-2 px-2 py-1 text-xs font-mono text-gray-300 bg-gray-800/80 rounded">
+                  {language}
+                </div>
+              )}
+              {/* Syntax highlighted code */}
+              <SyntaxHighlighter
+                language={language}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  padding: '16px',
+                  background: 'transparent',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.5',
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
+                  }
+                }}
+              >
+                {code}
+              </SyntaxHighlighter>
+            </div>
+          </div>
         );
       } else if (type === 'misspelled') {
         // Handle misspelled words with red highlighting and hover tooltip
