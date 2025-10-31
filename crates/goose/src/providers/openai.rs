@@ -28,9 +28,12 @@ use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
-pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
-pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
+pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-5";
+pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-5-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
+    ("gpt-5", 400_000),
+    ("gpt-5-mini", 400_000),
+    ("gpt-5-nano", 400_000),
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
     ("gpt-4.1", 128_000),
