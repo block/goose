@@ -8,6 +8,7 @@ import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import FontColorSelector from './FontColorSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 
@@ -389,8 +390,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <CardTitle className="mb-1">Theme</CardTitle>
           <CardDescription>Customize the look and feel of goose</CardDescription>
         </CardHeader>
-        <CardContent className="pt-4 px-4">
+        <CardContent className="pt-4 px-4 space-y-6">
           <ThemeSelector className="w-auto" hideTitle horizontal />
+          <div className="border-t border-border-default pt-4">
+            <FontColorSelector hideTitle={false} />
+          </div>
         </CardContent>
       </Card>
 
