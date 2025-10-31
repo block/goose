@@ -309,7 +309,7 @@ OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry]
 | `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
 
 **When to use OTLP:**
-- Diagnosing slow tool execution or LLM response times when goose 
+- Diagnosing slow tool execution or LLM response times
 - Understanding intermittent failures across multiple sessions
 - Monitoring goose performance in production or CI/CD environments
 - Tracking usage patterns, costs, and resource consumption over time
