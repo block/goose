@@ -802,3 +802,50 @@ p > code.bg-inline-code {
   mix-blend-mode: multiply; /* Blend with background for better visibility */
 }
 
+/* Monaco Code Input Wrapper - matches RichChatInput code block styling */
+.monaco-code-input-wrapper {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  background: rgba(30, 30, 30, 0.3); /* Match bg-[#1E1E1E]/30 */
+  margin-top: 0.25rem;
+}
+
+/* Smooth transition when entering code mode */
+.monaco-code-input-wrapper {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Ensure Monaco editor text is visible */
+.monaco-code-input-wrapper .monaco-editor {
+  background: transparent !important;
+}
+
+.monaco-code-input-wrapper .monaco-editor .view-lines {
+  color: #e5e7eb !important; /* Match text-gray-200 */
+}
+
+/* Monaco scrollbar styling to match app theme */
+.monaco-code-input-wrapper .monaco-scrollable-element > .scrollbar {
+  background: transparent !important;
+}
+
+.monaco-code-input-wrapper .monaco-scrollable-element > .scrollbar > .slider {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.monaco-code-input-wrapper .monaco-scrollable-element > .scrollbar > .slider:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

@@ -1,6 +1,10 @@
 import React, { useRef, useEffect, useMemo } from 'react';
-import Editor, { OnMount, OnChange } from '@monaco-editor/react';
+import Editor, { OnMount, OnChange, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
+import * as monacoEditor from 'monaco-editor';
+
+// Configure Monaco loader to use the bundled version
+loader.config({ monaco: monacoEditor });
 
 interface MonacoCodeInputProps {
   language: string;
@@ -129,6 +133,13 @@ export const MonacoCodeInput: React.FC<MonacoCodeInputProps> = ({
       verticalScrollbarSize: 10,
       horizontalScrollbarSize: 10,
     },
+    // Better contrast for dark theme
+    theme: 'vs-dark',
+    // Ensure text is readable
+    renderWhitespace: 'selection',
+    renderControlCharacters: false,
+    // Smooth scrolling
+    smoothScrolling: true,
   };
 
   return (
@@ -142,10 +153,21 @@ export const MonacoCodeInput: React.FC<MonacoCodeInputProps> = ({
         onMount={handleEditorDidMount}
         onChange={handleEditorChange}
         loading={
-          <div className="flex items-center justify-center h-32">
+          <div className="flex flex-col items-center justify-center h-32 gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+            <div className="text-xs text-gray-400">Loading Monaco Editor...</div>
           </div>
         }
+        beforeMount={(monaco) => {
+          // Configure Monaco to work in Electron environment
+          console.log('🎯 Monaco beforeMount called', { monaco });
+        }}
+        onValidate={(markers) => {
+          // Log any validation errors
+          if (markers.length > 0) {
+            console.log('🔍 Monaco validation markers:', markers);
+          }
+        }}
       />
     </div>
   );

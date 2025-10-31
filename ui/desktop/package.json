@@ -79,6 +79,7 @@
     "react-syntax-highlighter": "^15.6.6",
     "react-toastify": "^11.0.5",
     "@monaco-editor/react": "^4.6.0",
+    "monaco-editor": "^0.52.2",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "split-type": "^0.3.4",
@@ -141,6 +142,7 @@
     "tailwindcss": "^4.1.14",
     "typescript": "~5.9.3",
     "vite": "^7.1.10",
+    "vite-plugin-monaco-editor": "^1.1.0",
     "vitest": "^3.2.4"
   },
   "keywords": [],

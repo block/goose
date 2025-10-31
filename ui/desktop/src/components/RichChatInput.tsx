@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle, lazy, Suspense } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import SpellCheckTooltip from './SpellCheckTooltip';
 // Custom spell checking with hover tooltips and highlighting
 import { ActionPill } from './ActionPill';
@@ -7,8 +7,8 @@ import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-// Lazy load Monaco for better performance
-const MonacoCodeInput = lazy(() => import('./MonacoCodeInput').then(m => ({ default: m.MonacoCodeInput })));
+// Use Monaco Editor for IDE-like code editing
+import { MonacoCodeInput } from './MonacoCodeInput';
 
 interface RichChatInputProps {
   value: string;
@@ -671,93 +671,32 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             <span>{codeMode.language}</span>
           </div>
           
-          {/* Code content with syntax highlighting - constrained to container width */}
-          <div 
-            className="block font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1 w-full overflow-x-auto relative"
-            style={{ 
-              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
-              maxWidth: '100%',
-              boxSizing: 'border-box',
+          {/* Monaco Editor for IDE-like code editing */}
+          <MonacoCodeInput
+            language={codeMode.language}
+            value={codeContent}
+            onChange={(newCode) => {
+              // Update the full value with new code
+              const beforeCode = value.slice(0, codeMode.startPos);
+              const afterCode = value.slice(codeMode.startPos + codeContent.length);
+              const newValue = beforeCode + newCode + afterCode;
+              onChange(newValue, codeMode.startPos + newCode.length);
             }}
-          >
-            {cursorInCode ? (
-              // Render with cursor at the correct position
-              <div className="relative">
-                <SyntaxHighlighter
-                  language={codeMode.language}
-                  style={vscDarkPlus}
-                  customStyle={{
-                    margin: 0,
-                    padding: 0,
-                    background: 'transparent',
-                    fontSize: '0.875rem',
-                    lineHeight: '1.5',
-                    maxWidth: '100%',
-                    overflowX: 'auto',
-                  }}
-                  PreTag="span"
-                  CodeTag="span"
-                  wrapLines={true}
-                  showLineNumbers={false}
-                >
-                  {codeBeforeCursor || ' '}
-                </SyntaxHighlighter>
-                {/* Cursor at current position */}
-                {isFocused && (
-                  <span 
-                    className="border-l border-text-default inline-block" 
-                    style={{ 
-                      animation: "blink 1s step-end infinite", 
-                      height: "1.3em",
-                      width: "1px",
-                      position: "relative",
-                      verticalAlign: "text-bottom"
-                    }} 
-                  />
-                )}
-                <SyntaxHighlighter
-                  language={codeMode.language}
-                  style={vscDarkPlus}
-                  customStyle={{
-                    margin: 0,
-                    padding: 0,
-                    background: 'transparent',
-                    fontSize: '0.875rem',
-                    lineHeight: '1.5',
-                    maxWidth: '100%',
-                    overflowX: 'auto',
-                  }}
-                  PreTag="span"
-                  CodeTag="span"
-                  wrapLines={true}
-                  showLineNumbers={false}
-                >
-                  {codeAfterCursor}
-                </SyntaxHighlighter>
-              </div>
-            ) : (
-              // No cursor in code area, just render the code
-              <SyntaxHighlighter
-                language={codeMode.language}
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  padding: 0,
-                  background: 'transparent',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                  maxWidth: '100%',
-                  overflowX: 'auto',
-                }}
-                PreTag="div"
-                CodeTag="code"
-                wrapLines={true}
-                showLineNumbers={false}
-              >
-                {codeContent || ' '}
-              </SyntaxHighlighter>
-            )}
-          </div>
+            onSend={() => {
+              // Trigger send via parent's onKeyDown
+              const syntheticEvent = new CustomEvent('submit', {
+                detail: { value },
+              }) as unknown as React.FormEvent;
+              onKeyDown?.(syntheticEvent as any);
+            }}
+            onExit={() => {
+              // Exit code mode
+              setCodeMode(null);
+            }}
+            height="auto"
+            theme="vs-dark"
+            className="mt-1"
+          />
         </div>
       );
     }
