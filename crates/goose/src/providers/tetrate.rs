@@ -46,6 +46,8 @@ pub struct TetrateProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    #[serde(skip)]
+    name: String,
 }
 
 impl TetrateProvider {
@@ -66,6 +68,7 @@ impl TetrateProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
@@ -150,6 +153,10 @@ impl Provider for TetrateProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -165,7 +172,6 @@ impl Provider for TetrateProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create the base payload using the provided model_config
         let payload = create_request(
             model_config,
             system,

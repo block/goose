@@ -483,9 +483,7 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-
-// Track power save blockers per window
-const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+const windowPowerSaveBlockers = new Map<number, number>();
 
 const createChat = async (
   app: App,
@@ -991,8 +989,6 @@ ipcMain.on('react-ready', () => {
     log.info('No pending deep link to process');
   }
 
-  // We don't need to handle pending deep links here anymore
-  // since we're handling them in the window creation flow
   log.info('React ready - window is prepared for deep links');
 });
 
@@ -1874,6 +1870,50 @@ async function appMain() {
     );
   }
 
+  if (menu) {
+    let windowMenu = menu.items.find((item) => item.label === 'Window');
+
+    if (!windowMenu) {
+      windowMenu = new MenuItem({
+        label: 'Window',
+        submenu: Menu.buildFromTemplate([]),
+      });
+
+      const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
+      if (helpMenuIndex >= 0) {
+        menu.items.splice(helpMenuIndex, 0, windowMenu);
+      } else {
+        menu.items.push(windowMenu);
+      }
+    }
+
+    if (windowMenu.submenu) {
+      windowMenu.submenu.append(
+        new MenuItem({
+          label: 'Always on Top',
+          type: 'checkbox',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
+          click(menuItem) {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              const isAlwaysOnTop = menuItem.checked;
+
+              if (process.platform === 'darwin') {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
+              } else {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+              }
+
+              console.log(
+                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+              );
+            }
+          },
+        })
+      );
+    }
+  }
+
   // on macOS, the topbar is hidden
   if (menu && process.platform !== 'darwin') {
     let helpMenu = menu.items.find((item) => item.label === 'Help');
@@ -1937,7 +1977,6 @@ async function appMain() {
       // Log the recipe for debugging
       console.log('Creating chat window with recipe:', recipe);
 
-      // Pass recipe as part of viewOptions when viewType is recipeEditor
       createChat(
         app,
         query,

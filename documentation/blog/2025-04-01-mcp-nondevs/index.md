@@ -75,7 +75,7 @@ While some are developed by official providers, a vast majority of MCP servers y
 
 Hopefully now, instead of spending hours manually gathering data and creating your next marketing report, or manually sorting through your todo-backlog on a Monday, you will use MCP with Goose and have it done for you in minutes.
 
-*To learn more about using MCP servers and Goose, check out the [Goose documentation](https://block.github.io/goose/docs/category/getting-started), or join the [Block Open Source Discord](https://discord.gg/block-opensource) to connect with other open source community members.*
+*To learn more about using MCP servers and Goose, check out the [Goose documentation](https://block.github.io/goose/docs/category/getting-started), or join the [Block Open Source Discord](https://discord.gg/goose-oss) to connect with other open source community members.*
 
 <head>
   <meta property="og:title" content="MCP Explained for Non-Developers" />

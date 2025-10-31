@@ -19,12 +19,12 @@ The Tutorial extension serves as an interactive learning tool that:
 1. Ensure the Tutorial extension is enabled:
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Tutorial"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
 ```sh
 goose configure
@@ -186,4 +186,4 @@ After completing tutorials, you can:
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
-[discord]: https://discord.gg/block-opensource
+[discord]: https://discord.gg/goose-oss

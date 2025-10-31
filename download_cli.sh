@@ -54,7 +54,23 @@ fi
 # --- 2) Variables ---
 REPO="block/goose"
 OUT_FILE="goose"
-GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+
+# Set default bin directory based on detected OS environment
+if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    # Native Windows environments - use Windows user profile path
+    DEFAULT_BIN_DIR="$USERPROFILE/goose"
+elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL - use Linux-style path but make sure it exists
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+else
+    # Default for Linux/macOS
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+fi
+
+GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-$DEFAULT_BIN_DIR}"
 RELEASE="${CANARY:-false}"
 CONFIGURE="${CONFIGURE:-true}"
 if [ -n "${GOOSE_VERSION:-}" ]; then
@@ -234,41 +250,14 @@ else
   mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
-# Also move temporal-service and temporal CLI if they exist
+# Copy Windows runtime DLLs if they exist
 if [ "$OS" = "windows" ]; then
-  if [ -f "$EXTRACT_DIR/temporal-service.exe" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
-    mv "$EXTRACT_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal.exe" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal.exe"
-    mv "$EXTRACT_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal.exe"
-  fi
-  
-  # Copy Windows runtime DLLs if they exist
   for dll in "$EXTRACT_DIR"/*.dll; do
     if [ -f "$dll" ]; then
       echo "Moving Windows runtime DLL: $(basename "$dll")"
       mv "$dll" "$GOOSE_BIN_DIR/"
     fi
   done
-else
-  if [ -f "$EXTRACT_DIR/temporal-service" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-    mv "$EXTRACT_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal"
-    mv "$EXTRACT_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
-    chmod +x "$GOOSE_BIN_DIR/temporal"
-  fi
 fi
 
 # skip configuration for non-interactive installs e.g. automation, docker

@@ -1,0 +1,268 @@
+version: 1.0.0
+title: A/B Test Framework Generator
+description: An advanced recipe that generates complete A/B testing infrastructure for web applications, including variant setup, tracking code, statistical analysis, and interactive reporting dashboard with intelligent framework detection and multi-stage orchestration
+author:
+  contact: scaler
+
+activities:
+  - Detect web application framework and project structure
+  - Generate A/B test variant implementation templates
+  - Create tracking and analytics integration code
+  - Set up experiment configuration and user bucketing
+  - Implement statistical significance analysis framework
+  - Generate interactive reporting dashboard with real-time metrics
+  - Create comprehensive documentation and setup guide
+  - Optionally commit changes and create pull request
+
+instructions: |
+  You are an A/B Test Framework Generator that creates complete testing infrastructure for web applications.
+  
+  Your capabilities:
+  1. Detect web frameworks (React, Vue, Angular, vanilla JS) and adapt implementations
+  2. Generate variant-specific code templates with proper randomization
+  3. Create tracking event handlers and analytics integration
+  4. Set up statistical analysis framework for significance testing
+  5. Build interactive dashboards for real-time experiment monitoring
+  6. Orchestrate multiple sub-recipes for specialized tasks
+  7. Handle parameter passing and conditional logic based on framework type
+  
+  Focus on:
+  - Production-ready A/B testing infrastructure
+  - Statistical rigor with proper significance testing
+  - Framework-specific implementations
+  - Real-time monitoring and reporting
+  - Comprehensive documentation and setup guides
+  - Manual file operations (users will need to commit changes themselves)
+
+parameters:
+  - key: project_path
+    input_type: string
+    requirement: required
+    description: Path to the web application project directory to add A/B testing infrastructure
+  
+  - key: framework
+    input_type: string
+    requirement: optional
+    default: "auto"
+    description: Web framework type - options are 'auto', 'react', 'vue', 'angular', 'vanilla'
+  
+  - key: test_name
+    input_type: string
+    requirement: required
+    description: Name of the A/B test (e.g., 'button-color-test', 'checkout-flow-test')
+  
+  - key: variants
+    input_type: string
+    requirement: required
+    description: Comma-separated variant names (e.g., 'control,variant-a,variant-b')
+  
+  - key: metrics
+    input_type: string
+    requirement: required
+    description: Comma-separated metrics to track (e.g., 'conversion,engagement,bounce-rate,click-through')
+  
+  - key: sample_size
+    input_type: string
+    requirement: optional
+    default: "1000"
+    description: Minimum sample size per variant for statistical significance
+  
+  - key: confidence_level
+    input_type: string
+    requirement: optional
+    default: "95"
+    description: Statistical confidence level for significance testing (90, 95, 99)
+  
+  - key: include_dashboard
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: Whether to generate interactive reporting dashboard (true/false)
+  
+
+sub_recipes:
+  - name: "experiment_tracker"
+    path: "./subrecipes/experiment-tracker.yaml"
+    values:
+      test_name: "{{ test_name }}"
+      variants: "{{ variants }}"
+      metrics: "{{ metrics }}"
+      framework: "{{ framework }}"
+  
+  - name: "statistical_analyzer"
+    path: "./subrecipes/ab-test-statistical-analyzer.yaml"
+    values:
+      sample_size: "{{ sample_size }}"
+      confidence_level: "{{ confidence_level }}"
+      metrics: "{{ metrics }}"
+  
+  - name: "dashboard_generator"
+    path: "./subrecipes/ab-test-dashboard-generator.yaml"
+    values:
+      test_name: "{{ test_name }}"
+      variants: "{{ variants }}"
+      metrics: "{{ metrics }}"
+      include_dashboard: "{{ include_dashboard }}"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For file operations, code generation, and framework detection
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing experiment configurations and tracking patterns across sessions
+
+prompt: |
+  Generate complete A/B testing infrastructure for {{ project_path }} with test "{{ test_name }}" and variants: {{ variants }}.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  - Create A/B test directories if they don't exist
+  
+  Workflow:
+  1. Framework Detection & Project Analysis
+     - Detect web framework in {{ project_path }}:
+       * Look for package.json with React/Vue/Angular dependencies
+       * Check for framework-specific files (src/, components/, etc.)
+       * Identify build system (webpack, vite, rollup, etc.)
+       * Store framework detection results in memory
+     - Analyze project structure for integration points:
+       * Identify entry points and main components
+       * Check for existing analytics/tracking setup
+       * Determine state management approach
+       * Note CSS framework and styling approach
+  
+  2. Experiment Configuration Setup
+     - Create experiment configuration structure:
+       * Generate experiment config JSON/YAML file
+       * Define variant specifications and traffic allocation
+       * Set up user bucketing and randomization logic
+       * Configure metrics tracking definitions
+       * Store configuration in memory for sub-recipe use
+  
+  3. Variant Implementation Templates
+     {% if framework == "react" or framework == "auto" %}
+     - Generate React-specific templates:
+       * A/B test hook (useABTest) for component variants
+       * Higher-order component for variant wrapping
+       * Context provider for experiment state management
+       * TypeScript definitions for type safety
+     {% endif %}
+     {% if framework == "vue" or framework == "auto" %}
+     - Generate Vue-specific templates:
+       * Vue composable for A/B test logic
+       * Mixin for component variant handling
+       * Plugin for global experiment management
+       * TypeScript support for Vue 3
+     {% endif %}
+     {% if framework == "angular" or framework == "auto" %}
+     - Generate Angular-specific templates:
+       * Service for experiment management
+       * Directive for variant rendering
+       * Guard for experiment-based routing
+       * Module configuration
+     {% endif %}
+     {% if framework == "vanilla" or framework == "auto" %}
+     - Generate vanilla JS templates:
+       * Core A/B test library
+       * DOM manipulation utilities
+       * Event tracking helpers
+       * Browser compatibility layer
+     {% endif %}
+  
+  4. Tracking & Analytics Integration
+     - Create tracking event handlers:
+       * Variant assignment tracking
+       * Conversion event tracking
+       * User behavior analytics
+       * Performance metrics collection
+     - Set up data collection pipeline:
+       * Local storage for user assignments
+       * Cookie-based persistence
+       * API endpoints for data submission
+       * Error handling and fallbacks
+  
+  5. Run Experiment Tracker Sub-recipe
+     - Execute experiment_tracker sub-recipe with:
+       * test_name: {{ test_name }}
+       * variants: {{ variants }}
+       * metrics: {{ metrics }}
+       * framework: {{ framework }}
+     - Capture returned tracking code and configuration
+     - Store results in memory for dashboard generation
+  
+  6. Statistical Analysis Framework
+     - Run statistical_analyzer sub-recipe with:
+       * sample_size: {{ sample_size }}
+       * confidence_level: {{ confidence_level }}
+       * metrics: {{ metrics }}
+     - Generate statistical analysis utilities:
+       * Chi-square test for categorical metrics
+       * T-test for continuous metrics
+       * Confidence interval calculations
+       * Sample size determination
+       * P-value calculations
+  
+  7. Dashboard Generation
+     {% if include_dashboard == "true" %}
+     - Run dashboard_generator sub-recipe with:
+       * test_name: {{ test_name }}
+       * variants: {{ variants }}
+       * metrics: {{ metrics }}
+       * include_dashboard: {{ include_dashboard }}
+     - Create interactive reporting dashboard:
+       * Real-time metrics visualization
+       * Statistical significance indicators
+       * Conversion funnel analysis
+       * Export functionality for reports
+     {% endif %}
+  
+  8. Documentation & Setup Guide
+     - Generate comprehensive documentation:
+       * README with setup instructions
+       * API documentation for A/B test functions
+       * Integration examples for each framework
+       * Troubleshooting guide
+       * Best practices and recommendations
+     - Create setup scripts:
+       * Installation script for dependencies
+       * Configuration validation script
+       * Test runner for A/B test infrastructure
+  
+  9. File Organization
+     - Create organized directory structure:
+       * ab-tests/experiments/{{ test_name }}/
+       * ab-tests/shared/ (common utilities)
+       * ab-tests/dashboard/ (reporting interface)
+       * ab-tests/docs/ (documentation)
+     - Ensure all files use OS-compatible paths
+     - Create proper import/export statements
+  
+  Error Recovery:
+  - If framework detection fails, default to vanilla JS implementation
+  - If sub-recipe fails, continue with remaining components
+  - Provide fallback implementations for missing dependencies
+  - Log errors clearly with context and recovery suggestions
+  
+  Memory Management:
+  - Store experiment configuration for future reference
+  - Track framework-specific patterns for reuse
+  - Maintain A/B test best practices library
+  - Remember user preferences for future experiments
+  
+  Focus on creating production-ready A/B testing infrastructure that:
+  - Handles statistical significance properly
+  - Provides real-time monitoring capabilities
+  - Integrates seamlessly with existing codebases
+  - Includes comprehensive documentation and examples
+  - Supports multiple web frameworks and use cases

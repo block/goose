@@ -28,10 +28,10 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ContextManagerProvider } from '../context_management/ContextManager';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Message, Session } from '../../api';
+import { useNavigation } from '../../hooks/useNavigation';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -101,29 +101,27 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ContextManagerProvider>
-              <div className="max-w-4xl mx-auto w-full">
-                <SearchView>
-                  <ProgressiveMessageList
-                    messages={filteredMessages}
-                    chat={{
-                      sessionId: 'session-preview',
-                      messageHistoryIndex: filteredMessages.length,
-                    }}
-                    toolCallNotifications={new Map()}
-                    append={() => {}} // Read-only for session history
-                    appendMessage={(newMessage) => {
-                      // Read-only - do nothing
-                      console.log('appendMessage called in read-only session history:', newMessage);
-                    }}
-                    isUserMessage={isUserMessage} // Use the same function as BaseChat
-                    batchSize={15} // Same as BaseChat default
-                    batchDelay={30} // Same as BaseChat default
-                    showLoadingThreshold={30} // Same as BaseChat default
-                  />
-                </SearchView>
-              </div>
-            </ContextManagerProvider>
+            <div className="max-w-4xl mx-auto w-full">
+              <SearchView placeholder="Search history...">
+                <ProgressiveMessageList
+                  messages={filteredMessages}
+                  chat={{
+                    sessionId: 'session-preview',
+                    messageHistoryIndex: filteredMessages.length,
+                  }}
+                  toolCallNotifications={new Map()}
+                  append={() => {}} // Read-only for session history
+                  appendMessage={(newMessage) => {
+                    // Read-only - do nothing
+                    console.log('appendMessage called in read-only session history:', newMessage);
+                  }}
+                  isUserMessage={isUserMessage} // Use the same function as BaseChat
+                  batchSize={15} // Same as BaseChat default
+                  batchDelay={30} // Same as BaseChat default
+                  showLoadingThreshold={30} // Same as BaseChat default
+                />
+              </SearchView>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />
@@ -152,6 +150,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [canShare, setCanShare] = useState(false);
 
   const messages = session.conversation || [];
+
+  const setView = useNavigation();
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -185,7 +185,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         config.baseUrl,
         session.working_dir,
         messages,
-        session.description || 'Shared Session',
+        session.name || 'Shared Session',
         session.total_tokens || 0
       );
 
@@ -215,15 +215,14 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       });
   };
 
-  const handleLaunchInNewWindow = () => {
+  const handleResumeSession = () => {
     try {
-      resumeSession(session);
+      resumeSession(session, setView);
     } catch (error) {
       toast.error(`Could not launch session: ${error instanceof Error ? error.message : error}`);
     }
   };
 
-  // Define action buttons
   const actionButtons = showActionButtons ? (
     <>
       <Tooltip>
@@ -257,7 +256,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </TooltipContent>
         ) : null}
       </Tooltip>
-      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
+      <Button onClick={handleResumeSession} size="sm" variant="outline">
         <Sparkles className="w-4 h-4" />
         Resume
       </Button>
@@ -270,7 +269,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="flex-1 flex flex-col min-h-0 px-8">
           <SessionHeader
             onBack={onBack}
-            title={session.description || 'Session Details'}
+            title={session.name}
             actionButtons={!isLoading ? actionButtons : null}
           >
             <div className="flex flex-col">

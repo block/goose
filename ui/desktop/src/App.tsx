@@ -27,7 +27,6 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
-import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -76,6 +75,8 @@ const PairRouteWrapper = ({
   setFatalError,
   agentState,
   loadCurrentChat,
+  activeSessionId,
+  setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -84,23 +85,48 @@ const PairRouteWrapper = ({
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   agentState: AgentState;
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
   const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
+  // Determine which session ID to use:
+  // 1. From route state (when navigating from Hub with a new session)
+  // 2. From URL params (when resuming a session or after refresh)
+  // 3. From active session state (when navigating back from other routes)
+  // 4. From the existing chat state
+  const sessionId =
+    routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
+
+  // Update URL with session ID when on /pair route (for refresh support)
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+      setSearchParams((prev) => {
+        prev.set('resumeSessionId', sessionId);
+        return prev;
+      });
+    }
+  }, [sessionId, resumeSessionId, setSearchParams]);
+
+  // Update active session state when session ID changes
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessionId, activeSessionId, setActiveSessionId]);
+
   return process.env.ALPHA ? (
     <Pair2
-      chat={chat}
       setChat={setChat}
-      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
+      sessionId={sessionId}
       initialMessage={initialMessage}
     />
   ) : (
@@ -302,11 +328,14 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    title: 'Pair Chat',
+    name: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
     recipe: null,
   });
+
+  // Store the active session ID for navigation persistence
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
@@ -560,6 +589,8 @@ export function AppInner() {
                   setFatalError={setFatalError}
                   setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  activeSessionId={activeSessionId}
+                  setActiveSessionId={setActiveSessionId}
                 />
               }
             />
@@ -606,13 +637,11 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ModelAndProviderProvider>
+      <HashRouter>
+        <AppInner />
+      </HashRouter>
+      <AnnouncementModal />
+    </ModelAndProviderProvider>
   );
 }

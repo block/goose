@@ -25,6 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: 'Download previous metrics'
+        uses: dawidd6/action-download-artifact@688efa90a08f3552e7c1420c8313e215164e8b14
+        with:
+          name: health-metrics
+          path: .
+          workflow: update-health-dashboard.yml
+          if_no_artifact_found: ignore
+        
       - name: 'Update Dashboard'
         uses: actions/github-script@v7
         with:
@@ -85,6 +93,68 @@ jobs:
 
             const totalOpenPRs = openPRs.length;
 
+            // Load previous metrics for trend calculation
+            const fs = require('fs');
+            let previousMetrics = null;
+            let historyData = { history: [] };
+            
+            try {
+              if (fs.existsSync('health-metrics.json')) {
+                const fileContent = fs.readFileSync('health-metrics.json', 'utf8');
+                historyData = JSON.parse(fileContent);
+                console.log(`Loaded ${historyData.history.length} historical data points`);
+                
+                // Get the most recent metrics for comparison
+                if (historyData.history.length > 0) {
+                  previousMetrics = historyData.history[historyData.history.length - 1];
+                  console.log(`Previous metrics from ${previousMetrics.date}`);
+                }
+              }
+            } catch (error) {
+              console.log('No previous metrics found or error loading:', error.message);
+            }
+
+            // Create current metrics entry
+            const currentMetrics = {
+              date: new Date().toISOString().split('T')[0],
+              timestamp: new Date().toISOString(),
+              issues: {
+                total: totalOpenIssues,
+                no_labels: issuesWithoutLabels.length,
+                by_label: labelCounts
+              },
+              prs: totalOpenPRs
+            };
+
+            // Add current metrics to history
+            historyData.history.push(currentMetrics);
+            
+            // Keep only last 90 days of data
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            historyData.history = historyData.history.filter(entry => 
+              new Date(entry.date) >= ninetyDaysAgo
+            );
+            
+            console.log(`History now contains ${historyData.history.length} data points`);
+
+            // Calculate trend indicators
+            const getTrend = (current, previous) => {
+              if (!previous) return '';
+              const diff = current - previous;
+              if (diff === 0) return '';
+              const arrow = diff < 0 ? '↓' : '↑';
+              return ' ' + arrow + ' from ' + previous;
+            };
+
+            const issuesTrend = previousMetrics ? getTrend(totalOpenIssues, previousMetrics.issues.total) : '';
+            const noLabelsTrend = previousMetrics ? getTrend(issuesWithoutLabels.length, previousMetrics.issues.no_labels) : '';
+            const prsTrend = previousMetrics ? getTrend(totalOpenPRs, previousMetrics.prs) : '';
+
+            // Save updated metrics to file
+            fs.writeFileSync('health-metrics.json', JSON.stringify(historyData, null, 2));
+            console.log('Saved updated metrics to health-metrics.json');
+
             // Format the dashboard markdown
             const timestamp = new Date().toUTCString();
             const formattedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -92,8 +162,8 @@ jobs:
             const dashboardBody = '# GitHub Health\n\n' +
               '**Updated:** ' + formattedDate + '\n\n' +
               '## Issues\n\n' +
-              '**Open:** ' + totalOpenIssues + '\n\n' +
-              '**No labels:** ' + issuesWithoutLabels.length + ' (these are recent)\n\n' +
+              '**Open:** ' + totalOpenIssues + issuesTrend + '\n\n' +
+              '**No labels:** ' + issuesWithoutLabels.length + ' (these are recent)' + noLabelsTrend + '\n\n' +
               '### Label Breakdown\n\n' +
               '| Label | Count |\n' +
               '|-------|-------|\n' +
@@ -150,3 +220,10 @@ jobs:
             });
 
             console.log(`Successfully updated discussion #${discussionNumber}`);
+      
+      - name: 'Upload metrics artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-metrics
+          path: health-metrics.json
+          retention-days: 90

@@ -6,6 +6,7 @@ use super::utils::{
     get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
+use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 
@@ -47,6 +48,7 @@ pub struct OllamaProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    name: String,
 }
 
 impl OllamaProvider {
@@ -92,6 +94,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
@@ -131,6 +134,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -176,6 +180,10 @@ impl Provider for OllamaProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -192,8 +200,12 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = crate::config::Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let filtered_tools = if goose_mode == GooseMode::Chat {
+            &[]
+        } else {
+            tools
+        };
 
         let payload = create_request(
             &self.model,
@@ -284,6 +296,42 @@ impl Provider for OllamaProvider {
                 yield (message, usage);
             }
         }))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self
+            .api_client
+            .response_get("api/tags")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        // Sort alphabetically
+        model_names.sort();
+
+        Ok(Some(model_names))
     }
 }
 

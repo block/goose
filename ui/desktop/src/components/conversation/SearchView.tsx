@@ -19,6 +19,8 @@ interface SearchViewProps {
     count: number;
     currentIndex: number;
   } | null;
+  /** Placeholder text for the search input */
+  placeholder?: string;
 }
 
 interface SearchContainerElement extends HTMLDivElement {
@@ -36,6 +38,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   onSearch,
   onNavigate,
   searchResults,
+  placeholder,
 }) => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState('');
@@ -376,6 +379,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           searchResults={searchResults || internalSearchResults || undefined}
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
+          placeholder={placeholder}
         />
       )}
       {children}

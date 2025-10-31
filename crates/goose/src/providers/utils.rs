@@ -92,29 +92,24 @@ pub fn map_http_error_to_provider_error(
             ProviderError::ContextLengthExceeded(payload_str)
         }
         StatusCode::BAD_REQUEST => {
-            let mut error_msg = "Unknown error".to_string();
+            let base_msg = format!("Request failed with status: {}", status);
             if let Some(payload) = &payload {
                 let payload_str = payload.to_string();
                 if check_context_length_exceeded(&payload_str) {
                     ProviderError::ContextLengthExceeded(payload_str)
                 } else {
-                    if let Some(error) = payload.get("error") {
-                        error_msg = error
-                            .get("message")
+                    ProviderError::RequestFailed(
+                        payload
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .or_else(|| payload.get("message"))
                             .and_then(|m| m.as_str())
-                            .unwrap_or("Unknown error")
-                            .to_string();
-                    }
-                    ProviderError::RequestFailed(format!(
-                        "Request failed with status: {}. Message: {}",
-                        status, error_msg
-                    ))
+                            .map(|msg| format!("{}. Message: {}", base_msg, msg))
+                            .unwrap_or(base_msg),
+                    )
                 }
             } else {
-                ProviderError::RequestFailed(format!(
-                    "Request failed with status: {}. Message: {}",
-                    status, error_msg
-                ))
+                ProviderError::RequestFailed(base_msg)
             }
         }
         StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
@@ -460,7 +455,7 @@ pub struct RequestLog {
     temp_path: PathBuf,
 }
 
-const LOGS_TO_KEEP: usize = 10;
+pub const LOGS_TO_KEEP: usize = 10;
 
 impl RequestLog {
     pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
@@ -1101,7 +1096,7 @@ mod tests {
                 StatusCode::BAD_REQUEST,
                 None,
                 ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request. Message: Unknown error".to_string(),
+                    "Request failed with status: 400 Bad Request".to_string(),
                 ),
             ),
             // TOO_MANY_REQUESTS
