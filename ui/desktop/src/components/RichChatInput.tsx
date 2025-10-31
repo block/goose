@@ -569,16 +569,19 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Check for double newline to exit code mode
       const codeContent = value.slice(codeMode.startPos);
       if (codeContent.endsWith('\n\n')) {
-        console.log('💻 CODE MODE: Double newline detected, exiting code mode');
-        // Exit code mode by removing the trigger and keeping the content
+        console.log('💻 CODE MODE: Double newline detected, exiting code mode and converting to code block');
+        // Exit code mode by converting to triple-backtick code block
         const triggerStart = match.index || 0;
         const triggerEnd = triggerStart + match[0].length + 1; // +1 for the newline after trigger
         const textBefore = value.slice(0, triggerStart);
         const codeAndAfter = value.slice(triggerEnd);
         
-        // Remove the double newline at the end and add a single newline to separate
-        const cleanedCode = codeAndAfter.replace(/\n\n$/, '\n');
-        const newValue = textBefore + cleanedCode;
+        // Remove the double newline at the end
+        const cleanedCode = codeAndAfter.replace(/\n\n$/, '');
+        
+        // Convert to triple-backtick format: ```language\ncode\n```
+        const language = codeMode.language;
+        const newValue = textBefore + '```' + language + '\n' + cleanedCode + '\n```\n';
         const newCursorPos = newValue.length;
         
         onChange(newValue, newCursorPos);
