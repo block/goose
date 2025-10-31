@@ -514,20 +514,21 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     };
   }, [value, performSpellCheck]);
 
-  // Detect code mode triggers (#language)
+  // Detect code mode triggers (#language) - can be anywhere in the text
   useEffect(() => {
-    const languageTriggerRegex = /^#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
+    const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
     const match = value.match(languageTriggerRegex);
     
     if (match && !codeMode) {
       // Enter code mode
       const language = match[1].toLowerCase();
+      const triggerStart = match.index || 0;
       const triggerLength = match[0].length;
-      console.log('💻 CODE MODE ACTIVATED:', language);
+      console.log('💻 CODE MODE ACTIVATED:', language, 'at position', triggerStart);
       setCodeMode({
         active: true,
         language: language,
-        startPos: triggerLength
+        startPos: triggerStart + triggerLength
       });
     } else if (!match && codeMode) {
       // Exit code mode if trigger is removed
@@ -568,11 +569,26 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     if (codeMode && codeMode.active) {
       console.log('💻 RENDERING IN CODE MODE:', codeMode);
       
-      // Extract the code content (everything after the trigger)
+      // Find the trigger position
+      const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
+      const match = value.match(languageTriggerRegex);
+      
+      if (!match || match.index === undefined) {
+        // Shouldn't happen, but fallback to normal rendering
+        return null;
+      }
+      
+      const triggerStart = match.index;
+      const textBefore = value.slice(0, triggerStart);
       const codeContent = value.slice(codeMode.startPos);
       
       return (
         <div className="whitespace-pre-wrap relative">
+          {/* Text before the trigger (if any) */}
+          {textBefore && (
+            <span className="inline whitespace-pre-wrap">{textBefore}</span>
+          )}
+          
           {/* Language badge */}
           <div className="inline-flex items-center gap-1 px-2 py-0.5 mb-1 text-xs font-mono text-gray-300 bg-gray-800 rounded border border-gray-700">
             <Code size={12} />
@@ -581,7 +597,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           
           {/* Code content with syntax highlighting */}
           <div 
-            className="font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50"
+            className="font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1"
             style={{ 
               fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
             }}
