@@ -98,7 +98,7 @@ export default function MCPUIResourceRenderer({
     const theme = localStorage.getItem('theme') || 'light';
     setCurrentThemeValue(theme);
 
-    // Fetch the MCP-UI proxy URL from the main process
+    // Fetch the MCP proxy URL from the main process
     const fetchProxyUrl = async () => {
       try {
         const url = await window.electron.getMcpUIProxyUrl();
