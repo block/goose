@@ -319,7 +319,6 @@ export default function MCPUIResourceRenderer({
   return (
     <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
       <div className="overflow-hidden rounded-sm">
-        <h2>Proxy URL: {proxyUrl}</h2>
         <UIResourceRenderer
           resource={content.resource}
           onUIAction={handleUIAction}
