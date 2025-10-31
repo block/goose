@@ -175,9 +175,11 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 }, ref) => {
   const hiddenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
   
   // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
@@ -200,9 +202,14 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const display = displayRef.current;
       
       // Calculate line height more accurately based on actual font metrics
-      const lineHeight = 21; // 14px * 1.5 line-height = 21px
+      // Calculate actual line height from the textarea
+      const computedStyle = window.getComputedStyle(textarea);
+      const fontSize = parseFloat(computedStyle.fontSize);
+      const lineHeightValue = computedStyle.lineHeight;
+      const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
       const minHeight = rows * lineHeight;
-      const maxHeight = 300;
+      // Respect parent's maxHeight constraint from style prop, or use default
+      const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
@@ -218,12 +225,17 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       
       // Always update heights to ensure consistency
       textarea.style.height = `${finalHeight}px`;
+      textarea.style.lineHeight = `${lineHeight}px`;
       textarea.style.minHeight = `${minHeight}px`;
       textarea.style.maxHeight = `${maxHeight}px`;
       
       display.style.height = `${finalHeight}px`;
+      display.style.lineHeight = `${lineHeight}px`;
       display.style.minHeight = `${minHeight}px`;
       display.style.maxHeight = `${maxHeight}px`;
+      
+      // Update container height so it takes up space in the layout
+      setContainerHeight(finalHeight);
       
       // Handle display content height for scrolling
       const displayContent = display.firstElementChild as HTMLElement;
@@ -235,9 +247,39 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions
+      // Sync scroll positions first
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
+      
+      // Then ensure cursor is visible and update both layers together
+      if (textareaScrollHeight > finalHeight) {
+        const cursorPosition = textarea.selectionStart;
+        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+        const linesBeforeCursor = textBeforeCursor.split("\n").length;
+        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
+        const cursorLineBottom = cursorLineTop + 21;
+        
+        const currentScrollTop = textarea.scrollTop;
+        const visibleTop = currentScrollTop;
+        const visibleBottom = currentScrollTop + finalHeight;
+        
+        let newScrollTop = currentScrollTop;
+        
+        // Calculate new scroll position if cursor is not visible
+        if (cursorLineBottom > visibleBottom) {
+          // Cursor is below visible area - scroll down to show it
+          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
+        } else if (cursorLineTop < visibleTop) {
+          // Cursor is above visible area - scroll up to show it
+          newScrollTop = Math.max(0, cursorLineTop - 21);
+        }
+        
+        // Update both layers together if scroll position changed
+        if (newScrollTop !== currentScrollTop) {
+          textarea.scrollTop = newScrollTop;
+          display.scrollTop = newScrollTop;
+        }
+      }
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -252,6 +294,48 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         displayHeight: display.style.height
       });
     }
+  }, [rows, style, value]);
+
+  // Ensure line height consistency between layers
+  // Comprehensive style synchronization between layers
+  const ensureStyleConsistency = useCallback(() => {
+    if (hiddenTextareaRef.current && displayRef.current) {
+      const textarea = hiddenTextareaRef.current;
+      const display = displayRef.current;
+      
+      // Get all computed styles that affect text layout
+      const computedStyle = window.getComputedStyle(textarea);
+      
+      // Apply critical layout styles to ensure perfect alignment
+      // Force exact line height match with higher specificity
+      const exactLineHeight = computedStyle.lineHeight;
+      display.style.setProperty("line-height", exactLineHeight, "important");
+      
+      // Also set minHeight using the computed line height for consistency
+      const computedLineHeight = parseFloat(exactLineHeight);
+      const calculatedMinHeight = rows * computedLineHeight;
+      display.style.setProperty("min-height", `${calculatedMinHeight}px`, "important");
+      
+      // Ensure all child elements inherit the exact line height
+      const allChildren = display.querySelectorAll("*");
+      allChildren.forEach(child => {
+        (child as HTMLElement).style.setProperty("line-height", "inherit", "important");
+      });
+      display.style.fontSize = computedStyle.fontSize;
+      display.style.fontFamily = computedStyle.fontFamily;
+      display.style.letterSpacing = computedStyle.letterSpacing;
+      display.style.wordSpacing = computedStyle.wordSpacing;
+      // Ensure identical padding (critical for alignment)
+      display.style.paddingTop = computedStyle.paddingTop;
+      display.style.paddingRight = computedStyle.paddingRight;
+      display.style.paddingBottom = computedStyle.paddingBottom;
+      display.style.paddingLeft = computedStyle.paddingLeft;
+      
+      // Ensure identical text rendering to prevent subpixel drift
+      display.style.textRendering = computedStyle.textRendering;
+      display.style.webkitFontSmoothing = computedStyle.webkitFontSmoothing;
+      display.style.mozOsxFontSmoothing = computedStyle.mozOsxFontSmoothing;
+    }
   }, [rows]);
 
   // Monitor textarea for any changes that might affect height
@@ -262,6 +346,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Use ResizeObserver to detect when textarea dimensions change
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
+      ensureStyleConsistency();
       });
       
       resizeObserver.observe(textarea);
@@ -272,6 +357,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         if (textarea.scrollHeight !== lastScrollHeight) {
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
+      ensureStyleConsistency();
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -316,20 +402,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     },
     contentRef: hiddenTextareaRef,
     resetHeight: () => {
+      console.log('🔄 RESET HEIGHT CALLED');
       if (hiddenTextareaRef.current && displayRef.current) {
         const textarea = hiddenTextareaRef.current;
         const display = displayRef.current;
-        const lineHeight = 21;
+        // Calculate actual line height from the textarea
+        const computedStyle = window.getComputedStyle(textarea);
+        const fontSize = parseFloat(computedStyle.fontSize);
+        const lineHeightValue = computedStyle.lineHeight;
+        const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
         const minHeight = rows * lineHeight;
         
+        // Reset to auto first, then set to minHeight - DON'T call syncDisplayHeight after!
         textarea.style.height = "auto";
         textarea.style.height = `${minHeight}px`;
         display.style.height = `${minHeight}px`;
+        setContainerHeight(minHeight);
         
-        syncDisplayHeight();
+        console.log('🔄 RESET HEIGHT: Set to minHeight', minHeight);
       }
     },
-  }), []);
+  }), [rows, syncDisplayHeight, ensureStyleConsistency]);
 
   // Update cursor position when selection changes
   const updateCursorPosition = useCallback(() => {
@@ -423,7 +516,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed relative">
+        <div className="whitespace-pre-wrap relative">
           {/* Placeholder text positioned absolutely to prevent movement */}
           <span className="text-text-muted pointer-events-none select-none absolute inset-0">
             {placeholder}
@@ -748,7 +841,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
     
     return (
-      <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
+      <div className="whitespace-pre-wrap">
         {parts.length > 0 ? parts : (
           isFocused && (
             <span className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
@@ -786,6 +879,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
+      ensureStyleConsistency();
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
@@ -914,6 +1008,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const cleanup = monitorTextareaChanges();
     return cleanup;
   }, [monitorTextareaChanges]);
+
+  // Explicitly sync height whenever value changes (including when text is deleted)
+  useEffect(() => {
+    syncDisplayHeight();
+    ensureStyleConsistency();
+  }, [value, syncDisplayHeight, ensureStyleConsistency]);
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
     const newValue = value.slice(0, tooltip.wordStart) + 
@@ -991,7 +1091,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   return (
     <div 
+      ref={containerRef}
       className="relative rich-text-input"
+      style={{ height: containerHeight > 0 ? `${containerHeight}px` : 'auto' }}
       onMouseLeave={handleContainerMouseLeave}
     >
       {/* Hidden textarea for actual input handling with spell check disabled (we handle it ourselves) */}
@@ -1030,6 +1132,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match leading-relaxed
           padding: '12px 80px 12px 12px', // Match top and bottom padding: 12px each
           margin: '0',
+          boxSizing: "border-box", // Match textarea box model
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
@@ -1041,7 +1144,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
@@ -1055,6 +1158,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match textarea line height
           padding: '12px 80px 12px 12px', // Match textarea padding: 12px top and bottom
           margin: '0',
+          boxSizing: "border-box", // Match textarea box model
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
           // Hide scrollbars but keep scrolling functionality
