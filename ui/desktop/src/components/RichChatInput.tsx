@@ -206,7 +206,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const lineHeightValue = computedStyle.lineHeight;
       const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
       const minHeight = rows * lineHeight;
-      const maxHeight = 300;
+      // Respect parent's maxHeight constraint from style prop, or use default
+      const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
@@ -288,7 +289,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         displayHeight: display.style.height
       });
     }
-  }, [rows]);
+  }, [rows, style]);
 
   // Ensure line height consistency between layers
   // Comprehensive style synchronization between layers
