@@ -1006,6 +1006,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const cleanup = monitorTextareaChanges();
     return cleanup;
   }, [monitorTextareaChanges]);
+
+  // Explicitly sync height whenever value changes (including when text is deleted)
+  useEffect(() => {
+    syncDisplayHeight();
+    ensureStyleConsistency();
+  }, [value, syncDisplayHeight, ensureStyleConsistency]);
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
     const newValue = value.slice(0, tooltip.wordStart) + 
