@@ -1,6 +1,3 @@
-// Simple test to demonstrate model enumeration for embedded provider
-// Run with: cargo test --package goose --test test_model_enumeration
-
 #[cfg(test)]
 mod tests {
     use goose::providers::base::Provider;
@@ -8,8 +5,6 @@ mod tests {
 
     #[test]
     fn test_enumerate_models_static() {
-        // Test the static enumerate_models method that doesn't require a provider instance
-
         match EmbeddedProvider::enumerate_models() {
             Ok(models) => {
                 if models.is_empty() {
@@ -43,10 +38,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_supported_models_with_provider() {
-        // Test fetching models via the Provider trait method
-        // Note: This test requires ~/.models directory to exist with at least one .gguf file
-
-        // First check if we have any models
         let available_models = match EmbeddedProvider::enumerate_models() {
             Ok(models) => models,
             Err(e) => {
@@ -103,7 +94,6 @@ mod tests {
 
     #[test]
     fn test_models_directory_scanning() {
-        // Test that we can list the models without creating a full provider
         use std::path::PathBuf;
 
         let home = dirs::home_dir().expect("Could not get home directory");

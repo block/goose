@@ -90,8 +90,6 @@ fn detect_platform_defaults() -> PlatformDefaults {
 
     let cpu_count = sys.cpus().len() as u32;
     let total_memory_gb = sys.total_memory() / (1024 * 1024 * 1024);
-
-    // Detect platform
     let os = std::env::consts::OS;
 
     tracing::debug!(
@@ -255,7 +253,6 @@ async fn download_model(model: &DownloadableModel) -> Result<PathBuf> {
 
     let target_path = models_dir.join(format!("{}.gguf", model.name));
 
-    // Check if already downloaded
     if target_path.exists() {
         tracing::info!("Model {} already downloaded", model.name);
         return Ok(target_path);
@@ -421,7 +418,6 @@ async fn download_and_extract_llama_server(
     let install_dir = cache_dir.join(version).join(platform);
     std::fs::create_dir_all(&install_dir)?;
 
-    // Download
     tracing::debug!("Downloading from: {}", url);
     let response = reqwest::get(&url).await?;
     if !response.status().is_success() {
