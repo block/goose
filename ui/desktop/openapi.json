@@ -930,6 +930,169 @@
         }
       }
     },
+    "/database/backup": {
+      "post": {
+        "tags": [
+          "Database Management"
+        ],
+        "operationId": "create_backup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBackupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Backup created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateBackupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/database/backups": {
+      "get": {
+        "tags": [
+          "Database Management"
+        ],
+        "operationId": "list_backups",
+        "responses": {
+          "200": {
+            "description": "List of backups retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/database/backups/delete": {
+      "delete": {
+        "tags": [
+          "Database Management"
+        ],
+        "operationId": "delete_backups",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteBackupsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Backups deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteBackupsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/database/restore": {
+      "post": {
+        "tags": [
+          "Database Management"
+        ],
+        "operationId": "restore_backup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreBackupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Database restored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreBackupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid backup filename"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Backup not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/database/status": {
       "get": {
         "tags": [
@@ -2184,6 +2347,21 @@
           }
         }
       },
+      "BackupsListResponse": {
+        "type": "object",
+        "required": [
+          "backups"
+        ],
+        "properties": {
+          "backups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupInfo"
+            },
+            "description": "List of available backups"
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
@@ -2313,6 +2491,41 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CreateBackupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional custom name for the backup",
+            "nullable": true
+          }
+        }
+      },
+      "CreateBackupResponse": {
+        "type": "object",
+        "required": [
+          "filename",
+          "size",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the backup was created"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Filename of the created backup"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the backup file in bytes",
+            "minimum": 0
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -2503,6 +2716,60 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "DeleteBackupsRequest": {
+        "type": "object",
+        "required": [
+          "filenames",
+          "deleteAll",
+          "cleanupOrphaned"
+        ],
+        "properties": {
+          "cleanupOrphaned": {
+            "type": "boolean",
+            "description": "Clean up orphaned WAL/SHM files"
+          },
+          "deleteAll": {
+            "type": "boolean",
+            "description": "Delete all backups if true"
+          },
+          "filenames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of backup filenames to delete"
+          }
+        }
+      },
+      "DeleteBackupsResponse": {
+        "type": "object",
+        "required": [
+          "deleted",
+          "failed",
+          "orphanedCleaned"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Successfully deleted files"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files that failed to delete"
+          },
+          "orphanedCleaned": {
+            "type": "integer",
+            "description": "Number of orphaned files cleaned",
+            "minimum": 0
           }
         }
       },
@@ -4093,6 +4360,35 @@
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "RestoreBackupRequest": {
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename of the backup to restore"
+          }
+        }
+      },
+      "RestoreBackupResponse": {
+        "type": "object",
+        "required": [
+          "message",
+          "restoredFrom"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "restoredFrom": {
+            "type": "string",
+            "description": "Backup that was restored"
           }
         }
       },

@@ -2882,6 +2882,7 @@ dependencies = [
  "goose",
  "goose-mcp",
  "http 1.2.0",
+ "once_cell",
  "reqwest 0.12.12",
  "rmcp",
  "schemars",

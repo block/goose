@@ -32,6 +32,13 @@ export type BackupInfo = {
     size: number;
 };
 
+export type BackupsListResponse = {
+    /**
+     * List of available backups
+     */
+    backups: Array<BackupInfo>;
+};
+
 export type ChatRequest = {
     messages: Array<Message>;
     recipe_name?: string | null;
@@ -80,6 +87,28 @@ export type ConfigResponse = {
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
+
+export type CreateBackupRequest = {
+    /**
+     * Optional custom name for the backup
+     */
+    name?: string | null;
+};
+
+export type CreateBackupResponse = {
+    /**
+     * When the backup was created
+     */
+    createdAt: string;
+    /**
+     * Filename of the created backup
+     */
+    filename: string;
+    /**
+     * Size of the backup file in bytes
+     */
+    size: number;
+};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -131,6 +160,36 @@ export type DecodeRecipeRequest = {
 
 export type DecodeRecipeResponse = {
     recipe: Recipe;
+};
+
+export type DeleteBackupsRequest = {
+    /**
+     * Clean up orphaned WAL/SHM files
+     */
+    cleanupOrphaned: boolean;
+    /**
+     * Delete all backups if true
+     */
+    deleteAll: boolean;
+    /**
+     * List of backup filenames to delete
+     */
+    filenames: Array<string>;
+};
+
+export type DeleteBackupsResponse = {
+    /**
+     * Successfully deleted files
+     */
+    deleted: Array<string>;
+    /**
+     * Files that failed to delete
+     */
+    failed: Array<string>;
+    /**
+     * Number of orphaned files cleaned
+     */
+    orphanedCleaned: number;
 };
 
 export type DeleteRecipeRequest = {
@@ -626,6 +685,24 @@ export type ResourceContents = {
 
 export type Response = {
     json_schema?: unknown;
+};
+
+export type RestoreBackupRequest = {
+    /**
+     * Filename of the backup to restore
+     */
+    filename: string;
+};
+
+export type RestoreBackupResponse = {
+    /**
+     * Success message
+     */
+    message: string;
+    /**
+     * Backup that was restored
+     */
+    restoredFrom: string;
 };
 
 export type ResumeAgentRequest = {
@@ -1665,6 +1742,126 @@ export type ConfirmPermissionResponses = {
      */
     200: unknown;
 };
+
+export type CreateBackupData = {
+    body: CreateBackupRequest;
+    path?: never;
+    query?: never;
+    url: '/database/backup';
+};
+
+export type CreateBackupErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateBackupResponses = {
+    /**
+     * Backup created successfully
+     */
+    201: CreateBackupResponse;
+};
+
+export type CreateBackupResponse2 = CreateBackupResponses[keyof CreateBackupResponses];
+
+export type ListBackupsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/database/backups';
+};
+
+export type ListBackupsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListBackupsResponses = {
+    /**
+     * List of backups retrieved successfully
+     */
+    200: BackupsListResponse;
+};
+
+export type ListBackupsResponse = ListBackupsResponses[keyof ListBackupsResponses];
+
+export type DeleteBackupsData = {
+    body: DeleteBackupsRequest;
+    path?: never;
+    query?: never;
+    url: '/database/backups/delete';
+};
+
+export type DeleteBackupsErrors = {
+    /**
+     * Bad request - Invalid parameters
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteBackupsResponses = {
+    /**
+     * Backups deleted successfully
+     */
+    200: DeleteBackupsResponse;
+};
+
+export type DeleteBackupsResponse2 = DeleteBackupsResponses[keyof DeleteBackupsResponses];
+
+export type RestoreBackupData = {
+    body: RestoreBackupRequest;
+    path?: never;
+    query?: never;
+    url: '/database/restore';
+};
+
+export type RestoreBackupErrors = {
+    /**
+     * Bad request - Invalid backup filename
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Backup not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RestoreBackupResponses = {
+    /**
+     * Database restored successfully
+     */
+    200: RestoreBackupResponse;
+};
+
+export type RestoreBackupResponse2 = RestoreBackupResponses[keyof RestoreBackupResponses];
 
 export type DatabaseStatusData = {
     body?: never;
