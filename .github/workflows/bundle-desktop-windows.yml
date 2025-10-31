@@ -198,47 +198,11 @@ jobs:
           ls -la ./target/x86_64-pc-windows-gnu/release/goosed.exe
           ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
 
-      # 4.5) Build temporal-service for Windows using build.sh script
-      - name: Build temporal-service for Windows
-        run: |
-          echo "Building temporal-service for Windows using build.sh script..."
-          docker run --rm \
-            -v "$(pwd)":/usr/src/myapp \
-            -w /usr/src/myapp/temporal-service \
-            golang:latest \
-            sh -c "
-              # Make build.sh executable
-              chmod +x build.sh
-              # Set Windows build environment and run build script
-              GOOS=windows GOARCH=amd64 ./build.sh
-            "
-          echo "temporal-service.exe built successfully"
-
-      # 4.6) Download temporal CLI for Windows
-      - name: Download temporal CLI for Windows
-        run: |
-          echo "Downloading temporal CLI for Windows..."
-          TEMPORAL_VERSION="1.3.0"
-          curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
-          unzip -o temporal-cli-windows.zip
-          chmod +x temporal.exe
-          echo "temporal CLI downloaded successfully"
-
       # 5) Prepare Windows binary and DLLs
       - name: Prepare Windows binary and DLLs
         run: |
           if [ ! -f "./target/x86_64-pc-windows-gnu/release/goosed.exe" ]; then
             echo "Windows binary not found."
-            exit 1
-          fi
-          
-          if [ ! -f "./temporal-service/temporal-service.exe" ]; then
-            echo "temporal-service.exe not found."
-            exit 1
-          fi
-          
-          if [ ! -f "./temporal.exe" ]; then
-            echo "temporal.exe not found."
             exit 1
           fi
           
@@ -249,12 +213,6 @@ jobs:
           echo "Copying Windows binary and DLLs..."
           cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/
           cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/
-          
-          echo "Copying temporal-service.exe..."
-          cp -f ./temporal-service/temporal-service.exe ./ui/desktop/src/bin/
-          
-          echo "Copying temporal.exe..."
-          cp -f ./temporal.exe ./ui/desktop/src/bin/
           
           # Copy Windows platform files (tools, scripts, etc.)
           if [ -d "./ui/desktop/src/platform/windows/bin" ]; then

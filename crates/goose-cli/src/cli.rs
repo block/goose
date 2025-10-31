@@ -27,6 +27,7 @@ use goose_bench::runners::metric_aggregator::MetricAggregator;
 use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
+use tracing::warn;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -77,19 +78,19 @@ async fn get_or_create_session_id(
     }
 
     let Some(id) = identifier else {
-        if resume {
+        return if resume {
             let sessions = SessionManager::list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            return Ok(Some(session_id));
+            Ok(Some(session_id))
         } else {
             let session =
                 SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
                     .await?;
-            return Ok(Some(session.id));
-        }
+            Ok(Some(session.id))
+        };
     };
 
     if let Some(session_id) = id.session_id {
@@ -270,11 +271,11 @@ enum SchedulerCommand {
         #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
         id: String,
     },
-    /// Check status of Temporal services (temporal scheduler only)
-    #[command(about = "Check status of Temporal services")]
+    /// Check status of scheduler services (deprecated - no external services needed)
+    #[command(about = "Check status of scheduler services")]
     ServicesStatus {},
-    /// Stop Temporal services (temporal scheduler only)
-    #[command(about = "Stop Temporal services")]
+    /// Stop scheduler services (deprecated - no external services needed)
+    #[command(about = "Stop scheduler services")]
     ServicesStop {},
     /// Show cron expression examples and help
     #[command(about = "Show cron expression examples and help")]
@@ -817,12 +818,11 @@ pub struct RecipeInfo {
     pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
-pub async fn cli() -> Result<()> {
+pub async fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Track the current directory in projects.json
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        eprintln!("Warning: Failed to update project tracker: {}", e);
+        warn!("Warning: Failed to update project tracker: {}", e);
     }
 
     let command_name = match &cli.command {
@@ -850,20 +850,17 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Configure {}) => {
-            let _ = handle_configure().await;
-            return Ok(());
+            handle_configure().await?;
         }
         Some(Command::Info { verbose }) => {
             handle_info(verbose)?;
-            return Ok(());
         }
         Some(Command::Mcp { name }) => {
             crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            let _ = goose_mcp::mcp_server_runner::run_mcp_server(&name).await;
+            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
         }
         Some(Command::Acp {}) => {
-            let _ = run_acp_agent().await;
-            return Ok(());
+            run_acp_agent().await?;
         }
         Some(Command::Session {
             command,
@@ -884,13 +881,9 @@ pub async fn cli() -> Result<()> {
                     ascending,
                     working_dir,
                     limit,
-                }) => {
-                    handle_session_list(format, ascending, working_dir, limit).await?;
-                    Ok(())
-                }
+                }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
                 Some(SessionCommand::Remove { id, regex }) => {
-                    handle_session_remove(id, regex).await?;
-                    return Ok(());
+                    Ok(handle_session_remove(id, regex).await?)
                 }
                 Some(SessionCommand::Export {
                     identifier,
@@ -1183,7 +1176,7 @@ pub async fn cli() -> Result<()> {
             .await;
 
             if interactive {
-                let _ = session.interactive(input_config.contents).await;
+                session.interactive(input_config.contents).await?;
             } else if let Some(contents) = input_config.contents {
                 let session_start = std::time::Instant::now();
                 let session_type = if recipe_info.is_some() {
@@ -1237,8 +1230,9 @@ pub async fn cli() -> Result<()> {
 
                 result?;
             } else {
-                eprintln!("Error: no text provided for prompt in headless mode");
-                std::process::exit(1);
+                return Err(anyhow::anyhow!(
+                    "no text provided for prompt in headless mode"
+                ));
             }
 
             return Ok(());
@@ -1290,8 +1284,7 @@ pub async fn cli() -> Result<()> {
                 BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
                 BenchCommand::InitConfig { name } => {
                     let mut config = BenchRunConfig::default();
-                    let cwd =
-                        std::env::current_dir().expect("Failed to get current working directory");
+                    let cwd = std::env::current_dir()?;
                     config.output_dir = Some(cwd);
                     config.save(name);
                 }
@@ -1334,7 +1327,7 @@ pub async fn cli() -> Result<()> {
         }
         None => {
             return if !Config::global().exists() {
-                let _ = handle_configure().await;
+                handle_configure().await?;
                 Ok(())
             } else {
                 // Run session command by default
@@ -1364,10 +1357,7 @@ pub async fn cli() -> Result<()> {
                     retry_config: None,
                 })
                 .await;
-                if let Err(e) = session.interactive(None).await {
-                    eprintln!("Session ended with error: {}", e);
-                    std::process::exit(1);
-                }
+                session.interactive(None).await?;
                 Ok(())
             };
         }

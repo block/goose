@@ -326,10 +326,6 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
 
-**Temporal Commands (requires Temporal CLI):**
-- `services-status`: Check if any Temporal services are running
-- `services-stop`: Stop any running Temporal services
-
 **Options:**
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression)
@@ -511,7 +507,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 
 **Configuration:**
 - The default theme is `dark`
-- The theme setting is saved to the [configuration file](/docs/guides/config-file) as `GOOSE_CLI_THEME` and persists between sessions
+- The theme setting is saved to the [configuration file](/docs/guides/config-files) as `GOOSE_CLI_THEME` and persists between sessions
 - The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
 
 :::info

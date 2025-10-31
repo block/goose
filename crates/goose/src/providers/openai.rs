@@ -112,6 +112,20 @@ impl OpenAiProvider {
         })
     }
 
+    #[doc(hidden)]
+    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+        Self {
+            api_client,
+            base_path: "v1/chat/completions".to_string(),
+            organization: None,
+            project: None,
+            model,
+            custom_headers: None,
+            supports_streaming: true,
+            name: Self::metadata().name,
+        }
+    }
+
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,

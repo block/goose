@@ -1,4 +1,5 @@
 use crate::mcp_utils::ToolResult;
+use crate::providers::base::Provider;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -8,6 +9,9 @@ use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<Content>>)>>>;
+
+// We use double Arc here to allow easy provider swaps while sharing concurrent access
+pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
 
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;

@@ -15,7 +15,7 @@ pub const GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR: &str = "GOOSE_SUBAGENT_MAX_TURNS";
 #[derive(Clone)]
 pub struct TaskConfig {
     pub provider: Arc<dyn Provider>,
-    pub parent_session_id: String,
+    pub parent_session_id: Option<String>,
     pub parent_working_dir: PathBuf,
     pub extensions: Vec<ExtensionConfig>,
     pub max_turns: Option<usize>,
@@ -37,7 +37,7 @@ impl TaskConfig {
     /// Create a new TaskConfig with all required dependencies
     pub fn new(
         provider: Arc<dyn Provider>,
-        parent_session_id: String,
+        parent_session_id: Option<String>,
         parent_working_dir: PathBuf,
         extensions: Vec<ExtensionConfig>,
     ) -> Self {

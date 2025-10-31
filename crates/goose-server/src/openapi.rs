@@ -19,10 +19,11 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SystemNotificationContent, SystemNotificationType, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
+use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -347,6 +348,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::update_from_session,
+        super::routes::agent::agent_add_extension,
+        super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
         super::routes::reply::confirm_permission,
@@ -401,6 +404,7 @@ derive_utoipa!(Icon as IconSchema);
         Message,
         MessageContent,
         MessageMetadata,
+        TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -420,6 +424,7 @@ derive_utoipa!(Icon as IconSchema);
         ResourceContentsSchema,
         SystemNotificationType,
         SystemNotificationContent,
+        MessageEvent,
         JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
@@ -484,6 +489,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::UpdateFromSessionRequest,
+        super::routes::agent::AddExtensionRequest,
+        super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]

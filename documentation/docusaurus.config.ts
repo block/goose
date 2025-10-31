@@ -162,6 +162,10 @@ const config: Config = {
             from: '/docs/guides/creating-plans',
             to: '/docs/guides/multi-model/creating-plans'
           },
+          {
+            from: '/docs/guides/config-file',
+            to: '/docs/guides/config-files',
+          },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
             from: '/docs/tutorials/agentql-mcp',
