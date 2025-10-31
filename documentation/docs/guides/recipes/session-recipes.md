@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Bot } from 'lucide-react';
+import { PanelLeft, Bot, SquarePen, Link, Calendar } from 'lucide-react';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
@@ -170,17 +170,17 @@ You can turn your current goose session into a reusable recipe that includes the
   <TabItem value="generator" label="Recipe Generator">
     Use the online [Recipe Generator](https://block.github.io/goose/recipe-generator) tool to create a recipe. First choose your preferred format:
 
-    - **URL Format**: Generates a shareable link that opens a session in the Goose Desktop app
-    - **YAML Format**: Generates YAML content that you can save to file and then run in the Goose CLI app
+    - **URL Format**: Generates a shareable link that opens a session in goose Desktop
+    - **YAML Format**: Generates YAML content that you can save to file and then run in goose CLI
 
     Then fill out the recipe form by providing:
       - A **title** for the recipe
       - A **description**
       - A set of **instructions** for the recipe.
       - An optional initial **prompt**:
-        - In the Desktop app, the prompt displays in the chat box.
-        - In the CLI app, the prompt provides the initial message to run. Note that a prompt is required to run the recipe in headless (non-interactive) mode.
-      - A set of optional **activities** to display in the Desktop app.
+        - In the Desktop, the prompt displays in the chat box.
+        - In the CLI, the prompt provides the initial message to run. Note that a prompt is required to run the recipe in headless (non-interactive) mode.
+      - A set of optional **activities** to display in the Desktop.
       - YAML format only: Optional **author** contact information and **extensions** the recipe uses.
 
   </TabItem>
@@ -190,9 +190,10 @@ You can turn your current goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
-   1. While in the session that's using the recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app 
-   2. Click `View/Edit Recipe` 
-   3. Edit any of the following:
+   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+   2. Click `Recipes`
+   3. Find the recipe you want to edit and click the <SquarePen className="inline" size={16} /> button
+   4. In the dialog that appears, edit any of the following:
       - Title
       - Description
       - Instructions
@@ -203,6 +204,10 @@ You can turn your current goose session into a reusable recipe that includes the
       - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
       - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
 
+  :::tip
+  You can also access the edit dialog while using a recipe in a session: Just click the <Bot className="inline" size={16} /> button at the bottom of the app and select `View/Edit Recipe`.
+  :::
+   
   </TabItem>
 
   <TabItem value="cli" label="goose CLI">
@@ -469,8 +474,7 @@ You can share a recipe with Desktop users via a recipe link.
     Copy the deeplink from your Recipe Library to share with others:
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Recipes` in the sidebar
-    3. Click `Preview` next to the recipe you want to share
-    4. Under `Deeplink`, click `Copy`
+    3. Find the recipe you want to share and click the <Link className="inline" size={16} /> button to copy the link
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -481,7 +485,7 @@ You can share a recipe with Desktop users via a recipe link.
   </TabItem>
 </Tabs>
 
-When someone clicks the link, it will open Goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#importing-recipes) for future use.
+When someone clicks the link, it will open goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#importing-recipes) for future use.
 
 ### Share via Recipe File
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
@@ -492,28 +496,42 @@ You can share a recipe with Desktop or CLI users by sending the recipe file dire
 ## Schedule Recipe
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-Automate Goose recipes by running them on a schedule.
+Automate goose recipes by running them on a schedule. When creating a schedule, you'll configure:
+- **Name**: A descriptive name for the schedule
+- **Source**: The recipe to run
+- **Execution mode**: Whether the recipe runs in the background (no window, results saved) or foreground (opens window if goose Desktop is running, otherwise runs in background)
+- **Frequency and time**: When to run the recipe (e.g. every 20 minutes, weekly at 10 AM on Friday). Your selection is converted into a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) used by goose.
+
+**Schedule from Recipe Library:**
+
+   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+   2. Click `Recipes`
+   3. Find the recipe you want to schedule and click the <Calendar className="inline" size={16} /> button
+   4. Click `Create Schedule`
+   5. In the dialog that appears, configure the schedule. For **Source**, your recipe link is already provided.
+   6. Click `Create Schedule`
+
+**Schedule from Scheduler View:**
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
    2. Click `Scheduler` 
    3. Click `Create Schedule`
-   3. In the dialog that appears:
-      - Provide a **name** for the schedule
-      - Select the **source** of your recipe. This can be either a `yaml` file or link generated by Goose Desktop.
-      - Select whether you want your recipe to run in the background or foreground **execution mode**. Recipes run in the background don't open a window, but the session results are saved. Recipes run in the foreground will open a window if the Goose Desktop app is running. Otherwise, the recipe runs in the background.
-      - Choose the **frequency** and **time** to run your recipe. Your selected frequency (e.g. every 20 minutes, weekly at 10 AM on Friday) is converted into a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) used by Goose.
-      - Click `Create Schedule`
+   4. In the dialog that appears, configure the schedule. For **Source**, select a `.yaml` or `.yml` file or provide a [recipe link](#share-recipe).
+   5. Click `Create Schedule`
 
-  Your new scheduled recipe is listed in the `Scheduler` page. Click on the schedule to view details, see when it was last run, and perform actions with the scheduled recipe:
-    - `Run Schedule Now` to trigger the recipe manually
-    - `Edit Schedule` to change the scheduled frequency
-    - `Pause Schedule` to stop the recipe from running automatically. 
+**Manage Scheduled Recipes**
 
-  At the bottom of the `Schedule Details` page you can view the list of sessions created by the scheduled recipe and open or restore each session.
+Your scheduled recipes are listed in the `Scheduler` page.
+Click on a schedule to view details, see when it was last run, and perform actions with the scheduled recipe:
+- `Run Schedule Now` to trigger the recipe manually
+- `Edit Schedule` to change the scheduled frequency
+- `Pause Schedule` to stop the recipe from running automatically
+
+At the bottom of the `Schedule Details` page you can view the list of sessions created by the scheduled recipe and open or restore each session.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  Automate Goose recipes by scheduling them to run with a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression).
+  Automate goose recipes by scheduling them to run with a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression).
 
   ```bash
   # Add a new scheduled recipe which runs every day at 9 AM
@@ -620,9 +638,9 @@ response:
 
 **How it works:**
 1. Recipe runs normally with provided instructions
-2. Goose calls a `final_output` tool with JSON matching your schema
+2. goose calls a `final_output` tool with JSON matching your schema
 3. Output is validated against the JSON schema
-4. If validation fails, Goose receives error details and must correct the output
+4. If validation fails, goose receives error details and must correct the output
 5. Final validated JSON appears as the last line of output for easy extraction
 
 **Example automation usage:**
@@ -635,7 +653,7 @@ echo "Issues Found: $(echo $RESULT | jq -r '.tests_failed')"
 ```
 
 :::info
-Structured output is supported in recipes run in both the Goose CLI and Goose Desktop. However, creating and editing the `json_schema` configuration must be done manually in the recipe file.
+Structured output is supported in recipes run in both the goose CLI and goose Desktop. However, creating and editing the `json_schema` configuration must be done manually in the recipe file.
 :::
 
 ## What's Included
@@ -651,14 +669,14 @@ A recipe captures:
 - Retry logic and success validation configuration (if configured)
 
 
-To protect your privacy and system integrity, Goose excludes:
+To protect your privacy and system integrity, goose excludes:
 
 - Global and local memory  
 - API keys and personal credentials  
-- System-level Goose settings  
+- System-level goose settings  
 
 
 This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
 
 ## Learn More
-Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
+Check out the [Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master goose recipes.
