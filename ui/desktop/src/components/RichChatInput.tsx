@@ -525,17 +525,41 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const triggerStart = match.index || 0;
       const triggerLength = match[0].length;
       console.log('💻 CODE MODE ACTIVATED:', language, 'at position', triggerStart);
+      
+      // Check if there's a newline right after the trigger
+      const charAfterTrigger = value[triggerStart + triggerLength];
+      const needsNewline = charAfterTrigger !== '\n' && charAfterTrigger !== undefined;
+      
+      if (needsNewline) {
+        // Insert a newline after the trigger to move cursor into code block
+        const beforeTrigger = value.slice(0, triggerStart + triggerLength);
+        const afterTrigger = value.slice(triggerStart + triggerLength);
+        const newValue = beforeTrigger + '\n' + afterTrigger;
+        const newCursorPos = triggerStart + triggerLength + 1; // Position after the newline
+        
+        console.log('💻 CODE MODE: Inserting newline after trigger');
+        onChange(newValue, newCursorPos);
+        
+        // Set cursor position in textarea
+        if (hiddenTextareaRef.current) {
+          setTimeout(() => {
+            hiddenTextareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+            setCursorPosition(newCursorPos);
+          }, 0);
+        }
+      }
+      
       setCodeMode({
         active: true,
         language: language,
-        startPos: triggerStart + triggerLength
+        startPos: triggerStart + triggerLength + (needsNewline ? 1 : 0) // Account for the newline
       });
     } else if (!match && codeMode) {
       // Exit code mode if trigger is removed
       console.log('💻 CODE MODE DEACTIVATED');
       setCodeMode(null);
     }
-  }, [value, codeMode]);
+  }, [value, codeMode, onChange]);
 
   // Parse and render content with action pills, mention pills, and cursor
   const renderContent = useCallback(() => {
