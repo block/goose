@@ -4,8 +4,6 @@ import SpellCheckTooltip from './SpellCheckTooltip';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface RichChatInputProps {
   value: string;
@@ -93,6 +91,7 @@ export interface RichChatInputRef {
   getBoundingClientRect: () => DOMRect;
   contentRef: React.RefObject<HTMLTextAreaElement>;
   resetHeight: () => void;
+  testHoverPositioning?: () => void;
 }
 
 // Use Electron's system spell checking
@@ -177,12 +176,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 }, ref) => {
   const hiddenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
-  const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [codeMode, setCodeMode] = useState<{ active: boolean; language: string; startPos: number } | null>(null);
   
   // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
@@ -198,6 +194,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
   }, []);
 
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
+  }, []);
+
   // Comprehensive height and scroll synchronization
   const syncDisplayHeight = useCallback(() => {
     if (hiddenTextareaRef.current && displayRef.current) {
@@ -211,8 +228,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const lineHeightValue = computedStyle.lineHeight;
       const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
       const minHeight = rows * lineHeight;
-      // Respect parent's maxHeight constraint from style prop, or use default
-      const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
+      const maxHeight = parseInt((style?.maxHeight as string)?.replace("px", "")) || 360; // Use parent maxHeight
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
@@ -228,17 +244,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       
       // Always update heights to ensure consistency
       textarea.style.height = `${finalHeight}px`;
-      textarea.style.lineHeight = `${lineHeight}px`;
       textarea.style.minHeight = `${minHeight}px`;
       textarea.style.maxHeight = `${maxHeight}px`;
       
       display.style.height = `${finalHeight}px`;
-      display.style.lineHeight = `${lineHeight}px`;
       display.style.minHeight = `${minHeight}px`;
       display.style.maxHeight = `${maxHeight}px`;
-      
-      // Update container height so it takes up space in the layout
-      setContainerHeight(finalHeight);
       
       // Handle display content height for scrolling
       const displayContent = display.firstElementChild as HTMLElement;
@@ -250,39 +261,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions first
+      // Sync scroll positions
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
-      
-      // Then ensure cursor is visible and update both layers together
-      if (textareaScrollHeight > finalHeight) {
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
-        const cursorLineBottom = cursorLineTop + 21;
-        
-        const currentScrollTop = textarea.scrollTop;
-        const visibleTop = currentScrollTop;
-        const visibleBottom = currentScrollTop + finalHeight;
-        
-        let newScrollTop = currentScrollTop;
-        
-        // Calculate new scroll position if cursor is not visible
-        if (cursorLineBottom > visibleBottom) {
-          // Cursor is below visible area - scroll down to show it
-          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
-        } else if (cursorLineTop < visibleTop) {
-          // Cursor is above visible area - scroll up to show it
-          newScrollTop = Math.max(0, cursorLineTop - 21);
-        }
-        
-        // Update both layers together if scroll position changed
-        if (newScrollTop !== currentScrollTop) {
-          textarea.scrollTop = newScrollTop;
-          display.scrollTop = newScrollTop;
-        }
-      }
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -297,9 +278,62 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         displayHeight: display.style.height
       });
     }
-  }, [rows, style, value]);
+  }, [rows]);
 
-  // Ensure line height consistency between layers
+  // Ensure hover positioning accuracy after style synchronization
+  const ensureHoverPositioning = useCallback(() => {
+    if (displayRef.current) {
+      // Force a layout recalculation to ensure getBoundingClientRect is accurate
+      
+      // Verify positioning accuracy by checking if display layer matches textarea
+      if (hiddenTextareaRef.current) {
+        const textarea = hiddenTextareaRef.current;
+        const display = displayRef.current;
+        const textareaRect = textarea.getBoundingClientRect();
+        const displayRect = display.getBoundingClientRect();
+        
+        // Log positioning info for debugging
+        console.log("🎯 POSITIONING CHECK:", {
+          textareaRect: { top: textareaRect.top, left: textareaRect.left, width: textareaRect.width, height: textareaRect.height },
+          displayRect: { top: displayRect.top, left: displayRect.left, width: displayRect.width, height: displayRect.height },
+          aligned: Math.abs(textareaRect.top - displayRect.top) < 1 && Math.abs(textareaRect.left - displayRect.left) < 1
+        });
+      }
+      displayRef.current.offsetHeight;
+      
+      // Ensure all interactive elements have proper positioning context
+      const interactiveElements = displayRef.current.querySelectorAll("[data-misspelled], .cursor-pointer");
+      interactiveElements.forEach(element => {
+        const htmlElement = element as HTMLElement;
+        // Ensure elements have proper positioning for accurate getBoundingClientRect
+        if (htmlElement.style.position !== "relative") {
+          htmlElement.style.position = "relative";
+        }
+      });
+    }
+  }, []);
+
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
+  }, []);
+
   // Comprehensive style synchronization between layers
   const ensureStyleConsistency = useCallback(() => {
     if (hiddenTextareaRef.current && displayRef.current) {
@@ -309,7 +343,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Get all computed styles that affect text layout
       const computedStyle = window.getComputedStyle(textarea);
       
-      // Apply critical layout styles to ensure perfect alignment
       // Force exact line height match with higher specificity
       const exactLineHeight = computedStyle.lineHeight;
       display.style.setProperty("line-height", exactLineHeight, "important");
@@ -319,15 +352,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const calculatedMinHeight = rows * computedLineHeight;
       display.style.setProperty("min-height", `${calculatedMinHeight}px`, "important");
       
-      // Ensure all child elements inherit the exact line height
-      const allChildren = display.querySelectorAll("*");
-      allChildren.forEach(child => {
-        (child as HTMLElement).style.setProperty("line-height", "inherit", "important");
-      });
+      // Apply critical layout styles to ensure perfect alignment
       display.style.fontSize = computedStyle.fontSize;
       display.style.fontFamily = computedStyle.fontFamily;
       display.style.letterSpacing = computedStyle.letterSpacing;
       display.style.wordSpacing = computedStyle.wordSpacing;
+      display.style.boxSizing = "border-box";
       // Ensure identical padding (critical for alignment)
       display.style.paddingTop = computedStyle.paddingTop;
       display.style.paddingRight = computedStyle.paddingRight;
@@ -338,8 +368,38 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       display.style.textRendering = computedStyle.textRendering;
       display.style.webkitFontSmoothing = computedStyle.webkitFontSmoothing;
       display.style.mozOsxFontSmoothing = computedStyle.mozOsxFontSmoothing;
+      
+      // Ensure all child elements inherit the exact line height
+      const allChildren = display.querySelectorAll("*");
+      allChildren.forEach(child => {
+        (child as HTMLElement).style.setProperty("line-height", "inherit", "important");
+      });
     }
   }, [rows]);
+
+    }
+  }, []);
+
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
+  }, []);
 
   // Monitor textarea for any changes that might affect height
   const monitorTextareaChanges = useCallback(() => {
@@ -350,6 +410,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
       ensureStyleConsistency();
+      ensureHoverPositioning();
+    },
+    testHoverPositioning: testHoverPositioning,
+    },
       });
       
       resizeObserver.observe(textarea);
@@ -361,6 +425,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
       ensureStyleConsistency();
+      ensureHoverPositioning();
+    },
+    testHoverPositioning: testHoverPositioning,
+    },
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -405,7 +473,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     },
     contentRef: hiddenTextareaRef,
     resetHeight: () => {
-      console.log('🔄 RESET HEIGHT CALLED');
       if (hiddenTextareaRef.current && displayRef.current) {
         const textarea = hiddenTextareaRef.current;
         const display = displayRef.current;
@@ -416,22 +483,46 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
         const minHeight = rows * lineHeight;
         
-        // Reset to auto first, then set to minHeight - DON'T call syncDisplayHeight after!
         textarea.style.height = "auto";
         textarea.style.height = `${minHeight}px`;
         display.style.height = `${minHeight}px`;
-        setContainerHeight(minHeight);
         
-        console.log('🔄 RESET HEIGHT: Set to minHeight', minHeight);
+        syncDisplayHeight();
+      ensureStyleConsistency();
+      ensureHoverPositioning();
+    },
+    testHoverPositioning: testHoverPositioning,
+    },
       }
     },
-  }), [rows, syncDisplayHeight, ensureStyleConsistency]);
+  }), []);
 
   // Update cursor position when selection changes
   const updateCursorPosition = useCallback(() => {
     if (hiddenTextareaRef.current) {
       setCursorPosition(hiddenTextareaRef.current.selectionStart);
     }
+  }, []);
+
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
   }, []);
 
   // Track the last spell checked text to avoid unnecessary re-checks
@@ -514,28 +605,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     };
   }, [value, performSpellCheck]);
 
-  // Detect code mode triggers (#language)
-  useEffect(() => {
-    const languageTriggerRegex = /^#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(\s|$)/i;
-    const match = value.match(languageTriggerRegex);
-    
-    if (match && !codeMode) {
-      // Enter code mode
-      const language = match[1].toLowerCase();
-      const triggerLength = match[0].length;
-      console.log('💻 CODE MODE ACTIVATED:', language);
-      setCodeMode({
-        active: true,
-        language: language,
-        startPos: triggerLength
-      });
-    } else if (!match && codeMode) {
-      // Exit code mode if trigger is removed
-      console.log('💻 CODE MODE DEACTIVATED');
-      setCodeMode(null);
-    }
-  }, [value, codeMode]);
-
   // Parse and render content with action pills, mention pills, and cursor
   const renderContent = useCallback(() => {
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
@@ -544,7 +613,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         <div className="whitespace-pre-wrap relative">
           {/* Placeholder text positioned absolutely to prevent movement */}
           <span className="text-text-muted pointer-events-none select-none absolute inset-0">
-            {placeholder || (codeMode ? `Type your ${codeMode.language} code here... (Cmd+Enter to send)` : placeholder)}
+            {placeholder}
           </span>
           {/* Cursor positioned absolutely at the start */}
           {isFocused && cursorPosition === 0 && (
@@ -560,64 +629,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               }} 
             />
           )}
-        </div>
-      );
-    }
-    
-    // Check if we're in code mode
-    if (codeMode && codeMode.active) {
-      console.log('💻 RENDERING IN CODE MODE:', codeMode);
-      
-      // Extract the code content (everything after the trigger)
-      const codeContent = value.slice(codeMode.startPos);
-      
-      return (
-        <div className="whitespace-pre-wrap relative">
-          {/* Language badge */}
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 mb-1 text-xs font-mono text-gray-300 bg-gray-800 rounded border border-gray-700">
-            <Code size={12} />
-            <span>{codeMode.language}</span>
-          </div>
-          
-          {/* Code content with syntax highlighting */}
-          <div 
-            className="font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50"
-            style={{ 
-              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
-            }}
-          >
-            <SyntaxHighlighter
-              language={codeMode.language}
-              style={vscDarkPlus}
-              customStyle={{
-                margin: 0,
-                padding: 0,
-                background: 'transparent',
-                fontSize: '0.875rem',
-                lineHeight: '1.5',
-              }}
-              PreTag="div"
-              CodeTag="code"
-              wrapLines={true}
-              showLineNumbers={false}
-            >
-              {codeContent || ' '}
-            </SyntaxHighlighter>
-            
-            {/* Cursor */}
-            {isFocused && (
-              <span 
-                className="border-l border-text-default inline-block" 
-                style={{ 
-                  animation: "blink 1s step-end infinite", 
-                  height: "1.3em",
-                  width: "1px",
-                  marginLeft: "2px",
-                  position: "relative"
-                }} 
-              />
-            )}
-          </div>
         </div>
       );
     }
@@ -664,26 +675,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         content: mentionMatch[1]
       });
     }
-    
-    // Find all code block matches
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    let codeBlockMatch;
-    codeBlockRegex.lastIndex = 0;
-    console.log('💻 Searching for code blocks in value:', value);
-    while ((codeBlockMatch = codeBlockRegex.exec(value)) !== null) {
-      const language = codeBlockMatch[1] || 'text';
-      const code = codeBlockMatch[2];
-      console.log('💻 Found code block match:', { language, code, index: codeBlockMatch.index });
-      allMatches.push({
-        type: 'codeblock',
-        match: codeBlockMatch,
-        index: codeBlockMatch.index,
-        length: codeBlockMatch[0].length,
-        content: code,
-        language: language
-      });
-    }
-    
     // Add misspelled words
     misspelledWords.forEach(misspelled => {
       allMatches.push({
@@ -799,48 +790,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             onRemove={() => handleRemoveMention(fileName)}
           />
         );
-      } else if (type === 'codeblock') {
-        // Handle code blocks with syntax highlighting
-        const language = (matchData as any).language || 'text';
-        const code = content;
-        
-        console.log('💻 Creating code block:', { language, code });
-        
-        parts.push(
-          <div
-            key={`codeblock-${keyCounter++}`}
-            className="block my-2"
-            style={{ pointerEvents: 'auto' }}
-          >
-            <div className="relative rounded-lg overflow-hidden bg-[#1E1E1E] border border-gray-700">
-              {/* Language badge */}
-              {language && language !== 'text' && (
-                <div className="absolute top-2 right-2 px-2 py-1 text-xs font-mono text-gray-300 bg-gray-800/80 rounded">
-                  {language}
-                </div>
-              )}
-              {/* Syntax highlighted code */}
-              <SyntaxHighlighter
-                language={language}
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  padding: '16px',
-                  background: 'transparent',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                }}
-                codeTagProps={{
-                  style: {
-                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
-                  }
-                }}
-              >
-                {code}
-              </SyntaxHighlighter>
-            </div>
-          </div>
-        );
       } else if (type === 'misspelled') {
         // Handle misspelled words with red highlighting and hover tooltip
         const misspelledData = misspelledWords.find(m => m.word === content);
@@ -852,6 +801,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             key={`misspelled-${keyCounter++}`} 
             data-misspelled="true"
             className="inline whitespace-pre-wrap cursor-pointer bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium px-1 py-0.5 rounded-sm border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 hover:scale-105 transition-all duration-150 relative z-50"
+            data-misspelled="true"
+            data-word={content}
+            data-start={misspelledData.start}
+            data-end={misspelledData.end}
             style={{
               pointerEvents: 'auto', // Override parent's pointer-events: none
               userSelect: 'text', // Allow text selection for normal text editing
@@ -994,7 +947,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         )}
       </div>
     );
-  }, [value, isFocused, placeholder, cursorPosition, misspelledWords, codeMode]);
+  }, [value, isFocused, placeholder, cursorPosition, misspelledWords]);
 
   const handleRemoveAction = useCallback((actionLabel: string) => {
     const actionText = `[${actionLabel}]`;
@@ -1025,6 +978,10 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
       ensureStyleConsistency();
+      ensureHoverPositioning();
+    },
+    testHoverPositioning: testHoverPositioning,
+    },
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
@@ -1034,23 +991,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
-    
-    // In code mode, handle Enter differently
-    if (codeMode && codeMode.active) {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        // Cmd+Enter or Ctrl+Enter: Exit code mode and send message
-        console.log('💻 CODE MODE: Cmd/Ctrl+Enter pressed, passing to parent');
-        // Don't prevent default - let parent handle sending
-      } else if (e.key === 'Enter') {
-        // Plain Enter in code mode: Insert newline, don't send
-        console.log('💻 CODE MODE: Enter pressed, inserting newline');
-        e.preventDefault();
-        const cursorPos = e.currentTarget.selectionStart;
-        const newValue = value.slice(0, cursorPos) + '\n' + value.slice(cursorPos);
-        onChange(newValue, cursorPos + 1);
-        return;
-      }
-    }
     
     // Handle backspace on action and mention pills
     if (e.key === 'Backspace') {
@@ -1111,7 +1051,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     } as React.KeyboardEvent<HTMLDivElement>;
     
     onKeyDown?.(syntheticEvent);
-  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition, codeMode, onChange]);
+  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition]);
 
   const handleTextareaPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // Update cursor position after paste
@@ -1170,12 +1110,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const cleanup = monitorTextareaChanges();
     return cleanup;
   }, [monitorTextareaChanges]);
-
-  // Explicitly sync height whenever value changes (including when text is deleted)
-  useEffect(() => {
-    syncDisplayHeight();
-    ensureStyleConsistency();
-  }, [value, syncDisplayHeight, ensureStyleConsistency]);
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
     const newValue = value.slice(0, tooltip.wordStart) + 
@@ -1201,6 +1135,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
   const handleContainerMouseLeave = useCallback(() => {
     console.log('🖱️ CONTAINER MOUSE LEAVE: Hiding tooltip');
     setTooltip(prev => ({ ...prev, isVisible: false }));
+  }, []);
+
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
   }, []);
 
   // Hide tooltip when clicking outside or when component loses focus
@@ -1233,6 +1188,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     };
   }, []);
 
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
+  }, []);
+
   // Tooltip hover handlers
   const handleTooltipEnter = useCallback(() => {
     console.log('🖱️ TOOLTIP ENTER: Setting isHoveringTooltip to true');
@@ -1240,6 +1216,27 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       ...prev,
       isHoveringTooltip: true,
     }));
+  }, []);
+
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
   }, []);
 
   const handleTooltipLeave = useCallback(() => {
@@ -1251,11 +1248,30 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }));
   }, []);
 
+  // Test function to verify hover positioning accuracy
+  const testHoverPositioning = useCallback(() => {
+    if (!displayRef.current) return;
+    
+    const misspelledElements = displayRef.current.querySelectorAll("[data-misspelled]");
+    console.log(`🧪 HOVER TEST: Found ${misspelledElements.length} misspelled word elements`);
+    
+    misspelledElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const word = element.getAttribute("data-word");
+      console.log(`🧪 HOVER TEST ${index}: Word "${word}" at position:`, {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      });
+    });
+  }, []);
+
   return (
     <div 
-      ref={containerRef}
       className="relative rich-text-input"
-      style={{ height: containerHeight > 0 ? `${containerHeight}px` : 'auto' }}
       onMouseLeave={handleContainerMouseLeave}
     >
       {/* Hidden textarea for actual input handling with spell check disabled (we handle it ourselves) */}
@@ -1294,7 +1310,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match leading-relaxed
           padding: '12px 80px 12px 12px', // Match top and bottom padding: 12px each
           margin: '0',
-          boxSizing: "border-box", // Match textarea box model
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
@@ -1306,11 +1321,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
           maxHeight: style?.maxHeight || 'none', // Respect parent max height constraints
+          width: "100%",
+          overflowX: "hidden",
           zIndex: 3, // Higher z-index, above textarea for misspelled word interactions
           pointerEvents: 'none', // Don't interfere with text selection by default
           userSelect: 'none', // Prevent selection on visual layer
@@ -1320,7 +1337,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match textarea line height
           padding: '12px 80px 12px 12px', // Match textarea padding: 12px top and bottom
           margin: '0',
-          boxSizing: "border-box", // Match textarea box model
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
           // Hide scrollbars but keep scrolling functionality
