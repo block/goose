@@ -1,0 +1,57 @@
+name: Check Release PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+
+jobs:
+  check-commits:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'release/')
+    steps:
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+
+    - name: Check all PR commits exist in main
+      run: |
+        git fetch origin main
+
+        CHERRY_OUTPUT=$(git cherry origin/main HEAD)
+
+        if [ -z "$CHERRY_OUTPUT" ]; then
+          echo "✅ All commits already exist in main"
+          exit 0
+        fi
+
+        echo "Cherry check results:"
+        echo "$CHERRY_OUTPUT"
+
+        MISSING_COMMITS=$(echo "$CHERRY_OUTPUT" | grep '^+' | cut -d' ' -f2)
+
+        if [ -z "$MISSING_COMMITS" ]; then
+          echo "✅ All commits exist in main"
+          exit 0
+        fi
+
+        COMMIT_COUNT=$(echo "$MISSING_COMMITS" | wc -l)
+        FIRST_COMMIT=$(git rev-list --reverse HEAD ^origin/main | head -1)
+
+        if [ "$COMMIT_COUNT" -eq 1 ] && echo "$MISSING_COMMITS" | grep -q "$FIRST_COMMIT"; then
+          echo "✅ Only version bump commit is unique"
+          git log --oneline -1 "$FIRST_COMMIT"
+        else
+          echo "❌ Found commits that should exist in main:"
+          for commit in $MISSING_COMMITS; do
+            if [ "$commit" != "$FIRST_COMMIT" ]; then
+              git log --oneline -1 "$commit"
+            fi
+          done
+          echo "Make sure commits have equivalents in main. If you've since updated main, re-run this job"
+          exit 1
+        fi
