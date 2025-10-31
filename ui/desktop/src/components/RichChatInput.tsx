@@ -336,7 +336,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       display.style.webkitFontSmoothing = computedStyle.webkitFontSmoothing;
       display.style.mozOsxFontSmoothing = computedStyle.mozOsxFontSmoothing;
     }
-  }, []);
+  }, [rows]);
 
   // Monitor textarea for any changes that might affect height
   const monitorTextareaChanges = useCallback(() => {
