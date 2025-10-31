@@ -78,6 +78,7 @@
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^15.6.6",
     "react-toastify": "^11.0.5",
+    "@monaco-editor/react": "^4.6.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "split-type": "^0.3.4",
