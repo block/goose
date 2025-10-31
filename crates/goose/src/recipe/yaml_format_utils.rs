@@ -33,9 +33,7 @@ pub fn reformat_fields_with_multiline_values(yaml: &str, multiline_fields: &[&st
                     let mut value = raw_val.trim_matches('"').to_string();
 
                     // Unescape quotes and double backslashes (MiniJinja + newlines)
-                    value = value
-                        .replace("\\\"", "\"")
-                        .replace("\\\\n", "\\n");
+                    value = value.replace("\\\"", "\"").replace("\\\\n", "\\n");
 
                     writeln!(result, "{indent_str}{field}: |").unwrap();
                     for l in value.split("\\n") {
@@ -88,7 +86,8 @@ mod tests {
     #[test]
     fn preserves_unlisted_fields() {
         let yaml = "version: \"1.0\"\nprompt: \"line1\\\\nline2\"\nnotes: \"note1\\\\nnote2\"";
-        let expected = "version: \"1.0\"\nprompt: |\n  line1\n  line2\nnotes: \"note1\\\\nnote2\"\n";
+        let expected =
+            "version: \"1.0\"\nprompt: |\n  line1\n  line2\nnotes: \"note1\\\\nnote2\"\n";
 
         let result = reformat_fields_with_multiline_values(yaml, &["prompt"]);
         assert_eq!(result, expected);

@@ -237,8 +237,10 @@ impl Recipe {
     }
 
     pub fn to_yaml(&self) -> Result<String> {
-        let recipe_yaml = serde_yaml::to_string(self).map_err(|err| anyhow::anyhow!("Failed to serialize recipe: {}", err))?;
-        let formatted_recipe_yaml = reformat_fields_with_multiline_values(&recipe_yaml, &["prompt", "instructions"]);
+        let recipe_yaml = serde_yaml::to_string(self)
+            .map_err(|err| anyhow::anyhow!("Failed to serialize recipe: {}", err))?;
+        let formatted_recipe_yaml =
+            reformat_fields_with_multiline_values(&recipe_yaml, &["prompt", "instructions"]);
         Ok(formatted_recipe_yaml)
     }
 
