@@ -565,6 +565,33 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Exit code mode if trigger is removed
       console.log('💻 CODE MODE DEACTIVATED');
       setCodeMode(null);
+    } else if (match && codeMode) {
+      // Check for double newline to exit code mode
+      const codeContent = value.slice(codeMode.startPos);
+      if (codeContent.endsWith('\n\n')) {
+        console.log('💻 CODE MODE: Double newline detected, exiting code mode');
+        // Exit code mode by removing the trigger and keeping the content
+        const triggerStart = match.index || 0;
+        const triggerEnd = triggerStart + match[0].length + 1; // +1 for the newline after trigger
+        const textBefore = value.slice(0, triggerStart);
+        const codeAndAfter = value.slice(triggerEnd);
+        
+        // Remove the double newline at the end and add a single newline to separate
+        const cleanedCode = codeAndAfter.replace(/\n\n$/, '\n');
+        const newValue = textBefore + cleanedCode;
+        const newCursorPos = newValue.length;
+        
+        onChange(newValue, newCursorPos);
+        setCodeMode(null);
+        
+        // Set cursor position
+        if (hiddenTextareaRef.current) {
+          setTimeout(() => {
+            hiddenTextareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+            setCursorPosition(newCursorPos);
+          }, 0);
+        }
+      }
     }
   }, [value, codeMode, onChange]);
 
