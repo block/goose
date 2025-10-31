@@ -199,9 +199,13 @@ function connect(port: number, agentId: string): void {
   });
 
   ws.on('message', async (data) => {
-    lastActivityTime = Date.now();
-    const message = JSON.parse(data.toString());
-    await handleRequest(message);
+    try {
+      lastActivityTime = Date.now();
+      const message = JSON.parse(data.toString());
+      await handleRequest(message);
+    } catch (error) {
+      log.error('Error handling WebSocket message:', error);
+    }
   });
 
   ws.on('close', () => {
