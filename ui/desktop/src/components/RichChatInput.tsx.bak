@@ -4,11 +4,6 @@ import SpellCheckTooltip from './SpellCheckTooltip';
 import { ActionPill } from './ActionPill';
 import MentionPill from './MentionPill';
 import { Zap, Code, FileText, Search, Play, Settings } from 'lucide-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-// Use Monaco Editor for IDE-like code editing
-import { MonacoCodeInput } from './MonacoCodeInput';
 
 interface RichChatInputProps {
   value: string;
@@ -180,12 +175,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 }, ref) => {
   const hiddenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [misspelledWords, setMisspelledWords] = useState<{ word: string; start: number; end: number; suggestions: string[] }[]>([]);
-  const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [codeMode, setCodeMode] = useState<{ active: boolean; language: string; startPos: number } | null>(null);
   
   // Scroll synchronization - ensure both layers stay perfectly in sync
   const handleTextareaScroll = useCallback(() => {
@@ -208,14 +200,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const display = displayRef.current;
       
       // Calculate line height more accurately based on actual font metrics
-      // Calculate actual line height from the textarea
-      const computedStyle = window.getComputedStyle(textarea);
-      const fontSize = parseFloat(computedStyle.fontSize);
-      const lineHeightValue = computedStyle.lineHeight;
-      const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
+      const lineHeight = 21; // 14px * 1.5 line-height = 21px
       const minHeight = rows * lineHeight;
-      // Respect parent's maxHeight constraint from style prop, or use default
-      const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
+      const maxHeight = 300;
       
       // Force a complete reset to ensure accurate measurement
       textarea.style.height = '0px';
@@ -231,17 +218,12 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       
       // Always update heights to ensure consistency
       textarea.style.height = `${finalHeight}px`;
-      textarea.style.lineHeight = `${lineHeight}px`;
       textarea.style.minHeight = `${minHeight}px`;
       textarea.style.maxHeight = `${maxHeight}px`;
       
       display.style.height = `${finalHeight}px`;
-      display.style.lineHeight = `${lineHeight}px`;
       display.style.minHeight = `${minHeight}px`;
       display.style.maxHeight = `${maxHeight}px`;
-      
-      // Update container height so it takes up space in the layout
-      setContainerHeight(finalHeight);
       
       // Handle display content height for scrolling
       const displayContent = display.firstElementChild as HTMLElement;
@@ -253,39 +235,9 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         }
       }
       
-      // Sync scroll positions first
+      // Sync scroll positions
       display.scrollTop = textarea.scrollTop;
       display.scrollLeft = textarea.scrollLeft;
-      
-      // Then ensure cursor is visible and update both layers together
-      if (textareaScrollHeight > finalHeight) {
-        const cursorPosition = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split("\n").length;
-        const cursorLineTop = (linesBeforeCursor - 1) * 21; // lineHeight = 21
-        const cursorLineBottom = cursorLineTop + 21;
-        
-        const currentScrollTop = textarea.scrollTop;
-        const visibleTop = currentScrollTop;
-        const visibleBottom = currentScrollTop + finalHeight;
-        
-        let newScrollTop = currentScrollTop;
-        
-        // Calculate new scroll position if cursor is not visible
-        if (cursorLineBottom > visibleBottom) {
-          // Cursor is below visible area - scroll down to show it
-          newScrollTop = Math.max(0, cursorLineBottom - finalHeight + 21);
-        } else if (cursorLineTop < visibleTop) {
-          // Cursor is above visible area - scroll up to show it
-          newScrollTop = Math.max(0, cursorLineTop - 21);
-        }
-        
-        // Update both layers together if scroll position changed
-        if (newScrollTop !== currentScrollTop) {
-          textarea.scrollTop = newScrollTop;
-          display.scrollTop = newScrollTop;
-        }
-      }
       
       console.log('🔄 SYNC HEIGHT:', {
         value: textarea.value,
@@ -300,48 +252,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         displayHeight: display.style.height
       });
     }
-  }, [rows, style, value]);
-
-  // Ensure line height consistency between layers
-  // Comprehensive style synchronization between layers
-  const ensureStyleConsistency = useCallback(() => {
-    if (hiddenTextareaRef.current && displayRef.current) {
-      const textarea = hiddenTextareaRef.current;
-      const display = displayRef.current;
-      
-      // Get all computed styles that affect text layout
-      const computedStyle = window.getComputedStyle(textarea);
-      
-      // Apply critical layout styles to ensure perfect alignment
-      // Force exact line height match with higher specificity
-      const exactLineHeight = computedStyle.lineHeight;
-      display.style.setProperty("line-height", exactLineHeight, "important");
-      
-      // Also set minHeight using the computed line height for consistency
-      const computedLineHeight = parseFloat(exactLineHeight);
-      const calculatedMinHeight = rows * computedLineHeight;
-      display.style.setProperty("min-height", `${calculatedMinHeight}px`, "important");
-      
-      // Ensure all child elements inherit the exact line height
-      const allChildren = display.querySelectorAll("*");
-      allChildren.forEach(child => {
-        (child as HTMLElement).style.setProperty("line-height", "inherit", "important");
-      });
-      display.style.fontSize = computedStyle.fontSize;
-      display.style.fontFamily = computedStyle.fontFamily;
-      display.style.letterSpacing = computedStyle.letterSpacing;
-      display.style.wordSpacing = computedStyle.wordSpacing;
-      // Ensure identical padding (critical for alignment)
-      display.style.paddingTop = computedStyle.paddingTop;
-      display.style.paddingRight = computedStyle.paddingRight;
-      display.style.paddingBottom = computedStyle.paddingBottom;
-      display.style.paddingLeft = computedStyle.paddingLeft;
-      
-      // Ensure identical text rendering to prevent subpixel drift
-      display.style.textRendering = computedStyle.textRendering;
-      display.style.webkitFontSmoothing = computedStyle.webkitFontSmoothing;
-      display.style.mozOsxFontSmoothing = computedStyle.mozOsxFontSmoothing;
-    }
   }, [rows]);
 
   // Monitor textarea for any changes that might affect height
@@ -352,7 +262,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       // Use ResizeObserver to detect when textarea dimensions change
       const resizeObserver = new ResizeObserver(() => {
         syncDisplayHeight();
-      ensureStyleConsistency();
       });
       
       resizeObserver.observe(textarea);
@@ -363,7 +272,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         if (textarea.scrollHeight !== lastScrollHeight) {
           lastScrollHeight = textarea.scrollHeight;
           syncDisplayHeight();
-      ensureStyleConsistency();
         }
         requestAnimationFrame(checkScrollHeight);
       };
@@ -408,27 +316,20 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     },
     contentRef: hiddenTextareaRef,
     resetHeight: () => {
-      console.log('🔄 RESET HEIGHT CALLED');
       if (hiddenTextareaRef.current && displayRef.current) {
         const textarea = hiddenTextareaRef.current;
         const display = displayRef.current;
-        // Calculate actual line height from the textarea
-        const computedStyle = window.getComputedStyle(textarea);
-        const fontSize = parseFloat(computedStyle.fontSize);
-        const lineHeightValue = computedStyle.lineHeight;
-        const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
+        const lineHeight = 21;
         const minHeight = rows * lineHeight;
         
-        // Reset to auto first, then set to minHeight - DON'T call syncDisplayHeight after!
         textarea.style.height = "auto";
         textarea.style.height = `${minHeight}px`;
         display.style.height = `${minHeight}px`;
-        setContainerHeight(minHeight);
         
-        console.log('🔄 RESET HEIGHT: Set to minHeight', minHeight);
+        syncDisplayHeight();
       }
     },
-  }), [rows, syncDisplayHeight, ensureStyleConsistency]);
+  }), []);
 
   // Update cursor position when selection changes
   const updateCursorPosition = useCallback(() => {
@@ -517,99 +418,15 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     };
   }, [value, performSpellCheck]);
 
-  // Detect code mode triggers (#language) - can be anywhere in the text
-  useEffect(() => {
-    // Match #language at word boundary (not followed by more letters)
-    const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(?![a-z])/i;
-    const match = value.match(languageTriggerRegex);
-    
-    if (match && !codeMode) {
-      // Enter code mode
-      const language = match[1].toLowerCase();
-      const triggerStart = match.index || 0;
-      const triggerLength = match[0].length;
-      console.log('💻 CODE MODE ACTIVATED:', language, 'at position', triggerStart);
-      
-      // Always insert a newline after the trigger to move cursor into code block
-      const beforeTrigger = value.slice(0, triggerStart + triggerLength);
-      const afterTrigger = value.slice(triggerStart + triggerLength);
-      
-      // Check if there's already a newline
-      const hasNewline = afterTrigger.startsWith('\n');
-      
-      if (!hasNewline) {
-        const newValue = beforeTrigger + '\n' + afterTrigger;
-        const newCursorPos = triggerStart + triggerLength + 1; // Position after the newline
-        
-        console.log('💻 CODE MODE: Inserting newline after trigger');
-        onChange(newValue, newCursorPos);
-        
-        // Set cursor position in textarea
-        if (hiddenTextareaRef.current) {
-          setTimeout(() => {
-            hiddenTextareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-            setCursorPosition(newCursorPos);
-          }, 0);
-        }
-        
-        setCodeMode({
-          active: true,
-          language: language,
-          startPos: triggerStart + triggerLength + 1 // Account for the newline
-        });
-      } else {
-        setCodeMode({
-          active: true,
-          language: language,
-          startPos: triggerStart + triggerLength + 1 // Skip the existing newline
-        });
-      }
-    } else if (!match && codeMode) {
-      // Exit code mode if trigger is removed
-      console.log('💻 CODE MODE DEACTIVATED');
-      setCodeMode(null);
-    } else if (match && codeMode) {
-      // Check for double newline to exit code mode
-      const codeContent = value.slice(codeMode.startPos);
-      if (codeContent.endsWith('\n\n')) {
-        console.log('💻 CODE MODE: Double newline detected, exiting code mode and converting to code block');
-        // Exit code mode by converting to triple-backtick code block
-        const triggerStart = match.index || 0;
-        const triggerEnd = triggerStart + match[0].length + 1; // +1 for the newline after trigger
-        const textBefore = value.slice(0, triggerStart);
-        const codeAndAfter = value.slice(triggerEnd);
-        
-        // Remove the double newline at the end
-        const cleanedCode = codeAndAfter.replace(/\n\n$/, '');
-        
-        // Convert to triple-backtick format: ```language\ncode\n```
-        const language = codeMode.language;
-        const newValue = textBefore + '```' + language + '\n' + cleanedCode + '\n```\n';
-        const newCursorPos = newValue.length;
-        
-        onChange(newValue, newCursorPos);
-        setCodeMode(null);
-        
-        // Set cursor position
-        if (hiddenTextareaRef.current) {
-          setTimeout(() => {
-            hiddenTextareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-            setCursorPosition(newCursorPos);
-          }, 0);
-        }
-      }
-    }
-  }, [value, codeMode, onChange]);
-
   // Parse and render content with action pills, mention pills, and cursor
   const renderContent = useCallback(() => {
     // Show placeholder when there's no text content (but account for whitespace-only content with newlines)
     if (!value || (value.trim() === '' && !value.includes('\n'))) {
       return (
-        <div className="whitespace-pre-wrap relative">
+        <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed relative">
           {/* Placeholder text positioned absolutely to prevent movement */}
           <span className="text-text-muted pointer-events-none select-none absolute inset-0">
-            {placeholder || (codeMode ? `Type your ${codeMode.language} code here... (Cmd+Enter to send)` : placeholder)}
+            {placeholder}
           </span>
           {/* Cursor positioned absolutely at the start */}
           {isFocused && cursorPosition === 0 && (
@@ -625,78 +442,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
               }} 
             />
           )}
-        </div>
-      );
-    }
-    
-    // Check if we're in code mode
-    if (codeMode && codeMode.active) {
-      console.log('💻 RENDERING IN CODE MODE:', codeMode);
-      
-      // Find the trigger position (use same regex as detection)
-      const languageTriggerRegex = /#(javascript|typescript|python|java|cpp|c|go|rust|ruby|php|swift|kotlin|scala|html|css|json|yaml|sql|bash|shell|powershell|r|matlab|lua|perl|haskell|elixir|clojure|dart|jsx|tsx)(?![a-z])/i;
-      const match = value.match(languageTriggerRegex);
-      
-      if (!match || match.index === undefined) {
-        // Shouldn't happen, but fallback to normal rendering
-        return null;
-      }
-      
-      const triggerStart = match.index;
-      const textBefore = value.slice(0, triggerStart);
-      const codeContent = value.slice(codeMode.startPos);
-      
-      // Calculate cursor position within the code content
-      const cursorInCode = cursorPosition >= codeMode.startPos;
-      const cursorOffsetInCode = cursorInCode ? cursorPosition - codeMode.startPos : -1;
-      
-      // Split code content at cursor position for rendering
-      let codeBeforeCursor = '';
-      let codeAfterCursor = '';
-      if (cursorInCode && cursorOffsetInCode >= 0) {
-        codeBeforeCursor = codeContent.slice(0, cursorOffsetInCode);
-        codeAfterCursor = codeContent.slice(cursorOffsetInCode);
-      }
-      
-      return (
-        <div className="whitespace-pre-wrap relative w-full">
-          {/* Text before the trigger (if any) */}
-          {textBefore && (
-            <span className="inline whitespace-pre-wrap">{textBefore}</span>
-          )}
-          
-          {/* Language badge */}
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 mb-1 text-xs font-mono text-gray-300 bg-gray-800 rounded border border-gray-700">
-            <Code size={12} />
-            <span>{codeMode.language}</span>
-          </div>
-          
-          {/* Monaco Editor for IDE-like code editing */}
-          <MonacoCodeInput
-            language={codeMode.language}
-            value={codeContent}
-            onChange={(newCode) => {
-              // Update the full value with new code
-              const beforeCode = value.slice(0, codeMode.startPos);
-              const afterCode = value.slice(codeMode.startPos + codeContent.length);
-              const newValue = beforeCode + newCode + afterCode;
-              onChange(newValue, codeMode.startPos + newCode.length);
-            }}
-            onSend={() => {
-              // Trigger send via parent's onKeyDown
-              const syntheticEvent = new CustomEvent('submit', {
-                detail: { value },
-              }) as unknown as React.FormEvent;
-              onKeyDown?.(syntheticEvent as any);
-            }}
-            onExit={() => {
-              // Exit code mode
-              setCodeMode(null);
-            }}
-            height="auto"
-            theme="vs-dark"
-            className="mt-1"
-          />
         </div>
       );
     }
@@ -743,26 +488,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         content: mentionMatch[1]
       });
     }
-    
-    // Find all code block matches
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    let codeBlockMatch;
-    codeBlockRegex.lastIndex = 0;
-    console.log('💻 Searching for code blocks in value:', value);
-    while ((codeBlockMatch = codeBlockRegex.exec(value)) !== null) {
-      const language = codeBlockMatch[1] || 'text';
-      const code = codeBlockMatch[2];
-      console.log('💻 Found code block match:', { language, code, index: codeBlockMatch.index });
-      allMatches.push({
-        type: 'codeblock',
-        match: codeBlockMatch,
-        index: codeBlockMatch.index,
-        length: codeBlockMatch[0].length,
-        content: code,
-        language: language
-      });
-    }
-    
     // Add misspelled words
     misspelledWords.forEach(misspelled => {
       allMatches.push({
@@ -877,48 +602,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             size="sm"
             onRemove={() => handleRemoveMention(fileName)}
           />
-        );
-      } else if (type === 'codeblock') {
-        // Handle code blocks with syntax highlighting
-        const language = (matchData as any).language || 'text';
-        const code = content;
-        
-        console.log('💻 Creating code block:', { language, code });
-        
-        parts.push(
-          <div
-            key={`codeblock-${keyCounter++}`}
-            className="block my-2"
-            style={{ pointerEvents: 'auto' }}
-          >
-            <div className="relative rounded-lg overflow-hidden bg-[#1E1E1E] border border-gray-700">
-              {/* Language badge */}
-              {language && language !== 'text' && (
-                <div className="absolute top-2 right-2 px-2 py-1 text-xs font-mono text-gray-300 bg-gray-800/80 rounded">
-                  {language}
-                </div>
-              )}
-              {/* Syntax highlighted code */}
-              <SyntaxHighlighter
-                language={language}
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  padding: '16px',
-                  background: 'transparent',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                }}
-                codeTagProps={{
-                  style: {
-                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
-                  }
-                }}
-              >
-                {code}
-              </SyntaxHighlighter>
-            </div>
-          </div>
         );
       } else if (type === 'misspelled') {
         // Handle misspelled words with red highlighting and hover tooltip
@@ -1065,7 +748,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     }
     
     return (
-      <div className="whitespace-pre-wrap">
+      <div className="whitespace-pre-wrap min-h-[1.5em] leading-relaxed">
         {parts.length > 0 ? parts : (
           isFocused && (
             <span className="border-l border-text-default inline-block" style={{ animation: "blink 1s step-end infinite", height: "1.3em", width: "1px", marginLeft: "0px", transform: "translateY(0.1em)", position: "relative" }} />
@@ -1073,7 +756,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         )}
       </div>
     );
-  }, [value, isFocused, placeholder, cursorPosition, misspelledWords, codeMode]);
+  }, [value, isFocused, placeholder, cursorPosition, misspelledWords]);
 
   const handleRemoveAction = useCallback((actionLabel: string) => {
     const actionText = `[${actionLabel}]`;
@@ -1103,7 +786,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     // Sync display height immediately for better responsiveness
     // Use both immediate sync and deferred sync for reliability
     syncDisplayHeight();
-      ensureStyleConsistency();
     requestAnimationFrame(() => syncDisplayHeight());
   }, [onChange, syncDisplayHeight]);
 
@@ -1113,23 +795,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     
     // Update cursor position on key events
     setTimeout(updateCursorPosition, 0);
-    
-    // In code mode, handle Enter differently
-    if (codeMode && codeMode.active) {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        // Cmd+Enter or Ctrl+Enter: Exit code mode and send message
-        console.log('💻 CODE MODE: Cmd/Ctrl+Enter pressed, passing to parent');
-        // Don't prevent default - let parent handle sending
-      } else if (e.key === 'Enter') {
-        // Plain Enter in code mode: Insert newline, don't send
-        console.log('💻 CODE MODE: Enter pressed, inserting newline');
-        e.preventDefault();
-        const cursorPos = e.currentTarget.selectionStart;
-        const newValue = value.slice(0, cursorPos) + '\n' + value.slice(cursorPos);
-        onChange(newValue, cursorPos + 1);
-        return;
-      }
-    }
     
     // Handle backspace on action and mention pills
     if (e.key === 'Backspace') {
@@ -1190,7 +855,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     } as React.KeyboardEvent<HTMLDivElement>;
     
     onKeyDown?.(syntheticEvent);
-  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition, codeMode, onChange]);
+  }, [value, handleRemoveAction, onKeyDown, updateCursorPosition]);
 
   const handleTextareaPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // Update cursor position after paste
@@ -1249,59 +914,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     const cleanup = monitorTextareaChanges();
     return cleanup;
   }, [monitorTextareaChanges]);
-
-  // Explicitly sync height whenever value changes (including when text is deleted)
-  useEffect(() => {
-    syncDisplayHeight();
-    ensureStyleConsistency();
-  }, [value, syncDisplayHeight, ensureStyleConsistency]);
-  
-  // Sync height when code mode changes or when there are code blocks (for initial render and updates)
-  useEffect(() => {
-    // Check if we need display-based height measurement
-    const hasCodeBlocks = /```\w*\n[\s\S]*?```/.test(value);
-    const needsDisplayMeasurement = codeMode || hasCodeBlocks;
-    
-    if (needsDisplayMeasurement) {
-      // When code mode is active or code blocks are present, we need to measure the actual display height
-      // because the textarea doesn't know about the styled code block
-      console.log('💻 CODE BLOCKS: Triggering height sync for code blocks', { codeMode: !!codeMode, hasCodeBlocks });
-      
-      // Use a small delay to ensure the SyntaxHighlighter has rendered
-      const timer = setTimeout(() => {
-        if (displayRef.current && hiddenTextareaRef.current) {
-          const display = displayRef.current;
-          const textarea = hiddenTextareaRef.current;
-          
-          // Get the actual rendered height of the display content
-          const displayScrollHeight = display.scrollHeight;
-          
-          console.log('💻 CODE BLOCKS: Display scrollHeight:', displayScrollHeight);
-          
-          // Calculate line height
-          const computedStyle = window.getComputedStyle(textarea);
-          const fontSize = parseFloat(computedStyle.fontSize);
-          const lineHeightValue = computedStyle.lineHeight;
-          const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
-          const minHeight = rows * lineHeight;
-          const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
-          
-          // Use the display's scroll height instead of textarea's
-          const desiredHeight = Math.min(displayScrollHeight, maxHeight);
-          const finalHeight = Math.max(desiredHeight, minHeight);
-          
-          console.log('💻 CODE BLOCKS: Setting height to', finalHeight);
-          
-          // Update both layers
-          textarea.style.height = `${finalHeight}px`;
-          display.style.height = `${finalHeight}px`;
-          setContainerHeight(finalHeight);
-        }
-      }, 50); // Small delay to let SyntaxHighlighter render
-      
-      return () => clearTimeout(timer);
-    }
-  }, [codeMode, value, rows, style]);
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
     const newValue = value.slice(0, tooltip.wordStart) + 
@@ -1379,9 +991,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
 
   return (
     <div 
-      ref={containerRef}
       className="relative rich-text-input"
-      style={{ height: containerHeight > 0 ? `${containerHeight}px` : 'auto' }}
       onMouseLeave={handleContainerMouseLeave}
     >
       {/* Hidden textarea for actual input handling with spell check disabled (we handle it ourselves) */}
@@ -1420,7 +1030,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match leading-relaxed
           padding: '12px 80px 12px 12px', // Match top and bottom padding: 12px each
           margin: '0',
-          boxSizing: "border-box", // Match textarea box model
           boxSizing: 'border-box',
           whiteSpace: 'pre-wrap', // Match visual display
           wordWrap: 'break-word',
@@ -1432,7 +1041,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       {/* Visual display with action pills, mention pills, spell check, and cursor */}
       <div
         ref={displayRef}
-        className={`${className} cursor-text absolute inset-0 overflow-y-auto rich-text-display`}
+        className={`${className} cursor-text relative overflow-y-auto rich-text-display`}
         style={{
           ...style,
           minHeight: `${rows * 1.5}em`,
@@ -1446,7 +1055,6 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
           lineHeight: '1.5', // Match textarea line height
           padding: '12px 80px 12px 12px', // Match textarea padding: 12px top and bottom
           margin: '0',
-          boxSizing: "border-box", // Match textarea box model
           whiteSpace: 'pre-wrap', // Match textarea
           wordWrap: 'break-word',
           // Hide scrollbars but keep scrolling functionality

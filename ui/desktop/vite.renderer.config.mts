@@ -8,9 +8,31 @@ export default defineConfig({
     'process.env.ALPHA': JSON.stringify(process.env.ALPHA === 'true'),
   },
 
-  plugins: [tailwindcss()],
+  plugins: [
+    tailwindcss(),
+  ],
 
   build: {
-    target: 'esnext'
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        // Manually chunk Monaco Editor to ensure it loads properly
+        manualChunks: {
+          'monaco-editor': ['monaco-editor'],
+          'monaco-react': ['@monaco-editor/react'],
+        },
+      },
+    },
+  },
+
+  optimizeDeps: {
+    include: ['monaco-editor', '@monaco-editor/react'],
+    esbuildOptions: {
+      target: 'es2020',
+    },
+  },
+
+  worker: {
+    format: 'es',
   },
 });
