@@ -197,11 +197,27 @@ pub struct SessionSettings {
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
-    // Load config and get provider/model
     let config = Config::global();
+
+    let (saved_provider, saved_model) = if session_config.resume {
+        if let Some(ref session_id) = session_config.session_id {
+            match SessionManager::get_session(session_id, false).await {
+                Ok(session_data) => (
+                    session_data.provider_name,
+                    session_data.model_config.map(|mc| mc.model_name),
+                ),
+                Err(_) => (None, None),
+            }
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
 
     let provider_name = session_config
         .provider
+        .or(saved_provider)
         .or_else(|| {
             session_config
                 .settings
@@ -213,6 +229,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let model_name = session_config
         .model
+        .or(saved_model)
         .or_else(|| {
             session_config
                 .settings
@@ -231,7 +248,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         })
         .with_temperature(temperature);
 
-    // Create the agent
     let agent: Agent = Agent::new();
 
     if let Some(sub_recipes) = session_config.sub_recipes {
@@ -255,10 +271,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         }
     };
-    // Keep a reference to the provider for display_session_info
     let provider_for_display = Arc::clone(&new_provider);
 
-    // Log model information at startup
     if let Some(lead_worker) = new_provider.as_lead_worker() {
         let (lead_model, worker_model) = lead_worker.get_model_info();
         tracing::info!(
@@ -269,14 +283,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         tracing::info!("🤖 Using model: {}", model_name);
     }
-
-    agent
-        .update_provider(new_provider)
-        .await
-        .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to initialize agent: {}", e));
-            process::exit(1);
-        });
 
     let session_id: Option<String> = if session_config.no_session {
         None
@@ -304,6 +310,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         session_config.session_id
     };
+
+    agent
+        .update_provider(new_provider)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
+
+    if let Some(ref sid) = session_id {
+        agent
+            .persist_provider_config(sid)
+            .await
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to save provider config: {}", e));
+                process::exit(1);
+            });
+    }
 
     agent
         .extension_manager
