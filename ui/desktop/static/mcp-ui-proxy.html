@@ -10,12 +10,13 @@
       - font-src: Allow fonts from any origin
       - connect-src: Allow network requests to any origin
       - frame-src: Allow embedding iframes from any origin (required for proxy functionality)
+      - media-src: Allow audio/video media from any origin
       - base-uri: Restrict <base> tag to same-origin only
       - upgrade-insecure-requests: Automatically upgrade HTTP to HTTPS
     -->
     <meta 
       http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src * 'unsafe-inline'; font-src *; connect-src *; frame-src *; base-uri 'self'; upgrade-insecure-requests"/>
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src * 'unsafe-inline'; font-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
     <title>MCP-UI Proxy</title>
     <style>
       body,
