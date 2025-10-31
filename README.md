@@ -59,3 +59,15 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Twitter/X](https://x.com/goose_oss)
 - [Bluesky](https://bsky.app/profile/opensource.block.xyz)
 - [Nostr](https://njump.me/opensource@block.xyz)
+
+## 🧠 Tips for First-Time Contributors
+
+If you're new to open-source or contributing to Goose for the first time, here are some helpful tips:
+
+1. **Fork the repository** and clone your fork using  
+   ```bash
+   git clone https://github.com/<your-username>/goose.git
+   cd goose
+
+### 💡 Note for Beginners
+If you’re contributing for the first time, check out the [CONTRIBUTING.md](CONTRIBUTING.md) guide for setup and contribution steps.
