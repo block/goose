@@ -38,6 +38,10 @@ pub const EMBEDDED_DOC_URL: &str =
 /// Maximum size for tool output (4KB) to prevent context overflow with small models
 const MAX_TOOL_OUTPUT_SIZE: usize = 4096;
 
+/// Model file size threshold for automatic tool emulation (10GB)
+/// Models smaller than this will automatically use emulation mode
+const MODEL_SIZE_EMULATION_THRESHOLD: u64 = 10 * 1024 * 1024 * 1024; // 10GB in bytes
+
 /// System prompt for tool emulation mode (when model doesn't support native tool calling)
 const EMULATION_SYSTEM_PROMPT: &str = r#"You are Goose, a general-purpose AI agent. Your goal is to analyze and solve problems by writing code.
 
@@ -967,13 +971,37 @@ impl EmbeddedProvider {
             return false;
         }
 
+        // Check model file size - models < 10GB automatically use emulation
+        match std::fs::metadata(&self.model_path) {
+            Ok(metadata) => {
+                let size_gb = metadata.len() as f64 / (1024.0 * 1024.0 * 1024.0);
+                if metadata.len() < MODEL_SIZE_EMULATION_THRESHOLD {
+                    tracing::info!(
+                        "Model size {:.2}GB is below 10GB threshold, automatically using tool emulation mode",
+                        size_gb
+                    );
+                    return false;
+                }
+                tracing::debug!(
+                    "Model size: {:.2}GB, will test for native tool calling support",
+                    size_gb
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Could not determine model file size: {}, will test for tool support",
+                    e
+                );
+            }
+        }
+
         let mut support = self.tool_calling_support.lock().await;
 
         if let Some(cached) = *support {
             return cached;
         }
 
-        // Detect support
+        // Detect support for larger models
         tracing::debug!("Detecting tool calling support...");
         let detected = self.detect_tool_support().await;
 
