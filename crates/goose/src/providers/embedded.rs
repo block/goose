@@ -560,6 +560,7 @@ impl Drop for ServerProcess {
 
 #[derive(serde::Serialize)]
 pub struct EmbeddedProvider {
+    name: String,
     #[serde(skip)]
     api_client: ApiClient,
     #[serde(skip)]
@@ -797,6 +798,7 @@ impl EmbeddedProvider {
         let server_process = Arc::new(Mutex::new(ServerProcess::new(port)));
 
         let provider = Self {
+            name: "embedded".to_string(),
             api_client,
             server_process,
             model,
@@ -1177,6 +1179,10 @@ impl Provider for EmbeddedProvider {
                 ConfigKey::new("EMBEDDED_FORCE_TOOL_EMULATION", false, false, Some("false")),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

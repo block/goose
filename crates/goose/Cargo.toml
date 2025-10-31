@@ -100,12 +100,11 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
-zip = "0.6"
 sys-info = "0.9"
 
 oauth2 = "5.0.0"
 sysinfo = "0.37.2"
-zip = "6.0.0"
+zip = "0.6"
 which = "8.0.0"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
