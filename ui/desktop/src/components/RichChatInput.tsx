@@ -583,7 +583,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
       const codeContent = value.slice(codeMode.startPos);
       
       return (
-        <div className="whitespace-pre-wrap relative">
+        <div className="whitespace-pre-wrap relative w-full">
           {/* Text before the trigger (if any) */}
           {textBefore && (
             <span className="inline whitespace-pre-wrap">{textBefore}</span>
@@ -595,11 +595,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
             <span>{codeMode.language}</span>
           </div>
           
-          {/* Code content with syntax highlighting */}
+          {/* Code content with syntax highlighting - constrained to container width */}
           <div 
-            className="font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1"
+            className="block font-mono text-sm bg-[#1E1E1E]/30 rounded p-2 border border-gray-700/50 mt-1 w-full overflow-x-auto"
             style={{ 
               fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
             }}
           >
             <SyntaxHighlighter
@@ -611,6 +613,8 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
                 background: 'transparent',
                 fontSize: '0.875rem',
                 lineHeight: '1.5',
+                maxWidth: '100%',
+                overflowX: 'auto',
               }}
               PreTag="div"
               CodeTag="code"
