@@ -1327,7 +1327,7 @@ export default function ChatInput({
       )}
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
-        <div className="relative flex-1">
+        <div className="relative flex-1" style={{ maxHeight: `${maxHeight}px` }}>
         <RichChatInput
             data-testid="chat-input"
             autoFocus
