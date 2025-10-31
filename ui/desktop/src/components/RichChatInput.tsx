@@ -1196,6 +1196,49 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     syncDisplayHeight();
     ensureStyleConsistency();
   }, [value, syncDisplayHeight, ensureStyleConsistency]);
+  
+  // Sync height when code mode changes or when in code mode (for initial render and updates)
+  useEffect(() => {
+    if (codeMode) {
+      // When code mode is active, we need to measure the actual display height
+      // because the textarea doesn't know about the styled code block
+      console.log('💻 CODE MODE: Triggering height sync for code mode');
+      
+      // Use a small delay to ensure the SyntaxHighlighter has rendered
+      const timer = setTimeout(() => {
+        if (displayRef.current && hiddenTextareaRef.current) {
+          const display = displayRef.current;
+          const textarea = hiddenTextareaRef.current;
+          
+          // Get the actual rendered height of the display content
+          const displayScrollHeight = display.scrollHeight;
+          
+          console.log('💻 CODE MODE: Display scrollHeight:', displayScrollHeight);
+          
+          // Calculate line height
+          const computedStyle = window.getComputedStyle(textarea);
+          const fontSize = parseFloat(computedStyle.fontSize);
+          const lineHeightValue = computedStyle.lineHeight;
+          const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
+          const minHeight = rows * lineHeight;
+          const maxHeight = style?.maxHeight ? parseInt(style.maxHeight.toString()) : 300;
+          
+          // Use the display's scroll height instead of textarea's
+          const desiredHeight = Math.min(displayScrollHeight, maxHeight);
+          const finalHeight = Math.max(desiredHeight, minHeight);
+          
+          console.log('💻 CODE MODE: Setting height to', finalHeight);
+          
+          // Update both layers
+          textarea.style.height = `${finalHeight}px`;
+          display.style.height = `${finalHeight}px`;
+          setContainerHeight(finalHeight);
+        }
+      }, 50); // Small delay to let SyntaxHighlighter render
+      
+      return () => clearTimeout(timer);
+    }
+  }, [codeMode, value, rows, style]);
   // Tooltip handlers
   const handleSuggestionSelect = useCallback((suggestion: string) => {
     const newValue = value.slice(0, tooltip.wordStart) + 
