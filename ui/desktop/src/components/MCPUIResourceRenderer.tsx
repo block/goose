@@ -105,10 +105,10 @@ export default function MCPUIResourceRenderer({
         if (url) {
           setProxyUrl(url);
         } else {
-          console.error('Failed to get proxy URL');
+          console.error('Failed to get proxy MCP-UI Proxy URL');
         }
       } catch (error) {
-        console.error('Error fetching proxy URL:', error);
+        console.error('Error fetching proxy MCP-UI Proxy URL:', error);
       }
     };
 
@@ -290,7 +290,7 @@ export default function MCPUIResourceRenderer({
 
         default: {
           const _exhaustiveCheck: never = actionEvent;
-          console.error('Unhandled action type:', _exhaustiveCheck);
+          console.error('Unhandled MCP-UI action type:', _exhaustiveCheck);
           result = {
             status: 'error',
             error: {
@@ -302,7 +302,7 @@ export default function MCPUIResourceRenderer({
         }
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error handling MCP-UI action:', error);
       result = {
         status: 'error',
         error: {
