@@ -98,7 +98,7 @@ export default function MCPUIResourceRenderer({
     const theme = localStorage.getItem('theme') || 'light';
     setCurrentThemeValue(theme);
 
-    // Fetch the MCP proxy URL from the main process
+    // Fetch the MCP-UI proxy URL from the main process
     const fetchProxyUrl = async () => {
       try {
         const url = await window.electron.getMcpUIProxyUrl();
@@ -319,6 +319,7 @@ export default function MCPUIResourceRenderer({
   return (
     <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
       <div className="overflow-hidden rounded-sm">
+        <h2>Proxy URL: {proxyUrl}</h2>
         <UIResourceRenderer
           resource={content.resource}
           onUIAction={handleUIAction}
