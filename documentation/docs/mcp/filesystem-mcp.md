@@ -29,7 +29,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="filesystem"
     extensionName="filesystem"
@@ -52,7 +52,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     1. Run the `configure` command:
     ```sh
     goose configure

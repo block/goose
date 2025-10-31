@@ -557,6 +557,10 @@ mod final_output_tool_tests {
                 goose::providers::base::ProviderMetadata::empty()
             }
 
+            fn get_name(&self) -> &str {
+                "mock-test"
+            }
+
             fn get_model_config(&self) -> ModelConfig {
                 self.model_config.clone()
             }
@@ -670,6 +674,10 @@ mod final_output_tool_tests {
         impl Provider for MockProvider {
             fn metadata() -> goose::providers::base::ProviderMetadata {
                 goose::providers::base::ProviderMetadata::empty()
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-test"
             }
 
             fn get_model_config(&self) -> ModelConfig {
@@ -856,6 +864,10 @@ mod retry_tests {
     impl Provider for MockRetryProvider {
         fn metadata() -> goose::providers::base::ProviderMetadata {
             goose::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-test"
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -1079,6 +1091,10 @@ mod max_turns_tests {
                 model_doc_link: "".to_string(),
                 config_keys: vec![],
             }
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-test"
         }
     }
 

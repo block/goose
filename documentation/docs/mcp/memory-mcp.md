@@ -17,13 +17,13 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Memory"
     description="Store and recall personalized information for consistent assistance"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -153,10 +153,10 @@ If you frequently work with API standards or other structured knowledge, Goose m
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
    1. Open a new session in Goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Open a terminal and start a new Goose session:
 

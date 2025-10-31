@@ -27,10 +27,10 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
     :::tip TLDR
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
       Use `Add custom extension` in Settings → Extensions to add a `Server-Sent Events (SSE)` extension type with your IDE-specific SSE config.
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
       Use `goose configure` to add a `Remote Extension (SSE)` extension type with your IDE-specific SSE config.
       </TabItem>
     </Tabs>
@@ -49,7 +49,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
     2. Add the JetBrains extension to Goose, replacing "YOUR_IDE_SPECIFIC_URL" in the instructions with the URL you copied:
        <Tabs groupId="interface">
-         <TabItem value="ui" label="Goose Desktop" default>
+         <TabItem value="ui" label="goose Desktop" default>
            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
            2. Click `Extensions` on the sidebar
            3. Click `Add custom extension`
@@ -60,7 +60,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
            5. Click `Add Extension` to save the extension
            6. Navigate to the chat
          </TabItem>
-         <TabItem value="cli" label="Goose CLI">
+         <TabItem value="cli" label="goose CLI">
            <CLIExtensionInstructions            
              name="jetbrains"
              type="sse"
@@ -76,10 +76,10 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
     :::tip TLDR
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
       [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jetbrains%2Fmcp-proxy&id=jetbrains&name=JetBrains&description=Integrate%20Goose%20with%20any%20JetBrains%20IDE)
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
       **Command**
       ```sh
       npx -y @jetbrains/mcp-proxy
@@ -104,7 +104,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
     2. Add the JetBrains extension to Goose:
 
        <Tabs groupId="interface">
-         <TabItem value="ui" label="Goose Desktop" default>
+         <TabItem value="ui" label="goose Desktop" default>
            <GooseDesktopInstaller
              extensionId="jetbrains"
              extensionName="JetBrains"
@@ -114,7 +114,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
              timeout={300}
            />
          </TabItem>
-         <TabItem value="cli" label="Goose CLI">
+         <TabItem value="cli" label="goose CLI">
              <CLIExtensionInstructions
                name="jetbrains"
                command="npx -y @jetbrains/mcp-proxy"
@@ -136,7 +136,7 @@ Anthropic's Claude 4 Sonnet was used for this task.
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
    1. Open [IntelliJ](https://www.jetbrains.com/idea/download) (JetBrains' Java and Kotlin IDE)
    2. Open a new session in Goose Desktop
    :::note
@@ -144,7 +144,7 @@ Anthropic's Claude 4 Sonnet was used for this task.
    :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Open [IntelliJ](https://www.jetbrains.com/idea/download) (JetBrains' Java and Kotlin IDE)
   2. Open a terminal within your IDE and start a new Goose session:

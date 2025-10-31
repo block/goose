@@ -1,4 +1,4 @@
-import { safeJsonParse } from './utils/jsonUtils';
+import { safeJsonParse } from './utils/conversionUtils';
 import { Message } from './api';
 
 export interface SharedSessionDetails {

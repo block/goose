@@ -33,7 +33,7 @@ You can use `goose session --debug` in goose CLI to see when AutoPilot switches 
 
 ## Configuration
 
-Add the `x-advanced-models` section to your [`config.yaml`](/docs/guides/config-file) file and map your model preferences to [predefined](#predefined-roles) or custom roles. 
+Add the `x-advanced-models` section to your [`config.yaml`](/docs/guides/config-files) file and map your model preferences to [predefined](#predefined-roles) or custom roles. 
 
 The `provider`, `model` and `role` parameters are required.
 

@@ -78,6 +78,8 @@ pub struct VeniceProvider {
     base_path: String,
     models_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl VeniceProvider {
@@ -105,6 +107,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
+            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -208,6 +211,10 @@ impl Provider for VeniceProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -501,11 +508,11 @@ impl Provider for VeniceProvider {
 
         // Extract usage
         let usage_data = &response_json["usage"];
-        let usage = Usage {
-            input_tokens: usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
-            output_tokens: usage_data["completion_tokens"].as_i64().map(|v| v as i32),
-            total_tokens: usage_data["total_tokens"].as_i64().map(|v| v as i32),
-        };
+        let usage = Usage::new(
+            usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
+            usage_data["completion_tokens"].as_i64().map(|v| v as i32),
+            usage_data["total_tokens"].as_i64().map(|v| v as i32),
+        );
 
         Ok((
             Message::new(Role::Assistant, Utc::now().timestamp(), content),

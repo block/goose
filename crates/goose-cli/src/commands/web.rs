@@ -139,7 +139,7 @@ pub async fn handle_web(
 
     let config = goose::config::Config::global();
 
-    let provider_name: String = match config.get_param("GOOSE_PROVIDER") {
+    let provider_name: String = match config.get_goose_provider() {
         Ok(p) => p,
         Err(_) => {
             eprintln!("No provider configured. Run 'goose configure' first");
@@ -147,7 +147,7 @@ pub async fn handle_web(
         }
     };
 
-    let model: String = match config.get_param("GOOSE_MODEL") {
+    let model: String = match config.get_goose_model() {
         Ok(m) => m,
         Err(_) => {
             eprintln!("No model configured. Run 'goose configure' first");
@@ -290,7 +290,7 @@ async fn list_sessions() -> Json<serde_json::Value> {
                 session_info.push(serde_json::json!({
                     "name": session.id,
                     "path": session.id,
-                    "description": session.description,
+                    "description": session.name,
                     "message_count": session.message_count,
                     "working_dir": session.working_dir
                 }));

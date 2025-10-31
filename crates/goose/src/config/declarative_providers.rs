@@ -97,7 +97,7 @@ pub fn create_custom_provider(
     let api_key_name = generate_api_key_name(&id);
 
     let config = Config::global();
-    config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
+    config.set_secret(&api_key_name, &api_key)?;
 
     let model_infos: Vec<ModelInfo> = models
         .into_iter()
@@ -147,10 +147,7 @@ pub fn update_custom_provider(
 
     let config = Config::global();
     if !api_key.is_empty() {
-        config.set_secret(
-            &existing_config.api_key_env,
-            serde_json::Value::String(api_key),
-        )?;
+        config.set_secret(&existing_config.api_key_env, &api_key)?;
     }
 
     if editable {

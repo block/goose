@@ -12,11 +12,6 @@ export type Recipe = import('../api').Recipe & {
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
-  // TODO: Separate these from the raw recipe type
-  // Legacy frontend properties (not in OpenAPI schema)
-  profile?: string;
-  goosehints?: string;
-  mcps?: number;
 };
 
 export async function encodeRecipe(recipe: Recipe): Promise<string> {

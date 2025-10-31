@@ -101,11 +101,11 @@ impl GooseAcpAgent {
         let config = Config::global();
 
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .map_err(|e| anyhow::anyhow!("No provider configured: {}", e))?;
 
         let model_name: String = config
-            .get_param("GOOSE_MODEL")
+            .get_goose_model()
             .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
 
         let model_config = goose::model::ModelConfig {

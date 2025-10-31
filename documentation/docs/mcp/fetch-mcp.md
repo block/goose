@@ -18,10 +18,10 @@ This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelc
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   uvx mcp-server-fetch
@@ -37,7 +37,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="fetch"
     extensionName="Fetch"
@@ -46,7 +46,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["mcp-server-fetch"]}
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

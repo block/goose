@@ -16,8 +16,6 @@ const windowsFiles = [
 const macosFiles = [
     'goosed',
     'goose',
-    'temporal',
-    'temporal-service',
     'jbang',
     'npx',
     'uvx',

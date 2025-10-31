@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
-import { safeJsonParse } from '../utils/jsonUtils';
+import { safeJsonParse } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;

@@ -1,9 +1,9 @@
 use super::base::Config;
 use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
+use serde_yaml::Mapping;
 use tracing::warn;
 use utoipa::ToSchema;
 
@@ -27,56 +27,32 @@ pub fn name_to_key(name: &str) -> String {
         .to_lowercase()
 }
 
-fn get_extensions_map() -> HashMap<String, ExtensionEntry> {
-    let raw: Value = Config::global()
-        .get_param::<Value>(EXTENSIONS_CONFIG_KEY)
+fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
+    let raw: Mapping = Config::global()
+        .get_param(EXTENSIONS_CONFIG_KEY)
         .unwrap_or_else(|err| {
             warn!(
                 "Failed to load {}: {err}. Falling back to empty object.",
                 EXTENSIONS_CONFIG_KEY
             );
-            Value::Object(serde_json::Map::new())
+            Default::default()
         });
 
-    let mut extensions_map: HashMap<String, ExtensionEntry> = match raw {
-        Value::Object(obj) => {
-            let mut m = HashMap::with_capacity(obj.len());
-            for (k, mut v) in obj {
-                if let Value::Object(ref mut inner) = v {
-                    match inner.get("description") {
-                        Some(Value::Null) | None => {
-                            inner.insert("description".to_string(), Value::String(String::new()));
-                        }
-                        _ => {}
-                    }
-                }
-                match serde_json::from_value::<ExtensionEntry>(v.clone()) {
-                    Ok(entry) => {
-                        m.insert(k, entry);
-                    }
-                    Err(err) => {
-                        let bad_json = serde_json::to_string(&v).unwrap_or_else(|e| {
-                            format!("<failed to serialize malformed value: {e}>")
-                        });
-                        warn!(
-                            extension = %k,
-                            error = %err,
-                            bad_json = %bad_json,
-                            "Skipping malformed extension"
-                        );
-                    }
-                }
+    let mut extensions_map = IndexMap::with_capacity(raw.len());
+    for (k, v) in raw {
+        match (k, serde_yaml::from_value::<ExtensionEntry>(v)) {
+            (serde_yaml::Value::String(s), Ok(entry)) => {
+                extensions_map.insert(s, entry);
             }
-            m
+            (k, v) => {
+                warn!(
+                    key = ?k,
+                    value = ?v,
+                    "Skipping malformed extension config entry"
+                );
+            }
         }
-        other => {
-            warn!(
-                "Expected object for {}, got {}. Using empty map.",
-                EXTENSIONS_CONFIG_KEY, other
-            );
-            HashMap::new()
-        }
-    };
+    }
 
     if !extensions_map.is_empty() {
         for (name, def) in PLATFORM_EXTENSIONS.iter() {
@@ -99,17 +75,11 @@ fn get_extensions_map() -> HashMap<String, ExtensionEntry> {
     extensions_map
 }
 
-fn save_extensions_map(extensions: HashMap<String, ExtensionEntry>) {
+fn save_extensions_map(extensions: IndexMap<String, ExtensionEntry>) {
     let config = Config::global();
-    match serde_json::to_value(extensions) {
-        Ok(value) => {
-            if let Err(e) = config.set_param(EXTENSIONS_CONFIG_KEY, value) {
-                tracing::debug!("Failed to save extensions config: {}", e);
-            }
-        }
-        Err(e) => {
-            tracing::debug!("Failed to serialize extensions: {}", e);
-        }
+    if let Err(e) = config.set_param(EXTENSIONS_CONFIG_KEY, &extensions) {
+        // TODO(jack) why is this just a debug statement?
+        tracing::debug!("Failed to save extensions config: {}", e);
     }
 }
 
@@ -130,7 +100,7 @@ pub fn set_extension(entry: ExtensionEntry) {
 
 pub fn remove_extension(key: &str) {
     let mut extensions = get_extensions_map();
-    extensions.remove(key);
+    extensions.shift_remove(key);
     save_extensions_map(extensions);
 }
 

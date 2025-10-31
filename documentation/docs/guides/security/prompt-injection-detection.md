@@ -53,7 +53,7 @@ When in doubt, deny.
 ## Enabling Detection
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Settings` on the sidebar
@@ -64,7 +64,7 @@ When in doubt, deny.
   </TabItem>
   <TabItem value="config" label="goose config file">
 
-    Add these settings to your [`config.yaml`](/docs/guides/config-file):
+    Add these settings to your [`config.yaml`](/docs/guides/config-files):
 
     ```yaml
     security_prompt_enabled: true

@@ -112,7 +112,16 @@ pub struct FrontendToolRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ConversationCompacted {
+#[serde(rename_all = "camelCase")]
+pub enum SystemNotificationType {
+    ThinkingMessage,
+    InlineMessage,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationContent {
+    pub notification_type: SystemNotificationType,
     pub msg: String,
 }
 
@@ -128,7 +137,7 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
-    ConversationCompacted(ConversationCompacted),
+    SystemNotification(SystemNotificationContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -156,8 +165,8 @@ impl fmt::Display for MessageContent {
             },
             MessageContent::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
             MessageContent::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
-            MessageContent::ConversationCompacted(r) => {
-                write!(f, "[SummarizationRequested: {}]", r.msg)
+            MessageContent::SystemNotification(r) => {
+                write!(f, "[SystemNotification: {}]", r.msg)
             }
         }
     }
@@ -237,14 +246,19 @@ impl MessageContent {
         })
     }
 
-    pub fn conversation_compacted<S: Into<String>>(msg: S) -> Self {
-        MessageContent::ConversationCompacted(ConversationCompacted { msg: msg.into() })
+    pub fn system_notification<S: Into<String>>(
+        notification_type: SystemNotificationType,
+        msg: S,
+    ) -> Self {
+        MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type,
+            msg: msg.into(),
+        })
     }
 
-    // Add this new method to check for summarization requested content
-    pub fn as_summarization_requested(&self) -> Option<&ConversationCompacted> {
-        if let MessageContent::ConversationCompacted(ref summarization_requested) = self {
-            Some(summarization_requested)
+    pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
+        if let MessageContent::SystemNotification(ref notification) = self {
+            Some(notification)
         } else {
             None
         }
@@ -650,8 +664,13 @@ impl Message {
             .all(|c| matches!(c, MessageContent::Text(_)))
     }
 
-    pub fn with_conversation_compacted<S: Into<String>>(self, msg: S) -> Self {
-        self.with_content(MessageContent::conversation_compacted(msg))
+    pub fn with_system_notification<S: Into<String>>(
+        self,
+        notification_type: SystemNotificationType,
+        msg: S,
+    ) -> Self {
+        self.with_content(MessageContent::system_notification(notification_type, msg))
+            .with_metadata(MessageMetadata::user_only())
     }
 
     /// Set the visibility metadata for the message
@@ -690,6 +709,17 @@ impl Message {
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenState {
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub total_tokens: i32,
+    pub accumulated_input_tokens: i32,
+    pub accumulated_output_tokens: i32,
+    pub accumulated_total_tokens: i32,
 }
 
 #[cfg(test)]

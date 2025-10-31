@@ -12,6 +12,7 @@ use crate::session::task_execution_display::{
 };
 use goose::conversation::Conversation;
 use std::io::Write;
+use std::str::FromStr;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -28,7 +29,7 @@ use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
 use input::InputResult;
@@ -397,7 +398,8 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        let history_file = Paths::config_dir().join("history.txt");
+        let history_file = Paths::state_dir().join("history.txt");
+        let old_history_file = Paths::config_dir().join("history.txt");
 
         if let Some(parent) = history_file.parent() {
             if !parent.exists() {
@@ -405,8 +407,11 @@ impl CliSession {
             }
         }
 
-        if history_file.exists() {
-            if let Err(err) = editor.load_history(&history_file) {
+        let history_files = [&history_file, &old_history_file];
+        let load_from = history_files.iter().find(|f| f.exists());
+
+        if let Some(file) = load_from {
+            if let Err(err) = editor.load_history(file) {
                 eprintln!("Warning: Failed to load command history: {}", err);
             }
         }
@@ -415,6 +420,10 @@ impl CliSession {
             |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
                     eprintln!("Warning: Failed to save command history: {}", err);
+                } else if old_history_file.exists() {
+                    if let Err(err) = std::fs::remove_file(&old_history_file) {
+                        eprintln!("Warning: Failed to remove old history file: {}", err);
+                    }
                 }
             };
 
@@ -537,21 +546,18 @@ impl CliSession {
                     save_history(&mut editor);
 
                     let config = Config::global();
-                    let mode = mode.to_lowercase();
-
-                    // Check if mode is valid
-                    if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
-                        output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
-                            mode
-                        ));
-                        continue;
-                    }
-
-                    config
-                        .set_param("GOOSE_MODE", Value::String(mode.to_string()))
-                        .unwrap();
-                    output::goose_mode_message(&format!("Goose mode set to '{}'", mode));
+                    let mode = match GooseMode::from_str(&mode.to_lowercase()) {
+                        Ok(mode) => mode,
+                        Err(_) => {
+                            output::render_error(&format!(
+                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                                mode
+                            ));
+                            continue;
+                        }
+                    };
+                    config.set_goose_mode(mode)?;
+                    output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
                     continue;
                 }
                 input::InputResult::Plan(options) => {
@@ -779,12 +785,9 @@ impl CliSession {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode =
-                        config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-                    if curr_goose_mode != "auto" {
-                        config
-                            .set_param("GOOSE_MODE", Value::String("auto".to_string()))
-                            .unwrap();
+                    let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+                    if curr_goose_mode != GooseMode::Auto {
+                        config.set_goose_mode(GooseMode::Auto).unwrap();
                     }
 
                     // clear the messages before acting on the plan
@@ -799,10 +802,8 @@ impl CliSession {
                     output::hide_thinking();
 
                     // Reset run & goose mode
-                    if curr_goose_mode != "auto" {
-                        config
-                            .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
-                            .unwrap();
+                    if curr_goose_mode != GooseMode::Auto {
+                        config.set_goose_mode(curr_goose_mode)?;
                     }
                 } else {
                     // add the plan response (assistant message) & carry the conversation forward
@@ -1316,7 +1317,7 @@ impl CliSession {
             .unwrap_or(false);
 
         let provider_name = config
-            .get_param::<String>("GOOSE_PROVIDER")
+            .get_goose_provider()
             .unwrap_or_else(|_| "unknown".to_string());
 
         // Do not get costing information if show cost is disabled
@@ -1480,7 +1481,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     } else {
         println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
         config
-            .get_param::<String>("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first")
     };
 
@@ -1490,7 +1491,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     } else {
         println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");
         config
-            .get_param::<String>("GOOSE_MODEL")
+            .get_goose_model()
             .expect("No model configured. Run 'goose configure' first")
     };
 

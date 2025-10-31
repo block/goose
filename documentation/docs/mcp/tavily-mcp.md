@@ -14,10 +14,10 @@ This tutorial covers how to add the [Tavily Web Search MCP Server](https://githu
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y tavily-mcp
@@ -37,7 +37,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="tavily"
     extensionName="Tavily Web Search"
@@ -51,7 +51,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     apiKeyLinkText="Tavily API Key"
   />
 </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

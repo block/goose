@@ -3,7 +3,7 @@
     {
       "type": "resource",
       "resource": {
-        "uri": "file:///Users/angiej/goose/crates/goose/tests/tmp/goose.txt",
+        "uri": "file:///tmp/goose_test/goose.txt",
         "mimeType": "text",
         "text": "# goose\n"
       },
@@ -15,7 +15,7 @@
     },
     {
       "type": "text",
-      "text": "### /Users/angiej/goose/crates/goose/tests/tmp/goose.txt\n```\n1: # goose\n```\n",
+      "text": "### /tmp/goose_test/goose.txt\n```\n1: # goose\n```\n",
       "annotations": {
         "audience": [
           "user"
@@ -27,7 +27,7 @@
   [
     {
       "type": "text",
-      "text": "The file /Users/angiej/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
       "annotations": {
         "audience": [
           "assistant"
@@ -69,7 +69,7 @@
   [
     {
       "type": "text",
-      "text": "The file /Users/angiej/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
       "annotations": {
         "audience": [
           "assistant"

@@ -100,7 +100,7 @@ const getDocumentationPath = (serverId: string): string => {
                       <div className="flex items-center gap-2">
                         <Info className="h-4 w-4 text-textSubtle shrink-0" />
                         <span className="text-sm text-textSubtle">
-                           Can be enabled on the Extensions page in Goose
+                           Can be enabled on the Extensions page in goose
                         </span>
                       </div>
                     ) : server.show_install_command !== false ? (

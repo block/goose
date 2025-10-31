@@ -1,7 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat};
+use super::utils::{get_model, handle_response_openai_compat, RequestLog};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -42,6 +42,8 @@ pub struct XaiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl XaiProvider {
@@ -55,7 +57,11 @@ impl XaiProvider {
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            name: Self::metadata().name,
+        })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
@@ -87,6 +93,10 @@ impl Provider for XaiProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -110,6 +120,7 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
+        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
@@ -118,7 +129,7 @@ impl Provider for XaiProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

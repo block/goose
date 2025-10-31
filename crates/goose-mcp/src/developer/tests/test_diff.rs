@@ -403,4 +403,101 @@ diff --git a/file2.txt b/file2.txt
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert!(content.contains("goodbye"));
     }
+
+    #[tokio::test]
+    async fn test_text_editor_write_adds_trailing_newline() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        let result = text_editor_write(&file_path, "Hello, World!").await;
+
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.ends_with('\n'), "File should end with newline");
+        assert_eq!(content, "Hello, World!\n");
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_write_preserves_existing_newline() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        let result = text_editor_write(&file_path, "Hello, World!\n").await;
+
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.ends_with('\n'), "File should end with newline");
+        assert_eq!(content, "Hello, World!\n");
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_write_multiline_adds_trailing_newline() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        let content_without_newline = "line1\nline2\nline3";
+        let result = text_editor_write(&file_path, content_without_newline).await;
+
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.ends_with('\n'), "File should end with newline");
+        assert_eq!(content, "line1\nline2\nline3\n");
+    }
+
+    #[tokio::test]
+    async fn test_apply_diff_adds_trailing_newline() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        std::fs::write(&file_path, "line1\nline2\nline3").unwrap();
+
+        let diff = r#"--- a/test.txt
++++ b/test.txt
+@@ -1,3 +1,3 @@
+ line1
+-line2
++line2_modified
+ line3"#;
+
+        let history = Arc::new(Mutex::new(HashMap::new()));
+        let result = apply_diff(&file_path, diff, &history).await;
+
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(
+            content.ends_with('\n'),
+            "File should end with newline after apply_diff"
+        );
+        assert!(content.contains("line2_modified"));
+    }
+
+    #[tokio::test]
+    async fn test_apply_diff_maintains_trailing_newline() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        std::fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
+
+        let diff = r#"--- a/test.txt
++++ b/test.txt
+@@ -1,3 +1,3 @@
+ line1
+-line2
++line2_modified
+ line3"#;
+
+        let history = Arc::new(Mutex::new(HashMap::new()));
+        let result = apply_diff(&file_path, diff, &history).await;
+
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(
+            content.ends_with('\n'),
+            "File should maintain trailing newline"
+        );
+        assert_eq!(
+            content, "line1\nline2_modified\nline3\n",
+            "Content should be modified and end with newline"
+        );
+    }
 }

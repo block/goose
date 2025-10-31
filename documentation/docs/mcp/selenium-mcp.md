@@ -15,10 +15,10 @@ This tutorial covers how to add the [Selenium MCP Server](https://github.com/ang
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40angiejones%2Fmcp-selenium&id=selenium-mcp&name=Selenium%20MCP&description=automates%20browser%20interactions)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y @angiejones/mcp-selenium
@@ -35,7 +35,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="selenium-mcp"
     extensionName="Selenium MCP"
@@ -44,7 +44,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@angiejones/mcp-selenium"]}
   />
 </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

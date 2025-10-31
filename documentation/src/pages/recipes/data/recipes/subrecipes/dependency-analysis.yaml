@@ -1,0 +1,69 @@
+version: 1.0.0
+title: "Dependency Health Analyzer"
+description: "Analyzes dependencies for outdated versions, vulnerabilities, and maintenance issues"
+instructions: |
+  You are analyzing project dependencies to identify security and maintenance risks.
+  
+  Your tasks:
+  1. Locate dependency files:
+     - package.json / package-lock.json (Node.js)
+     - requirements.txt / Pipfile (Python)
+     - pom.xml / build.gradle (Java)
+     - Gemfile / Gemfile.lock (Ruby)
+     - go.mod (Go)
+     - Cargo.toml (Rust)
+  
+  2. For each dependency, check:
+     - Current version vs latest stable version
+     - Last update date
+     - Known security vulnerabilities (CVEs)
+     - Maintenance status (archived, deprecated)
+     - License compatibility
+  
+  3. Flag dependencies that are:
+     - Critical: Known security vulnerabilities
+     - High: Outdated by >{{ max_age_days }} days or deprecated
+     - Medium: Minor updates available
+     - Low: Patch updates available
+  
+  4. Identify:
+     - Unused dependencies that can be removed
+     - Duplicate dependencies
+     - Heavy dependencies that could be replaced
+     - Missing security patches
+  
+  5. Provide upgrade recommendations with potential breaking changes noted.
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository"
+  
+  - key: max_age_days
+    input_type: number
+    requirement: optional
+    default: 365
+    description: "Flag dependencies older than this many days"
+  
+  - key: check_vulnerabilities
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to check for known vulnerabilities"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+settings:
+  temperature: 0.2
+
+prompt: |
+  Analyze dependencies in {{ repository_path }}.
+  Check for vulnerabilities: {{ check_vulnerabilities }}
+  Flag dependencies older than {{ max_age_days }} days.
+  
+  Provide specific upgrade recommendations prioritized by security impact.

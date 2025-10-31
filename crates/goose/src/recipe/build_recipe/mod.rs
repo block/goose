@@ -1,4 +1,4 @@
-use crate::recipe::read_recipe_file_content::{read_parameter_file_content, RecipeFile};
+use crate::recipe::read_recipe_file_content::read_parameter_file_content;
 use crate::recipe::template_recipe::render_recipe_content_with_params;
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::{
@@ -19,33 +19,26 @@ pub enum RecipeError {
     RecipeParsing { source: anyhow::Error },
 }
 
-pub fn render_recipe_template<F>(
-    recipe_file: RecipeFile,
+fn render_recipe_template<F>(
+    recipe_content: String,
+    recipe_dir: &Path,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
 ) -> Result<(String, Vec<String>)>
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
-    let RecipeFile {
-        content: recipe_file_content,
-        parent_dir: recipe_parent_dir,
-        ..
-    } = recipe_file;
-    let recipe_dir_str = recipe_parent_dir
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
-    let recipe_parameters = validate_recipe_template_from_content(
-        &recipe_file_content,
-        Some(recipe_dir_str.to_string()),
-    )?
-    .parameters;
+    let recipe_dir_str = recipe_dir.display().to_string();
+
+    let recipe_parameters =
+        validate_recipe_template_from_content(&recipe_content, Some(recipe_dir_str.clone()))?
+            .parameters;
 
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe_parameters, recipe_dir_str, user_prompt_fn)?;
+        apply_values_to_parameters(&params, recipe_parameters, &recipe_dir_str, user_prompt_fn)?;
 
     let rendered_content = if missing_params.is_empty() {
-        render_recipe_content_with_params(&recipe_file_content, &params_for_template)?
+        render_recipe_content_with_params(&recipe_content, &params_for_template)?
     } else {
         String::new()
     };
@@ -54,16 +47,16 @@ where
 }
 
 pub fn build_recipe_from_template<F>(
-    recipe_file: RecipeFile,
+    recipe_content: String,
+    recipe_dir: &Path,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
 ) -> Result<Recipe, RecipeError>
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
-    let recipe_parent_dir = recipe_file.parent_dir.clone();
     let (rendered_content, missing_params) =
-        render_recipe_template(recipe_file, params.clone(), user_prompt_fn)
+        render_recipe_template(recipe_content, recipe_dir, params.clone(), user_prompt_fn)
             .map_err(|source| RecipeError::TemplateRendering { source })?;
 
     if !missing_params.is_empty() {
@@ -77,10 +70,7 @@ where
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
-            if let Ok(resolved_path) = resolve_sub_recipe_path(&sub_recipe.path, &recipe_parent_dir)
-            {
-                sub_recipe.path = resolved_path;
-            }
+            sub_recipe.path = resolve_sub_recipe_path(&sub_recipe.path, recipe_dir)?;
         }
     }
 
@@ -90,7 +80,7 @@ where
 pub fn apply_values_to_parameters<F>(
     user_params: &[(String, String)],
     recipe_parameters: Option<Vec<RecipeParameter>>,
-    recipe_parent_dir: &str,
+    recipe_dir: &str,
     user_prompt_fn: Option<F>,
 ) -> Result<(HashMap<String, String>, Vec<String>)>
 where
@@ -99,7 +89,7 @@ where
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     param_map.insert(
         BUILT_IN_RECIPE_DIR_PARAM.to_string(),
-        recipe_parent_dir.to_string(),
+        recipe_dir.to_string(),
     );
     let mut missing_params: Vec<String> = Vec::new();
     for param in recipe_parameters.unwrap_or_default() {
@@ -130,18 +120,17 @@ fn resolve_sub_recipe_path(
     parent_recipe_dir: &Path,
 ) -> Result<String, RecipeError> {
     let path = if Path::new(sub_recipe_path).is_absolute() {
-        sub_recipe_path.to_string()
+        Path::new(sub_recipe_path).to_path_buf()
     } else {
-        parent_recipe_dir
-            .join(sub_recipe_path)
-            .to_str()
-            .ok_or_else(|| RecipeError::RecipeParsing {
-                source: anyhow::anyhow!("Invalid sub-recipe path: {}", sub_recipe_path),
-            })?
-            .to_string()
+        parent_recipe_dir.join(sub_recipe_path)
     };
+    if !path.exists() {
+        return Err(RecipeError::RecipeParsing {
+            source: anyhow::anyhow!("Sub-recipe file does not exist: {}", path.display()),
+        });
+    }
 
-    Ok(path)
+    Ok(path.display().to_string())
 }
 
 #[cfg(test)]

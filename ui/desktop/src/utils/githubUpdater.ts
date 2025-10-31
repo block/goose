@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
-import { safeJsonParse } from './jsonUtils';
+import { safeJsonParse } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;

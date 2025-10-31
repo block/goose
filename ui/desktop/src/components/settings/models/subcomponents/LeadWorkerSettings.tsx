@@ -5,6 +5,7 @@ import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import { fetchModelsForProviders } from '../modelInterface';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
 
 interface LeadWorkerSettingsProps {
@@ -13,7 +14,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
@@ -103,13 +104,18 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          activeProviders.forEach(({ metadata, name }) => {
-            if (metadata.known_models) {
-              metadata.known_models.forEach((model) => {
+          const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+          results.forEach(({ provider: p, models, error }) => {
+            if (error) {
+              console.error(error);
+            }
+
+            if (models && models.length > 0) {
+              models.forEach((modelName) => {
                 options.push({
-                  value: model.name,
-                  label: `${model.name} (${metadata.display_name})`,
-                  provider: name,
+                  value: modelName,
+                  label: `${modelName} (${p.metadata.display_name})`,
+                  provider: p.name,
                 });
               });
             }
@@ -128,7 +134,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
 
   // If current models are not in the list (e.g., previously set to custom), switch to custom mode
   useEffect(() => {

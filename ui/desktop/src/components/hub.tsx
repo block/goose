@@ -17,9 +17,9 @@
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
-import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
+import { startNewSession } from '../sessions';
 
 export default function Hub({
   setView,
@@ -32,54 +32,43 @@ export default function Hub({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) {
-  // Handle chat input submission - create new chat and navigate to pair
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      // Navigate to pair page with the message to be submitted
-      // Pair will handle creating the new chat session
-      resetChat();
-      setView('pair', {
-        disableAnimation: true,
-        initialMessage: combinedTextFromInput,
-      });
+      await startNewSession(combinedTextFromInput, resetChat, setView);
+      e.preventDefault();
     }
-
-    e.preventDefault();
   };
 
   return (
-    <ContextManagerProvider>
-      <div className="flex flex-col h-full bg-background-muted">
-        <div className="flex-1 flex flex-col mb-0.5">
-          <SessionInsights />
-        </div>
-
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          autoSubmit={false}
-          chatState={ChatState.Idle}
-          onStop={() => {}}
-          commandHistory={[]}
-          initialValue=""
-          setView={setView}
-          numTokens={0}
-          inputTokens={0}
-          outputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          setMessages={() => {}}
-          disableAnimation={false}
-          sessionCosts={undefined}
-          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-          isExtensionsLoading={isExtensionsLoading}
-          toolCount={0}
-        />
+    <div className="flex flex-col h-full bg-background-muted">
+      <div className="flex-1 flex flex-col mb-0.5">
+        <SessionInsights />
       </div>
-    </ContextManagerProvider>
+
+      <ChatInput
+        sessionId={null}
+        handleSubmit={handleSubmit}
+        autoSubmit={false}
+        chatState={ChatState.Idle}
+        onStop={() => {}}
+        commandHistory={[]}
+        initialValue=""
+        setView={setView}
+        totalTokens={0}
+        accumulatedInputTokens={0}
+        accumulatedOutputTokens={0}
+        droppedFiles={[]}
+        onFilesProcessed={() => {}}
+        messages={[]}
+        disableAnimation={false}
+        sessionCosts={undefined}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        isExtensionsLoading={isExtensionsLoading}
+        toolCount={0}
+      />
+    </div>
   );
 }

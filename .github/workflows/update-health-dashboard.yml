@@ -1,0 +1,229 @@
+name: Update GitHub Health Dashboard
+
+# Trigger configuration
+on:
+  # Run daily at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Allow manual triggering from GitHub UI
+  workflow_dispatch:
+
+# Define permissions for the GITHUB_TOKEN
+permissions:
+  # Required to read repository contents
+  contents: read
+  # Required to read issues and PRs
+  issues: read
+  pull-requests: read
+  # Required to update discussions
+  discussions: write
+
+jobs:
+  update-dashboard:
+    name: 'Update Health Dashboard'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 'Download previous metrics'
+        uses: dawidd6/action-download-artifact@688efa90a08f3552e7c1420c8313e215164e8b14
+        with:
+          name: health-metrics
+          path: .
+          workflow: update-health-dashboard.yml
+          if_no_artifact_found: ignore
+        
+      - name: 'Update Dashboard'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const discussionNumber = 5285;
+
+            console.log(`Fetching health metrics for ${owner}/${repo}`);
+
+            // Fetch ALL open issues with pagination
+            let allOpenIssues = [];
+            let page = 1;
+            let hasMore = true;
+            
+            while (hasMore) {
+              const { data: pageIssues } = await github.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: 'open',
+                per_page: 100,
+                page: page
+              });
+              
+              allOpenIssues = allOpenIssues.concat(pageIssues);
+              hasMore = pageIssues.length === 100;
+              page++;
+            }
+            
+            console.log(`Fetched ${allOpenIssues.length} total open items (issues + PRs)`);
+
+            // Filter out PRs (issues API includes PRs)
+            const issues = allOpenIssues.filter(issue => !issue.pull_request);
+            const totalOpenIssues = issues.length;
+            console.log(`Found ${totalOpenIssues} open issues (excluding PRs)`);
+
+            // Count issues without labels (recent ones)
+            const issuesWithoutLabels = issues.filter(issue => issue.labels.length === 0);
+
+            // Count issues by specific labels
+            const labelCounts = {};
+            const targetLabels = ['p0', 'p1', 'compaction', 'windows', 'provider', 'mcp', 'linux'];
+            
+            targetLabels.forEach(label => {
+              labelCounts[label] = issues.filter(issue => 
+                issue.labels.some(l => l.name === label)
+              ).length;
+            });
+
+            // Fetch open PRs
+            const { data: openPRs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const totalOpenPRs = openPRs.length;
+
+            // Load previous metrics for trend calculation
+            const fs = require('fs');
+            let previousMetrics = null;
+            let historyData = { history: [] };
+            
+            try {
+              if (fs.existsSync('health-metrics.json')) {
+                const fileContent = fs.readFileSync('health-metrics.json', 'utf8');
+                historyData = JSON.parse(fileContent);
+                console.log(`Loaded ${historyData.history.length} historical data points`);
+                
+                // Get the most recent metrics for comparison
+                if (historyData.history.length > 0) {
+                  previousMetrics = historyData.history[historyData.history.length - 1];
+                  console.log(`Previous metrics from ${previousMetrics.date}`);
+                }
+              }
+            } catch (error) {
+              console.log('No previous metrics found or error loading:', error.message);
+            }
+
+            // Create current metrics entry
+            const currentMetrics = {
+              date: new Date().toISOString().split('T')[0],
+              timestamp: new Date().toISOString(),
+              issues: {
+                total: totalOpenIssues,
+                no_labels: issuesWithoutLabels.length,
+                by_label: labelCounts
+              },
+              prs: totalOpenPRs
+            };
+
+            // Add current metrics to history
+            historyData.history.push(currentMetrics);
+            
+            // Keep only last 90 days of data
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            historyData.history = historyData.history.filter(entry => 
+              new Date(entry.date) >= ninetyDaysAgo
+            );
+            
+            console.log(`History now contains ${historyData.history.length} data points`);
+
+            // Calculate trend indicators
+            const getTrend = (current, previous) => {
+              if (!previous) return '';
+              const diff = current - previous;
+              if (diff === 0) return '';
+              const arrow = diff < 0 ? '↓' : '↑';
+              return ' ' + arrow + ' from ' + previous;
+            };
+
+            const issuesTrend = previousMetrics ? getTrend(totalOpenIssues, previousMetrics.issues.total) : '';
+            const noLabelsTrend = previousMetrics ? getTrend(issuesWithoutLabels.length, previousMetrics.issues.no_labels) : '';
+            const prsTrend = previousMetrics ? getTrend(totalOpenPRs, previousMetrics.prs) : '';
+
+            // Save updated metrics to file
+            fs.writeFileSync('health-metrics.json', JSON.stringify(historyData, null, 2));
+            console.log('Saved updated metrics to health-metrics.json');
+
+            // Format the dashboard markdown
+            const timestamp = new Date().toUTCString();
+            const formattedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            
+            const dashboardBody = '# GitHub Health\n\n' +
+              '**Updated:** ' + formattedDate + '\n\n' +
+              '## Issues\n\n' +
+              '**Open:** ' + totalOpenIssues + issuesTrend + '\n\n' +
+              '**No labels:** ' + issuesWithoutLabels.length + ' (these are recent)' + noLabelsTrend + '\n\n' +
+              '### Label Breakdown\n\n' +
+              '| Label | Count |\n' +
+              '|-------|-------|\n' +
+              '| [P0](https://github.com/' + owner + '/' + repo + '/labels/p0) | ' + (labelCounts['p0'] || 0) + ' |\n' +
+              '| [P1](https://github.com/' + owner + '/' + repo + '/labels/p1) | ' + (labelCounts['p1'] || 0) + ' |\n' +
+              '| [Compaction](https://github.com/' + owner + '/' + repo + '/labels/compaction) | ' + (labelCounts['compaction'] || 0) + ' |\n' +
+              '| [Windows](https://github.com/' + owner + '/' + repo + '/labels/windows) | ' + (labelCounts['windows'] || 0) + ' |\n' +
+              '| [Provider](https://github.com/' + owner + '/' + repo + '/labels/provider) | ' + (labelCounts['provider'] || 0) + ' |\n' +
+              '| [MCP](https://github.com/' + owner + '/' + repo + '/labels/mcp) | ' + (labelCounts['mcp'] || 0) + ' |\n' +
+              '| [Linux](https://github.com/' + owner + '/' + repo + '/labels/linux) | ' + (labelCounts['linux'] || 0) + ' |\n\n' +
+              '## Open PRs\n\n' +
+              '**Total:** ' + totalOpenPRs + '\n\n' +
+              '---\n\n' +
+              '*Last updated: ' + timestamp + '*\n' +
+              '*This dashboard is automatically updated daily by [GitHub Actions](https://github.com/' + owner + '/' + repo + '/actions/workflows/update-health-dashboard.yml)*';
+
+            console.log('Dashboard generated, updating discussion...');
+
+            // Get the discussion node ID using GraphQL
+            const discussionQuery = `
+              query GetDiscussion($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  discussion(number: $number) {
+                    id
+                  }
+                }
+              }
+            `;
+
+            const discussionResult = await github.graphql(discussionQuery, {
+              owner,
+              repo,
+              number: discussionNumber
+            });
+
+            const discussionId = discussionResult.repository.discussion.id;
+            console.log(`Found discussion ID: ${discussionId}`);
+
+            // Update the discussion using GraphQL mutation
+            const updateMutation = `
+              mutation UpdateDiscussion($discussionId: ID!, $body: String!) {
+                updateDiscussion(input: {discussionId: $discussionId, body: $body}) {
+                  discussion {
+                    id
+                    number
+                  }
+                }
+              }
+            `;
+
+            await github.graphql(updateMutation, {
+              discussionId,
+              body: dashboardBody
+            });
+
+            console.log(`Successfully updated discussion #${discussionNumber}`);
+      
+      - name: 'Upload metrics artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-metrics
+          path: health-metrics.json
+          retention-days: 90

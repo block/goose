@@ -108,22 +108,22 @@ enum TestMode {
     vec![
         CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "view",
-            "path": "~/goose/crates/goose/tests/tmp/goose.txt"
+            "path": "/tmp/goose_test/goose.txt"
         }))},
         CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
-            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
+            "path": "/tmp/goose_test/goose.txt",
             "old_str": "# goose",
             "new_str": "# goose (modified by test)"
         }))},
         // Test shell command to verify file was modified
         CallToolRequestParam { name: "shell".into(), arguments: Some(object!({
-            "command": "cat ~/goose/crates/goose/tests/tmp/goose.txt"
+            "command": "cat /tmp/goose_test/goose.txt"
         })) },
         // Test text_editor tool to restore original content
         CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
-            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
+            "path": "/tmp/goose_test/goose.txt",
             "old_str": "# goose (modified by test)",
             "new_str": "# goose"
         }))},
@@ -138,6 +138,13 @@ async fn test_replayed_session(
     required_envs: Vec<&str>,
 ) {
     std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
+
+    // Setup test file for developer extension tests
+    let test_file_path = "/tmp/goose_test/goose.txt";
+    if let Some(parent) = std::path::Path::new(test_file_path).parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    fs::write(test_file_path, "# goose\n").ok();
     let replay_file_name = command
         .iter()
         .map(|s| s.replace("/", "_"))
@@ -198,8 +205,7 @@ async fn test_replayed_session(
         bundled: Some(false),
         available_tools: vec![],
     };
-
-    let extension_manager = ExtensionManager::new();
+    let extension_manager = ExtensionManager::new_without_provider();
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {

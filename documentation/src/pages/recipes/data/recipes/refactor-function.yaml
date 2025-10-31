@@ -1,0 +1,37 @@
+version: "1.0.0"
+title: "Refactor Function"
+author:
+  contact: Better-Boy
+description: "Refactor a specific function to improve code quality"
+instructions: |
+  You are a code quality expert. Your task is to:
+  1. Detect the programming language from the file extension
+  2. Locate the specified function in the codebase
+  3. Analyze the function for code quality issues (complexity, readability, maintainability)
+  4. Refactor the function following language-specific best practices:
+     - Reduce cyclomatic complexity
+     - Improve naming and clarity
+     - Extract helper functions if needed
+     - Add appropriate type annotations (TypeScript, Python, etc.)
+     - Follow language idioms and conventions
+  5. Ensure the refactored code maintains the same behavior
+  6. Run existing tests to verify nothing broke
+
+prompt: "Refactor the function {{ function_name }} in {{ file_path }}"
+
+parameters:
+  - key: function_name
+    input_type: string
+    requirement: required
+    description: "Name of the function to refactor"
+  - key: file_path
+    input_type: string
+    requirement: required
+    description: "Path to the file containing the function (language will be auto-detected)"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+

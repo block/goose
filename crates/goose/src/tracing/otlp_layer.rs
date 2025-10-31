@@ -1,6 +1,8 @@
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::logs::{Logger, LoggerProvider};
 use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
 use opentelemetry_sdk::{runtime, Resource};
 use std::time::Duration;
@@ -11,7 +13,8 @@ use tracing_subscriber::filter::FilterFn;
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
 pub type OtlpMetricsLayer = MetricsLayer<tracing_subscriber::Registry>;
-pub type OtlpLayers = (OtlpTracingLayer, OtlpMetricsLayer);
+pub type OtlpLogsLayer = OpenTelemetryTracingBridge<LoggerProvider, Logger>;
+pub type OtlpLayers = (OtlpTracingLayer, OtlpMetricsLayer, OtlpLogsLayer);
 pub type OtlpResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Debug, Clone)]
@@ -163,10 +166,34 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     Ok(tracing_opentelemetry::MetricsLayer::new(meter_provider))
 }
 
+pub fn create_otlp_logs_layer() -> OtlpResult<OpenTelemetryTracingBridge<LoggerProvider, Logger>> {
+    let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
+
+    let resource = Resource::new(vec![
+        KeyValue::new("service.name", "goose"),
+        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        KeyValue::new("service.namespace", "goose"),
+    ]);
+
+    let exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_http()
+        .with_endpoint(&config.endpoint)
+        .with_timeout(config.timeout)
+        .build()?;
+
+    let logger_provider = LoggerProvider::builder()
+        .with_batch_exporter(exporter, runtime::Tokio)
+        .with_resource(resource)
+        .build();
+
+    Ok(OpenTelemetryTracingBridge::new(&logger_provider))
+}
+
 pub fn init_otlp() -> OtlpResult<OtlpLayers> {
     let tracing_layer = create_otlp_tracing_layer()?;
     let metrics_layer = create_otlp_metrics_layer()?;
-    Ok((tracing_layer, metrics_layer))
+    let logs_layer = create_otlp_logs_layer()?;
+    Ok((tracing_layer, metrics_layer, logs_layer))
 }
 
 pub fn init_otlp_tracing_only() -> OtlpResult<OtlpTracingLayer> {
@@ -221,6 +248,18 @@ pub fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> 
     })
 }
 
+/// Creates a custom filter for OTLP metrics that captures:
+/// - All events at WARN level and above
+pub fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
+    FilterFn::new(|metadata: &Metadata<'_>| {
+        if metadata.level() <= &Level::WARN {
+            return true;
+        }
+
+        false
+    })
+}
+
 /// Shutdown OTLP providers gracefully
 pub fn shutdown_otlp() {
     // Shutdown the tracer provider and flush any pending spans
@@ -262,16 +301,10 @@ mod tests {
 
         // Set values in config
         test_config
-            .set_param(
-                "otel_exporter_otlp_endpoint",
-                serde_json::Value::String("http://config:4318".to_string()),
-            )
+            .set_param("otel_exporter_otlp_endpoint", "http://config:4318")
             .unwrap();
         test_config
-            .set_param(
-                "otel_exporter_otlp_timeout",
-                serde_json::Value::Number(3000.into()),
-            )
+            .set_param("otel_exporter_otlp_timeout", 3000)
             .unwrap();
 
         // Test that from_config reads from the config file

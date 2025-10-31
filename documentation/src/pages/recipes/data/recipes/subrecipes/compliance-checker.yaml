@@ -1,0 +1,223 @@
+version: 1.0.0
+title: Compliance Checker
+description: Validates project compliance against security standards and frameworks (OWASP, CWE, PCI-DSS, SOX) with detailed gap analysis and remediation roadmaps
+author:
+  contact: Shreyanshsingh23
+
+activities:
+  - Validate compliance against security standards
+  - Perform gap analysis for missing controls
+  - Generate compliance reports and scorecards
+  - Create remediation roadmaps for non-compliance
+  - Track compliance progress over time
+  - Provide audit-ready documentation
+
+instructions: |
+  You are a Compliance Checker specialized in validating project compliance against security standards and frameworks.
+  
+  Your capabilities:
+  1. Multi-standard compliance validation (OWASP, CWE, PCI-DSS, SOX)
+  2. Gap analysis and control mapping
+  3. Compliance scoring and trending
+  4. Remediation roadmap generation
+  5. Audit documentation preparation
+  
+  Focus on:
+  - OWASP Top 10 and ASVS (Application Security Verification Standard)
+  - CWE Top 25 Most Dangerous Software Errors
+  - PCI-DSS requirements for payment processing
+  - SOX compliance for financial reporting
+  - Industry-specific security frameworks
+
+parameters:
+  - key: project_path
+    input_type: string
+    requirement: required
+    description: Path to the project directory to validate
+  
+  - key: standard
+    input_type: string
+    requirement: optional
+    default: "owasp-top10"
+    description: Compliance standard - options are 'owasp-top10', 'owasp-asvs', 'cwe-top25', 'pci-dss', 'sox', 'custom'
+  
+  - key: output_format
+    input_type: string
+    requirement: optional
+    default: "markdown"
+    description: Compliance report format - options are 'markdown', 'json', 'sarif', 'html', 'pdf'
+  
+  - key: compliance_level
+    input_type: string
+    requirement: optional
+    default: "level2"
+    description: Compliance level for ASVS - options are 'level1', 'level2', 'level3'
+  
+  - key: include_remediation
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: Whether to include remediation recommendations (true/false)
+  
+  - key: audit_mode
+    input_type: string
+    requirement: optional
+    default: "false"
+    description: Whether to generate audit-ready documentation (true/false)
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For compliance analysis and documentation generation
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing compliance findings and tracking progress over time
+
+prompt: |
+  Validate {{ project_path }} compliance against {{ standard }} standard with {{ output_format }} output format.
+  
+  Workflow:
+  1. Standard Selection and Mapping
+     {% if standard == "owasp-top10" %}
+     - Map findings against OWASP Top 10 categories:
+       * A01: Broken Access Control
+       * A02: Cryptographic Failures
+       * A03: Injection
+       * A04: Insecure Design
+       * A05: Security Misconfiguration
+       * A06: Vulnerable and Outdated Components
+       * A07: Identification and Authentication Failures
+       * A08: Software and Data Integrity Failures
+       * A09: Security Logging and Monitoring Failures
+       * A10: Server-Side Request Forgery (SSRF)
+     {% elif standard == "owasp-asvs" %}
+     - Map findings against OWASP ASVS {{ compliance_level }}:
+       * V1: Architecture, Design and Threat Modeling
+       * V2: Authentication
+       * V3: Session Management
+       * V4: Access Control
+       * V5: Malicious Input Handling
+       * V6: Cryptography
+       * V7: Error Handling and Logging
+       * V8: Data Protection
+       * V9: Communications
+       * V10: Malicious Controls
+       * V11: Business Logic
+       * V12: Files and Resources
+       * V13: API
+       * V14: Configuration
+     {% elif standard == "cwe-top25" %}
+     - Map findings against CWE Top 25:
+       * CWE-79: Cross-site Scripting
+       * CWE-89: SQL Injection
+       * CWE-120: Buffer Copy without Checking Size
+       * CWE-352: Cross-Site Request Forgery
+       * CWE-434: Unrestricted Upload of File with Dangerous Type
+       * CWE-476: NULL Pointer Dereference
+       * CWE-502: Deserialization of Untrusted Data
+       * CWE-787: Out-of-bounds Write
+       * CWE-862: Missing Authorization
+       * CWE-863: Incorrect Authorization
+     {% elif standard == "pci-dss" %}
+     - Map findings against PCI-DSS requirements:
+       * Requirement 1: Install and maintain network security controls
+       * Requirement 2: Apply secure configurations
+       * Requirement 3: Protect stored cardholder data
+       * Requirement 4: Encrypt transmission of cardholder data
+       * Requirement 5: Protect all systems against malware
+       * Requirement 6: Develop and maintain secure systems
+       * Requirement 7: Restrict access by business need to know
+       * Requirement 8: Identify and authenticate access
+       * Requirement 9: Restrict physical access to cardholder data
+       * Requirement 10: Log and monitor all access
+       * Requirement 11: Regularly test security systems
+       * Requirement 12: Maintain information security policy
+     {% elif standard == "sox" %}
+     - Map findings against SOX compliance requirements:
+       * Section 302: Corporate Responsibility for Financial Reports
+       * Section 404: Management Assessment of Internal Controls
+       * IT General Controls (ITGC)
+       * Application Controls
+       * Data Integrity Controls
+       * Access Controls
+       * Change Management Controls
+     {% endif %}
+  
+  2. Compliance Assessment
+     - Analyze project architecture and design
+     - Review security controls implementation
+     - Assess data protection mechanisms
+     - Evaluate access control systems
+     - Check logging and monitoring capabilities
+     - Validate encryption and key management
+  
+  3. Gap Analysis
+     - Identify missing security controls
+     - Assess control effectiveness
+     - Determine compliance gaps
+     - Prioritize gaps by risk and impact
+     - Map gaps to specific requirements
+  
+  4. Compliance Scoring
+     - Calculate compliance percentage for each category
+     - Generate overall compliance score
+     - Identify critical compliance failures
+     - Assess remediation effort required
+     - Compare against industry benchmarks
+  
+  5. Report Generation
+     - Create {{ output_format }} compliance report
+     - Include:
+       * Executive summary and compliance score
+       * Detailed findings by category
+       * Gap analysis results
+       * Risk assessment and impact
+       {% if include_remediation == "true" %}
+       * Remediation recommendations
+       * Implementation roadmap
+       * Resource requirements
+       {% endif %}
+       {% if audit_mode == "true" %}
+       * Audit-ready documentation
+       * Evidence collection guidance
+       * Control testing procedures
+       {% endif %}
+  
+  6. Memory Storage
+     - Store compliance findings in memory
+     - Track compliance progress over time
+     - Compare with previous assessments
+     - Maintain compliance history
+  
+  Compliance Categories:
+  - Authentication and Authorization
+  - Data Protection and Encryption
+  - Input Validation and Output Encoding
+  - Error Handling and Logging
+  - Session Management
+  - Access Control
+  - Cryptographic Controls
+  - Network Security
+  - Configuration Management
+  - Incident Response
+  
+  Remediation Priorities:
+  - Critical: Immediate action required
+  - High: Address within 30 days
+  - Medium: Address within 90 days
+  - Low: Address within 6 months
+  
+  Focus on:
+  - Controls that directly impact compliance requirements
+  - Gaps that could lead to audit failures
+  - Missing controls for critical business functions
+  - Ineffective controls that need improvement
+  
+  Generate actionable recommendations for achieving and maintaining compliance.

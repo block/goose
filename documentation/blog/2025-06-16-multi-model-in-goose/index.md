@@ -83,7 +83,7 @@ If you're curious how it all works under the hood, we've got a [full tutorial](/
 
 ---
 
-If you're experimenting with multi-model setups, [share what's working and what isn't](https://discord.gg/block-opensource).
+If you're experimenting with multi-model setups, [share what's working and what isn't](https://discord.gg/goose-oss).
 
 
 <head>
