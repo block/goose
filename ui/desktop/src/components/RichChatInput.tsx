@@ -402,6 +402,7 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
     },
     contentRef: hiddenTextareaRef,
     resetHeight: () => {
+      console.log('🔄 RESET HEIGHT CALLED');
       if (hiddenTextareaRef.current && displayRef.current) {
         const textarea = hiddenTextareaRef.current;
         const display = displayRef.current;
@@ -412,13 +413,13 @@ export const RichChatInput = forwardRef<RichChatInputRef, RichChatInputProps>(({
         const lineHeight = Math.round(lineHeightValue === "normal" ? fontSize * 1.2 : parseFloat(lineHeightValue));
         const minHeight = rows * lineHeight;
         
+        // Reset to auto first, then set to minHeight - DON'T call syncDisplayHeight after!
         textarea.style.height = "auto";
         textarea.style.height = `${minHeight}px`;
         display.style.height = `${minHeight}px`;
         setContainerHeight(minHeight);
         
-        syncDisplayHeight();
-      ensureStyleConsistency();
+        console.log('🔄 RESET HEIGHT: Set to minHeight', minHeight);
       }
     },
   }), [rows, syncDisplayHeight, ensureStyleConsistency]);
