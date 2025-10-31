@@ -544,7 +544,7 @@ version: "1.0.0"
 title: "Example Recipe"
 description: "A sample recipe demonstrating the format"
 instructions: "Follow these steps with {{ required_param }} and {{ optional_param }}"
-prompt: "Your task is to use {{ required_param }}"
+prompt: "Your task is to use {{ required_param }} with {{ interactive_param }}"
 parameters:
   - key: required_param
     input_type: string
@@ -611,7 +611,7 @@ response:
   "title": "Example Recipe",
   "description": "A sample recipe demonstrating the format",
   "instructions": "Follow these steps with {{ required_param }} and {{ optional_param }}",
-  "prompt": "Your task is to use {{ required_param }}",
+  "prompt": "Your task is to use {{ required_param }} with {{ interactive_param }}",
   "parameters": [
     {
       "key": "required_param",
@@ -720,7 +720,7 @@ Recipes can be loaded from:
 
 ## Validation Rules
 
-Recipe files must be valid YAML or JSON. In addition, the following [validation rules](https://github.com/block/goose/blob/main/crates/goose/src/recipe/validate_recipe.rs) are enforced when loading recipes:
+Recipe files must be valid YAML or JSON. In addition, the following [validation rules](https://github.com/block/goose/blob/main/crates/goose/src/recipe/validate_recipe.rs) are enforced when loading recipes and are also checked by the [`goose recipe validate` subcommand](/docs/guides/goose-cli-commands#recipe):
 
 - Required `title` and `description` fields must be present
 - At least one of `instructions` or `prompt` must be present
