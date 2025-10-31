@@ -5,7 +5,7 @@
     <!-- 
       Permissive CSP so nested content is not constrained by top-level Goose Desktop CSP
       - default-src: Fallback for other directives (allows same-origin)
-      - script-src: Allow scripts from self, CDNs, inline, eval, and blob URLs
+      - script-src: Allow scripts from any origin, inline, eval, wasm, and blob URLs
       - style-src: Allow styles from any origin and inline styles
       - font-src: Allow fonts from any origin
       - connect-src: Allow network requests to any origin
@@ -16,7 +16,7 @@
     -->
     <meta 
       http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src * 'unsafe-inline'; font-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
+      content="default-src 'self'; script-src * 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; font-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
     <title>MCP-UI Proxy</title>
     <style>
       body,
