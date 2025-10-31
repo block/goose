@@ -6,6 +6,7 @@ use goose::config::{Config, ExtensionConfig};
 use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
+use crate::commands::counsel::handle_counsel;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -794,6 +795,34 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Get opinions from the Counsel of 9
+    #[command(
+        about = "Get opinions from the Counsel of 9 - nine AI personas with different perspectives"
+    )]
+    Counsel {
+        /// The prompt to get counsel on
+        #[arg(help = "The prompt or question to get counsel on")]
+        prompt: String,
+
+        /// Show all opinions, not just the winner
+        #[arg(
+            short,
+            long,
+            help = "Show all opinions and voting results, not just the winner"
+        )]
+        show_all: bool,
+
+        /// Output format
+        #[arg(
+            short,
+            long,
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -839,6 +868,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Counsel { .. }) => "counsel",
         None => "default_session",
     };
 
@@ -1314,6 +1344,14 @@ pub async fn cli() -> anyhow::Result<()> {
                     handle_list(&format, verbose)?;
                 }
             }
+            return Ok(());
+        }
+        Some(Command::Counsel {
+            prompt,
+            show_all,
+            format,
+        }) => {
+            handle_counsel(prompt, show_all, format).await?;
             return Ok(());
         }
         Some(Command::Web {

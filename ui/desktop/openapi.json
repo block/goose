@@ -930,6 +930,42 @@
         }
       }
     },
+    "/counsel": {
+      "post": {
+        "tags": [
+          "counsel"
+        ],
+        "operationId": "counsel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounselRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Counsel completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CounselResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error - counsel process failed"
+          }
+        }
+      }
+    },
     "/diagnostics/{session_id}": {
       "get": {
         "tags": [
@@ -2257,6 +2293,72 @@
           "$ref": "#/components/schemas/Message"
         }
       },
+      "CounselRequest": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Optional model override (uses session default if not specified)",
+            "nullable": true
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The prompt or question to get counsel on"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Optional provider override (uses session default if not specified)",
+            "nullable": true
+          }
+        }
+      },
+      "CounselResponse": {
+        "type": "object",
+        "required": [
+          "winner",
+          "all_opinions",
+          "vote_counts",
+          "total_votes",
+          "unavailable_members"
+        ],
+        "properties": {
+          "all_opinions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpinionResponse"
+            },
+            "description": "All opinions from the counsel"
+          },
+          "total_votes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of votes cast",
+            "minimum": 0
+          },
+          "unavailable_members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Members that were unavailable"
+          },
+          "vote_counts": {
+            "type": "object",
+            "description": "Vote counts for each member",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "winner": {
+            "$ref": "#/components/schemas/OpinionResponse"
+          }
+        }
+      },
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
@@ -3472,6 +3574,33 @@
             "type": "boolean",
             "description": "Whether this model supports cache control",
             "nullable": true
+          }
+        }
+      },
+      "OpinionResponse": {
+        "type": "object",
+        "required": [
+          "member_id",
+          "member_name",
+          "content",
+          "reasoning"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The opinion content"
+          },
+          "member_id": {
+            "type": "string",
+            "description": "Unique identifier for the counsel member"
+          },
+          "member_name": {
+            "type": "string",
+            "description": "Display name of the counsel member"
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "The reasoning behind the opinion"
           }
         }
       },

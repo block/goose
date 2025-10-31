@@ -27,6 +27,8 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
+import { CounselProvider, useCounsel } from './contexts/CounselContext';
+import { CounselModal } from './components/counsel';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -312,6 +314,7 @@ const ExtensionsRoute = () => {
 };
 
 export function AppInner() {
+  const { isCounselModalOpen, closeCounselModal } = useCounsel();
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
@@ -631,6 +634,9 @@ export function AppInner() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
+      {isCounselModalOpen && (
+        <CounselModal isOpen={isCounselModalOpen} onClose={closeCounselModal} />
+      )}
     </>
   );
 }
@@ -638,10 +644,12 @@ export function AppInner() {
 export default function App() {
   return (
     <ModelAndProviderProvider>
-      <HashRouter>
-        <AppInner />
-      </HashRouter>
-      <AnnouncementModal />
+      <CounselProvider>
+        <HashRouter>
+          <AppInner />
+        </HashRouter>
+        <AnnouncementModal />
+      </CounselProvider>
     </ModelAndProviderProvider>
   );
 }

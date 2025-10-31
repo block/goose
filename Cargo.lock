@@ -2752,6 +2752,7 @@ dependencies = [
  "temp-env",
  "tempfile",
  "test-case",
+ "textwrap",
  "tokio",
  "tokio-util",
  "tower-http",
