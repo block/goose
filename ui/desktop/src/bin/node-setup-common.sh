@@ -57,19 +57,33 @@ log "Updated PATH to include ~/.config/goose/mcp-hermit/bin."
 log "Checking for hermit in PATH."
 which hermit >> "$LOG_FILE"
 
-# Fix hermit self-update lock issues on Linux
-if [[ "$(uname -s)" == "Linux" ]]; then
-    log "Creating temp dir with bin subdirectory for hermit copy to avoid self-update locks and bin directory issues."
-    HERMIT_TMP_DIR="/tmp/hermit_tmp_$$/bin"
-    mkdir -p "$HERMIT_TMP_DIR"
-    cp ~/.config/goose/mcp-hermit/bin/hermit "$HERMIT_TMP_DIR/hermit"
-    chmod +x "$HERMIT_TMP_DIR/hermit"
-    export PATH="$HERMIT_TMP_DIR:$PATH"
-fi
+# Check if hermit environment is already initialized (only run init on first setup)
+if [ ! -f bin/activate-hermit ]; then
+    log "Hermit environment not yet initialized. Setting up hermit."
 
-# Initialize hermit
-log "Initializing hermit."
-hermit init >> "$LOG_FILE"
+    # Fix hermit self-update lock issues on Linux by using temp binary for init only
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        log "Creating temp dir with bin subdirectory for hermit copy to avoid self-update locks."
+        HERMIT_TMP_DIR="/tmp/hermit_tmp_$$/bin"
+        mkdir -p "$HERMIT_TMP_DIR"
+        cp ~/.config/goose/mcp-hermit/bin/hermit "$HERMIT_TMP_DIR/hermit"
+        chmod +x "$HERMIT_TMP_DIR/hermit"
+        export PATH="$HERMIT_TMP_DIR:$PATH"
+        HERMIT_CLEANUP_DIR="/tmp/hermit_tmp_$$"
+    fi
+
+    # Initialize hermit
+    log "Initializing hermit."
+    hermit init >> "$LOG_FILE"
+
+    # Clean up temp dir if it was created
+    if [[ -n "${HERMIT_CLEANUP_DIR:-}" ]]; then
+        log "Cleaning up temporary hermit binary directory."
+        rm -rf "$HERMIT_CLEANUP_DIR"
+    fi
+else
+    log "Hermit environment already initialized. Skipping init."
+fi
 
 # Activate the environment with output redirected to log
 if [[ "$(uname -s)" == "Linux" ]]; then
@@ -80,11 +94,6 @@ fi
 # Install Node.js using hermit
 log "Installing Node.js with hermit."
 hermit install node >> "$LOG_FILE"
-
-# Clean up temp dir
-if [[ "$(uname -s)" == "Linux" ]]; then
-    rm -rf "/tmp/hermit_tmp_$$"
-fi
 
 # Verify installations
 log "Verifying installation locations:"
