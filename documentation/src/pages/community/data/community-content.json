@@ -182,32 +182,32 @@
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
-     {
-       "title": "goose with Neon MCP",
-       "author": {
-         "name": "Dakshata Mishra",
-         "handle": "the-matrixneo"
-       },
-       "type": "video",
-       "url": "https://www.youtube.com/shorts/IxUPo2QDg_8",
-       "submittedDate": "2025-10-29",
-       "tags": ["hacktoberfest"],
-       "hacktoberfest": true
-     },
-     {
-       "title": "Goose with Canva MCP",
-       "author": {
-         "name": "BestCodes",
-         "handle": "the-best-codes"
-       },
-       "type": "video",
-       "url": "https://www.youtube.com/shorts/xBGTa8XenVc",
-       "submittedDate": "2025-10-30",
-       "tags": ["hacktoberfest"],
-       "hacktoberfest": true
-     },
-     {
-       "title": "goose with Apify MCP",
+    {
+      "title": "goose with Neon MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/IxUPo2QDg_8",
+      "submittedDate": "2025-10-29",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Goose with Canva MCP",
+      "author": {
+        "name": "BestCodes",
+        "handle": "the-best-codes"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/xBGTa8XenVc",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
+      "title": "goose with Apify MCP",
       "author": {
         "name": "abhi",
         "handle": "Better-Boy"
@@ -218,7 +218,7 @@
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
-      {
+    {
       "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
       "author": {
         "name": "Anudhyan Datta",
