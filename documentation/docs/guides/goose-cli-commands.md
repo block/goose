@@ -207,6 +207,31 @@ goose session export --path ./my-session.jsonl --output exported.md
 
 ---
 
+#### session diagnostics [options]
+Generate a comprehensive diagnostics bundle for troubleshooting and support.
+
+**Options:**
+- **`-s, --session-id <session_id>`**: Session ID to generate diagnostics for. Use [`session list`](#session-list-options) to find available session IDs
+- **`-o, --output <path>`**: Output path for the diagnostics ZIP file (defaults to current directory)
+
+**Usage:**
+```bash
+# Generate diagnostics for a specific session (saves to current directory)
+goose session diagnostics --session-id 20241101_143022
+
+# Generate diagnostics with custom output path
+goose session diagnostics --session-id 20241101_143022 --output ~/Downloads/my_diagnostics.zip
+
+# Generate diagnostics and save to a specific directory
+goose session diagnostics -s 20241101_143022 -o ./support/diagnostics.zip
+```
+
+:::info
+The diagnostics bundle contains system information, session data, recent logs, and configuration settings. Review the contents before sharing if your session contains sensitive information.
+:::
+
+---
+
 ### Task Execution
 
 #### run [options]
