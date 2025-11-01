@@ -12,6 +12,7 @@ description = "An AI agent"
 
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
+string_slice = "warn"
 
 [workspace.dependencies]
 rmcp = { version = "0.8.3", features = ["schemars", "auth"] }
