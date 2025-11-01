@@ -74,6 +74,43 @@ export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | R
 
 export type Conversation = Array<Message>;
 
+export type CounselRequest = {
+    /**
+     * Optional model override (uses session default if not specified)
+     */
+    model?: string | null;
+    /**
+     * The prompt or question to get counsel on
+     */
+    prompt: string;
+    /**
+     * Optional provider override (uses session default if not specified)
+     */
+    provider?: string | null;
+};
+
+export type CounselResponse = {
+    /**
+     * All opinions from the counsel
+     */
+    all_opinions: Array<OpinionResponse>;
+    /**
+     * Total number of votes cast
+     */
+    total_votes: number;
+    /**
+     * Members that were unavailable
+     */
+    unavailable_members: Array<string>;
+    /**
+     * Vote counts for each member
+     */
+    vote_counts: {
+        [key: string]: number;
+    };
+    winner: OpinionResponse;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -434,6 +471,25 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+};
+
+export type OpinionResponse = {
+    /**
+     * The opinion content
+     */
+    content: string;
+    /**
+     * Unique identifier for the counsel member
+     */
+    member_id: string;
+    /**
+     * Display name of the counsel member
+     */
+    member_name: string;
+    /**
+     * The reasoning behind the opinion
+     */
+    reasoning: string;
 };
 
 export type ParseRecipeRequest = {
@@ -1646,6 +1702,33 @@ export type ConfirmPermissionResponses = {
      */
     200: unknown;
 };
+
+export type CounselData = {
+    body: CounselRequest;
+    path?: never;
+    query?: never;
+    url: '/counsel';
+};
+
+export type CounselErrors = {
+    /**
+     * Bad request - invalid parameters
+     */
+    400: unknown;
+    /**
+     * Internal server error - counsel process failed
+     */
+    500: unknown;
+};
+
+export type CounselResponses = {
+    /**
+     * Counsel completed successfully
+     */
+    200: CounselResponse;
+};
+
+export type CounselResponse2 = CounselResponses[keyof CounselResponses];
 
 export type DiagnosticsData = {
     body?: never;

@@ -16,6 +16,7 @@ import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
+import { useCounsel } from '../../contexts/CounselContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -98,6 +99,7 @@ const menuItems: NavigationEntry[] = [
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
+  const { openCounselModal } = useCounsel();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -137,26 +139,50 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     }
 
     const IconComponent = entry.icon;
+    const isChatItem = entry.path === '/pair';
 
     return (
-      <SidebarGroup key={entry.path}>
-        <SidebarGroupContent className="space-y-1">
-          <div className="sidebar-item">
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
-                onClick={() => navigate(entry.path)}
-                isActive={isActivePath(entry.path)}
-                tooltip={entry.tooltip}
-                className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-              >
-                <IconComponent className="w-4 h-4" />
-                <span>{entry.label}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
+      <React.Fragment key={entry.path}>
+        <SidebarGroup>
+          <SidebarGroupContent className="space-y-1">
+            <div className="sidebar-item">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
+                  onClick={() => navigate(entry.path)}
+                  isActive={isActivePath(entry.path)}
+                  tooltip={entry.tooltip}
+                  className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                >
+                  <IconComponent className="w-4 h-4" />
+                  <span>{entry.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Add Counsel button after Chat item */}
+        {isChatItem && (
+          <SidebarGroup>
+            <SidebarGroupContent className="space-y-1">
+              <div className="sidebar-item">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    data-testid="sidebar-counsel-button"
+                    onClick={openCounselModal}
+                    tooltip="Get opinions from the Counsel of 9"
+                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center text-sm">🎭</span>
+                    <span>Counsel of 9</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+      </React.Fragment>
     );
   };
 
