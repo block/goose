@@ -65,7 +65,12 @@ pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_TOOLS_TOOL_NAME: &str = "search_tools";
 
-pub const LLM_SEARCH_TOOL_PROMPT: &str = r#"Important: the user has opted to dynamically enable tools, so although an extension could be enabled, please invoke the llm search tool to actually retrieve the most relevant tools to use according to the user's messages. For example, if the user has 3 extensions enabled, but they are asking for a tool to read a pdf file, you would invoke the llm_search tool to find the most relevant read pdf tool. By dynamically enabling tools, you (goose) as the agent save context window space and allow the user to dynamically retrieve the most relevant tools. Be sure to format a query packed with relevant keywords to search for the most relevant tools."#;
+pub const LLM_SEARCH_TOOL_PROMPT: &str = r#"Important: the user has opted to dynamically enable tools, so although an extension could be enabled,
+please invoke the llm search tool to actually retrieve the most relevant tools to use according to the user's messages.
+For example, if the user has 3 extensions enabled, but they are asking for a tool to read a pdf file,
+you would invoke the llm_search tool to find the most relevant read pdf tool.
+By dynamically enabling tools, you (goose) as the agent save context window space and allow the user to dynamically retrieve the most relevant tools.
+Be sure to format a query packed with relevant keywords to search for the most relevant tools."#;
 
 pub struct CoreClient {
     info: InitializeResult,
