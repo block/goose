@@ -1,7 +1,10 @@
 ---
 title: Speech Extension
 description: Add Speech MCP Server as a Goose Extension
+unlisted: true
 ---
+
+Unlist per https://github.com/block/goose/issues/5431
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';

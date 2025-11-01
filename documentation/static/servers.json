@@ -540,17 +540,6 @@
     "environmentVariables": []
   },
   {
-    "id": "speech_mcp",
-    "name": "Speech Interface",
-    "description": "Voice interaction with audio visualization for goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
-    "command": "uvx -p 3.10.14 speech-mcp@latest",
-    "link": "https://github.com/Kvadratni/speech-mcp",
-    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
