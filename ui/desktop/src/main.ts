@@ -1,4 +1,4 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import type { OpenDialogOptions, OpenDialogReturnValue, Session } from 'electron';
 import {
   app,
   App,
@@ -52,6 +52,8 @@ import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import express from 'express';
+import http from 'node:http';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -1022,6 +1024,13 @@ ipcMain.handle('get-secret-key', () => {
   return SERVER_SECRET;
 });
 
+ipcMain.handle('get-mcp-ui-proxy-url', () => {
+  if (mcpUIProxyServerPort) {
+    return `http://localhost:${mcpUIProxyServerPort}/mcp-ui-proxy.html`;
+  }
+  return undefined;
+});
+
 ipcMain.handle('get-goosed-host-port', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
   if (!windowId) {
@@ -1640,9 +1649,105 @@ const registerGlobalHotkey = (accelerator: string) => {
   }
 };
 
+// HTTP server for serving MCP-UI proxy files
+let mcpUIProxyServerPort: number | null = null;
+let mcpUIProxyServer: http.Server | null = null;
+// Random token to secure the MCP-UI proxy server from access by external browsers
+const MCP_UI_PROXY_TOKEN = `mcp-ui-proxy:${crypto.randomBytes(32).toString('hex')}`;
+
+async function startMcpUIProxyServer(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const expressApp = express();
+
+    // Determine static path based on environment
+    // In dev: __dirname is like .../ui/desktop/.vite/build, use relative path
+    // In prod: extraResources are in process.resourcesPath (e.g., Goose.app/Contents/Resources/)
+    const staticPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'static')
+      : path.join(__dirname, '../../static');
+
+    if (fsSync.existsSync(staticPath)) {
+      const files = fsSync.readdirSync(staticPath);
+      log.info(`MCP UI Proxy: static dir contents = ${files.join(', ')}`);
+    } else {
+      log.error(`MCP UI Proxy: static directory not found at ${staticPath}`);
+    }
+
+    // Determine the allowed Electron app origin
+    const allowedOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
+      ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
+      : null; // In production, we use file:// protocol
+
+    // Security middleware: validate token and origin on all requests
+    expressApp.use((req, res, next) => {
+      // Check 1: Validate token via header
+      const token = req.headers['x-mcp-ui-proxy-token'] as string | undefined;
+      if (token !== MCP_UI_PROXY_TOKEN) {
+        log.warn(`Unauthorized access attempt to MCP-UI proxy from ${req.ip} - invalid token`);
+        res.status(403).send('Forbidden');
+        return;
+      }
+
+      // Check 2: Validate origin (defense in depth) - require exact Electron origin
+      const origin = req.headers.origin || req.headers.referer;
+      let isElectronRequest = false;
+
+      if (allowedOrigin) {
+        // Dev mode: check for exact localhost:port match
+        isElectronRequest = origin?.startsWith(allowedOrigin) || false;
+      } else {
+        // Production mode: check for file:// protocol OR allow missing origin
+        // (iframes in file:// context often don't send origin/referer headers)
+        isElectronRequest = !origin || origin.startsWith('file://');
+      }
+
+      if (!isElectronRequest) {
+        log.warn(
+          `Unauthorized access attempt to MCP-UI proxy. Origin: ${origin || 'none'}, Expected: ${allowedOrigin || 'file:// or no origin'}, IP: ${req.ip}`
+        );
+        res.status(403).send('Forbidden');
+        return;
+      }
+
+      log.info(`MCP-UI proxy request authorized. Origin: ${origin}, Path: ${req.path}`);
+      next();
+    });
+
+    // Serve static files from the static directory
+    expressApp.use(express.static(staticPath));
+
+    // Create HTTP server
+    mcpUIProxyServer = http.createServer(expressApp);
+
+    // Listen on a dynamic port (0 = let the OS choose an available port)
+    mcpUIProxyServer.listen(0, 'localhost', () => {
+      const address = mcpUIProxyServer?.address();
+      if (address && typeof address === 'object') {
+        mcpUIProxyServerPort = address.port;
+        log.info(`MCP UI Proxy server started on port ${mcpUIProxyServerPort}`);
+        resolve(mcpUIProxyServerPort);
+      } else {
+        reject(new Error('Failed to get server address'));
+      }
+    });
+
+    mcpUIProxyServer.on('error', (error) => {
+      log.error('MCP UI Proxy server error:', error);
+      reject(error);
+    });
+  });
+}
+
 async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
+
+  // Start MCP-UI proxy server
+  try {
+    await startMcpUIProxyServer();
+  } catch (error) {
+    log.error('Failed to start MCP-UI proxy server:', error);
+  }
 
   registerUpdateIpcHandlers();
 
@@ -1698,9 +1803,52 @@ async function appMain() {
   // Register the default global hotkey
   registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
 
+  // Set up Origin header for all requests on default session (existing behavior)
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
+  });
+
+  // Track sessions that have been set up to avoid duplicate handlers
+  const configuredSessions = new WeakSet<Session>();
+
+  // Helper function to set up MCP-UI proxy header injection for a session (only once per session)
+  const setupMcpProxyHeaderInjection = (sess: Session) => {
+    // Skip if we've already configured this session
+    if (configuredSessions.has(sess)) {
+      return;
+    }
+    configuredSessions.add(sess);
+
+    log.info(`Setting up MCP-UI proxy header injection for session`);
+
+    sess.webRequest.onBeforeSendHeaders((details, callback) => {
+      // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
+      if (mcpUIProxyServerPort) {
+        // Debug: log all localhost requests to see what's being requested
+        if (details.url.includes('localhost')) {
+          log.info(`Request to localhost: ${details.url}, proxyPort: ${mcpUIProxyServerPort}`);
+        }
+
+        if (details.url.includes(`:${mcpUIProxyServerPort}`)) {
+          log.info(`✓ Injecting MCP-UI proxy token for request: ${details.url}`);
+          details.requestHeaders['X-MCP-UI-Proxy-Token'] = MCP_UI_PROXY_TOKEN;
+        }
+      }
+
+      callback({ cancel: false, requestHeaders: details.requestHeaders });
+    });
+  };
+
+  // Set up header injection immediately for known sessions
+  setupMcpProxyHeaderInjection(session.defaultSession);
+  const gooseSession = session.fromPartition('persist:goose');
+  setupMcpProxyHeaderInjection(gooseSession);
+
+  // Intercept all new webContents (including main window and iframes) and set up MCP-UI proxy header injection
+  app.on('web-contents-created', (_event, contents) => {
+    log.info(`New webContents created: ${contents.getType()}`);
+    setupMcpProxyHeaderInjection(contents.session);
   });
 
   // Create tray if enabled in settings
@@ -2244,6 +2392,13 @@ app.on('will-quit', async () => {
     }
   }
   windowPowerSaveBlockers.clear();
+
+  // Close MCP-UI proxy server
+  if (mcpUIProxyServer) {
+    mcpUIProxyServer.close(() => {
+      log.info('MCP UI Proxy server closed');
+    });
+  }
 
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
