@@ -1416,6 +1416,7 @@ mod tests {
         fs::create_dir_all(&recipe_dir)?;
 
         let _ = crate::session::session_manager::ensure_session_dir()
+            .await
             .expect("Failed to ensure app session dir");
 
         let schedule_id_str = "test_schedule_001_scheduler_check".to_string();

@@ -283,6 +283,63 @@ enum SchedulerCommand {
 }
 
 #[derive(Subcommand)]
+enum DbCommand {
+    #[command(about = "Show database status and statistics")]
+    Status,
+
+    #[command(about = "Create a manual database backup")]
+    Backup {
+        #[arg(
+            short,
+            long,
+            help = "Custom backup name (saved in default backup directory)"
+        )]
+        name: Option<String>,
+    },
+
+    #[command(about = "Restore database from a backup file")]
+    Restore {
+        #[arg(help = "Backup filename (e.g., backup_YYYYMMDD_HHMMSS.db) or full path")]
+        backup_file: PathBuf,
+
+        #[arg(short, long, help = "Skip confirmation prompt")]
+        force: bool,
+    },
+
+    #[command(about = "Show database file path")]
+    Path,
+
+    #[command(about = "List all available database backups")]
+    ListBackups {
+        #[arg(
+            short,
+            long,
+            default_value = "table",
+            help = "Output format (table/json)"
+        )]
+        format: String,
+    },
+
+    #[command(about = "Delete database backup files")]
+    DeleteBackup {
+        #[arg(
+            help = "Backup filename(s) (e.g., backup_YYYYMMDD_HHMMSS.db) or full path(s)",
+            conflicts_with = "all"
+        )]
+        backup_files: Vec<PathBuf>,
+
+        #[arg(long, help = "Delete all backups", conflicts_with = "backup_files")]
+        all: bool,
+
+        #[arg(long, help = "Also clean up orphaned WAL/SHM files")]
+        cleanup: bool,
+
+        #[arg(short, long, help = "Skip confirmation prompt")]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum BenchCommand {
     #[command(name = "init-config", about = "Create a new starter-config")]
     InitConfig {
@@ -391,6 +448,13 @@ enum Command {
     /// Configure goose settings
     #[command(about = "Configure goose settings")]
     Configure {},
+
+    /// Database management commands
+    #[command(about = "Database management commands")]
+    Db {
+        #[command(subcommand)]
+        command: DbCommand,
+    },
 
     /// Display goose configuration information
     #[command(about = "Display goose information")]
@@ -827,6 +891,7 @@ pub async fn cli() -> anyhow::Result<()> {
 
     let command_name = match &cli.command {
         Some(Command::Configure {}) => "configure",
+        Some(Command::Db { .. }) => "db",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Acp {}) => "acp",
@@ -851,6 +916,29 @@ pub async fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(Command::Configure {}) => {
             handle_configure().await?;
+        }
+        Some(Command::Db { command }) => {
+            match command {
+                DbCommand::Status => crate::commands::db::handle_db_status().await?,
+                DbCommand::Backup { name } => crate::commands::db::handle_db_backup(name).await?,
+                DbCommand::Restore { backup_file, force } => {
+                    crate::commands::db::handle_db_restore(backup_file, force).await?
+                }
+                DbCommand::Path => crate::commands::db::handle_db_path().await?,
+                DbCommand::ListBackups { format } => {
+                    crate::commands::db::handle_db_list_backups(format).await?
+                }
+                DbCommand::DeleteBackup {
+                    backup_files,
+                    all,
+                    cleanup,
+                    force,
+                } => {
+                    crate::commands::db::handle_db_delete_backup(backup_files, all, cleanup, force)
+                        .await?
+                }
+            }
+            return Ok(());
         }
         Some(Command::Info { verbose }) => {
             handle_info(verbose)?;

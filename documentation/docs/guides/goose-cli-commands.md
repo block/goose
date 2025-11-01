@@ -354,6 +354,126 @@ goose schedule remove --id daily-report
 
 ---
 
+### Database Management
+
+#### db status
+Display comprehensive database information including location, size, schema version, content statistics, and backup details.
+
+**Usage:**
+```bash
+goose db status
+```
+
+**Output includes:**
+- Database file path and size
+- Current schema version and migration status
+- Session and message counts
+- Token usage statistics
+- Backup directory location and latest backup information
+
+---
+
+#### db backup [options]
+Create a manual backup of the session database with validation.
+
+**Options:**
+- **`--output <NAME>`**: Custom name for the backup file
+
+**Usage:**
+```bash
+# Create backup with auto-generated timestamp name
+goose db backup
+
+# Create backup with custom name
+goose db backup --output my-backup
+```
+
+Backups are validated automatically using file size verification and SQLite integrity checks.
+
+---
+
+#### db restore [options]
+Restore the session database from a backup file.
+
+**Options:**
+- **`--force`**: Skip confirmation prompt
+
+**Usage:**
+```bash
+# Restore from backup filename (searches backup directory)
+goose db restore backup_20251031_143022.db
+
+# Restore from full path
+goose db restore /path/to/backup.db
+
+# Restore without confirmation
+goose db restore backup_20251031_143022.db --force
+```
+
+:::caution
+A safety backup of the current database is automatically created before restoration. You must restart any active Goose sessions after restoring.
+:::
+
+---
+
+#### db list-backups [options]
+List all available database backups with metadata.
+
+**Options:**
+- **`--format <FORMAT>`**: Output format (`table` or `json`). Default is `table`
+
+**Usage:**
+```bash
+# List backups in table format
+goose db list-backups
+
+# List backups in JSON format for automation
+goose db list-backups --format json
+```
+
+Shows backup filename, size, creation time, age, and schema version for each backup.
+
+---
+
+#### db delete-backup [options] [files...]
+Delete backup files and clean up orphaned SQLite auxiliary files.
+
+**Options:**
+- **`--all`**: Delete all backup files
+- **`--cleanup`**: Remove orphaned .db-wal and .db-shm files
+- **`--force`**: Skip confirmation prompt
+
+**Usage:**
+```bash
+# Delete specific backup files
+goose db delete-backup backup1.db backup2.db
+
+# Delete all backups
+goose db delete-backup --all
+
+# Clean up orphaned SQLite auxiliary files
+goose db delete-backup --cleanup
+
+# Delete all backups and clean up, without confirmation
+goose db delete-backup --all --cleanup --force
+```
+
+:::caution
+Deletion is permanent and cannot be undone. A preview table is shown before deletion unless `--force` is used.
+:::
+
+---
+
+#### db path
+Output the database file path for scripting and automation.
+
+**Usage:**
+```bash
+goose db path
+```
+
+---
+
 #### mcp
 Run an enabled MCP server specified by `<name>` (e.g. `'Google Drive'`).
 

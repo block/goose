@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod audio;
 pub mod config_management;
+pub mod database;
 pub mod errors;
 pub mod recipe;
 pub mod recipe_utils;
@@ -22,6 +23,7 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(reply::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(audio::routes(state.clone()))
+        .merge(database::routes())
         .merge(config_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
