@@ -75,8 +75,6 @@ impl ToolInspector for SecurityInspector {
         let inspection_results = security_results
             .into_iter()
             .map(|security_result| {
-                // Extract the tool request ID from the security result's context
-                // The SecurityManager should provide this information
                 let tool_request_id = security_result.tool_request_id.clone();
                 self.convert_security_result(&security_result, tool_request_id)
             })
@@ -86,15 +84,8 @@ impl ToolInspector for SecurityInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        // Check if security is enabled in config
-        use crate::config::Config;
-        let config = Config::global();
-
-        config
-            .get_param::<serde_json::Value>("security")
-            .ok()
-            .and_then(|security_config| security_config.get("enabled")?.as_bool())
-            .unwrap_or(false)
+        self.security_manager
+            .is_prompt_injection_detection_enabled()
     }
 }
 
@@ -108,8 +99,8 @@ impl Default for SecurityInspector {
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use mcp_core::ToolCall;
-    use serde_json::json;
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
 
     #[tokio::test]
     async fn test_security_inspector() {
@@ -118,9 +109,9 @@ mod tests {
         // Test with a potentially dangerous tool call
         let tool_requests = vec![ToolRequest {
             id: "test_req".to_string(),
-            tool_call: Ok(ToolCall {
-                name: "shell".to_string(),
-                arguments: json!({"command": "rm -rf /"}),
+            tool_call: Ok(CallToolRequestParam {
+                name: "shell".into(),
+                arguments: Some(object!({"command": "rm -rf /"})),
             }),
         }];
 

@@ -1,7 +1,7 @@
 ---
 title: Goose Logging System
 sidebar_label: Logging System
-sidebar_position: 9
+sidebar_position: 65
 ---
 
 
@@ -66,6 +66,10 @@ This log contains general application-level logging including:
 * Session file locations
 * Token usage statistics as well as token counts (input, output, total)
 * LLM information (model names, versions)
+
+When [prompt injection detection](/docs/guides/security/prompt-injection-detection) is enabled, logs also include:
+* Security findings with unique IDs (format: `SEC-{uuid}`)
+* User decisions (allow/deny) associated with finding IDs
 
 
 ### Desktop Application Log

@@ -2,75 +2,30 @@ use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
+use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 pub mod build_recipe;
+pub mod local_recipes;
 pub mod read_recipe_file_content;
+mod recipe_extension_adapter;
 pub mod template_recipe;
+pub mod validate_recipe;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
 fn default_version() -> String {
     "1.0.0".to_string()
 }
 
-/// A Recipe represents a personalized, user-generated agent configuration that defines
-/// specific behaviors and capabilities within the Goose system.
-///
-/// # Fields
-///
-/// ## Required Fields
-/// * `version` - Semantic version of the Recipe file format (defaults to "1.0.0")
-/// * `title` - Short, descriptive name of the Recipe
-/// * `description` - Detailed description explaining the Recipe's purpose and functionality
-/// * `Instructions` - Instructions that defines the Recipe's behavior
-///
-/// ## Optional Fields
-/// * `prompt` - the initial prompt to the session to start with
-/// * `extensions` - List of extension configurations required by the Recipe
-/// * `context` - Supplementary context information for the Recipe
-/// * `activities` - Activity labels that appear when loading the Recipe
-/// * `author` - Information about the Recipe's creator and metadata
-/// * `parameters` - Additional parameters for the Recipe
-/// * `response` - Response configuration including JSON schema validation
-/// * `retry` - Retry configuration for automated validation and recovery
-/// # Example
-///
-///
-/// use goose::recipe::Recipe;
-///
-/// // Using the builder pattern
-/// let recipe = Recipe::builder()
-///     .title("Example Agent")
-///     .description("An example Recipe configuration")
-///     .instructions("Act as a helpful assistant")
-///     .build()
-///     .expect("Missing required fields");
-///
-/// // Or using struct initialization
-/// let recipe = Recipe {
-///     version: "1.0.0".to_string(),
-///     title: "Example Agent".to_string(),
-///     description: "An example Recipe configuration".to_string(),
-///     instructions: Some("Act as a helpful assistant".to_string()),
-///     prompt: None,
-///     extensions: None,
-///     context: None,
-///     activities: None,
-///     author: None,
-///     settings: None,
-///     parameters: None,
-///     response: None,
-///     sub_recipes: None,
-///     retry: None,
-/// };
-///
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
@@ -89,7 +44,11 @@ pub struct Recipe {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>, // the prompt to start the session with
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "recipe_extension_adapter::deserialize_recipe_extensions"
+    )]
     pub extensions: Option<Vec<ExtensionConfig>>, // a list of extensions to enable
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -275,20 +234,6 @@ impl Recipe {
         false
     }
 
-    /// Creates a new RecipeBuilder to construct a Recipe instance
-    ///
-    /// # Example
-    ///
-    ///
-    /// use goose::recipe::Recipe;
-    ///
-    /// let recipe = Recipe::builder()
-    ///     .title("My Recipe")
-    ///     .description("A helpful assistant")
-    ///     .instructions("Act as a helpful assistant")
-    ///     .build()
-    ///     .expect("Failed to build Recipe: missing required fields");
-    ///
     pub fn builder() -> RecipeBuilder {
         RecipeBuilder {
             version: default_version(),
@@ -307,25 +252,26 @@ impl Recipe {
             retry: None,
         }
     }
+
+    pub fn from_file_path(file_path: &Path) -> Result<Self> {
+        let file = read_recipe_file(file_path)?;
+        Self::from_content(&file.content)
+    }
+
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe =
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
-                if let Some(nested_recipe) = json_value.get("recipe") {
-                    serde_json::from_value(nested_recipe.clone())?
-                } else {
-                    serde_json::from_str(content)?
-                }
-            } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+        let recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
+            Ok(yaml_value) => {
                 if let Some(nested_recipe) = yaml_value.get("recipe") {
-                    serde_yaml::from_value(nested_recipe.clone())?
+                    serde_yaml::from_value(nested_recipe.clone())
+                        .map_err(|e| anyhow::anyhow!("Failed to parse nested recipe: {}", e))?
                 } else {
-                    serde_yaml::from_str(content)?
+                    serde_yaml::from_str(content)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?
                 }
-            } else {
-                return Err(anyhow::anyhow!(
-                    "Unsupported format. Expected JSON or YAML."
-                ));
-            };
+            }
+            Err(_) => serde_yaml::from_str(content)
+                .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+        };
 
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
@@ -341,25 +287,21 @@ impl Recipe {
 }
 
 impl RecipeBuilder {
-    /// Sets the version of the Recipe
     pub fn version(mut self, version: impl Into<String>) -> Self {
         self.version = version.into();
         self
     }
 
-    /// Sets the title of the Recipe (required)
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
-    /// Sets the description of the Recipe (required)
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
-    /// Sets the instructions for the Recipe (required)
     pub fn instructions(mut self, instructions: impl Into<String>) -> Self {
         self.instructions = Some(instructions.into());
         self
@@ -370,13 +312,11 @@ impl RecipeBuilder {
         self
     }
 
-    /// Sets the extensions for the Recipe
     pub fn extensions(mut self, extensions: Vec<ExtensionConfig>) -> Self {
         self.extensions = Some(extensions);
         self
     }
 
-    /// Sets the context for the Recipe
     pub fn context(mut self, context: Vec<String>) -> Self {
         self.context = Some(context);
         self
@@ -387,19 +327,16 @@ impl RecipeBuilder {
         self
     }
 
-    /// Sets the activities for the Recipe
     pub fn activities(mut self, activities: Vec<String>) -> Self {
         self.activities = Some(activities);
         self
     }
 
-    /// Sets the author information for the Recipe
     pub fn author(mut self, author: Author) -> Self {
         self.author = Some(author);
         self
     }
 
-    /// Sets the parameters for the Recipe
     pub fn parameters(mut self, parameters: Vec<RecipeParameter>) -> Self {
         self.parameters = Some(parameters);
         self
@@ -415,15 +352,11 @@ impl RecipeBuilder {
         self
     }
 
-    /// Sets the retry configuration for the Recipe
     pub fn retry(mut self, retry: RetryConfig) -> Self {
         self.retry = Some(retry);
         self
     }
 
-    /// Builds the Recipe instance
-    ///
-    /// Returns an error if any required fields are missing
     pub fn build(self) -> Result<Recipe, &'static str> {
         let title = self.title.ok_or("Title is required")?;
         let description = self.description.ok_or("Description is required")?;
@@ -711,7 +644,7 @@ sub_recipes:
             } => {
                 assert_eq!(name, "test_python");
                 assert_eq!(code, "print('hello world')");
-                assert_eq!(description.as_deref(), Some("Test python extension"));
+                assert_eq!(description, "Test python extension");
                 assert_eq!(timeout, &Some(300));
                 assert!(dependencies.is_some());
                 let deps = dependencies.as_ref().unwrap();
@@ -804,5 +737,41 @@ isGlobal: true"#;
         // Malicious prompt
         recipe.prompt = Some(format!("prompt{}", '\u{E0042}'));
         assert!(recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_from_content_with_null_description() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "extensions": [
+                {
+                    "type": "stdio",
+                    "name": "test_extension",
+                    "cmd": "test_cmd",
+                    "args": [],
+                    "timeout": 300,
+                    "description": null
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        if let ExtensionConfig::Stdio {
+            name, description, ..
+        } = &extensions[0]
+        {
+            assert_eq!(name, "test_extension");
+            assert_eq!(description, "");
+        } else {
+            panic!("Expected Stdio extension");
+        }
     }
 }

@@ -1,12 +1,12 @@
-//! Schedule tool handlers for the Goose agent
+//! Schedule tool handlers for the goose agent
 //!
 //! This module contains all the handlers for the schedule management platform tool,
 //! including job creation, execution, monitoring, and session management.
 
 use std::sync::Arc;
 
+use crate::mcp_utils::ToolResult;
 use chrono::Utc;
-use mcp_core::ToolResult;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use crate::recipe::Recipe;

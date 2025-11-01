@@ -6,20 +6,25 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::goose_apps::GooseApp;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
-
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
-    RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
+    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
+    TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
-use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
-    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+use goose::config::declarative_providers::{
+    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
+use goose::conversation::message::{
+    FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
+    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
+};
+
+use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
@@ -307,41 +312,21 @@ derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
+derive_utoipa!(RawAudioContent as RawAudioContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
-
-// Create a manual schema for the generic Annotated type
-// We manually define this to avoid circular references from RawContent::Audio(AudioContent)
-// where AudioContent = Annotated<RawAudioContent>
-struct AnnotatedSchema {}
-
-impl<'__s> ToSchema<'__s> for AnnotatedSchema {
-    fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
-        let schema = Schema::OneOf(
-            OneOfBuilder::new()
-                .item(RefOr::Ref(Ref::new("#/components/schemas/RawTextContent")))
-                .item(RefOr::Ref(Ref::new("#/components/schemas/RawImageContent")))
-                .item(RefOr::Ref(Ref::new(
-                    "#/components/schemas/RawEmbeddedResource",
-                )))
-                .build(),
-        );
-        ("Annotated", RefOr::T(schema))
-    }
-
-    fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-        Vec::new()
-    }
-}
+derive_utoipa!(JsonObject as JsonObjectSchema);
+derive_utoipa!(Icon as IconSchema);
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        super::routes::health::status,
+        super::routes::status::status,
+        super::routes::status::diagnostics,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
@@ -357,22 +342,27 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::get_provider_models,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
+        super::routes::config_management::get_custom_provider,
+        super::routes::config_management::update_custom_provider,
         super::routes::config_management::remove_custom_provider,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
-        super::routes::agent::add_sub_recipes,
-        super::routes::agent::extend_prompt,
+        super::routes::agent::update_from_session,
+        super::routes::agent::agent_add_extension,
+        super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
-        super::routes::agent::update_session_config,
         super::routes::reply::confirm_permission,
-        super::routes::context::manage_context,
+        super::routes::reply::reply,
         super::routes::session::list_sessions,
         super::routes::session::get_session,
         super::routes::session::get_session_insights,
-        super::routes::session::update_session_description,
+        super::routes::session::update_session_name,
         super::routes::session::delete_session,
+        super::routes::session::export_session,
+        super::routes::session::import_session,
+        super::routes::session::update_session_user_recipe_values,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -394,6 +384,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::recipe::save_recipe,
+        super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
     ),
@@ -407,16 +399,19 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
-        super::routes::config_management::CreateCustomProviderRequest,
+        super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
-        super::routes::context::ContextManageRequest,
-        super::routes::context::ContextManageResponse,
+        super::routes::reply::ChatRequest,
+        super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
-        super::routes::session::UpdateSessionDescriptionRequest,
+        super::routes::session::UpdateSessionNameRequest,
+        super::routes::session::UpdateSessionUserRecipeValuesRequest,
+        super::routes::session::UpdateSessionUserRecipeValuesResponse,
         GooseApp,
         Message,
         MessageContent,
         MessageMetadata,
+        TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -424,9 +419,9 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         TextContentSchema,
         RawTextContentSchema,
         RawImageContentSchema,
+        RawAudioContentSchema,
         RawEmbeddedResourceSchema,
         RawResourceSchema,
-        AnnotatedSchema,
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
@@ -434,10 +429,16 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
-        ContextLengthExceeded,
-        SummarizationRequested,
+        SystemNotificationType,
+        SystemNotificationContent,
+        MessageEvent,
+        JsonObjectSchema,
         RoleSchema,
         ProviderMetadata,
+        ProviderType,
+        LoadedProvider,
+        ProviderEngine,
+        DeclarativeProviderConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,
@@ -451,6 +452,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         Session,
         SessionInsights,
         Conversation,
+        IconSchema,
         goose::session::extension_data::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,
@@ -473,6 +475,11 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
+        super::routes::recipe::SaveRecipeRequest,
+        super::routes::recipe::SaveRecipeResponse,
+        super::routes::errors::ErrorResponse,
+        super::routes::recipe::ParseRecipeRequest,
+        super::routes::recipe::ParseRecipeResponse,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,
@@ -483,23 +490,20 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         goose::recipe::SubRecipe,
         goose::agents::types::RetryConfig,
         goose::agents::types::SuccessCheck,
-        super::routes::agent::AddSubRecipesRequest,
-        super::routes::agent::AddSubRecipesResponse,
-        super::routes::agent::ExtendPromptRequest,
-        super::routes::agent::ExtendPromptResponse,
         super::routes::agent::UpdateProviderRequest,
-        super::routes::agent::SessionConfigRequest,
         super::routes::agent::GetToolsQuery,
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::agent::ErrorResponse,
         super::routes::goose_apps::SuccessResponse,
         super::routes::goose_apps::AppListResponse,
         super::routes::goose_apps::ErrorResponse,
         super::routes::goose_apps::CreateAppRequest,
         super::routes::goose_apps::AppResponse,
         super::routes::goose_apps::UpdateAppRequest,
+        super::routes::agent::UpdateFromSessionRequest,
+        super::routes::agent::AddExtensionRequest,
+        super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]

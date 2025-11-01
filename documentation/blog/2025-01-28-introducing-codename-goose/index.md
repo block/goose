@@ -9,29 +9,29 @@ authors:
 
 We are thrilled to announce **codename goose**, your on-machine, open source AI agent built to automate your tasks. 
 
-Powered by your choice of [large language models (LLMs)](/docs/getting-started/providers), a user-friendly desktop interface and CLI, and [extensions](/docs/getting-started/using-extensions) that integrate with your existing tools and applications, Goose is designed to enhance your productivity and workflow.
+Powered by your choice of [large language models (LLMs)](/docs/getting-started/providers), a user-friendly desktop interface and CLI, and [extensions](/docs/getting-started/using-extensions) that integrate with your existing tools and applications, goose is designed to enhance your productivity and workflow.
 
 <!--truncate-->
 
 
-You can think of Goose as an assistant that is ready to take your instructions, and do the work for you.
+You can think of goose as an assistant that is ready to take your instructions, and do the work for you.
 
-While Goose's first use cases are engineering focused, the community has been exploring other non-engineering use cases for Goose as well. And it goes without saying, Goose is [open source](https://github.com/block/goose) 🎉.
+While goose's first use cases are engineering focused, the community has been exploring other non-engineering use cases for goose as well. And it goes without saying, goose is [open source](https://github.com/block/goose) 🎉.
 
 
-## How Goose Works
+## How goose Works
 
-Goose operates as an intelligent, autonomous agent capable of handling complex tasks through a well-orchestrated coordination of its core features:
+goose operates as an intelligent, autonomous agent capable of handling complex tasks through a well-orchestrated coordination of its core features:
   
-- **Using Extensions**: [Extensions](/docs/getting-started/using-extensions) are key to Goose’s adaptability, providing you the ability to connect with applications and tools that you already use. Whether it’s connecting to GitHub, accessing Google Drive or integrating with JetBrains IDEs, the possibilities are extensive. Some of these extensions have been curated in the [extensions][extensions-directory] directory. Goose extensions are built on the [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) - enabling you to build or bring your own custom integrations to Goose. 
+- **Using Extensions**: [Extensions](/docs/getting-started/using-extensions) are key to goose’s adaptability, providing you the ability to connect with applications and tools that you already use. Whether it’s connecting to GitHub, accessing Google Drive or integrating with JetBrains IDEs, the possibilities are extensive. Some of these extensions have been curated in the [extensions][extensions-directory] directory. goose extensions are built on the [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) - enabling you to build or bring your own custom integrations to goose. 
 
-- **LLM Providers**: Goose is compatible with a wide range of [LLM providers](/docs/getting-started/providers), allowing you to choose and integrate your preferred model. 
+- **LLM Providers**: goose is compatible with a wide range of [LLM providers](/docs/getting-started/providers), allowing you to choose and integrate your preferred model. 
 
-- **CLI and Desktop Support**: You can run Goose as a desktop app or through the command-line interface (CLI) using the same configurations across both.
+- **CLI and Desktop Support**: You can run goose as a desktop app or through the command-line interface (CLI) using the same configurations across both.
 
-## Goose in Action
+## goose in Action
 
-Goose is able to handle a wide range of tasks, from simple to complex, across various engineering domains. Here are some examples of tasks that Goose has helped people with:
+goose is able to handle a wide range of tasks, from simple to complex, across various engineering domains. Here are some examples of tasks that goose has helped people with:
 
 - Conduct code migrations such as Ember to React, Ruby to Kotlin, Prefect-1 to Prefect-2 etc. 
 - Dive into a new project in an unfamiliar coding language
@@ -45,15 +45,15 @@ Goose is able to handle a wide range of tasks, from simple to complex, across va
 
 ## Getting Started
 
-You can get started using Goose right away! Check out our [Quickstart](/docs/quickstart).
+You can get started using goose right away! Check out our [Quickstart](/docs/quickstart).
 
 
-## Join the Goose Community
+## Join the goose Community
 
 Excited for upcoming features and events? Be sure to connect with us!
 
 - [GitHub](https://github.com/block/goose)
-- [Discord](https://discord.gg/block-opensource)
+- [Discord](https://discord.gg/goose-oss)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)
 - [X](https://x.com/goose_oss)

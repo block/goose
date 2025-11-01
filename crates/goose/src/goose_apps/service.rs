@@ -3,10 +3,8 @@ use crate::goose_apps::GooseApp;
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tokio::sync::Mutex; // Updated import
+use tokio::sync::Mutex;
 
-/// Shared service layer for Goose Apps operations
-/// Used by both HTTP routes and MCP client
 pub struct GooseAppsService {
     manager: Arc<Mutex<GooseAppsManager>>,
 }
@@ -145,7 +143,6 @@ impl GooseAppsService {
     }
 }
 
-/// Struct for partial updates to avoid duplication in update logic
 #[derive(Debug, Default)]
 pub struct GooseAppUpdates {
     pub js_implementation: Option<String>,
@@ -211,51 +208,4 @@ impl GooseAppUpdates {
             app.resizable = Some(resizable);
         }
     }
-}
-
-/// Helper to extract GooseApp from JSON arguments
-pub fn goose_app_from_json(arguments: &Value) -> Result<GooseApp, GooseAppsError> {
-    let name = arguments
-        .get("name")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            GooseAppsError::InvalidParameter("Missing required parameter: name".to_string())
-        })?
-        .to_string();
-
-    let js_implementation = arguments
-        .get("js_implementation")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            GooseAppsError::InvalidParameter(
-                "Missing required parameter: js_implementation".to_string(),
-            )
-        })?
-        .to_string();
-
-    let description = arguments
-        .get("description")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let width = arguments
-        .get("width")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as u32);
-
-    let height = arguments
-        .get("height")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as u32);
-
-    let resizable = arguments.get("resizable").and_then(|v| v.as_bool());
-
-    Ok(GooseApp {
-        name,
-        description,
-        width,
-        height,
-        resizable,
-        js_implementation,
-    })
 }

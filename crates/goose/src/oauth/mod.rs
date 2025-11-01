@@ -19,14 +19,13 @@ const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 
 #[derive(Clone)]
 struct AppState {
-    code_receiver: Arc<Mutex<Option<oneshot::Sender<String>>>>,
+    code_receiver: Arc<Mutex<Option<oneshot::Sender<CallbackParams>>>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CallbackParams {
     code: String,
-    #[allow(dead_code)]
-    state: Option<String>,
+    state: String,
 }
 
 pub async fn oauth_flow(
@@ -45,7 +44,7 @@ pub async fn oauth_flow(
         }
     }
 
-    let (code_sender, code_receiver) = oneshot::channel::<String>();
+    let (code_sender, code_receiver) = oneshot::channel::<CallbackParams>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
     };
@@ -55,7 +54,7 @@ pub async fn oauth_flow(
         let rendered = rendered.clone();
         async move {
             if let Some(sender) = state.code_receiver.lock().await.take() {
-                let _ = sender.send(params.code);
+                let _ = sender.send(params);
             }
             Html(rendered)
         }
@@ -77,7 +76,7 @@ pub async fn oauth_flow(
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
     oauth_state
-        .start_authorization(&[], redirect_uri.as_str())
+        .start_authorization(&[], redirect_uri.as_str(), Some("goose"))
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
@@ -86,8 +85,11 @@ pub async fn oauth_flow(
         eprintln!("  {}", authorization_url);
     }
 
-    let auth_code = code_receiver.await?;
-    oauth_state.handle_callback(&auth_code).await?;
+    let CallbackParams {
+        code: auth_code,
+        state: csrf_token,
+    } = code_receiver.await?;
+    oauth_state.handle_callback(&auth_code, &csrf_token).await?;
 
     if let Err(e) = save_credentials(name, &oauth_state).await {
         warn!("Failed to save credentials: {}", e);

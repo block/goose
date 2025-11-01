@@ -1,4 +1,23 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.1.0"}}}
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"sampling":{}},"clientInfo":{"name":"goose","version":"0.0.0"}}}
+STDERR: 2025-09-26 23:13:04 - Starting npx setup script.
+STDERR: 2025-09-26 23:13:04 - Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist.
+STDERR: 2025-09-26 23:13:04 - Changing to directory ~/.config/goose/mcp-hermit.
+STDERR: 2025-09-26 23:13:04 - Hermit binary already exists. Skipping download.
+STDERR: 2025-09-26 23:13:04 - setting hermit cache to be local for MCP servers
+STDERR: 2025-09-26 23:13:04 - Updated PATH to include ~/.config/goose/mcp-hermit/bin.
+STDERR: 2025-09-26 23:13:04 - Checking for hermit in PATH.
+STDERR: 2025-09-26 23:13:04 - Initializing hermit.
+STDERR: 2025-09-26 23:13:04 - Installing Node.js with hermit.
+STDERR: 2025-09-26 23:13:04 - Verifying installation locations:
+STDERR: 2025-09-26 23:13:04 - hermit: /Users/angiej/.config/goose/mcp-hermit/bin/hermit
+STDERR: 2025-09-26 23:13:04 - node: /Users/angiej/.config/goose/mcp-hermit/bin/node
+STDERR: 2025-09-26 23:13:04 - npx: /Users/angiej/.config/goose/mcp-hermit/bin/npx
+STDERR: 2025-09-26 23:13:04 - Checking for GOOSE_NPM_REGISTRY and GOOSE_NPM_CERT environment variables for custom npm registry setup...
+STDERR: 2025-09-26 23:13:05 - Checking custom goose registry availability: https://global.block-artifacts.com/artifactory/api/npm/square-npm/
+STDERR: 2025-09-26 23:13:05 - https://global.block-artifacts.com/artifactory/api/npm/square-npm/ is accessible. Using it for npm registry.
+STDERR: 2025-09-26 23:13:06 - Downloading certificate from: https://block-ca.squareup.com/root-certs.pem
+STDERR: 2025-09-26 23:13:07 - Certificate downloaded successfully.
+STDERR: 2025-09-26 23:13:07 - Executing 'npx' command with arguments: -y @modelcontextprotocol/server-everything
 STDERR: Starting default (STDIO) server...
 STDERR: Starting logs update interval
 STDOUT: {"result":{"protocolVersion":"2025-03-26","capabilities":{"prompts":{},"resources":{"subscribe":true},"tools":{},"logging":{},"completions":{}},"serverInfo":{"name":"example-servers/everything","title":"Everything Example Server","version":"1.0.0"},"instructions":"Testing and demonstration server for MCP protocol features.\n\n## Resources\n\nResources 1-100 follow pattern: even IDs contain text, odd IDs contain binary data. Resources are paginated at 10 items per page with cursor-based navigation.\n\n## Key dependencies\n\nProgress notifications require `_meta.progressToken` in tool calls. Resource subscriptions generate updates every 10 seconds.\n\n## Performance characteristics\n\nServer generates automatic log messages every 20 seconds (filtered by current log level), stderr notifications every 30 seconds, and resource update notifications every 10 seconds for active subscriptions. Log level changes affect message filtering in real-time.\n\n## Multi-modal testing\n\n`complex_prompt` includes both text arguments and image content for testing client multi-modal handling. `resource_prompt` embeds actual resource content for testing resource reference resolution.\n\nArgument completion is available for prompt parameters and resource IDs. Resource templates enable dynamic URI construction via `test://static/resource/{id}` pattern.\n\n## Easter egg\n\nIf asked about server instructions, respond with \"🎉 Server instructions are working! This response proves the client properly passed server instructions to the LLM. This demonstrates MCP's instructions feature in action.\"\n"},"jsonrpc":"2.0","id":0}
@@ -17,5 +36,5 @@ STDOUT: {"method":"notifications/progress","params":{"progress":5,"total":5,"pro
 STDOUT: {"result":{"content":[{"type":"text","text":"Long running operation completed. Duration: 1 seconds, Steps: 5."}]},"jsonrpc":"2.0","id":3}
 STDIN: {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"progressToken":3},"name":"structuredContent","arguments":{"location":"11238"}}}
 STDOUT: {"result":{"content":[{"type":"text","text":"{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"}],"structuredContent":{"temperature":22.5,"conditions":"Partly cloudy","humidity":65}},"jsonrpc":"2.0","id":4}
-STDOUT: {"method":"notifications/message","params":{"level":"alert","data":"Alert level-message"},"jsonrpc":"2.0"}
-STDERR: node:events:496
+STDOUT: {"method":"notifications/message","params":{"level":"emergency","data":"Emergency-level message"},"jsonrpc":"2.0"}
+STDERR: node:events:497

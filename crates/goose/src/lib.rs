@@ -2,8 +2,12 @@ pub mod agents;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
+#[cfg(test)]
+mod cron_test;
 pub mod execution;
+pub mod goose_apps;
 pub mod logging;
+pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
 pub mod permission;
@@ -16,15 +20,9 @@ pub mod scheduler_factory;
 pub mod scheduler_trait;
 pub mod security;
 pub mod session;
-pub mod temporal_scheduler;
+pub mod session_context;
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
-
-#[cfg(test)]
-mod cron_test;
-#[macro_use]
-mod macros;
-pub mod goose_apps;

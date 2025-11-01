@@ -54,7 +54,8 @@ type ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     recipe?: Recipe,
-    viewType?: string
+    viewType?: string,
+    recipeId?: string
   ) => void;
   launchGooseApp: (app: GooseApp) => Promise<{ success: boolean; error?: string }>;
   logInfo: (txt: string) => void;
@@ -96,6 +97,11 @@ type ElectronAPI = {
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
+  broadcastThemeChange: (themeData: {
+    mode: string;
+    useSystemTheme: boolean;
+    theme: string;
+  }) => void;
   // Functions for image pasting
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
   deleteTempFile: (filePath: string) => void;
@@ -113,8 +119,8 @@ type ElectronAPI = {
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
   // Recipe warning functions
   closeWindow: () => void;
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
-  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
+  hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
 };
 
@@ -142,9 +148,19 @@ const electronAPI: ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     recipe?: Recipe,
-    viewType?: string
+    viewType?: string,
+    recipeId?: string
   ) =>
-    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
+    ipcRenderer.send(
+      'create-chat-window',
+      query,
+      dir,
+      version,
+      resumeSessionId,
+      recipe,
+      viewType,
+      recipeId
+    ),
   launchGooseApp: (app: GooseApp) => ipcRenderer.invoke('launch-goose-app', app),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
@@ -201,6 +217,9 @@ const electronAPI: ElectronAPI = {
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
   },
+  broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
+    ipcRenderer.send('broadcast-theme-change', themeData);
+  },
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
     return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
   },
@@ -235,10 +254,9 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('get-update-state');
   },
   closeWindow: () => ipcRenderer.send('close-window'),
-  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
-  recordRecipeHash: (recipeConfig: Recipe) =>
-    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
+  hasAcceptedRecipeBefore: (recipe: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipe),
+  recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
 };
@@ -247,11 +265,6 @@ const appConfigAPI: AppConfigAPI = {
   get: (key: string) => config[key],
   getAll: () => config,
 };
-
-// Listen for recipe updates and update config directly
-ipcRenderer.on('recipe-decoded', (_, decodedRecipe) => {
-  config.recipe = decodedRecipe;
-});
 
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);

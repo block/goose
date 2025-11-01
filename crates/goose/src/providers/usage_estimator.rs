@@ -1,6 +1,6 @@
 use crate::conversation::message::Message;
 use crate::providers::base::ProviderUsage;
-use crate::token_counter::create_async_token_counter;
+use crate::token_counter::create_token_counter;
 use anyhow::Result;
 use rmcp::model::Tool;
 
@@ -17,7 +17,7 @@ pub async fn ensure_usage_tokens(
         return Ok(());
     }
 
-    let token_counter = create_async_token_counter()
+    let token_counter = create_token_counter()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 

@@ -1,7 +1,6 @@
-use crate::config::APP_STRATEGY;
+use crate::config::paths::Paths;
 use crate::goose_apps::GooseApp;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,9 +10,7 @@ pub struct GooseAppsManager {
 
 impl GooseAppsManager {
     pub fn new() -> Result<Self> {
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .data_dir();
+        let config_dir = Paths::config_dir();
 
         let apps_dir = config_dir.join("apps");
 

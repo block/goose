@@ -40,7 +40,7 @@ impl TutorialServer {
         let available_tutorials = Self::get_available_tutorials();
 
         let instructions = formatdoc! {r#"
-            Because the tutorial extension is enabled, be aware that the user may be new to using Goose
+            Because the tutorial extension is enabled, be aware that the user may be new to using goose
             or looking for help with specific features. Proactively offer relevant tutorials when appropriate.
 
             Available tutorials:
@@ -113,6 +113,9 @@ impl ServerHandler for TutorialServer {
             server_info: Implementation {
                 name: "goose-tutorial".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                title: None,
+                icons: None,
+                website_url: None,
             },
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(self.instructions.clone()),

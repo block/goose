@@ -1,3 +1,4 @@
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
@@ -6,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use goose::goose_apps::{GooseApp, GooseAppsManager};
+use goose::session::Session;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -40,12 +42,6 @@ pub struct SuccessResponse {
     pub message: String,
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
 #[utoipa::path(
     get,
     path = "/apps/list_apps",
@@ -59,24 +55,10 @@ pub struct ErrorResponse {
     ),
     tag = "App Management"
 )]
-async fn list_apps() -> Result<Json<AppListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let manager = GooseAppsManager::new().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to initialize apps manager: {}", e),
-            }),
-        )
-    })?;
+async fn list_apps() -> Result<Json<AppListResponse>, ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
 
-    let apps = manager.list_apps().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to list apps: {}", e),
-            }),
-        )
-    })?;
+    let apps = manager.list_apps()?;
 
     Ok(Json(AppListResponse { apps }))
 }
@@ -101,33 +83,14 @@ async fn list_apps() -> Result<Json<AppListResponse>, (StatusCode, Json<ErrorRes
 async fn get_app(
     State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
-) -> Result<Json<AppResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let manager = GooseAppsManager::new().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to initialize apps manager: {}", e),
-            }),
-        )
-    })?;
+) -> Result<Json<AppResponse>, ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
 
-    let app = manager.get_app(&name).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to get app: {}", e),
-            }),
-        )
-    })?;
+    let app = manager.get_app(&name)?;
 
     match app {
         Some(app) => Ok(Json(AppResponse { app })),
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: format!("App '{}' not found", name),
-            }),
-        )),
+        None => Err(ErrorResponse::internal("Unknown App")),
     }
 }
 
@@ -150,39 +113,17 @@ async fn get_app(
 async fn create_app(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<CreateAppRequest>,
-) -> Result<(StatusCode, Json<SuccessResponse>), (StatusCode, Json<ErrorResponse>)> {
-    let manager = GooseAppsManager::new().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to initialize apps manager: {}", e),
-            }),
-        )
-    })?;
+) -> Result<(StatusCode, Json<SuccessResponse>), ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
 
     if manager.app_exists(&request.app.name) {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse {
-                error: format!("App '{}' already exists", request.app.name),
-            }),
-        ));
+        return Err(ErrorResponse::internal(format!(
+            "App '{}' already exists",
+            request.app.name
+        )));
     }
 
-    manager.update_app(&request.app).map_err(|e| {
-        let error_msg = e.to_string();
-        if error_msg.contains("extends GooseWidget") {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        } else {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        }
-    })?;
+    manager.update_app(&request.app)?;
 
     Ok((
         StatusCode::CREATED,
@@ -215,39 +156,14 @@ async fn update_app(
     State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
     Json(request): Json<UpdateAppRequest>,
-) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let manager = GooseAppsManager::new().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to initialize apps manager: {}", e),
-            }),
-        )
-    })?;
+) -> Result<Json<SuccessResponse>, ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
 
     if !manager.app_exists(&name) {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: format!("App '{}' not found", name),
-            }),
-        ));
+        return Err(ErrorResponse::internal(format!("App '{}' not found", name)));
     }
 
-    manager.update_app(&request.app).map_err(|e| {
-        let error_msg = e.to_string();
-        if error_msg.contains("extends GooseWidget") {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        } else {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        }
-    })?;
+    manager.update_app(&request.app)?;
 
     Ok(Json(SuccessResponse {
         message: format!("App '{}' updated successfully", name),
@@ -274,30 +190,10 @@ async fn update_app(
 async fn delete_app(
     State(_state): State<Arc<AppState>>,
     Path(name): Path<String>,
-) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let manager = GooseAppsManager::new().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to initialize apps manager: {}", e),
-            }),
-        )
-    })?;
+) -> Result<Json<SuccessResponse>, ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
 
-    manager.delete_app(&name).map_err(|e| {
-        let error_msg = e.to_string();
-        if error_msg.contains("not found") {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        } else {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: error_msg }),
-            )
-        }
-    })?;
+    manager.delete_app(&name)?;
 
     Ok(Json(SuccessResponse {
         message: format!("App '{}' deleted successfully", name),

@@ -7,8 +7,7 @@ use crate::config::Config;
 use crate::conversation::message::ToolRequest;
 use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
-use rmcp::model::{ErrorCode, ErrorData, Tool};
-use serde_json::Value;
+use rmcp::model::{ErrorCode, ErrorData, JsonObject, Tool};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::error;
@@ -16,6 +15,12 @@ use tracing::error;
 pub struct ToolRouteManager {
     router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     router_disabled_override: Mutex<bool>,
+}
+
+impl Default for ToolRouteManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ToolRouteManager {
@@ -46,7 +51,7 @@ impl ToolRouteManager {
 
     pub async fn dispatch_route_search_tool(
         &self,
-        arguments: Value,
+        arguments: JsonObject,
     ) -> Result<ToolCallResult, ErrorData> {
         let selector = self.router_tool_selector.lock().await.clone();
         match selector.as_ref() {
@@ -97,9 +102,6 @@ impl ToolRouteManager {
 
         // Wrap selector in Arc for the index manager methods
         let selector_arc = Arc::new(selector);
-
-        // First index platform tools
-        ToolRouterIndexManager::index_platform_tools(&selector_arc, extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;

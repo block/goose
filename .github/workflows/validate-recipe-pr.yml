@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install and Configure Goose
+      - name: Install and Configure goose
         run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
@@ -56,9 +56,9 @@ jobs:
             echo "📝 Synchronize event - checking files changed since previous commit"
             CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
-            # For opened/reopened, check all files in the PR
+            # For opened/reopened, check all files in the PR (compare PR head against base)
             echo "📝 PR opened/reopened - checking all files in PR"
-            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           fi
           
           echo "Changed files in this push:"
@@ -87,13 +87,13 @@ jobs:
             echo "📝 Synchronize event - checking files changed/added since previous commit"
             CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
-            # For opened/reopened, check all files in the PR (new and modified)
+            # For opened/reopened, check all files in the PR (compare PR head against base)
             echo "📝 PR opened/reopened - checking all new/modified files in PR"
-            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           fi
           
           # Filter for recipe files only that were changed or added
-          RECIPE_FILES=$(git diff --diff-filter=AM --name-only origin/${{ github.base_ref }}..HEAD | grep "^documentation/src/pages/recipes/data/recipes/" | grep -E "\.(yaml|yml)$" || true)
+          RECIPE_FILES=$(echo "$CHANGED_FILES" | grep "^documentation/src/pages/recipes/data/recipes/" | grep -E "\.(yaml|yml)$" || true)
           
           if [ -z "$RECIPE_FILES" ]; then
             echo "No changed recipe files found in PR"
@@ -159,7 +159,7 @@ jobs:
                 
                 # Check if this is a new file or an update to existing file
                 # Get list of changed files in this PR compared to base branch
-                CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "^$RECIPE_FILE$" || true)
+                CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep "^$RECIPE_FILE$" || true)
                 EXISTING_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "$FILENAME.yaml" -o -name "$FILENAME.yml" | grep -v "^$RECIPE_FILE$" || true)
                 
                 if [ -n "$EXISTING_FILES" ] && [ -z "$CHANGED_FILES" ]; then
@@ -219,7 +219,7 @@ jobs:
               2. If approved, we'll run a security scan
               3. Once merged, you'll receive $10 in OpenRouter credits (if email provided)
               
-              Thanks for contributing to the Goose Recipe Cookbook! 🎉`;
+              Thanks for contributing to the goose Recipe Cookbook! 🎉`;
             } else {
               // Read validation details from file
               let validationDetails = '';

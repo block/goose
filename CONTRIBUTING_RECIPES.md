@@ -1,6 +1,6 @@
-# 🍳 Contributing Recipes to Goose Cookbook
+# 🍳 Contributing Recipes to goose Cookbook
 
-Thank you for your interest in contributing to the Goose Recipe Cookbook! This guide will walk you through the process of submitting your own recipe.
+Thank you for your interest in contributing to the goose Recipe Cookbook! This guide will walk you through the process of submitting your own recipe.
 
 ## 💰 Get Rewarded
 
@@ -144,4 +144,4 @@ Need inspiration? Consider recipes for:
 
 **Ready to contribute?** [Fork the repo](https://github.com/block/goose/fork) and start creating! 
 
-*Questions? Ask in your PR or hop into [discord](https://discord.gg/block-opensource) - we're here to help!* 💙
+*Questions? Ask in your PR or hop into [discord](https://discord.gg/goose-oss) - we're here to help!* 💙

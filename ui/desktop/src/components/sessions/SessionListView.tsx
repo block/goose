@@ -7,11 +7,12 @@ import {
   Folder,
   Edit2,
   Trash2,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { View, ViewOptions } from '../../utils/navigationUtils';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
@@ -20,7 +21,14 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { deleteSession, listSessions, Session, updateSessionDescription } from '../../api';
+import {
+  deleteSession,
+  exportSession,
+  importSession,
+  listSessions,
+  Session,
+  updateSessionName,
+} from '../../api';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -37,7 +45,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     useEffect(() => {
       if (session && isOpen) {
-        setDescription(session.description || session.id);
+        setDescription(session.name);
       } else if (!isOpen) {
         // Reset state when modal closes
         setDescription('');
@@ -49,16 +57,16 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (!session || disabled) return;
 
       const trimmedDescription = description.trim();
-      if (trimmedDescription === session.description) {
+      if (trimmedDescription === session.name) {
         onClose();
         return;
       }
 
       setIsUpdating(true);
       try {
-        await updateSessionDescription({
+        await updateSessionName({
           path: { session_id: session.id },
-          body: { description: trimmedDescription },
+          body: { name: trimmedDescription },
           throwOnError: true,
         });
         await onSave(session.id, trimmedDescription);
@@ -72,7 +80,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('Failed to update session description:', errorMessage);
         toast.error(`Failed to update session description: ${errorMessage}`);
-        setDescription(session.description || session.id);
+        setDescription(session.name);
       } finally {
         setIsUpdating(false);
       }
@@ -165,7 +173,6 @@ interface SearchContainerElement extends HTMLDivElement {
 }
 
 interface SessionListViewProps {
-  setView: (view: View, viewOptions?: ViewOptions) => void;
   onSelectSession: (sessionId: string) => void;
   selectedSessionId?: string | null;
 }
@@ -184,6 +191,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       count: number;
       currentIndex: number;
     } | null>(null);
+
+    const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
@@ -209,6 +218,35 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         delete sessionRefs.current[itemId];
       }
     };
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const visibleDateGroups = useMemo(() => {
+      return dateGroups.slice(0, visibleGroupsCount);
+    }, [dateGroups, visibleGroupsCount]);
+
+    const handleScroll = useCallback(
+      (target: HTMLDivElement) => {
+        const { scrollTop, scrollHeight, clientHeight } = target;
+        const threshold = 200;
+
+        if (
+          scrollHeight - scrollTop - clientHeight < threshold &&
+          visibleGroupsCount < dateGroups.length
+        ) {
+          setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
+        }
+      },
+      [visibleGroupsCount, dateGroups.length]
+    );
+
+    useEffect(() => {
+      if (debouncedSearchTerm) {
+        setVisibleGroupsCount(dateGroups.length);
+      } else {
+        setVisibleGroupsCount(15);
+      }
+    }, [debouncedSearchTerm, dateGroups.length]);
 
     const loadSessions = useCallback(async () => {
       setIsLoading(true);
@@ -295,7 +333,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       startTransition(() => {
         const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
         const filtered = sessions.filter((session) => {
-          const description = session.description || session.id;
+          const description = session.name;
           const workingDir = session.working_dir;
           const sessionId = session.id;
 
@@ -359,7 +397,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, description: newDescription } : s))
+        prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
     }, []);
 
@@ -378,7 +416,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setShowDeleteConfirmation(false);
       const sessionToDeleteId = sessionToDelete.id;
-      const sessionName = sessionToDelete.description || sessionToDelete.id;
+      const sessionName = sessionToDelete.name;
       setSessionToDelete(null);
 
       try {
@@ -400,14 +438,66 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
     }, []);
 
+    const handleExportSession = useCallback(async (session: Session, e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      const response = await exportSession({
+        path: { session_id: session.id },
+        throwOnError: true,
+      });
+
+      const json = response.data;
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${session.name}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Session exported successfully');
+    }, []);
+
+    const handleImportClick = useCallback(() => {
+      fileInputRef.current?.click();
+    }, []);
+
+    const handleImportSession = useCallback(
+      async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+          const json = await file.text();
+          await importSession({
+            body: { json },
+            throwOnError: true,
+          });
+
+          toast.success('Session imported successfully');
+          await loadSessions();
+        } catch (error) {
+          toast.error(`Failed to import session: ${error}`);
+        } finally {
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }
+      },
+      [loadSessions]
+    );
+
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
       onDeleteClick,
+      onExportClick,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
+      onExportClick: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
@@ -428,6 +518,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const handleCardClick = useCallback(() => {
         onSelectSession(session.id);
       }, [session.id]);
+
+      const handleExportClick = useCallback(
+        (e: React.MouseEvent) => {
+          onExportClick(session, e);
+        },
+        [onExportClick, session]
+      );
 
       return (
         <Card
@@ -450,12 +547,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             >
               <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
             </button>
+            <button
+              onClick={handleExportClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Export session"
+            >
+              <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
           </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-16 break-words">
-              {session.description || session.id}
-            </h3>
+            <h3 className="text-base mb-1 pr-16 break-words">{session.name}</h3>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -485,7 +587,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
     });
 
-    // Render skeleton loader for session items with variations
     const SessionSkeleton = React.memo(({ variant = 0 }: { variant?: number }) => {
       const titleWidths = ['w-3/4', 'w-2/3', 'w-4/5', 'w-1/2'];
       const pathWidths = ['w-32', 'w-28', 'w-36', 'w-24'];
@@ -557,10 +658,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      // For regular rendering in grid layout
       return (
         <div className="space-y-8">
-          {dateGroups.map((group) => (
+          {visibleDateGroups.map((group) => (
             <div key={group.label} className="space-y-4">
               <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
                 <h2 className="text-text-muted">{group.label}</h2>
@@ -572,11 +672,21 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     session={session}
                     onEditClick={handleEditSession}
                     onDeleteClick={handleDeleteSession}
+                    onExportClick={handleExportSession}
                   />
                 ))}
               </div>
             </div>
           ))}
+
+          {visibleGroupsCount < dateGroups.length && (
+            <div className="flex justify-center py-8">
+              <div className="flex items-center space-x-2 text-text-muted">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                <span>Loading more sessions...</span>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
@@ -589,21 +699,31 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
+                  <Button
+                    onClick={handleImportClick}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import Session
+                  </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose.
+                  View and search your past conversations with Goose. ⌘F/Ctrl+F to search.
                 </p>
               </div>
             </div>
 
             <div className="flex-1 min-h-0 relative px-8">
-              <ScrollArea className="h-full" data-search-scroll-area>
+              <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
                 <div ref={containerRef} className="h-full relative">
                   <SearchView
                     onSearch={handleSearch}
                     onNavigate={handleSearchNavigation}
                     searchResults={searchResults}
                     className="relative"
+                    placeholder="Search history..."
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div
@@ -666,6 +786,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           </div>
         </MainPanelLayout>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleImportSession}
+          className="hidden"
+        />
+
         <EditSessionModal
           session={editingSession}
           isOpen={showEditModal}
@@ -676,7 +804,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <ConfirmationModal
           isOpen={showDeleteConfirmation}
           title="Delete Session"
-          message={`Are you sure you want to delete the session "${sessionToDelete?.description || sessionToDelete?.id}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete the session "${sessionToDelete?.name}"? This action cannot be undone.`}
           confirmLabel="Delete Session"
           cancelLabel="Cancel"
           confirmVariant="destructive"

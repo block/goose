@@ -3,9 +3,9 @@
     {
       "type": "resource",
       "resource": {
-        "uri": "file:///Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt",
+        "uri": "file:///tmp/goose_test/goose.txt",
         "mimeType": "text",
-        "text": "# codename goose\n"
+        "text": "# goose\n"
       },
       "annotations": {
         "audience": [
@@ -15,7 +15,7 @@
     },
     {
       "type": "text",
-      "text": "### /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt\n```\n1: # codename goose\n```\n",
+      "text": "### /tmp/goose_test/goose.txt\n```\n1: # goose\n```\n",
       "annotations": {
         "audience": [
           "user"
@@ -27,7 +27,7 @@
   [
     {
       "type": "text",
-      "text": "The file /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# codename goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
       "annotations": {
         "audience": [
           "assistant"
@@ -36,7 +36,7 @@
     },
     {
       "type": "text",
-      "text": "```\n# codename goose (modified by test)\n```\n",
+      "text": "```\n# goose (modified by test)\n```\n",
       "annotations": {
         "audience": [
           "user"
@@ -48,7 +48,7 @@
   [
     {
       "type": "text",
-      "text": "# codename goose (modified by test)\n",
+      "text": "# goose (modified by test)\n",
       "annotations": {
         "audience": [
           "assistant"
@@ -57,7 +57,7 @@
     },
     {
       "type": "text",
-      "text": "# codename goose (modified by test)\n",
+      "text": "# goose (modified by test)\n",
       "annotations": {
         "audience": [
           "user"
@@ -69,7 +69,7 @@
   [
     {
       "type": "text",
-      "text": "The file /Users/jackamadeo/goose/crates/goose/tests/tmp/goose.txt has been edited, and the section now reads:\n```\n# codename goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
       "annotations": {
         "audience": [
           "assistant"
@@ -78,7 +78,7 @@
     },
     {
       "type": "text",
-      "text": "```\n# codename goose\n```\n",
+      "text": "```\n# goose\n```\n",
       "annotations": {
         "audience": [
           "user"

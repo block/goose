@@ -7,9 +7,8 @@ use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use mcp_core::tool::ToolCall;
 use regex::Regex;
-use rmcp::model::PromptArgument;
+use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -69,7 +68,7 @@ thread_local! {
 pub fn set_theme(theme: Theme) {
     let config = Config::global();
     config
-        .set_param("GOOSE_CLI_THEME", Value::String(theme.as_config_string()))
+        .set_param("GOOSE_CLI_THEME", theme.as_config_string())
         .expect("Failed to set theme");
     CURRENT_THEME.with(|t| *t.borrow_mut() = theme);
 
@@ -80,7 +79,7 @@ pub fn set_theme(theme: Theme) {
         Theme::Ansi => "ansi",
     };
 
-    if let Err(e) = config.set_param("GOOSE_CLI_THEME", Value::String(theme_str.to_string())) {
+    if let Err(e) = config.set_param("GOOSE_CLI_THEME", theme_str) {
         eprintln!("Failed to save theme setting to config: {}", e);
     }
 }
@@ -186,8 +185,18 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
-            MessageContent::SummarizationRequested(summarization) => {
-                println!("\n{}", style(&summarization.msg).yellow());
+            MessageContent::SystemNotification(notification) => {
+                use goose::conversation::message::SystemNotificationType;
+
+                match notification.notification_type {
+                    SystemNotificationType::ThinkingMessage => {
+                        show_thinking();
+                        set_thinking_message(&notification.msg);
+                    }
+                    SystemNotificationType::InlineMessage => {
+                        println!("\n{}", style(&notification.msg).yellow());
+                    }
+                }
             }
             _ => {
                 println!("WARNING: Message content type could not be rendered");
@@ -248,7 +257,7 @@ pub fn goose_mode_message(text: &str) {
 
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
-        Ok(call) => match call.name.as_str() {
+        Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
@@ -390,44 +399,55 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &ToolCall, debug: bool) {
+fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
-    if let Some(Value::String(path)) = call.arguments.get("path") {
-        println!(
-            "{}: {}",
-            style("path").dim(),
-            style(shorten_path(path, debug)).green()
-        );
-    }
+    if let Some(args) = &call.arguments {
+        if let Some(Value::String(path)) = args.get("path") {
+            println!(
+                "{}: {}",
+                style("path").dim(),
+                style(shorten_path(path, debug)).green()
+            );
+        }
 
-    // Print other arguments normally, excluding path
-    if let Some(args) = call.arguments.as_object() {
-        let mut other_args = serde_json::Map::new();
-        for (k, v) in args {
-            if k != "path" {
-                other_args.insert(k.clone(), v.clone());
+        // Print other arguments normally, excluding path
+        if let Some(args) = &call.arguments {
+            let mut other_args = serde_json::Map::new();
+            for (k, v) in args {
+                if k != "path" {
+                    other_args.insert(k.clone(), v.clone());
+                }
+            }
+            if !other_args.is_empty() {
+                print_params(&Some(other_args), 0, debug);
             }
         }
-        print_params(&Value::Object(other_args), 0, debug);
     }
     println!();
 }
 
-fn render_shell_request(call: &ToolCall, debug: bool) {
+fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
 }
 
-fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
+fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
 
     // Print task_parameters array
-    if let Some(Value::Array(task_parameters)) = call.arguments.get("task_parameters") {
+    if let Some(task_parameters) = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("task_parameters"))
+        .and_then(|v| match v {
+            Value::Array(arr) => Some(arr),
+            _ => None,
+        })
+    {
         println!("{}:", style("task_parameters").dim());
-
         for task_param in task_parameters.iter() {
             println!("    -");
 
@@ -447,7 +467,9 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
                                 } else if let Value::Object(_) = item {
                                     // For objects in arrays, print them with indentation
                                     print!("            - ");
-                                    print_params(item, 3, debug);
+                                    if let Value::Object(obj) = item {
+                                        print_params(&Some(obj.clone()), 3, debug);
+                                    }
                                 } else {
                                     println!(
                                         "            - {}",
@@ -459,7 +481,9 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
                         Value::Object(_) => {
                             // For objects, print them with proper indentation
                             println!("        {}:", style(key).dim());
-                            print_params(value, 2, debug);
+                            if let Value::Object(obj) = value {
+                                print_params(&Some(obj.clone()), 2, debug);
+                            }
                         }
                         _ => {
                             // For other types (numbers, booleans, null)
@@ -478,20 +502,22 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
     println!();
 }
 
-fn render_todo_request(call: &ToolCall, _debug: bool) {
+fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     print_tool_header(call);
 
     // For todo tools, always show the full content without redaction
-    if let Some(Value::String(content)) = call.arguments.get("content") {
-        println!("{}: {}", style("content").dim(), style(content).green());
-    } else {
-        // For todo__read, there are no arguments
-        // Just print an empty line for consistency
+    if let Some(args) = &call.arguments {
+        if let Some(Value::String(content)) = args.get("content") {
+            println!("{}: {}", style("content").dim(), style(content).green());
+        } else {
+            // For todo__read, there are no arguments
+            // Just print an empty line for consistency
+        }
     }
     println!();
 }
 
-fn render_default_request(call: &ToolCall, debug: bool) {
+fn render_default_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
@@ -499,7 +525,7 @@ fn render_default_request(call: &ToolCall, debug: bool) {
 
 // Helper functions
 
-fn print_tool_header(call: &ToolCall) {
+fn print_tool_header(call: &CallToolRequestParam) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
@@ -564,70 +590,65 @@ fn print_value(value: &Value, debug: bool, reserve_width: usize) {
     println!("{}", formatted);
 }
 
-fn print_params(value: &Value, depth: usize, debug: bool) {
+fn print_params(value: &Option<JsonObject>, depth: usize, debug: bool) {
     let indent = INDENT.repeat(depth);
 
-    match value {
-        Value::Object(map) => {
-            for (key, val) in map {
-                match val {
-                    Value::Object(_) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        print_params(val, depth + 1, debug);
-                    }
-                    Value::Array(arr) => {
-                        // Check if all items are simple values (not objects or arrays)
-                        let all_simple = arr.iter().all(|item| {
-                            matches!(
-                                item,
-                                Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
-                            )
-                        });
+    if let Some(json_object) = value {
+        for (key, val) in json_object.iter() {
+            match val {
+                Value::Object(obj) => {
+                    println!("{}{}:", indent, style(key).dim());
+                    print_params(&Some(obj.clone()), depth + 1, debug);
+                }
+                Value::Array(arr) => {
+                    // Check if all items are simple values (not objects or arrays)
+                    let all_simple = arr.iter().all(|item| {
+                        matches!(
+                            item,
+                            Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
+                        )
+                    });
 
-                        if all_simple {
-                            // Render inline for simple arrays, truncation will be handled by print_value if needed
-                            let values: Vec<String> = arr
-                                .iter()
-                                .map(|item| match item {
-                                    Value::String(s) => s.clone(),
-                                    Value::Number(n) => n.to_string(),
-                                    Value::Bool(b) => b.to_string(),
-                                    Value::Null => "null".to_string(),
-                                    _ => unreachable!(),
-                                })
-                                .collect();
-                            let joined_values = values.join(", ");
-                            print_value_with_prefix(
-                                &format!("{}{}: ", indent, style(key).dim()),
-                                &Value::String(joined_values),
-                                debug,
-                            );
-                        } else {
-                            // Use the original multi-line format for complex arrays
-                            println!("{}{}:", indent, style(key).dim());
-                            for item in arr.iter() {
+                    if all_simple {
+                        // Render inline for simple arrays, truncation will be handled by print_value if needed
+                        let values: Vec<String> = arr
+                            .iter()
+                            .map(|item| match item {
+                                Value::String(s) => s.clone(),
+                                Value::Number(n) => n.to_string(),
+                                Value::Bool(b) => b.to_string(),
+                                Value::Null => "null".to_string(),
+                                _ => unreachable!(),
+                            })
+                            .collect();
+                        let joined_values = values.join(", ");
+                        print_value_with_prefix(
+                            &format!("{}{}: ", indent, style(key).dim()),
+                            &Value::String(joined_values),
+                            debug,
+                        );
+                    } else {
+                        // Use the original multi-line format for complex arrays
+                        println!("{}{}:", indent, style(key).dim());
+                        for item in arr.iter() {
+                            if let Value::Object(obj) = item {
                                 println!("{}{}- ", indent, INDENT);
-                                print_params(item, depth + 2, debug);
+                                print_params(&Some(obj.clone()), depth + 2, debug);
+                            } else {
+                                println!("{}{}- {}", indent, INDENT, item);
                             }
                         }
                     }
-                    _ => {
-                        print_value_with_prefix(
-                            &format!("{}{}: ", indent, style(key).dim()),
-                            val,
-                            debug,
-                        );
-                    }
+                }
+                _ => {
+                    print_value_with_prefix(
+                        &format!("{}{}: ", indent, style(key).dim()),
+                        val,
+                        debug,
+                    );
                 }
             }
         }
-        Value::Array(arr) => {
-            for (i, item) in arr.iter().enumerate() {
-                println!("{}{}.", indent, i + 1);
-                print_params(item, depth + 1, debug);
-            }
-        }
-        _ => print_value(value, debug, 0),
     }
 }
 
@@ -732,6 +753,14 @@ pub fn display_session_info(
         );
     }
 
+    if let Some(id) = session_id {
+        println!(
+            "    {} {}",
+            style("session id:").dim(),
+            style(id).cyan().dim()
+        );
+    }
+
     println!(
         "    {} {}",
         style("working directory:").dim(),
@@ -742,7 +771,7 @@ pub fn display_session_info(
 }
 
 pub fn display_greeting() {
-    println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+    println!("\ngoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
 /// Display context window usage with both current and session totals

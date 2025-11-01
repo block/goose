@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
-import { safeJsonParse } from './jsonUtils';
+import { safeJsonParse } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -185,7 +185,7 @@ export class GitHubUpdater {
 
       // Save to Downloads directory
       const downloadsDir = path.join(os.homedir(), 'Downloads');
-      const fileName = `Goose-${latestVersion}.zip`;
+      const fileName = `goose-${latestVersion}.zip`;
       const downloadPath = path.join(downloadsDir, fileName);
 
       await fs.writeFile(downloadPath, buffer);

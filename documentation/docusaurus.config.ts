@@ -68,7 +68,7 @@ const config: Config = {
         gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        } : undefined,
+        } : false,
       } satisfies Preset.Options,
     ],
   ],
@@ -135,6 +135,14 @@ const config: Config = {
             to: '/docs/guides/recipes/recipe-reference'
           },
           {
+            from: '/docs/guides/recipes/sub-recipes',
+            to: '/docs/guides/recipes/subrecipes'
+          },
+          {
+            from: '/docs/tutorials/sub-recipes-in-parallel',
+            to: '/docs/tutorials/subrecipes-in-parallel'
+          },
+          {
             from: '/docs/guides/tool-permissions',
             to: '/docs/guides/managing-tools/tool-permissions'
           },
@@ -149,6 +157,14 @@ const config: Config = {
           {
             from: '/docs/guides/goose-in-docker',
             to: '/docs/tutorials/goose-in-docker'
+          },
+          {
+            from: '/docs/guides/creating-plans',
+            to: '/docs/guides/multi-model/creating-plans'
+          },
+          {
+            from: '/docs/guides/config-file',
+            to: '/docs/guides/config-files',
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
@@ -290,6 +306,10 @@ const config: Config = {
           {
             from: '/docs/guides/isolated-development-environments',
             to: '/docs/tutorials/isolated-development-environments'
+          },
+          {
+            from: '/docs/experimental/subagents',
+            to: '/docs/guides/subagents'
           }         
         ],
       },
@@ -361,7 +381,7 @@ const config: Config = {
         },
 
         {
-          href: "https://discord.gg/block-opensource",
+          href: "https://discord.gg/goose-oss",
           label: "Discord",
           position: "right",
         },
@@ -378,7 +398,7 @@ const config: Config = {
           title: "Quick Links",
           items: [
             {
-              label: "Install Goose",
+              label: "Install goose",
               to: "docs/getting-started/installation",
             },
             {
@@ -396,7 +416,7 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/block-opensource",
+              href: "https://discord.gg/goose-oss",
             },
             {
               label: "YouTube",
@@ -460,7 +480,7 @@ const config: Config = {
             },
           },
         ],
-        quickQuestions: ["What is Goose?"],
+        quickQuestions: ["What is goose?"],
       },
     },
     announcementBar: {

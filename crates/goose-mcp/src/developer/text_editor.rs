@@ -188,6 +188,23 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
     ]
 }
 
+fn adjust_base_dir_for_overlap(base_dir: &Path, file_path: &Path) -> PathBuf {
+    let base_components: Vec<_> = base_dir.components().collect();
+    let file_components: Vec<_> = file_path.components().collect();
+
+    let min_len = base_components.len().min(file_components.len());
+    let max_k = (1..=min_len)
+        .rfind(|&k| file_components[0..k] == base_components[base_components.len() - k..])
+        .unwrap_or(0);
+
+    if max_k > 0 {
+        let adjusted_components = base_components[..base_components.len() - max_k].to_vec();
+        PathBuf::from_iter(adjusted_components)
+    } else {
+        base_dir.to_path_buf()
+    }
+}
+
 /// Applies a single patch and updates results
 fn apply_single_patch(
     patch: &mpatch::Patch,
@@ -196,10 +213,12 @@ fn apply_single_patch(
     results: &mut DiffResults,
     failed_hunks: &mut Vec<String>,
 ) -> Result<(), ErrorData> {
-    let file_path = base_dir.join(&patch.file_path);
+    let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
+
+    let file_path = adjusted_base_dir.join(&patch.file_path);
 
     // Validate path safety
-    validate_path_safety(base_dir, &file_path)?;
+    validate_path_safety(&adjusted_base_dir, &file_path)?;
 
     // Save history before modifying
     let file_existed = file_path.exists();
@@ -208,7 +227,7 @@ fn apply_single_patch(
     }
 
     // Apply patch with fuzzy matching (70% similarity threshold)
-    let success = apply_patch(patch, base_dir, false, 0.7).map_err(|e| match e {
+    let success = apply_patch(patch, &adjusted_base_dir, false, 0.7).map_err(|e| match e {
         PatchError::Io { path, source } => ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to process '{}': {}", path.display(), source),
@@ -267,23 +286,15 @@ fn apply_single_patch(
     Ok(())
 }
 
-/// Applies any diff (single or multi-file) using mpatch for fuzzy matching
-pub async fn apply_diff(
-    base_path: &Path,
-    diff_content: &str,
-    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
-) -> Result<Vec<Content>, ErrorData> {
-    // Validate size
-    validate_diff_size(diff_content)?;
-
-    // Parse patches using mpatch - wrap in markdown block if not already wrapped
+/// Parses diff content into patches with proper error handling
+fn parse_diff_content(diff_content: &str) -> Result<Vec<mpatch::Patch>, ErrorData> {
     let wrapped_diff = if diff_content.contains("```diff") || diff_content.contains("```patch") {
         diff_content.to_string()
     } else {
         format!("```diff\n{}\n```", diff_content)
     };
 
-    let patches = parse_diffs(&wrapped_diff).map_err(|e| match e {
+    parse_diffs(&wrapped_diff).map_err(|e| match e {
         PatchError::MissingFileHeader => ErrorData::new(
             ErrorCode::INVALID_PARAMS,
             "Invalid diff format: Missing file header (e.g., '--- a/path/to/file')".to_string(),
@@ -307,43 +318,41 @@ pub async fn apply_diff(
             format!("Target file not found: {}", path.display()),
             None,
         ),
-    })?;
+    })
+}
 
-    // Validate file count
-    if patches.len() > MAX_FILES_IN_DIFF {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Too many files in diff ({}). Maximum is {} files.",
-                patches.len(),
-                MAX_FILES_IN_DIFF
-            ),
-            None,
-        ));
+/// Ensures all patched files end with a newline
+fn ensure_trailing_newlines(patches: &[mpatch::Patch], base_dir: &Path) -> Result<(), ErrorData> {
+    for patch in patches {
+        let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
+        let file_path = adjusted_base_dir.join(&patch.file_path);
+
+        if file_path.exists() {
+            let content = std::fs::read_to_string(&file_path).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to read file for post-processing: {}", e),
+                    None,
+                )
+            })?;
+
+            if !content.ends_with('\n') {
+                let content_with_newline = format!("{}\n", content);
+                std::fs::write(&file_path, content_with_newline).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to add trailing newline: {}", e),
+                        None,
+                    )
+                })?;
+            }
+        }
     }
+    Ok(())
+}
 
-    // Determine base directory
-    let base_dir = if base_path.is_file() {
-        base_path.parent().unwrap_or(Path::new(".")).to_path_buf()
-    } else {
-        base_path.to_path_buf()
-    };
-
-    // Apply all patches with fuzzy matching
-    let mut results = DiffResults::default();
-    let mut failed_hunks = Vec::new();
-
-    for patch in &patches {
-        apply_single_patch(
-            patch,
-            &base_dir,
-            file_history,
-            &mut results,
-            &mut failed_hunks,
-        )?;
-    }
-
-    // Report any partial failures
+/// Reports partial failures from patch application
+fn report_partial_failures(failed_hunks: &[String]) {
     if !failed_hunks.is_empty() {
         let error_msg = format!(
             "Some patches were only partially applied (fuzzy matching at 70% similarity):\n\n{}\n\n\
@@ -358,13 +367,55 @@ pub async fn apply_diff(
 
         tracing::warn!("{}", error_msg);
     }
+}
 
-    // Count line changes
+/// Applies any diff (single or multi-file) using mpatch for fuzzy matching
+pub async fn apply_diff(
+    base_path: &Path,
+    diff_content: &str,
+    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+) -> Result<Vec<Content>, ErrorData> {
+    validate_diff_size(diff_content)?;
+    let patches = parse_diff_content(diff_content)?;
+
+    if patches.len() > MAX_FILES_IN_DIFF {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Too many files in diff ({}). Maximum is {} files.",
+                patches.len(),
+                MAX_FILES_IN_DIFF
+            ),
+            None,
+        ));
+    }
+
+    let base_dir = if base_path.is_file() {
+        base_path.parent().unwrap_or(Path::new(".")).to_path_buf()
+    } else {
+        base_path.to_path_buf()
+    };
+
+    let mut results = DiffResults::default();
+    let mut failed_hunks = Vec::new();
+
+    for patch in &patches {
+        apply_single_patch(
+            patch,
+            &base_dir,
+            file_history,
+            &mut results,
+            &mut failed_hunks,
+        )?;
+    }
+
+    ensure_trailing_newlines(&patches, &base_dir)?;
+    report_partial_failures(&failed_hunks);
+
     let (lines_added, lines_removed) = count_line_changes(diff_content);
     results.lines_added = lines_added;
     results.lines_removed = lines_removed;
 
-    // Generate summary
     let is_single_file = patches.len() == 1;
     Ok(generate_summary(&results, is_single_file, base_path))
 }
@@ -746,7 +797,12 @@ pub async fn text_editor_replace(
         match editor.edit_code(&content, old_str, new_str).await {
             Ok(updated_content) => {
                 // Write the updated content directly
-                let normalized_content = normalize_line_endings(&updated_content);
+                let mut normalized_content = normalize_line_endings(&updated_content);
+
+                if !normalized_content.ends_with('\n') {
+                    normalized_content.push('\n');
+                }
+
                 std::fs::write(path, &normalized_content).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
@@ -792,7 +848,12 @@ pub async fn text_editor_replace(
     save_file_history(path, file_history)?;
 
     let new_content = content.replace(old_str, new_str);
-    let normalized_content = normalize_line_endings(&new_content);
+    let mut normalized_content = normalize_line_endings(&new_content);
+
+    if !normalized_content.ends_with('\n') {
+        normalized_content.push('\n');
+    }
+
     std::fs::write(path, &normalized_content).map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,

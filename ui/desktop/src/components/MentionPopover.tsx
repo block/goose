@@ -105,40 +105,52 @@ const MentionPopover = forwardRef<
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+
+  const compareByType = (a: FileItemWithMatch, b: FileItemWithMatch) =>
+    a.isDirectory !== b.isDirectory ? (a.isDirectory ? 1 : -1) : 0;
+
   // Filter and sort files based on query
   const displayFiles = useMemo((): FileItemWithMatch[] => {
     if (!query.trim()) {
-      return files.slice(0, 15).map((file) => ({
-        ...file,
-        matchScore: 0,
-        matches: [],
-        matchedText: file.name,
-      })); // Show first 15 files when no query
+      return files
+        .map((file) => ({
+          ...file,
+          matchScore: 0,
+          matches: [],
+          matchedText: file.name,
+          depth: currentWorkingDir
+            ? file.path.replace(currentWorkingDir, '').split('/').length - 1
+            : 0,
+        }))
+        .sort((a, b) => {
+          if (a.depth !== b.depth) return a.depth - b.depth;
+          const typeComparison = compareByType(a, b);
+          return typeComparison || a.name.localeCompare(b.name);
+        });
     }
 
     const results = files
       .map((file) => {
-        const nameMatch = fuzzyMatch(query, file.name);
-        const pathMatch = fuzzyMatch(query, file.relativePath);
-        const fullPathMatch = fuzzyMatch(query, file.path);
+        const matches = [
+          { match: fuzzyMatch(query, file.name), text: file.name },
+          { match: fuzzyMatch(query, file.relativePath), text: file.relativePath },
+          { match: fuzzyMatch(query, file.path), text: file.path },
+        ];
 
-        // Use the best match among name, relative path, and full path
-        let bestMatch = nameMatch;
-        let matchedText = file.name;
+        const { match: bestMatch, text: matchedText } = matches.reduce((best, current) =>
+          current.match.score > best.match.score ? current : best
+        );
 
-        if (pathMatch.score > bestMatch.score) {
-          bestMatch = pathMatch;
-          matchedText = file.relativePath;
-        }
-
-        if (fullPathMatch.score > bestMatch.score) {
-          bestMatch = fullPathMatch;
-          matchedText = file.path;
+        let finalScore = bestMatch.score;
+        if (finalScore > 0 && currentWorkingDir) {
+          const depth = file.path.replace(currentWorkingDir, '').split('/').length - 1;
+          finalScore += depth <= 1 ? 50 : depth <= 2 ? 30 : depth <= 3 ? 15 : 0;
         }
 
         return {
           ...file,
-          matchScore: bestMatch.score,
+          matchScore: finalScore,
           matches: bestMatch.matches,
           matchedText,
         };
@@ -146,18 +158,14 @@ const MentionPopover = forwardRef<
       .filter((file) => file.matchScore > 0)
       .sort((a, b) => {
         // Sort by score first, then prefer files over directories, then alphabetically
-        if (Math.abs(a.matchScore - b.matchScore) < 1) {
-          if (a.isDirectory !== b.isDirectory) {
-            return a.isDirectory ? 1 : -1; // Files first
-          }
-          return a.name.localeCompare(b.name);
-        }
-        return b.matchScore - a.matchScore;
-      })
-      .slice(0, 20); // Increase to 20 results
+        const scoreDiff = b.matchScore - a.matchScore;
+        if (Math.abs(scoreDiff) >= 1) return scoreDiff;
+        const typeComparison = compareByType(a, b);
+        return typeComparison || a.name.localeCompare(b.name);
+      });
 
     return results;
-  }, [files, query]);
+  }, [files, query, currentWorkingDir]);
 
   // Expose methods to parent component
   useImperativeHandle(
@@ -412,12 +420,16 @@ const MentionPopover = forwardRef<
   const scanFilesFromRoot = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Start from common user directories for better performance
-      let startPath = '/Users'; // Default to macOS
-      if (window.electron.platform === 'win32') {
-        startPath = 'C:\\Users';
-      } else if (window.electron.platform === 'linux') {
-        startPath = '/home';
+      let startPath = currentWorkingDir;
+
+      if (!startPath) {
+        if (window.electron.platform === 'win32') {
+          startPath = 'C:\\Users';
+        } else if (window.electron.platform === 'linux') {
+          startPath = '/home';
+        } else {
+          startPath = '/Users'; // Default to macOS
+        }
       }
 
       const scannedFiles = await scanDirectoryFromRoot(startPath);
@@ -428,40 +440,42 @@ const MentionPopover = forwardRef<
     } finally {
       setIsLoading(false);
     }
-  }, [scanDirectoryFromRoot]);
+  }, [scanDirectoryFromRoot, currentWorkingDir]);
 
   // Scroll selected item into view
   useEffect(() => {
-    if (listRef.current) {
+    if (listRef.current && selectedIndex >= 0 && selectedIndex < displayFiles.length) {
       const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest' });
+        selectedElement.scrollIntoView({
+          block: 'nearest',
+          behavior: 'smooth',
+        });
       }
     }
-  }, [selectedIndex]);
+  }, [selectedIndex, displayFiles.length]);
 
   const handleItemClick = (index: number) => {
-    onSelectedIndexChange(index);
-    onSelect(displayFiles[index].path);
-    onClose();
+    if (index >= 0 && index < displayFiles.length) {
+      onSelectedIndexChange(index);
+      onSelect(displayFiles[index].path);
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
 
-  const displayedFiles = displayFiles.slice(0, 8); // Show up to 8 files
-  const remainingCount = displayFiles.length - displayedFiles.length;
-
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg"
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
       style={{
         left: position.x,
         top: position.y - 10, // Position above the chat input
         transform: 'translateY(-100%)', // Move it fully above
       }}
     >
-      <div className="p-3">
+      <div className="p-3 flex flex-col max-h-80">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-textSubtle"></div>
@@ -469,8 +483,17 @@ const MentionPopover = forwardRef<
           </div>
         ) : (
           <>
-            <div ref={listRef} className="space-y-1">
-              {displayedFiles.map((file, index) => (
+            {displayFiles.length > 0 && (
+              <div className="text-xs text-textSubtle mb-2 px-1">
+                {displayFiles.length} file{displayFiles.length !== 1 ? 's' : ''} found
+              </div>
+            )}
+            <div
+              ref={listRef}
+              className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
+              style={{ maxHeight: '280px' }}
+            >
+              {displayFiles.map((file, index) => (
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
@@ -490,26 +513,18 @@ const MentionPopover = forwardRef<
                 </div>
               ))}
 
-              {!isLoading && displayedFiles.length === 0 && query && (
+              {!isLoading && displayFiles.length === 0 && query && (
                 <div className="p-4 text-center text-textSubtle text-sm">
                   No files found matching "{query}"
                 </div>
               )}
 
-              {!isLoading && displayedFiles.length === 0 && !query && (
+              {!isLoading && displayFiles.length === 0 && !query && (
                 <div className="p-4 text-center text-textSubtle text-sm">
                   Start typing to search for files
                 </div>
               )}
             </div>
-
-            {remainingCount > 0 && (
-              <div className="mt-2 pt-2 border-t border-borderSubtle">
-                <div className="text-xs text-textSubtle text-center">
-                  Show {remainingCount} more...
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

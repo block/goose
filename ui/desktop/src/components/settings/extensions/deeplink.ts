@@ -43,7 +43,6 @@ function getStdioConfig(
 
   const envList = parsedUrl.searchParams.getAll('env');
 
-  // Create the extension config
   const config: ExtensionConfig = {
     name: name,
     type: 'stdio',
@@ -88,7 +87,8 @@ function getStreamableHttpConfig(
   name: string,
   description: string,
   timeout: number,
-  headers?: { [key: string]: string }
+  headers?: { [key: string]: string },
+  envs?: { [key: string]: string }
 ) {
   const config: ExtensionConfig = {
     name,
@@ -97,6 +97,7 @@ function getStreamableHttpConfig(
     description,
     timeout: timeout,
     headers: headers,
+    envs: envs,
   };
 
   return config;
@@ -114,14 +115,9 @@ export async function addExtensionFromDeepLink(
   ) => Promise<void>,
   setView: (
     view: string,
-    options:
-      | { extensionId: string; showEnvVars: boolean }
-      | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
+    options: { showEnvVars: boolean; deepLinkConfig?: ExtensionConfig }
   ) => void
 ) {
-  console.log('=== addExtensionFromDeepLink Debug ===');
-  console.log('URL:', url);
-
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
@@ -150,6 +146,7 @@ export async function addExtensionFromDeepLink(
   const parsedTimeout = parsedUrl.searchParams.get('timeout');
   const timeout = parsedTimeout ? parseInt(parsedTimeout, 10) : DEFAULT_EXTENSION_TIMEOUT;
   const description = parsedUrl.searchParams.get('description');
+  const installation_notes = parsedUrl.searchParams.get('installation_notes');
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
@@ -168,11 +165,28 @@ export async function addExtensionFromDeepLink(
         )
       : undefined;
 
-  const config = remoteUrl
+  // Parse env vars for remote extensions (same logic as stdio)
+  const envList = parsedUrl.searchParams.getAll('env');
+  const envs =
+    envList.length > 0
+      ? Object.fromEntries(
+          envList.map((env) => {
+            const [key] = env.split('=');
+            return [key, ''];
+          })
+        )
+      : undefined;
+
+  const baseConfig = remoteUrl
     ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers)
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
+
+  const config = {
+    ...baseConfig,
+    ...(installation_notes ? { installation_notes } : {}),
+  };
 
   // Check if extension requires env vars or headers and go to settings if so
   const hasEnvVars = config.envs && Object.keys(config.envs).length > 0;
@@ -180,21 +194,25 @@ export async function addExtensionFromDeepLink(
     config.type === 'streamable_http' && config.headers && Object.keys(config.headers).length > 0;
 
   if (hasEnvVars || hasHeaders) {
-    console.log('Environment variables or headers required, redirecting to settings');
-    console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
-    setView('settings', { deepLinkConfig: config, showEnvVars: true });
+    console.log(
+      'Environment variables or headers required, redirecting to extensions with env variables modal showing'
+    );
+    setView('extensions', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
 
-  try {
-    console.log('No env vars required, activating extension directly');
-    // Note: deeplink activation doesn't have access to sessionId
-    // The extension will be added to config but not activated in the current session
-    // It will be activated when the next session starts
-    console.warn('Extension will be added to config but requires a session to activate');
-    await addExtensionFn(config.name, config, true);
-  } catch (error) {
-    console.error('Failed to activate extension from deeplink:', error);
-    throw error;
-  }
+  console.log('No env vars required, activating extension directly');
+  // Note: deeplink activation doesn't have access to sessionId
+  // The extension will be added to config but not activated in the current session
+  // It will be activated when the next session starts
+  await addExtensionFn(config.name, config, true);
+
+  // Show success toast and navigate to extensions page
+  toastService.success({
+    title: 'Extension Installed',
+    msg: `${config.name} extension has been installed successfully. Start a new chat session to use it.`,
+  });
+
+  // Navigate to extensions page to show the newly installed extension
+  setView('extensions', { deepLinkConfig: config, showEnvVars: false });
 }

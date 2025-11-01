@@ -3,9 +3,10 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
-use mcp_core::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
-use rmcp::model::{AnnotateAble, ErrorCode, ErrorData, RawContent, Role, Tool};
+use rmcp::model::{
+    object, AnnotateAble, CallToolRequestParam, ErrorCode, ErrorData, RawContent, Role, Tool,
+};
 use std::borrow::Cow;
 
 use crate::conversation::message::{Message, MessageContent};
@@ -16,6 +17,7 @@ use std::ops::Deref;
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     messages
         .iter()
+        .filter(|m| m.is_agent_visible())
         .filter(|message| {
             message
                 .content
@@ -43,12 +45,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 "name".to_string(),
                                 json!(sanitize_function_name(&tool_call.name)),
                             );
-                            if tool_call.arguments.is_object()
-                                && !tool_call.arguments.as_object().unwrap().is_empty()
-                            {
-                                function_call_part
-                                    .insert("args".to_string(), tool_call.arguments.clone());
+
+                            if let Some(args) = &tool_call.arguments {
+                                if !args.is_empty() {
+                                    function_call_part
+                                        .insert("args".to_string(), args.clone().into());
+                                }
                             }
+
                             parts.push(json!({
                                 "functionCall": function_call_part
                             }));
@@ -126,7 +130,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .collect()
 }
 
-/// Convert internal Tool format to Google's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     tools
         .iter()
@@ -135,7 +138,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             parameters.insert("name".to_string(), json!(tool.name));
             parameters.insert("description".to_string(), json!(tool.description));
             let tool_input_schema = &tool.input_schema;
-            // Only add the parameters key if the tool schema has non-empty properties.
+
             if tool_input_schema
                 .get("properties")
                 .and_then(|v| v.as_object())
@@ -151,14 +154,12 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         .collect()
 }
 
-/// Get the accepted keys for a given parent key in the JSON schema.
-fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
+pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
     match parent_key {
         Some("properties") => vec![
             "anyOf",
             "allOf",
             "type",
-            // "format", // Google's APIs don't support this well
             "description",
             "nullable",
             "enum",
@@ -167,26 +168,37 @@ fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
             "items",
         ],
         Some("items") => vec!["type", "properties", "items", "required"],
-        // This is the top-level schema.
         _ => vec!["type", "properties", "required", "anyOf", "allOf"],
+    }
+}
+
+pub fn process_value(value: &Value, parent_key: Option<&str>) -> Value {
+    match value {
+        Value::Object(map) => process_map(map, parent_key),
+        Value::Array(arr) if parent_key == Some("type") => arr
+            .iter()
+            .find(|v| v.as_str() != Some("null"))
+            .cloned()
+            .unwrap_or_else(|| json!("string")),
+        _ => value.clone(),
     }
 }
 
 /// Process a JSON map to filter out unsupported attributes, mirroring the logic
 /// from the official Google Gemini CLI.
 /// See: https://github.com/google-gemini/gemini-cli/blob/8a6509ffeba271a8e7ccb83066a9a31a5d72a647/packages/core/src/tools/tool-registry.ts#L356
-fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
+pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
     let accepted_keys = get_accepted_keys(parent_key);
+
     let filtered_map: Map<String, Value> = map
         .iter()
         .filter_map(|(key, value)| {
             if !accepted_keys.contains(&key.as_str()) {
-                return None; // Skip if key is not accepted
+                return None;
             }
 
-            match key.as_str() {
+            let processed_value = match key.as_str() {
                 "properties" => {
-                    // Process each property within the properties object
                     if let Some(nested_map) = value.as_object() {
                         let processed_properties: Map<String, Value> = nested_map
                             .iter()
@@ -198,29 +210,44 @@ fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
                                 }
                             })
                             .collect();
-                        Some((key.clone(), Value::Object(processed_properties)))
+                        Value::Object(processed_properties)
                     } else {
-                        None
+                        value.clone()
                     }
                 }
                 "items" => {
-                    // If it's a nested structure, recurse if it's an object.
-                    value.as_object().map(|nested_map| {
-                        (key.clone(), process_map(nested_map, Some(key.as_str())))
-                    })
+                    if let Some(items_map) = value.as_object() {
+                        process_map(items_map, Some("items"))
+                    } else {
+                        value.clone()
+                    }
                 }
-                _ => {
-                    // For other accepted keys, just clone the value.
-                    Some((key.clone(), value.clone()))
+                "anyOf" | "allOf" => {
+                    if let Some(arr) = value.as_array() {
+                        let processed_arr: Vec<Value> = arr
+                            .iter()
+                            .map(|item| {
+                                item.as_object().map_or_else(
+                                    || item.clone(),
+                                    |obj| process_map(obj, parent_key),
+                                )
+                            })
+                            .collect();
+                        Value::Array(processed_arr)
+                    } else {
+                        value.clone()
+                    }
                 }
-            }
+                _ => value.clone(),
+            };
+
+            Some((key.clone(), processed_value))
         })
         .collect();
 
     Value::Object(filtered_map)
 }
 
-/// Convert Google's API response to internal Message format
 pub fn response_to_message(response: Value) -> Result<Message> {
     let mut content = Vec::new();
     let binding = vec![];
@@ -269,7 +296,10 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 if let Some(params) = parameters {
                     content.push(MessageContent::tool_request(
                         id,
-                        Ok(ToolCall::new(&name, params.clone())),
+                        Ok(CallToolRequestParam {
+                            name: name.into(),
+                            arguments: Some(object(params.clone())),
+                        }),
                     ));
                 }
             }
@@ -341,6 +371,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use rmcp::model::CallToolRequestParam;
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -348,7 +379,7 @@ mod tests {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
-    fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
+    fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
@@ -356,15 +387,15 @@ mod tests {
         )
     }
 
-    fn set_up_tool_confirmation_message(id: &str, tool_call: ToolCall) -> Message {
+    fn set_up_tool_confirmation_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
             vec![MessageContent::tool_confirmation_request(
                 id.to_string(),
-                tool_call.name.clone(),
-                tool_call.arguments.clone(),
-                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                tool_call.name.to_string().clone(),
+                tool_call.arguments.unwrap_or_default().clone(),
+                Some("goose would like to call the above tool. Allow? (y/n):".to_string()),
             )],
         )
     }
@@ -415,10 +446,19 @@ mod tests {
             "param1": "value1"
         });
         let messages = vec![
-            set_up_tool_request_message("id", ToolCall::new("tool_name", arguments.clone())),
+            set_up_tool_request_message(
+                "id",
+                CallToolRequestParam {
+                    name: "tool_name".into(),
+                    arguments: Some(object(arguments.clone())),
+                },
+            ),
             set_up_tool_confirmation_message(
                 "id2",
-                ToolCall::new("tool_name_2", arguments.clone()),
+                CallToolRequestParam {
+                    name: "tool_name_2".into(),
+                    arguments: Some(object(arguments.clone())),
+                },
             ),
         ];
         let payload = format_messages(&messages);
@@ -780,7 +820,14 @@ mod tests {
         assert_eq!(message.content.len(), 1);
         if let Ok(tool_call) = &message.content[0].as_tool_request().unwrap().tool_call {
             assert_eq!(tool_call.name, "valid_name");
-            assert_eq!(tool_call.arguments["param"], "value");
+            assert_eq!(
+                tool_call
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("param"))
+                    .and_then(|v| v.as_str()),
+                Some("value")
+            );
         } else {
             panic!("Expected valid tool request");
         }

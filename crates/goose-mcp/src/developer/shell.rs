@@ -1,6 +1,6 @@
-use goose::config::get_config_dir;
 use std::{env, ffi::OsString, process::Stdio};
 
+use goose::config::paths::Paths;
 #[cfg(unix)]
 #[allow(unused_imports)] // False positive: trait is used for process_group method
 use std::os::unix::process::CommandExt;
@@ -30,7 +30,7 @@ impl Default for ShellConfig {
 
             // Configure environment based on shell type
             let envs = if shell_name == "bash" {
-                let bash_env = get_config_dir().join(".bash_env").into_os_string();
+                let bash_env = Paths::config_dir().join(".bash_env").into_os_string();
                 vec![(OsString::from("BASH_ENV"), bash_env)]
             } else {
                 vec![]

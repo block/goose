@@ -12,9 +12,9 @@ use serde_json::{json, Value};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use chrono::Utc;
 use rmcp::model::Role;
@@ -30,10 +30,12 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SageMakerTgiProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Get SageMaker endpoint name (just the name, not full URL)
@@ -51,18 +53,17 @@ impl SageMakerTgiProvider {
             }
         };
 
-        set_aws_env_vars(config.load_values());
-        set_aws_env_vars(config.load_secrets());
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(config.all_secrets());
 
-        let aws_config = futures::executor::block_on(aws_config::load_from_env());
+        let aws_config = aws_config::load_from_env().await;
 
         // Validate credentials
-        futures::executor::block_on(
-            aws_config
-                .credentials_provider()
-                .unwrap()
-                .provide_credentials(),
-        )?;
+        aws_config
+            .credentials_provider()
+            .unwrap()
+            .provide_credentials()
+            .await?;
 
         // Create client with longer timeout for model initialization
         let timeout_config = aws_config::timeout::TimeoutConfig::builder()
@@ -80,6 +81,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -255,8 +257,6 @@ impl SageMakerTgiProvider {
     }
 }
 
-impl_provider_default!(SageMakerTgiProvider);
-
 #[async_trait]
 impl Provider for SageMakerTgiProvider {
     fn metadata() -> ProviderMetadata {
@@ -273,6 +273,10 @@ impl Provider for SageMakerTgiProvider {
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -303,11 +307,11 @@ impl Provider for SageMakerTgiProvider {
         let message = self.parse_tgi_response(response)?;
 
         // TGI doesn't provide usage statistics, so we estimate
-        let usage = Usage {
-            input_tokens: Some(0),  // Would need to tokenize input to get accurate count
-            output_tokens: Some(0), // Would need to tokenize output to get accurate count
-            total_tokens: Some(0),
-        };
+        let usage = Usage::new(
+            Some(0), // Would need to tokenize input to get accurate count
+            Some(0), // Would need to tokenize output to get accurate count
+            Some(0),
+        );
 
         // Add debug trace
         let debug_payload = serde_json::json!({
@@ -315,12 +319,11 @@ impl Provider for SageMakerTgiProvider {
             "messages": messages,
             "tools": tools
         });
-        emit_debug_trace(
-            &self.model,
-            &debug_payload,
+        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
-            &usage,
-        );
+            Some(&usage),
+        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

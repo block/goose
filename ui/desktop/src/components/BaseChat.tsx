@@ -44,27 +44,27 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
-import { AgentHeader } from './AgentHeader';
-import LayingEggLoader from './LayingEggLoader';
+import { RecipeHeader } from './RecipeHeader';
 import LoadingGoose from './LoadingGoose';
+import { getThinkingMessage } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { View, ViewOptions } from '../utils/navigationUtils';
-import { ContextManagerProvider, useContextManager } from './context_management/ContextManager';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import ParameterInputModal from './ParameterInputModal';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
-import { Message } from '../types/message';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
+import { Message } from '../api';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -115,51 +115,6 @@ function BaseChatContent({
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
-  const { isCompacting, handleManualCompaction } = useContextManager();
-
-  // Timeout ref for debouncing auto-scroll
-  const autoScrollTimeoutRef = useRef<number | null>(null);
-  // Track if user was following when agent started responding
-  const wasFollowingRef = useRef<boolean>(true);
-
-  const isNearBottom = React.useCallback(() => {
-    if (!scrollRef.current) return false;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const viewport = scrollRef.current as any;
-    if (!viewport.viewportRef?.current) return false;
-
-    const viewportElement = viewport.viewportRef.current;
-    const { scrollHeight, scrollTop, clientHeight } = viewportElement;
-    const scrollBottom = scrollTop + clientHeight;
-    const distanceFromBottom = scrollHeight - scrollBottom;
-
-    return distanceFromBottom <= 100;
-  }, []);
-
-  // Function to auto-scroll if user was following when agent started
-  const conditionalAutoScroll = React.useCallback(() => {
-    // Clear any existing timeout
-    if (autoScrollTimeoutRef.current) {
-      clearTimeout(autoScrollTimeoutRef.current);
-    }
-
-    // Debounce the auto-scroll to prevent jumpy behavior and prevent multiple rapid scrolls
-    autoScrollTimeoutRef.current = window.setTimeout(() => {
-      // Only auto-scroll if user was following when the agent started responding
-      if (wasFollowingRef.current && scrollRef.current) {
-        scrollRef.current.scrollToBottom();
-      }
-    }, 150);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (autoScrollTimeoutRef.current) {
-        clearTimeout(autoScrollTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Use shared chat engine
   const {
@@ -177,6 +132,7 @@ function BaseChatContent({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    tokenState,
     commandHistory,
     toolCallNotifications,
     sessionMetadata,
@@ -187,16 +143,12 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
-      conditionalAutoScroll();
-
       // Call the original callback if provided
       onMessageStreamFinish?.();
     },
     onMessageSent: () => {
-      wasFollowingRef.current = isNearBottom();
-
       // Mark that user has started using the recipe
-      if (recipeConfig) {
+      if (recipe) {
         setHasStartedUsingRecipe(true);
       }
     },
@@ -204,28 +156,29 @@ function BaseChatContent({
 
   // Use shared recipe manager
   const {
-    recipeConfig,
+    recipe,
+    recipeId,
+    recipeParameterValues,
     filteredParameters,
     initialPrompt,
-    isGeneratingRecipe,
     isParameterModalOpen,
     setIsParameterModalOpen,
-    recipeParameters,
     handleParameterSubmit,
     handleAutoExecution,
-    recipeError,
-    setRecipeError,
     isRecipeWarningModalOpen,
     recipeAccepted,
     handleRecipeAccept,
     handleRecipeCancel,
     hasSecurityWarnings,
-  } = useRecipeManager(chat, location.state?.recipeConfig);
+    isCreateRecipeModalOpen,
+    setIsCreateRecipeModalOpen,
+    handleRecipeCreated,
+  } = useRecipeManager(chat, location.state?.recipe);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
     const previousTitle = currentRecipeTitle;
-    const newTitle = recipeConfig?.title || null;
+    const newTitle = recipe?.title || null;
     const hasRecipeChanged = newTitle !== currentRecipeTitle;
 
     if (hasRecipeChanged) {
@@ -245,7 +198,7 @@ function BaseChatContent({
         setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages]);
+  }, [recipe?.title, currentRecipeTitle, messages.length, setMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -275,12 +228,23 @@ function BaseChatContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Track if this is the initial render for session resuming
+  const initialRenderRef = useRef(true);
+
   // Auto-scroll when messages are loaded (for session resuming)
   const handleRenderingComplete = React.useCallback(() => {
-    if (scrollRef.current?.scrollToBottom) {
-      scrollRef.current.scrollToBottom();
+    // Only force scroll on the very first render
+    if (initialRenderRef.current && messages.length > 0) {
+      initialRenderRef.current = false;
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
+    } else if (scrollRef.current?.isFollowing) {
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
     }
-  }, []);
+  }, [messages.length]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -288,7 +252,7 @@ function BaseChatContent({
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     // Mark that user has started using the recipe when they submit a message
-    if (recipeConfig && combinedTextFromInput.trim()) {
+    if (recipe && combinedTextFromInput.trim()) {
       setHasStartedUsingRecipe(true);
     }
 
@@ -305,7 +269,7 @@ function BaseChatContent({
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
     // Mark that user has started using the recipe when they use append
-    if (recipeConfig) {
+    if (recipe) {
       setHasStartedUsingRecipe(true);
     }
     append(text);
@@ -333,9 +297,6 @@ function BaseChatContent({
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
-        {/* Loader when generating recipe */}
-        {isGeneratingRecipe && <LayingEggLoader />}
-
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
@@ -352,20 +313,9 @@ function BaseChatContent({
             paddingY={0}
           >
             {/* Recipe agent header - sticky at top of chat container */}
-            {recipeConfig?.title && (
+            {recipe?.title && (
               <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
-                <AgentHeader
-                  title={recipeConfig.title}
-                  profileInfo={
-                    recipeConfig.profile
-                      ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                      : undefined
-                  }
-                  onChangeProfile={() => {
-                    console.log('Change profile clicked');
-                  }}
-                  showBorder={true}
-                />
+                <RecipeHeader title={recipe.title} />
               </div>
             )}
 
@@ -373,15 +323,13 @@ function BaseChatContent({
             {renderBeforeMessages && renderBeforeMessages()}
 
             {/* Recipe Activities - always show when recipe is active and accepted */}
-            {recipeConfig && recipeAccepted && !suppressEmptyState && (
+            {recipe && recipeAccepted && !suppressEmptyState && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
                   append={(text: string) => appendWithTracking(text)}
-                  activities={
-                    Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
-                  }
-                  title={recipeConfig.title}
-                  parameterValues={recipeParameters || {}}
+                  activities={Array.isArray(recipe.activities) ? recipe.activities : null}
+                  title={recipe.title}
+                  parameterValues={recipeParameterValues || {}}
                 />
               </div>
             )}
@@ -389,7 +337,7 @@ function BaseChatContent({
             {/* Messages or Popular Topics */}
             {
               loadingChat ? null : filteredMessages.length > 0 ||
-                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
+                (recipe && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -409,7 +357,7 @@ function BaseChatContent({
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>
+                    <SearchView placeholder="Search conversation...">
                       <ProgressiveMessageList
                         messages={filteredMessages}
                         chat={chat}
@@ -434,21 +382,12 @@ function BaseChatContent({
                           {error.message || 'Honk! Goose experienced an error while responding'}
                         </div>
 
-                        {/* Action buttons for all errors including token limit errors */}
+                        {/* Action button to retry last message */}
                         <div className="flex gap-2 mt-2">
                           <div
                             className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
                             onClick={async () => {
                               clearError();
-
-                              await handleManualCompaction(messages, setMessages, append);
-                            }}
-                          >
-                            Summarize Conversation
-                          </div>
-                          <div
-                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                            onClick={async () => {
                               // Find the last user message
                               const lastUserMessage = messages.reduceRight(
                                 (found, m) => found || (m.role === 'user' ? m : null),
@@ -468,7 +407,7 @@ function BaseChatContent({
 
                   <div className="block h-8" />
                 </>
-              ) : !recipeConfig && showPopularTopics ? (
+              ) : !recipe && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
                 <PopularChatTopics append={(text: string) => append(text)} />
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
@@ -479,15 +418,13 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
+          {(chatState !== ChatState.Idle || loadingChat) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 message={
                   loadingChat
                     ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
+                    : getThinkingMessage(messages[messages.length - 1])
                 }
                 chatState={chatState}
               />
@@ -506,17 +443,21 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            numTokens={sessionTokenCount}
-            inputTokens={sessionInputTokens || localInputTokens}
-            outputTokens={sessionOutputTokens || localOutputTokens}
+            totalTokens={tokenState?.totalTokens ?? sessionTokenCount}
+            accumulatedInputTokens={
+              tokenState?.accumulatedInputTokens ?? sessionInputTokens ?? localInputTokens
+            }
+            accumulatedOutputTokens={
+              tokenState?.accumulatedOutputTokens ?? sessionOutputTokens ?? localOutputTokens
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
-            setMessages={setMessages}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipeConfig={recipeConfig}
+            recipe={recipe}
+            recipeId={recipeId}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
@@ -533,9 +474,9 @@ function BaseChatContent({
         onConfirm={handleRecipeAccept}
         onCancel={handleRecipeCancel}
         recipeDetails={{
-          title: recipeConfig?.title,
-          description: recipeConfig?.description,
-          instructions: recipeConfig?.instructions || undefined,
+          title: recipe?.title,
+          description: recipe?.description,
+          instructions: recipe?.instructions || undefined,
         }}
         hasSecurityWarnings={hasSecurityWarnings}
       />
@@ -549,33 +490,17 @@ function BaseChatContent({
         />
       )}
 
-      {/* Recipe Error Modal */}
-      {recipeError && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
-            <h3 className="text-lg font-medium text-textProminent mb-4">Recipe Creation Failed</h3>
-            <p className="text-textStandard mb-6">{recipeError}</p>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setRecipeError(null)}
-                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors"
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* No modals needed for the new simplified context manager */}
+      {/* Create Recipe from Session Modal */}
+      <CreateRecipeFromSessionModal
+        isOpen={isCreateRecipeModalOpen}
+        onClose={() => setIsCreateRecipeModalOpen(false)}
+        sessionId={chat.sessionId}
+        onRecipeCreated={handleRecipeCreated}
+      />
     </div>
   );
 }
 
 export default function BaseChat(props: BaseChatProps) {
-  return (
-    <ContextManagerProvider>
-      <BaseChatContent {...props} />
-    </ContextManagerProvider>
-  );
+  return <BaseChatContent {...props} />;
 }

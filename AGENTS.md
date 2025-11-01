@@ -1,6 +1,6 @@
 # AGENTS Instructions
 
-Goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
+goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
 
 ## Setup
 ```bash
@@ -70,6 +70,7 @@ ui/desktop/           # Electron app
 ## Rules
 
 Test: Prefer tests/ folder, e.g. crates/goose/tests/
+Test: When adding features, update goose-self-test.yaml, rebuild, then run `goose run --recipe goose-self-test.yaml` to validate
 Error: Use anyhow::Result
 Provider: Implement Provider trait see providers/base.rs
 MCP: Extensions in crates/goose-mcp/
@@ -81,6 +82,7 @@ Never: Edit ui/desktop/openapi.json manually
 Never: Edit Cargo.toml use cargo add
 Never: Skip cargo fmt
 Never: Merge without ./scripts/clippy-lint.sh
+Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs

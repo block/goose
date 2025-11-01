@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -27,7 +27,6 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
-import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -36,8 +35,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
-import RecipeEditor from './components/recipes/RecipeEditor';
-import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
+import { View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
   InitializationContext,
@@ -45,6 +43,8 @@ import {
   useAgent,
 } from './hooks/useAgent';
 import GooseAppsView from './components/apps/GooseAppsView';
+import { useNavigation } from './hooks/useNavigation';
+import Pair2 from './components/Pair2';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -56,8 +56,7 @@ const HubRouteWrapper = ({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   return (
     <Hub
@@ -77,6 +76,8 @@ const PairRouteWrapper = ({
   setFatalError,
   agentState,
   loadCurrentChat,
+  activeSessionId,
+  setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -85,18 +86,51 @@ const PairRouteWrapper = ({
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   agentState: AgentState;
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  return (
+  // Determine which session ID to use:
+  // 1. From route state (when navigating from Hub with a new session)
+  // 2. From URL params (when resuming a session or after refresh)
+  // 3. From active session state (when navigating back from other routes)
+  // 4. From the existing chat state
+  const sessionId =
+    routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
+
+  // Update URL with session ID when on /pair route (for refresh support)
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+      setSearchParams((prev) => {
+        prev.set('resumeSessionId', sessionId);
+        return prev;
+      });
+    }
+  }, [sessionId, resumeSessionId, setSearchParams]);
+
+  // Update active session state when session ID changes
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessionId, activeSessionId, setActiveSessionId]);
+
+  return process.env.ALPHA ? (
+    <Pair2
+      setChat={setChat}
+      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      sessionId={sessionId}
+      initialMessage={initialMessage}
+    />
+  ) : (
     <Pair
       chat={chat}
       setChat={setChat}
@@ -115,7 +149,7 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   // Get viewOptions from location.state or history.state
   const viewOptions =
@@ -124,10 +158,7 @@ const SettingsRoute = () => {
 };
 
 const SessionsRoute = () => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
-
-  return <SessionsView setView={setView} />;
+  return <SessionsView />;
 };
 
 const SchedulesRoute = () => {
@@ -137,30 +168,6 @@ const SchedulesRoute = () => {
 
 const RecipesRoute = () => {
   return <RecipesView />;
-};
-
-const RecipeEditorRoute = () => {
-  // Check for config from multiple sources:
-  // 1. localStorage (from "View Recipe" button)
-  // 2. Window electron config (from deeplinks)
-  let config;
-  const storedConfig = localStorage.getItem('viewRecipeConfig');
-  if (storedConfig) {
-    try {
-      config = JSON.parse(storedConfig);
-      // Clear the stored config after using it
-      localStorage.removeItem('viewRecipeConfig');
-    } catch (error) {
-      console.error('Failed to parse stored recipe config:', error);
-    }
-  }
-
-  if (!config) {
-    const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipe;
-  }
-
-  return <RecipeEditor config={config} />;
 };
 
 const PermissionRoute = () => {
@@ -242,8 +249,7 @@ const SharedSessionRouteWrapper = ({
   sharedSessionError: string | null;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useNavigation();
 
   const historyState = window.history.state;
   const sessionDetails = (location.state?.sessionDetails ||
@@ -316,17 +322,21 @@ export function AppInner() {
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
+  const setView = useNavigation();
 
   const location = useLocation();
   const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    title: 'Pair Chat',
+    name: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
-    recipeConfig: null,
+    recipe: null,
   });
+
+  // Store the active session ID for navigation persistence
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
@@ -358,10 +368,11 @@ export function AppInner() {
     if (loadingHub) {
       (async () => {
         try {
-          await loadCurrentChat({
+          const loadedChat = await loadCurrentChat({
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
+          setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
             // the onboarding flow will trigger
@@ -371,7 +382,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -513,6 +524,47 @@ export function AppInner() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!window.electron) return;
+
+    const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
+      const themeData = args[0] as { mode: string; useSystemTheme: boolean; theme: string };
+
+      if (themeData.useSystemTheme) {
+        localStorage.setItem('use_system_theme', 'true');
+      } else {
+        localStorage.setItem('use_system_theme', 'false');
+        localStorage.setItem('theme', themeData.theme);
+      }
+
+      const isDark = themeData.useSystemTheme
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        : themeData.mode === 'dark';
+
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      }
+
+      const storageEvent = new Event('storage') as Event & {
+        key: string | null;
+        newValue: string | null;
+      };
+      storageEvent.key = themeData.useSystemTheme ? 'use_system_theme' : 'theme';
+      storageEvent.newValue = themeData.useSystemTheme ? 'true' : themeData.theme;
+      window.dispatchEvent(storageEvent);
+    };
+
+    window.electron.on('theme-changed', handleThemeChanged);
+
+    return () => {
+      window.electron.off('theme-changed', handleThemeChanged);
+    };
+  }, []);
+
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
   }
@@ -534,7 +586,7 @@ export function AppInner() {
         closeOnClick
         pauseOnHover
       />
-      <ExtensionInstallModal addExtension={addExtension} />
+      <ExtensionInstallModal addExtension={addExtension} setView={setView} />
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
@@ -579,17 +631,29 @@ export function AppInner() {
                   setFatalError={setFatalError}
                   setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  activeSessionId={activeSessionId}
+                  setActiveSessionId={setActiveSessionId}
                 />
               }
             />
             <Route path="settings" element={<SettingsRoute />} />
-            <Route path="extensions" element={<ExtensionsRoute />} />
+            <Route
+              path="extensions"
+              element={
+                <ChatProvider
+                  chat={chat}
+                  setChat={setChat}
+                  contextKey="extensions"
+                  agentWaitingMessage={agentWaitingMessage}
+                >
+                  <ExtensionsRoute />
+                </ChatProvider>
+              }
+            />
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="recipe-editor" element={<RecipeEditorRoute />} />
             <Route path="apps" element={<GooseAppsView />} />
-
             <Route
               path="shared-session"
               element={
@@ -616,13 +680,11 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ModelAndProviderProvider>
+      <HashRouter>
+        <AppInner />
+      </HashRouter>
+      <AnnouncementModal />
+    </ModelAndProviderProvider>
   );
 }

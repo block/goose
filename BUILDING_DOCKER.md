@@ -1,18 +1,18 @@
-# Building and Running Goose with Docker
+# Building and Running goose with Docker
 
-This guide covers building Docker images for Goose CLI for production use, CI/CD pipelines, and local development.
+This guide covers building Docker images for goose CLI for production use, CI/CD pipelines, and local development.
 
 ## Quick Start
 
 ### Using Pre-built Images
 
-The easiest way to use Goose with Docker is to pull the pre-built image from GitHub Container Registry:
+The easiest way to use goose with Docker is to pull the pre-built image from GitHub Container Registry:
 
 ```bash
 # Pull the latest image
 docker pull ghcr.io/block/goose:latest
 
-# Run Goose CLI
+# Run goose CLI
 docker run --rm ghcr.io/block/goose:latest --version
 
 # Run with LLM configuration
@@ -61,7 +61,7 @@ For multi-platform builds:
 docker buildx build --platform linux/amd64,linux/arm64 -t goose:multi .
 ```
 
-## Running Goose in Docker
+## Running goose in Docker
 
 ### CLI Mode
 
@@ -135,7 +135,7 @@ docker-compose run --rm goose session
 
 ### Environment Variables
 
-The Docker image accepts all standard Goose environment variables:
+The Docker image accepts all standard goose environment variables:
 
 - `GOOSE_PROVIDER`: LLM provider (openai, anthropic, google, etc.)
 - `GOOSE_MODEL`: Model to use (gpt-4o, claude-sonnet-4, etc.)
@@ -188,7 +188,7 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Run Goose analysis
+      - name: Run goose analysis
         run: |
           goose run -t "Review this codebase for security issues"
 ```
@@ -222,7 +222,7 @@ analyze:
 
 ### Included Tools
 
-The image includes essential tools for Goose operation:
+The image includes essential tools for goose operation:
 - `git` - Version control operations
 - `curl` - HTTP requests
 - `ca-certificates` - SSL/TLS support
@@ -317,6 +317,6 @@ When contributing Docker-related changes:
 
 ## Related Documentation
 
-- [Goose in Docker Tutorial](documentation/docs/tutorials/goose-in-docker.md) - Step-by-step tutorial
+- [goose in Docker Tutorial](documentation/docs/tutorials/goose-in-docker.md) - Step-by-step tutorial
 - [Installation Guide](https://block.github.io/goose/docs/getting-started/installation) - All installation methods
-- [Configuration Guide](https://block.github.io/goose/docs/guides/config-file) - Detailed configuration options
+- [Configuration Guide](https://block.github.io/goose/docs/guides/config-files) - Detailed configuration options

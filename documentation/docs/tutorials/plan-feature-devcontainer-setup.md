@@ -10,7 +10,7 @@ description: "Learn how to use Goose's Plan feature to break down complex tasks 
 
 Using Goose for large, complex tasks can feel overwhelming, especially when you're unsure of exactly how you want to approach it in advance. I experienced this when I needed to set up a complex development environment for an [API course](https://github.com/LinkedInLearning/java-automated-api-testing-with-rest-assured-5989068) I published. Between Docker configurations, database initialization, devcontainer setup, and GitHub Codespaces integration, there are dozens of moving pieces that need to work together perfectly. One missing configuration or incorrect dependency can derail the entire process.
 
-This tutorial shows you how to use Goose's [Plan feature](/docs/guides/creating-plans) to transform a complex devcontainer setup into a systematic, executable roadmap. You'll learn how to brainstorm with Goose, refine your requirements, and let Goose create both a detailed plan and implementation checklist.
+This tutorial shows you how to use Goose's [Plan feature](/docs/guides/multi-model/creating-plans) to transform a complex devcontainer setup into a systematic, executable roadmap. You'll learn how to brainstorm with Goose, refine your requirements, and let Goose create both a detailed plan and implementation checklist.
 
 ## What You'll Learn
 
@@ -451,7 +451,7 @@ The key is treating Goose as a planning partner, not just a code generator. Give
 
 - Try this approach with your own complex setup challenges
 - Experiment with different types of planning prompts
-- Share your planning successes with the [Goose community](https://discord.gg/block-opensource)
-- Explore how planning integrates with [Lead/Worker mode](/docs/tutorials/lead-worker) or [Subagents](/docs/experimental/subagents) for even more sophisticated workflows
+- Share your planning successes with the [Goose community](https://discord.gg/goose-oss)
+- Explore how planning integrates with [Lead/Worker mode](/docs/tutorials/lead-worker) or [Subagents](/docs/guides/subagents) for even more sophisticated workflows
 
 Remember, the goal is to get the right approach, in the right order, with the right safeguards. That's what makes the difference between a quick fix and a robust, maintainable solution.

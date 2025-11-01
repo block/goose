@@ -73,7 +73,9 @@ fn count_tool_calls(messages: &[Message]) -> (i64, HashMap<String, i64>) {
                     total_count += 1;
 
                     // Count by name
-                    *counts_by_name.entry(tool_call.name.clone()).or_insert(0) += 1;
+                    *counts_by_name
+                        .entry(tool_call.name.to_string())
+                        .or_insert(0) += 1;
                 }
             }
         }

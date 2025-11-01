@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::ToolCall;
-use rmcp::model::{Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use rmcp::object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -13,7 +13,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut snowflake_messages = Vec::new();
 
     // Convert messages to Snowflake format
-    for message in messages {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
@@ -53,10 +53,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ContextLengthExceeded(_) => {
-                    // Skip
-                }
-                MessageContent::SummarizationRequested(_) => {
+                MessageContent::SystemNotification(_) => {
                     // Skip
                 }
                 MessageContent::Thinking(_thinking) => {
@@ -181,16 +178,22 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
     }
 
     // Add tool use if complete
-    if let (Some(id), Some(name)) = (&tool_use_id, &tool_name) {
+    if let Some((id, name)) = tool_use_id.zip(tool_name) {
         if !tool_input.is_empty() {
             let input_value = serde_json::from_str::<Value>(&tool_input)
                 .unwrap_or_else(|_| Value::String(tool_input.clone()));
-            let tool_call = ToolCall::new(name, input_value);
-            message = message.with_tool_request(id, Ok(tool_call));
-        } else if tool_name.is_some() {
+            let tool_call = CallToolRequestParam {
+                name: name.into(),
+                arguments: Some(object(input_value)),
+            };
+            message = message.with_tool_request(&id, Ok(tool_call));
+        } else {
             // Tool with no input - use empty object
-            let tool_call = ToolCall::new(name, Value::Object(serde_json::Map::new()));
-            message = message.with_tool_request(id, Ok(tool_call));
+            let tool_call = CallToolRequestParam {
+                name: name.into(),
+                arguments: Some(object!({})),
+            };
+            message = message.with_tool_request(&id, Ok(tool_call));
         }
     }
 
@@ -238,14 +241,18 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let name = content
                     .get("name")
                     .and_then(|n| n.as_str())
-                    .ok_or_else(|| anyhow!("Missing tool_use name"))?;
+                    .ok_or_else(|| anyhow!("Missing tool_use name"))?
+                    .to_string();
 
                 let input = content
                     .get("input")
                     .ok_or_else(|| anyhow!("Missing tool input"))?
                     .clone();
 
-                let tool_call = ToolCall::new(name, input);
+                let tool_call = CallToolRequestParam {
+                    name: name.into(),
+                    arguments: Some(object(input)),
+                };
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some("thinking") => {
@@ -425,7 +432,7 @@ mod tests {
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
-            assert_eq!(tool_call.arguments, json!({"expression": "2 + 2"}));
+            assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -536,7 +543,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
         if let MessageContent::ToolRequest(tool_request) = &message.content[1] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "get_stock_price");
-            assert_eq!(tool_call.arguments, json!({"symbol": "NVDA"}));
+            assert_eq!(tool_call.arguments, Some(object!({"symbol": "NVDA"})));
             assert_eq!(tool_request.id, "tooluse_FB_nOElDTAOKa-YnVWI5Uw");
         } else {
             panic!("Expected ToolRequest content second");
@@ -679,10 +686,12 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
     #[test]
     fn test_message_formatting_skips_tool_requests() {
         use crate::conversation::message::Message;
-        use mcp_core::tool::ToolCall;
 
         // Create a conversation with text, tool requests, and tool responses
-        let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));
+        let tool_call = CallToolRequestParam {
+            name: "calculator".into(),
+            arguments: Some(object!({"expression": "2 + 2"})),
+        };
 
         let messages = vec![
             Message::user().with_text("Calculate 2 + 2"),

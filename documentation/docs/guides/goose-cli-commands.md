@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 35
 title: CLI Commands
 sidebar_label: CLI Commands
 toc_max_heading_level: 4
@@ -172,24 +172,34 @@ Session removal is permanent and cannot be undone. Goose will show which session
 ---
 
 #### session export [options]
-Export a session to Markdown format for sharing, documentation, or archival purposes.
+Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
 - **`-i, --id <id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
 - **`-p, --path <path>`**: Export a specific session by file path
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
+- **`--format <format>`**: Output format: `markdown`, `json`, `yaml`. Default is `markdown`
+
+**Export Formats:**
+- **`json`**: Complete session backup preserving all data including conversation history, metadata, and settings
+- **`yaml`**: Complete session backup in YAML format
+- **`markdown`**: Default format that creates a formatted, readable version of the conversation for documentation and sharing
 
 **Usage:**
 ```bash
-# Export specific session to file
+# Interactive export
+goose session export
+
+# Export specific session as JSON for backup
+goose session export --name my-session --format json --output session-backup.json
+
+# Export specific session as readable markdown
 goose session export --name my-session --output session.md
 
-# Export specific session to stdout
-goose session export --name my-session
-
-# Interactive export (prompts for session selection)
-goose session export
+# Export to stdout in different formats
+goose session export --id 20250305_113223 --format json
+goose session export --name my-session --format yaml
 
 # Export session by path
 goose session export --path ./my-session.jsonl --output exported.md
@@ -267,21 +277,38 @@ goose bench ...etc.
 ---
 
 #### recipe
-Used to validate recipe files and manage recipe sharing.
+Used to validate recipe files, manage recipe sharing, list available recipes, and open recipes in goose desktop.
 
 **Commands:**
-- `validate <FILE>`: Validate a recipe file
-- `deeplink <FILE>`: Generate a shareable link for a recipe file
+- **`deeplink <RECIPE_NAME>`**: Generate a shareable link for a recipe file
+- **`list [OPTIONS]`**: List all available recipes from local directories and configured GitHub repositories
+  - **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
+  - **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
+- **`open <RECIPE_NAME>`**: Open a recipe file directly in goose desktop
+- **`validate <RECIPE_NAME>`**: Validate a recipe file
 
 **Usage:**
 ```bash
-goose recipe <COMMAND>
+# Generate a shareable link
+goose recipe deeplink my-recipe.yaml
+
+# List all available recipes
+goose recipe list
+
+# List recipes with detailed information
+goose recipe list --verbose
+
+# List recipes in JSON format for automation
+goose recipe list --format json
+
+# Open a recipe in goose desktop
+goose recipe open my-recipe.yaml
+
+# Open a recipe by name
+goose recipe open my-recipe
 
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
-
-# Generate a shareable link
-goose recipe deeplink my-recipe.yaml
 
 # Get help about recipe commands
 goose recipe help
@@ -298,10 +325,6 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `remove`: Delete a scheduled job
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
-
-**Temporal Commands (requires Temporal CLI):**
-- `services-status`: Check if any Temporal services are running
-- `services-stop`: Stop any running Temporal services
 
 **Options:**
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
@@ -484,7 +507,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 
 **Configuration:**
 - The default theme is `dark`
-- The theme setting is saved to the [configuration file](/docs/guides/config-file) as `GOOSE_CLI_THEME` and persists between sessions
+- The theme setting is saved to the [configuration file](/docs/guides/config-files) as `GOOSE_CLI_THEME` and persists between sessions
 - The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
 
 :::info

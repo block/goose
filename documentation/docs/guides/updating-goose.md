@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 20
 title: Updating Goose
 sidebar_label: Updating Goose
 ---
@@ -15,7 +15,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
 <Tabs>
   <TabItem value="mac" label="macOS" default>
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         :::info
         To update Goose to the latest stable version, reinstall using the instructions below
         :::
@@ -27,7 +27,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
           5. Run the executable file to launch the Goose desktop application.
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
         You can update Goose by running:
 
         ```sh
@@ -61,7 +61,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
 
   <TabItem value="linux" label="Linux">
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         :::info
         To update Goose to the latest stable version, reinstall using the instructions below
         :::
@@ -76,7 +76,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
 
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
         You can update Goose by running:
 
         ```sh
@@ -110,7 +110,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
 
   <TabItem value="windows" label="Windows">
     <Tabs groupId="interface">
-      <TabItem value="ui" label="Goose Desktop" default>
+      <TabItem value="ui" label="goose Desktop" default>
         :::info
         To update Goose to the latest stable version, reinstall using the instructions below
         :::
@@ -122,7 +122,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
           5. Run the executable file to launch the Goose Desktop application.
         </div>
       </TabItem>
-      <TabItem value="cli" label="Goose CLI">
+      <TabItem value="cli" label="goose CLI">
         You can update Goose by running:
 
         ```sh

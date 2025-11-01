@@ -1,6 +1,6 @@
 ---
 title: Providing Hints to Goose
-sidebar_position: 7
+sidebar_position: 40
 sidebar_label: Using Goosehints
 ---
 
@@ -43,7 +43,7 @@ You can use other agent rule files with Goose by using the [`CONTEXT_FILE_NAMES`
 :::
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
 
     #### Global hints file
     1. Create a `.goosehints` file in `~/.config/goose`.

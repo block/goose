@@ -1,13 +1,14 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use crate::providers::formats::google as gemini_schema;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolCall;
 use rmcp::model::{
-    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -29,7 +30,7 @@ struct DatabricksMessage {
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let mut converted = DatabricksMessage {
             content: Value::Null,
             role: match message.role {
@@ -102,6 +103,12 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     match &request.tool_call {
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
+                            let arguments_str = match &tool_call.arguments {
+                                Some(args) => {
+                                    serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                                }
+                                None => "{}".to_string(),
+                            };
 
                             let tool_calls = converted.tool_calls.get_or_insert_default();
                             tool_calls.push(json!({
@@ -109,7 +116,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 "type": "function",
                                 "function": {
                                     "name": sanitized_name,
-                                    "arguments": tool_call.arguments.to_string(),
+                                    "arguments": arguments_str,
                                 }
                             }));
                         }
@@ -121,10 +128,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ContextLengthExceeded(_) => {
-                    continue;
-                }
-                MessageContent::SummarizationRequested(_) => {
+                MessageContent::SystemNotification(_) => {
                     continue;
                 }
                 MessageContent::ToolResponse(response) => {
@@ -261,23 +265,29 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
     result
 }
 
-/// Convert internal Tool format to OpenAI's API tool specification
-pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
+pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
+
+    let is_gemini = model_name.starts_with("gemini");
 
     for tool in tools {
         if !tool_names.insert(&tool.name) {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
+        let parameters = if is_gemini {
+            gemini_schema::process_map(tool.input_schema.as_ref(), None)
+        } else {
+            json!(tool.input_schema)
+        };
+
         result.push(json!({
             "type": "function",
             "function": {
                 "name": tool.name,
-                // do not silently truncate description
                 "description": tool.description,
-                "parameters": tool.input_schema,
+                "parameters": parameters,
             }
         }));
     }
@@ -286,6 +296,7 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert Databricks' API response to internal Message format
+#[allow(clippy::too_many_lines)]
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
@@ -373,7 +384,10 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(ToolCall::new(&function_name, params)),
+                                Ok(CallToolRequestParam {
+                                    name: function_name.into(),
+                                    arguments: Some(object(params)),
+                                }),
                             ));
                         }
                         Err(e) => {
@@ -493,18 +507,20 @@ pub fn create_request(
 ) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
-            "o1-mini model is not currently supported since Goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
+            "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
     let model_name = model_config.model_name.to_string();
     let is_o1 = model_name.starts_with("o1") || model_name.starts_with("goose-o1");
     let is_o3 = model_name.starts_with("o3") || model_name.starts_with("goose-o3");
+    let is_gpt_5 = model_name.starts_with("gpt-5") || model_name.starts_with("goose-gpt-5");
+    let is_openai_reasoning_model = is_o1 || is_o3 || is_gpt_5;
     let is_claude_sonnet =
         model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
 
     // Only extract reasoning effort for O1/O3 models
-    let (model_name, reasoning_effort) = if is_o1 || is_o3 {
+    let (model_name, reasoning_effort) = if is_openai_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
@@ -524,7 +540,7 @@ pub fn create_request(
     };
 
     let system_message = DatabricksMessage {
-        role: if is_o1 || is_o3 {
+        role: if is_openai_reasoning_model {
             "developer"
         } else {
             "system"
@@ -537,7 +553,7 @@ pub fn create_request(
 
     let messages_spec = format_messages(messages, image_format);
     let mut tools_spec = if !tools.is_empty() {
-        format_tools(tools)?
+        format_tools(tools, &model_config.model_name)?
     } else {
         vec![]
     };
@@ -598,8 +614,8 @@ pub fn create_request(
             .unwrap()
             .insert("temperature".to_string(), json!(2));
     } else {
-        // o1, o3 models currently don't support temperature
-        if !is_o1 && !is_o3 {
+        // open ai reasoning models currently don't support temperature
+        if !is_openai_reasoning_model {
             if let Some(temp) = model_config.temperature {
                 payload
                     .as_object_mut()
@@ -608,9 +624,9 @@ pub fn create_request(
             }
         }
 
-        // o1 models use max_completion_tokens instead of max_tokens
+        // open ai reasoning models use max_completion_tokens instead of max_tokens
         if let Some(tokens) = model_config.max_tokens {
-            let key = if is_o1 || is_o3 {
+            let key = if is_openai_reasoning_model {
                 "max_completion_tokens"
             } else {
                 "max_tokens"
@@ -631,82 +647,6 @@ mod tests {
     use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
-
-    #[test]
-    fn test_validate_tool_schemas() {
-        // Test case 1: Empty parameters object
-        // Input JSON with an incomplete parameters object
-        let mut actual = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object"
-                }
-            }
-        })];
-
-        // Run the function to validate and update schemas
-        validate_tool_schemas(&mut actual);
-
-        // Expected JSON after validation
-        let expected = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            }
-        })];
-
-        // Compare entire JSON structures instead of individual fields
-        assert_eq!(actual, expected);
-
-        // Test case 2: Missing type field
-        let mut tools = vec![json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "properties": {}
-                }
-            }
-        })];
-
-        validate_tool_schemas(&mut tools);
-
-        let params = tools[0]["function"]["parameters"].as_object().unwrap();
-        assert_eq!(params["type"], "object");
-
-        // Test case 3: Complete valid schema should remain unchanged
-        let original_schema = json!({
-            "type": "function",
-            "function": {
-                "name": "test_func",
-                "description": "test description",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "City and country"
-                        }
-                    },
-                    "required": ["location"]
-                }
-            }
-        });
-
-        let mut tools = vec![original_schema.clone()];
-        validate_tool_schemas(&mut tools);
-        assert_eq!(tools[0], original_schema);
-    }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
         "choices": [{
@@ -745,6 +685,7 @@ mod tests {
             "test_tool",
             "A test tool",
             object!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "input": {
@@ -756,11 +697,16 @@ mod tests {
             }),
         );
 
-        let spec = format_tools(&[tool])?;
+        let spec = format_tools(&[tool.clone()], "gpt-4o")?;
+        assert_eq!(
+            spec[0]["function"]["parameters"]["$schema"],
+            "http://json-schema.org/draft-07/schema#"
+        );
 
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["type"], "function");
-        assert_eq!(spec[0]["function"]["name"], "test_tool");
+        let spec = format_tools(&[tool], "gemini-2-5-flash")?;
+        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+
         Ok(())
     }
 
@@ -771,11 +717,13 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+                Ok(CallToolRequestParam {
+                    name: "example".into(),
+                    arguments: Some(object!({"param1": "value1"})),
+                }),
             ),
         ];
 
-        // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
             &request.id
         } else {
@@ -807,10 +755,12 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+            Ok(CallToolRequestParam {
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
         )];
 
-        // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
             &request.id
         } else {
@@ -866,7 +816,7 @@ mod tests {
             }),
         );
 
-        let result = format_tools(&[tool1, tool2]);
+        let result = format_tools(&[tool1, tool2], "gpt-4o");
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -877,15 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn test_format_tools_empty() -> anyhow::Result<()> {
-        let spec = format_tools(&[])?;
-        assert!(spec.is_empty());
-        Ok(())
-    }
-
-    #[test]
     fn test_format_messages_with_image_path() -> anyhow::Result<()> {
-        // Create a temporary PNG file with valid PNG magic numbers
         let temp_dir = tempfile::tempdir()?;
         let png_path = temp_dir.path().join("test.png");
         let png_data = [
@@ -956,7 +898,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({"param": "value"}));
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1027,7 +969,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, json!({}));
+            assert_eq!(tool_call.arguments, Some(object!({})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1223,6 +1165,67 @@ mod tests {
         } else {
             panic!("Expected Text content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with None arguments are formatted as "{}" string
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: None, // This is the key case the fix addresses
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be the string "{}", not null
+        assert_eq!(tool_call["function"]["arguments"], "{}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_request_with_some_arguments() -> anyhow::Result<()> {
+        // Test that tool calls with Some arguments are properly JSON-serialized
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value", "number": 42})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["role"], "assistant");
+        assert!(spec_array[0]["tool_calls"].is_array());
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["type"], "function");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        // This should be a JSON string representation
+        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
+        let parsed_args: Value = serde_json::from_str(args_str)?;
+        assert_eq!(parsed_args["param"], "value");
+        assert_eq!(parsed_args["number"], 42);
 
         Ok(())
     }

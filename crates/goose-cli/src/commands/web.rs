@@ -1,26 +1,28 @@
 use anyhow::Result;
+use axum::response::Redirect;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Request, State,
     },
+    http::StatusCode,
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
-use goose::session::SessionManager;
-use webbrowser;
-
+use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
-
-use axum::response::Redirect;
+use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::error;
+use webbrowser;
 
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
 
@@ -28,6 +30,7 @@ type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::tas
 struct AppState {
     agent: Arc<Agent>,
     cancellations: CancellationStore,
+    auth_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,14 +81,65 @@ enum WebSocketMessage {
     Complete { message: String },
 }
 
-pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Skip auth for health check
+    if req.uri().path() == "/api/health" {
+        return Ok(next.run(req).await);
+    }
+
+    // If no auth token is configured, skip authentication entirely
+    let Some(ref expected_token) = state.auth_token else {
+        return Ok(next.run(req).await);
+    };
+
+    // Check for Bearer token first
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                if token == expected_token {
+                    return Ok(next.run(req).await);
+                }
+            }
+
+            // Check for Basic auth (password-only, ignore username)
+            if let Some(basic_token) = auth_str.strip_prefix("Basic ") {
+                if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(basic_token) {
+                    if let Ok(credentials) = String::from_utf8(decoded) {
+                        if credentials.ends_with(expected_token) {
+                            return Ok(next.run(req).await);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Authentication failed - return 401 with WWW-Authenticate header
+    let mut response = Response::new("Authentication required".into());
+    *response.status_mut() = StatusCode::UNAUTHORIZED;
+    response.headers_mut().insert(
+        "WWW-Authenticate",
+        "Basic realm=\"Goose Web Interface\"".parse().unwrap(),
+    );
+    Ok(response)
+}
+
+pub async fn handle_web(
+    port: u16,
+    host: String,
+    open: bool,
+    auth_token: Option<String>,
+) -> Result<()> {
     // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
-    // Load config and create agent just like the CLI does
     let config = goose::config::Config::global();
 
-    let provider_name: String = match config.get_param("GOOSE_PROVIDER") {
+    let provider_name: String = match config.get_goose_provider() {
         Ok(p) => p,
         Err(_) => {
             eprintln!("No provider configured. Run 'goose configure' first");
@@ -93,7 +147,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         }
     };
 
-    let model: String = match config.get_param("GOOSE_MODEL") {
+    let model: String = match config.get_goose_model() {
         Ok(m) => m,
         Err(_) => {
             eprintln!("No model configured. Run 'goose configure' first");
@@ -105,26 +159,21 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 
     // Create the agent
     let agent = Agent::new();
-    let provider = goose::providers::create(&provider_name, model_config)?;
+    let provider = goose::providers::create(&provider_name, model_config).await?;
     agent.update_provider(provider).await?;
 
     // Load and enable extensions from config
-    let extensions = goose::config::ExtensionConfigManager::get_all()?;
-    for ext_config in extensions {
-        if ext_config.enabled {
-            if let Err(e) = agent.add_extension(ext_config.config.clone()).await {
-                eprintln!(
-                    "Warning: Failed to load extension {}: {}",
-                    ext_config.config.name(),
-                    e
-                );
-            }
+    let enabled_configs = goose::config::get_enabled_extensions();
+    for config in enabled_configs {
+        if let Err(e) = agent.add_extension(config.clone()).await {
+            eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
         }
     }
 
     let state = AppState {
         agent: Arc::new(agent),
         cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        auth_token,
     };
 
     // Build router
@@ -136,6 +185,10 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         .route("/api/sessions", get(list_sessions))
         .route("/api/sessions/{session_id}", get(get_session))
         .route("/static/{*path}", get(serve_static))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -146,7 +199,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
 
-    println!("\n🪿 Starting Goose web server");
+    println!("\n🪿 Starting goose web server");
     println!("   Provider: {} | Model: {}", provider_name, model);
     println!(
         "   Working directory: {}",
@@ -237,7 +290,7 @@ async fn list_sessions() -> Json<serde_json::Value> {
                 session_info.push(serde_json::json!({
                     "name": session.id,
                     "path": session.id,
-                    "description": session.description,
+                    "description": session.name,
                     "message_count": session.message_count,
                     "working_dir": session.working_dir
                 }));
@@ -459,8 +512,10 @@ async fn process_message_streaming(
                                                 serde_json::to_string(
                                                     &WebSocketMessage::ToolRequest {
                                                         id: req.id.clone(),
-                                                        tool_name: tool_call.name.clone(),
-                                                        arguments: tool_call.arguments.clone(),
+                                                        tool_name: tool_call.name.to_string(),
+                                                        arguments: Value::from(
+                                                            tool_call.arguments.clone(),
+                                                        ),
                                                     },
                                                 )
                                                 .unwrap()
@@ -477,8 +532,13 @@ async fn process_message_streaming(
                                             serde_json::to_string(
                                                 &WebSocketMessage::ToolConfirmation {
                                                     id: confirmation.id.clone(),
-                                                    tool_name: confirmation.tool_name.clone(),
-                                                    arguments: confirmation.arguments.clone(),
+                                                    tool_name: confirmation
+                                                        .tool_name
+                                                        .to_string()
+                                                        .clone(),
+                                                    arguments: Value::from(
+                                                        confirmation.arguments.clone(),
+                                                    ),
                                                     needs_confirmation: true,
                                                 },
                                             )
@@ -506,28 +566,6 @@ async fn process_message_streaming(
                                             .into(),
                                         ))
                                         .await;
-                                }
-                                MessageContent::ContextLengthExceeded(msg) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(
-                                                &WebSocketMessage::ContextExceeded {
-                                                    message: msg.msg.clone(),
-                                                },
-                                            )
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-
-                                    let (summarized_messages, _, _) =
-                                        agent.summarize_context(messages.messages()).await?;
-                                    SessionManager::replace_conversation(
-                                        &session_id,
-                                        &summarized_messages,
-                                    )
-                                    .await?;
                                 }
                                 _ => {}
                             }
