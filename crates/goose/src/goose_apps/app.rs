@@ -12,9 +12,7 @@ pub struct GooseApp {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub resizable: Option<bool>,
-    // we leave the implemenation as default to "" so we can manipulate where it lands
-    // in the file when reading/writing
-    #[serde(default)]
+    pub prd: String,
     pub js_implementation: String,
 }
 

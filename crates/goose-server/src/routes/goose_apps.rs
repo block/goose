@@ -98,6 +98,56 @@ async fn get_app(
     }
 }
 
+const CLOCK_PRD: &str = r#"
+# Digital Clock Widget
+
+## Overview
+A simple clock widget that displays the current time and date.
+
+## Core Functionality
+
+### Time Display
+- Shows current time updated every second
+- Supports both 12-hour (with AM/PM) and 24-hour format
+- Uses monospace font for consistent digit width and easy readability
+
+### Date Display
+- Shows full date including day of week, month, day, and year
+- Displays below the time in a smaller, secondary style
+
+### Settings
+- User can toggle between 12-hour and 24-hour time format
+- Format preference persists across sessions
+- Default: 24-hour format
+
+## Visual Design
+
+### Layout
+- Vertically stacked: time on top, date below
+- Content centered within widget bounds
+- Clear visual hierarchy (time prominent, date secondary)
+
+### Typography
+- Time: Large, bold, monospace
+- Date: Medium size, lighter color
+- Settings toggle: Small, subtle, changes on hover
+
+### Interaction
+- Clickable settings control to toggle time format
+- Visual feedback on hover for interactive elements
+
+## Default Dimensions
+- Width: 300px
+- Height: 180px
+- Resizable by user
+
+## Technical Requirements
+- Updates automatically every second
+- Minimal resource usage
+- Properly cleans up when widget is closed
+- Uses system locale for date formatting
+"#;
+
 #[utoipa::path(
     post,
     path = "/apps",
@@ -133,6 +183,7 @@ async fn create_app(
             height: Some(300),
             resizable: Some(false),
             js_implementation: clock_js.to_string(),
+            prd: CLOCK_PRD,
         }
     } else {
         request.app

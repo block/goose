@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { Buffer } from 'node:buffer';
 import { GooseApp } from '../api';
+import fs from 'fs';
 
 export async function launchGooseApp(gapp: GooseApp): Promise<void> {
   const appWindow = new BrowserWindow({
@@ -25,6 +26,10 @@ export async function launchGooseApp(gapp: GooseApp): Promise<void> {
     appName: gapp.name,
     implementation: encodedImplementation,
   });
+
+  console.log('__dirname:', __dirname);
+  console.log('appHtmlPath:', appHtmlPath);
+  console.log('Does file exist?', fs.existsSync(appHtmlPath));
 
   await appWindow.loadFile(appHtmlPath, {
     search: queryParams.toString(),
