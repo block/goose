@@ -12,12 +12,11 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
-import { listApps } from '../../api';
+import { createApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import { ViewOptions, View } from '../../utils/navigationUtils';
 import EnvironmentBadge from './EnvironmentBadge';
-import { triggerExperimental } from '../../utils/settings';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -150,6 +149,17 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       .then((response) => setHasApps(!!response.data && response.data.apps.length > 0))
       .catch(() => {});
   }, []);
+
+  const triggerExperimental = async () => {
+    console.log('Experimental');
+    await createApp({
+      body: {
+        app: {
+          name: '',
+        },
+      },
+    });
+  };
 
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {

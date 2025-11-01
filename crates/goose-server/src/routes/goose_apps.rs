@@ -6,13 +6,15 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+
 use goose::goose_apps::{GooseApp, GooseAppsManager};
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
 
-static GOOSE_APP_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../ui/desktop/src/assets");
+static GOOSE_APP_ASSETS: Dir =
+    include_dir!("$CARGO_MANIFEST_DIR/../../ui/desktop/src/goose_apps/assets");
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

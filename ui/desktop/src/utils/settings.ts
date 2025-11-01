@@ -1,7 +1,6 @@
 import { app } from 'electron';
-import path from 'path';
-import { createApp } from '../api';
 import fs from 'fs';
+import path from 'path';
 
 // Types
 export interface EnvToggles {
@@ -76,14 +75,4 @@ export function updateSchedulingEngineEnvironment(schedulingEngine: SchedulingEn
   } else {
     process.env.GOOSE_SCHEDULER_TYPE = 'legacy';
   }
-}
-
-export async function triggerExperimental() {
-  await createApp({
-    body: {
-      app: {
-        name: '',
-      },
-    },
-  });
 }

@@ -1,4 +1,3 @@
-//! Goose Apps - JavaScript apps management system
 pub mod app;
 pub mod manager;
 pub mod service;

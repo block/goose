@@ -56,6 +56,7 @@ impl GooseAppsManager {
             ));
         }
 
+        fs::create_dir_all(&self.apps_dir)?;
         let app_path = self.apps_dir.join(format!("{}.gapp", app.name));
 
         let file_content = app.to_file_content()?;
