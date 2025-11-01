@@ -470,7 +470,7 @@ function sendStatusToWindow(event: string, data?: unknown) {
 function updateTrayIcon(hasUpdate: boolean) {
   if (!trayRef) return;
 
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = !app.isPackaged;
   let iconPath: string;
 
   if (hasUpdate) {
