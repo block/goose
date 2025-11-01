@@ -3,7 +3,7 @@ use axum::response::Redirect;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Request, State,
+        Query, Request, State,
     },
     http::StatusCode,
     middleware::{self, Next},
@@ -222,7 +222,9 @@ pub async fn handle_web(
     Ok(())
 }
 
-async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
+async fn serve_index(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
@@ -230,7 +232,18 @@ async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
-    Ok(Redirect::to(&format!("/session/{}", session.id)))
+    // Build redirect URL with query parameters
+    let mut redirect_url = format!("/session/{}", session.id);
+    if !params.is_empty() {
+        let query_string = params
+            .iter()
+            .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        redirect_url.push_str(&format!("?{}", query_string));
+    }
+
+    Ok(Redirect::to(&redirect_url))
 }
 
 async fn serve_session(
