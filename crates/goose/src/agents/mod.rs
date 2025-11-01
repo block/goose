@@ -1,5 +1,6 @@
 mod agent;
 pub(crate) mod chatrecall_extension;
+pub mod core_extension;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
@@ -14,7 +15,6 @@ pub mod recipe_tools;
 mod reply_parts;
 pub mod retry;
 mod router_tool_selector;
-mod router_tools;
 mod schedule_tool;
 pub mod sub_recipe_manager;
 pub mod subagent_execution_tool;

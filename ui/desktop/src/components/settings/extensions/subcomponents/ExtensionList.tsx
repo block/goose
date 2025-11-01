@@ -35,9 +35,20 @@ export default function ExtensionList({
     );
   };
 
-  // Separate enabled and disabled extensions, then filter by search term
-  const enabledExtensions = extensions.filter((ext) => ext.enabled && matchesSearch(ext));
-  const disabledExtensions = extensions.filter((ext) => !ext.enabled && matchesSearch(ext));
+  const isToggleable = (extension: FixedExtensionEntry): boolean => {
+    if (extension.type === 'platform' && extension.toggleable === false) {
+      return false;
+    }
+    return true;
+  };
+
+  // Separate enabled and disabled extensions, then filter by search term and toggleable status
+  const enabledExtensions = extensions.filter(
+    (ext) => ext.enabled && matchesSearch(ext) && isToggleable(ext)
+  );
+  const disabledExtensions = extensions.filter(
+    (ext) => !ext.enabled && matchesSearch(ext) && isToggleable(ext)
+  );
 
   // Sort each group alphabetically by their friendly title
   const sortedEnabledExtensions = [...enabledExtensions].sort((a, b) =>

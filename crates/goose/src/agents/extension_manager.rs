@@ -1066,6 +1066,13 @@ impl ExtensionManager {
         for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
+
+                if let ExtensionConfig::Platform { toggleable, .. } = &config {
+                    if toggleable == &Some(false) {
+                        continue;
+                    }
+                }
+
                 let description = match &config {
                     ExtensionConfig::Builtin {
                         description,
@@ -1090,8 +1097,20 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> =
-            self.extensions.lock().await.keys().cloned().collect();
+        let mut enabled_extensions: Vec<String> = vec![];
+        for extension in get_all_extensions() {
+            if extension.enabled {
+                let config = extension.config.clone();
+
+                if let ExtensionConfig::Platform { toggleable, .. } = &config {
+                    if toggleable == &Some(false) {
+                        continue;
+                    }
+                }
+
+                enabled_extensions.push(config.name());
+            }
+        }
 
         // Build output string
         if !disabled_extensions.is_empty() {
@@ -1126,6 +1145,39 @@ impl ExtensionManager {
             .get(&name.into())
             .map(|ext| ext.get_client())
     }
+
+    /// Test helper: Add a mock extension with a pre-configured client
+    pub async fn add_mock_extension(&self, name: String, client: McpClientBox) {
+        self.add_mock_extension_with_tools(name, client, vec![])
+            .await;
+    }
+
+    /// Test helper: Add a mock extension with a pre-configured client and available tools
+    pub async fn add_mock_extension_with_tools(
+        &self,
+        name: String,
+        client: McpClientBox,
+        available_tools: Vec<String>,
+    ) {
+        let sanitized_name = normalize(name.clone());
+
+        // Extract server info from the client before wrapping it
+        let server_info = client.lock().await.get_info().cloned();
+
+        let config = ExtensionConfig::Builtin {
+            name: name.clone(),
+            display_name: Some(name.clone()),
+            description: "built-in".to_string(),
+            timeout: None,
+            bundled: None,
+            available_tools,
+        };
+        let extension = Extension::new(config, client, server_info, None);
+        self.extensions
+            .lock()
+            .await
+            .insert(sanitized_name, extension);
+    }
 }
 
 #[cfg(test)]
@@ -1142,35 +1194,6 @@ mod tests {
     use rmcp::model::ServerNotification;
     use serde_json::json;
     use tokio::sync::mpsc;
-
-    impl ExtensionManager {
-        async fn add_mock_extension(&self, name: String, client: McpClientBox) {
-            self.add_mock_extension_with_tools(name, client, vec![])
-                .await;
-        }
-
-        async fn add_mock_extension_with_tools(
-            &self,
-            name: String,
-            client: McpClientBox,
-            available_tools: Vec<String>,
-        ) {
-            let sanitized_name = normalize(name.clone());
-            let config = ExtensionConfig::Builtin {
-                name: name.clone(),
-                display_name: Some(name.clone()),
-                description: "built-in".to_string(),
-                timeout: None,
-                bundled: None,
-                available_tools,
-            };
-            let extension = Extension::new(config, client, None, None);
-            self.extensions
-                .lock()
-                .await
-                .insert(sanitized_name, extension);
-        }
-    }
 
     struct MockClient {}
 
