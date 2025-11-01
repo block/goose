@@ -7,6 +7,23 @@ toc_max_heading_level: 4
 
 Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
 
+## Flag Naming Conventions
+
+Goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
+
+- **`-i, --session-id`**: Used for session identifiers (e.g., `20250305_113223`)
+- **`-i, --schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
+- **`-n, --name`**: Used for human-readable names
+- **`-p, --path`**: Used for file paths (legacy support)
+- **`-o, --output`**: Used for output file paths
+- **`-r, --resume` or `-r, --regex`**: Context-dependent (resume for sessions, regex for filters)
+- **`-v, --verbose`**: Used for verbose output
+- **`-l, --limit`**: Used for limiting result counts
+- **`-f, --format`**: Used for specifying output formats
+- **`-w, --working-dir`**: Used for working directory filters
+
+Context determines whether `-i` refers to a session ID or schedule ID. Within session commands, `-i` always means session ID. Within schedule commands, `-i` always means schedule ID.
+
 ### Core Commands
 
 #### help
@@ -79,8 +96,10 @@ goose update --reconfigure
 Start or resume interactive chat sessions.
 
 **Basic Options:**
+- **`-i, --session-id <session_id>`**: Specify a session by its ID (e.g., '20250921_143022')
 - **`-n, --name <name>`**: Give the session a name
-- **`-r, --resume`**: Resume a previous session  
+- **`-p, --path <path>`**: Legacy parameter for specifying session by file path
+- **`-r, --resume`**: Resume a previous session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
@@ -93,11 +112,12 @@ Start or resume interactive chat sessions.
 **Usage:**
 ```bash
 # Start a basic session
-goose session --name my-project
+goose session -n my-project
 
 # Resume a previous session
-goose session --resume --name my-project
-goose session --resume --id 2025250620_013617
+goose session --resume -n my-project
+goose session --resume -i 2025250620_013617
+goose session --resume -p ./session.jsonl
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -112,7 +132,7 @@ goose session \
   --with-builtin "developer"
 
 # Control session behavior
-goose session --name my-session --debug --max-turns 25
+goose session -n my-session --debug --max-turns 25
 ```
 
 ---
@@ -146,7 +166,7 @@ goose session list --ascending
 Remove one or more saved sessions.
 
 **Options:**
-- **`-i, --id <id>`**: Remove a specific session by its ID
+- **`-i, --session-id <session_id>`**: Remove a specific session by its session ID
 - **`-n, --name <name>`**: Remove a specific session by its name
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern
 
@@ -175,9 +195,9 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
-- **`-i, --id <id>`**: Export a specific session by ID
+- **`-i, --session-id <session_id>`**: Export a specific session by session ID
 - **`-n, --name <name>`**: Export a specific session by name
-- **`-p, --path <path>`**: Export a specific session by file path
+- **`-p, --path <path>`**: Export a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
 - **`--format <format>`**: Output format: `markdown`, `json`, `yaml`. Default is `markdown`
 
@@ -192,17 +212,17 @@ Export sessions in different formats for backup, sharing, migration, or document
 goose session export
 
 # Export specific session as JSON for backup
-goose session export --name my-session --format json --output session-backup.json
+goose session export -n my-session --format json -o session-backup.json
 
 # Export specific session as readable markdown
-goose session export --name my-session --output session.md
+goose session export -n my-session -o session.md
 
 # Export to stdout in different formats
-goose session export --id 20250305_113223 --format json
-goose session export --name my-session --format yaml
+goose session export -i 20250305_113223 --format json
+goose session export -n my-session --format yaml
 
-# Export session by path
-goose session export --path ./my-session.jsonl --output exported.md
+# Export session by path (legacy)
+goose session export -p ./my-session.jsonl -o exported.md
 ```
 
 ---
@@ -327,29 +347,29 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `run-now`: Run a scheduled recipe immediately
 
 **Options:**
-- `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
+- `-i, --schedule-id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression)
 - `--recipe-source <PATH>`: Path to the recipe YAML file
-- `--limit <NUMBER>`: Max number of sessions to display when using the `sessions` command
+- `-l, --limit <NUMBER>`: Max number of sessions to display when using the `sessions` command
 
 **Usage:**
 ```bash
 goose schedule <COMMAND>
 
 # Add a new scheduled recipe which runs every day at 9 AM
-goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+goose schedule add -i daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
 
 # List all scheduled jobs
 goose schedule list
 
 # List the 10 most recent Goose sessions created by a scheduled job
-goose schedule sessions --id daily-report --limit 10
+goose schedule sessions -i daily-report -l 10
 
 # Run a recipe immediately
-goose schedule run-now --id daily-report
+goose schedule run-now -i daily-report
 
 # Remove a scheduled job
-goose schedule remove --id daily-report
+goose schedule remove -i daily-report
 ```
 
 ---
