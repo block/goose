@@ -35,7 +35,7 @@
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "prepare": "cd ../.. && husky install",
+    "prepare": "husky",
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
