@@ -2846,6 +2846,7 @@ dependencies = [
  "goose",
  "goose-mcp",
  "http 1.2.0",
+ "include_dir",
  "reqwest 0.12.12",
  "rmcp",
  "schemars",

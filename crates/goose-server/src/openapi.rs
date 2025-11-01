@@ -497,7 +497,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::ResumeAgentRequest,
         super::routes::goose_apps::SuccessResponse,
         super::routes::goose_apps::AppListResponse,
-        super::routes::goose_apps::ErrorResponse,
         super::routes::goose_apps::CreateAppRequest,
         super::routes::goose_apps::AppResponse,
         super::routes::goose_apps::UpdateAppRequest,

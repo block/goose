@@ -7,10 +7,12 @@ use axum::{
     Json, Router,
 };
 use goose::goose_apps::{GooseApp, GooseAppsManager};
-use goose::session::Session;
+use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
+
+static GOOSE_APP_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../ui/desktop/src/assets");
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -116,19 +118,37 @@ async fn create_app(
 ) -> Result<(StatusCode, Json<SuccessResponse>), ErrorResponse> {
     let manager = GooseAppsManager::new()?;
 
-    if manager.app_exists(&request.app.name) {
+    let app = if request.app.name == "" {
+        let clock_js = GOOSE_APP_ASSETS
+            .get_file("clock.js")
+            .ok_or_else(|| ErrorResponse::internal("clock.js not found"))?
+            .contents_utf8()
+            .ok_or_else(|| ErrorResponse::internal("clock.js is not valid UTF-8"))?;
+        GooseApp {
+            name: "Clock".to_string(),
+            description: Some("Example Clock app".to_string()),
+            width: Some(300),
+            height: Some(300),
+            resizable: Some(false),
+            js_implementation: clock_js.to_string(),
+        }
+    } else {
+        request.app
+    };
+
+    if manager.app_exists(&app.name) {
         return Err(ErrorResponse::internal(format!(
             "App '{}' already exists",
-            request.app.name
+            app.name
         )));
     }
 
-    manager.update_app(&request.app)?;
+    manager.update_app(&app)?;
 
     Ok((
         StatusCode::CREATED,
         Json(SuccessResponse {
-            message: format!("App '{}' created successfully", request.app.name),
+            message: format!("App '{}' created successfully", app.name),
         }),
     ))
 }
