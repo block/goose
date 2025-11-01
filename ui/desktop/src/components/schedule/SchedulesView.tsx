@@ -223,6 +223,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingDeepLink, setPendingDeepLink] = useState<string | null>(null);
+  const [pendingTempFile, setPendingTempFile] = useState<string | null>(null);
 
   // Individual loading states for each action to prevent double-clicks
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
@@ -322,7 +323,15 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }
   }, [fetchSchedules]);
 
-  const handleCloseCreateModal = () => {
+  const handleCloseCreateModal = async () => {
+    if (pendingTempFile) {
+      try {
+        await window.electron.deleteFile(pendingTempFile);
+      } catch (error) {
+        console.error('Failed to delete temporary file:', error);
+      }
+      setPendingTempFile(null);
+    }
     setIsCreateModalOpen(false);
     setSubmitApiError(null);
     setPendingDeepLink(null);
@@ -343,15 +352,37 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
+
+    if (payload.temp_file_path) {
+      setPendingTempFile(payload.temp_file_path);
+    }
+
     try {
       await createSchedule(payload);
       await fetchSchedules();
       setIsCreateModalOpen(false);
+      if (payload.temp_file_path) {
+        try {
+          await window.electron.deleteFile(payload.temp_file_path);
+          setPendingTempFile(null);
+        } catch (error) {
+          console.error('Failed to delete temporary file:', error);
+        }
+      }
     } catch (error) {
       console.error('Failed to create schedule:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error creating schedule.';
       setSubmitApiError(errorMessage);
+
+      if (payload.temp_file_path) {
+        try {
+          await window.electron.deleteFile(payload.temp_file_path);
+          setPendingTempFile(null);
+        } catch (cleanupError) {
+          console.error('Failed to delete temporary file:', cleanupError);
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -1561,6 +1561,17 @@ ipcMain.handle('write-file', async (_event, filePath, content) => {
   }
 });
 
+ipcMain.handle('delete-file', async (_event, filePath) => {
+  try {
+    const expandedPath = expandTilde(filePath);
+    await fs.unlink(expandedPath);
+    return true;
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    return false;
+  }
+});
+
 // Enhanced file operations
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {

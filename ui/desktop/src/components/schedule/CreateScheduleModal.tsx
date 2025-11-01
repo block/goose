@@ -23,6 +23,7 @@ export interface NewSchedulePayload {
   recipe_source: string;
   cron: string;
   execution_mode?: string;
+  temp_file_path?: string;
 }
 
 interface CreateScheduleModalProps {
@@ -476,6 +477,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
 
     let finalRecipeSource = '';
+    let tempFilePathForCleanup: string | undefined = undefined;
 
     if (sourceType === 'file') {
       if (!recipeSourcePath) {
@@ -499,16 +501,17 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         console.log('Generated YAML content:', yamlContent); // Debug log
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
-        const tempFilePath = `${tempDir}/${tempFileName}`;
+        const tempFilePathLocal = `${tempDir}/${tempFileName}`;
 
         // Write the YAML file
-        const writeSuccess = await window.electron.writeFile(tempFilePath, yamlContent);
+        const writeSuccess = await window.electron.writeFile(tempFilePathLocal, yamlContent);
         if (!writeSuccess) {
           setInternalValidationError('Failed to create temporary recipe file.');
           return;
         }
 
-        finalRecipeSource = tempFilePath;
+        tempFilePathForCleanup = tempFilePathLocal;
+        finalRecipeSource = tempFilePathLocal;
       } catch (error) {
         console.error('Failed to convert recipe to YAML:', error);
         setInternalValidationError('Failed to process the recipe from deep link.');
@@ -536,6 +539,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
       execution_mode: executionMode,
+      temp_file_path: tempFilePathForCleanup,
     };
 
     await onSubmit(newSchedulePayload);
