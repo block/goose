@@ -7,6 +7,7 @@ use std::path::Path;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
 use crate::recipe::read_recipe_file_content::read_recipe_file;
+use crate::recipe::yaml_format_utils::reformat_fields_with_multiline_values;
 use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ pub mod read_recipe_file_content;
 mod recipe_extension_adapter;
 pub mod template_recipe;
 pub mod validate_recipe;
+pub mod yaml_format_utils;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
@@ -232,6 +234,14 @@ impl Recipe {
         }
 
         false
+    }
+
+    pub fn to_yaml(&self) -> Result<String> {
+        let recipe_yaml = serde_yaml::to_string(self)
+            .map_err(|err| anyhow::anyhow!("Failed to serialize recipe: {}", err))?;
+        let formatted_recipe_yaml =
+            reformat_fields_with_multiline_values(&recipe_yaml, &["prompt", "instructions"]);
+        Ok(formatted_recipe_yaml)
     }
 
     pub fn builder() -> RecipeBuilder {
