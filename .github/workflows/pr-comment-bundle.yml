@@ -2,6 +2,8 @@
 # It bundles the ARM64 Desktop App, then creates a PR comment with a link to download the app.
 
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       pr_number:
