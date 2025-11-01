@@ -1215,6 +1215,59 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
+// Tunnel handlers
+ipcMain.handle('start-tunnel', async () => {
+  try {
+    const { startTunnel } = await import('./utils/tunnel');
+    const tunnelInfo = await startTunnel();
+    return tunnelInfo;
+  } catch (error) {
+    console.error('Error starting tunnel:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('stop-tunnel', async () => {
+  try {
+    const { stopTunnel } = await import('./utils/tunnel');
+    stopTunnel();
+  } catch (error) {
+    console.error('Error stopping tunnel:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-tunnel-status', async () => {
+  try {
+    const { getTunnelStatus } = await import('./utils/tunnel');
+    return getTunnelStatus();
+  } catch (error) {
+    console.error('Error getting tunnel status:', error);
+    return { state: 'error', info: null };
+  }
+});
+
+ipcMain.handle('get-tunnel-mode', async () => {
+  try {
+    const { loadSettings } = await import('./utils/settings');
+    const settings = loadSettings();
+    return settings.tunnelMode || 'lapstone';
+  } catch (error) {
+    console.error('Error getting tunnel mode:', error);
+    return 'lapstone';
+  }
+});
+
+ipcMain.handle('set-tunnel-mode', async (_event, mode: string) => {
+  try {
+    const { setTunnelMode } = await import('./utils/tunnel');
+    setTunnelMode(mode as 'lapstone' | 'tailscale');
+  } catch (error) {
+    console.error('Error setting tunnel mode:', error);
+    throw error;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
   const dialogOptions: OpenDialogOptions = {
@@ -1714,6 +1767,10 @@ async function appMain() {
     app.dock?.hide();
   }
 
+  // Setup tunnel cleanup on app quit
+  const { setupTunnelCleanup } = await import('./utils/tunnel');
+  setupTunnelCleanup(app);
+
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
@@ -2193,6 +2250,16 @@ async function appMain() {
 app.whenReady().then(async () => {
   try {
     await appMain();
+
+    // Auto-start tunnel if it was running when app closed (with delay to ensure window is loaded)
+    setTimeout(async () => {
+      try {
+        const { autoStartTunnel } = await import('./utils/tunnel');
+        await autoStartTunnel();
+      } catch (error) {
+        log.error('Failed to auto-start tunnel:', error);
+      }
+    }, 10000); // 10 second delay
   } catch (error) {
     dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
     app.quit();

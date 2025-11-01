@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
+import { Settings, RefreshCw, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
+import TunnelSection from '../tunnel/TunnelSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -27,6 +28,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showExperimental, setShowExperimental] = useState(true);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -36,6 +38,13 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
+
+  // Check if platform supports Tailscale tunnel (macOS or Linux)
+  const supportsTunnel =
+    window.electron.platform === 'darwin' || window.electron.platform === 'linux';
+
+  // Check if experimental features should be hidden
+  const hideExperimental = window.appConfig.get('GOOSE_HIDE_EXPERIMENTAL') === 'true';
 
   // Detect theme changes
   useEffect(() => {
@@ -393,6 +402,35 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <ThemeSelector className="w-auto" hideTitle horizontal />
         </CardContent>
       </Card>
+
+      {/* Experimental Features - only show on macOS and Linux, and not hidden by env var */}
+      {supportsTunnel && !hideExperimental && (
+        <Card className="rounded-lg">
+          <CardHeader className="pb-0">
+            <button
+              onClick={() => setShowExperimental(!showExperimental)}
+              className="flex items-center justify-between w-full hover:opacity-70 transition-opacity"
+            >
+              <div className="text-left">
+                <CardTitle className="mb-1">Experimental Features</CardTitle>
+                <CardDescription>
+                  Try out new features that are still in development
+                </CardDescription>
+              </div>
+              {showExperimental ? (
+                <ChevronUp className="h-5 w-5 text-text-muted flex-shrink-0" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-text-muted flex-shrink-0" />
+              )}
+            </button>
+          </CardHeader>
+          {showExperimental && (
+            <CardContent className="pt-4 px-4">
+              <TunnelSection />
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

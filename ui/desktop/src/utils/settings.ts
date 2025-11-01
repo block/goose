@@ -9,6 +9,7 @@ export interface EnvToggles {
 }
 
 export type SchedulingEngine = 'builtin-cron' | 'temporal';
+export type TunnelMode = 'lapstone' | 'tailscale';
 
 export interface Settings {
   envToggles: EnvToggles;
@@ -16,6 +17,10 @@ export interface Settings {
   showDockIcon: boolean;
   schedulingEngine: SchedulingEngine;
   enableWakelock: boolean;
+  tunnelSecret?: string;
+  tunnelAgentId?: string;
+  tunnelMode?: TunnelMode;
+  tunnelAutoStart?: boolean;
 }
 
 // Constants
