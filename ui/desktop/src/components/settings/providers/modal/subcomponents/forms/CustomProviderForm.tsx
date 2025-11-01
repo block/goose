@@ -5,6 +5,7 @@ import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import { Checkbox } from '@radix-ui/themes';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
+import { getApiUrl } from '../../../../../../config';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;
@@ -27,6 +28,9 @@ export default function CustomProviderForm({
   const [isLocalModel, setIsLocalModel] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [fetchError, setFetchError] = useState<string>('');
 
   useEffect(() => {
     if (initialData) {
@@ -50,6 +54,64 @@ export default function CustomProviderForm({
       setApiKey('notrequired');
     } else {
       setApiKey('');
+    }
+  };
+
+  const handleFetchModels = async () => {
+    if (!apiUrl) {
+      setFetchError('Please enter an API URL first');
+      return;
+    }
+
+    setIsFetchingModels(true);
+    setFetchError('');
+    setFetchedModels([]);
+
+    try {
+      const secretKey = await window.electron.getSecretKey();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (secretKey) {
+        headers['X-Secret-Key'] = secretKey;
+      }
+
+      const fetchUrl = getApiUrl('/config/providers/fetch-models');
+      const response = await fetch(fetchUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          engine,
+          api_url: apiUrl,
+          api_key: apiKey || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 400) {
+          setFetchError(`Authentication failed: ${errorText || 'Please check your API URL and key.'}`);
+        } else if (response.status === 404) {
+          setFetchError('Endpoint not found. Please ensure the server is up to date.');
+        } else {
+          setFetchError(`Failed to fetch models (${response.status}): ${errorText || 'Please try again.'}`);
+        }
+        return;
+      }
+
+      const models: string[] = await response.json();
+
+      if (models.length === 0) {
+        setFetchError('No models found for this provider');
+      } else {
+        setFetchedModels(models);
+        if (models.length > 0) {
+          setModels(models[0]);
+        }
+      }
+    } catch (error) {
+      setFetchError(`Network error: ${error instanceof Error ? error.message : 'Please check your connection.'}`);
+    } finally {
+      setIsFetchingModels(false);
     }
   };
 
@@ -213,13 +275,49 @@ export default function CustomProviderForm({
       {isEditable && (
         <>
           <div>
-            <label
-              htmlFor="available-models"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
-            >
-              Available Models (comma-separated)
-              <span className="text-red-500 ml-1">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="available-models" className="flex items-center text-sm font-medium text-textStandard">
+                Available Models
+                <span className="text-red-500 ml-1">*</span>
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleFetchModels}
+                disabled={isFetchingModels || !apiUrl}
+              >
+                {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
+              </Button>
+            </div>
+
+            {fetchError && (
+              <p className="text-yellow-600 text-sm mb-2">{fetchError}</p>
+            )}
+
+            {fetchedModels.length > 0 && (
+              <div className="mb-2">
+                <Select
+                  id="model-select"
+                  options={fetchedModels.map((m) => ({ value: m, label: m }))}
+                  value={models.split(',').filter(m => m.trim()).map(m => ({ value: m.trim(), label: m.trim() }))}
+                  onChange={(options: unknown) => {
+                    const selectedOptions = options as Array<{ value: string; label: string }> | null;
+                    if (selectedOptions && selectedOptions.length > 0) {
+                      setModels(selectedOptions.map(opt => opt.value).join(', '));
+                    } else {
+                      setModels('');
+                    }
+                  }}
+                  placeholder="Select model(s)..."
+                  isMulti
+                />
+                <p className="text-sm text-textSubtle mt-1">
+                  Or enter models manually below (comma-separated)
+                </p>
+              </div>
+            )}
+
             <Input
               id="available-models"
               value={models}
