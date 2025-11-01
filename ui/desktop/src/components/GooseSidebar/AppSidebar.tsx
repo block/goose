@@ -17,6 +17,7 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import { ViewOptions, View } from '../../utils/navigationUtils';
 import EnvironmentBadge from './EnvironmentBadge';
+import { triggerExperimental } from '../../utils/settings';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -165,6 +166,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               <SidebarMenuButton
                 data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
                 onClick={() => navigate(entry.path)}
+                onDoubleClick={async (e) => {
+                  if (entry.path === '/settings') {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    await triggerExperimental();
+                  }
+                }}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}
                 className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
