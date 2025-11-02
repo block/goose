@@ -70,7 +70,7 @@ fn check_context_length_exceeded(text: &str) -> bool {
 
 fn format_server_error_message(status_code: u16, payload: Option<&Value>) -> String {
     if let Some(p) = payload {
-        format!("HTTP {}: {}", status_code, p.to_string())
+        format!("HTTP {}: {}", status_code, p)
     } else {
         format!(
             "HTTP {}: No response body received from server",
@@ -90,7 +90,7 @@ pub fn map_http_error_to_provider_error(
                 "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
         Status: {}{}",
                 status,
-                payload.as_ref().map(|p| format!(". Response: {}", p.to_string())).unwrap_or_default()
+                payload.as_ref().map(|p| format!(". Response: {}", p)).unwrap_or_default()
             );
             ProviderError::Authentication(message)
         }
