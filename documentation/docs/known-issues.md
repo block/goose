@@ -1,8 +1,8 @@
 ---
-title: Troubleshooting
+title: Known Issues
 ---
 
-# Troubleshooting
+# Known Issues
 
 goose, like any system, may run into occasional issues. This guide provides solutions for common problems.
 
@@ -40,7 +40,7 @@ You can prevent these issues by customizing your shell to handle these commands 
 
 ### Debugging and Diagnostics
 
-To help with troubleshooting issues, you can:
+To help with debugging issues, you can:
 
 - View [session and system logs](/docs/guides/logs) for debugging individual sessions
 - Configure [telemetry export](/docs/guides/environment-variables#observability) for performance analysis, trend monitoring, or production/CI debugging
@@ -385,7 +385,7 @@ sudo /Applications/Goose.app/Contents/MacOS/Goose
 ```
 
 :::note
-Running goose with sudo may create files owned by root, which could lead to further permission issues. Use this as a troubleshooting step rather than a permanent fix.
+Running goose with sudo may create files owned by root, which could lead to further permission issues. Use this as a debugging step rather than a permanent fix.
 :::
 
 #### Update permission in System Settings (macOs)
