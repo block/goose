@@ -309,7 +309,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             let msg = if let Some(p) = &payload {
                 format!("HTTP {}: {:?}", final_status.as_u16(), p)
             } else {
-                format!(NO_RESPONSE_BODY_ERROR_FMT, final_status.as_u16())
+                format!("HTTP {}: No response body received from server", final_status.as_u16())
             };
             Err(ProviderError::ServerError(msg))
         }
