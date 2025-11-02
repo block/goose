@@ -72,6 +72,8 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
 }
 
+/// Manual implementation of Default to ensure proper initialization of output_format
+/// This struct requires explicit default value for output_format field
 impl Default for SessionBuilderConfig {
     fn default() -> Self {
         SessionBuilderConfig {
@@ -680,6 +682,7 @@ mod tests {
             sub_recipes: None,
             final_output_response: None,
             retry_config: None,
+            output_format: "text".to_string(),
         };
 
         assert_eq!(config.extensions.len(), 1);
