@@ -116,7 +116,17 @@ pub fn map_http_error_to_provider_error(
             details: format!("{:?}", payload),
             retry_delay: None,
         },
-        _ if status.is_server_error() => ProviderError::ServerError(format!("{:?}", payload)),
+        _ if status.is_server_error() => {
+            let msg = if let Some(p) = &payload {
+                format!("HTTP {}: {:?}", status.as_u16(), p)
+            } else {
+                format!(
+                    "HTTP {}: No response body received from server",
+                    status.as_u16()
+                )
+            };
+            ProviderError::ServerError(msg)
+        }
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
@@ -296,10 +306,20 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             })
         }
         _ if final_status.is_server_error() => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
+            let msg = if let Some(p) = &payload {
+                format!("HTTP {}: {:?}", final_status.as_u16(), p)
+            } else {
+                format!("HTTP {}: No response body received from server", final_status.as_u16())
+            };
+            Err(ProviderError::ServerError(msg))
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
+            let msg = if let Some(p) = &payload {
+                format!("HTTP {}: {:?}", final_status.as_u16(), p)
+            } else {
+                format!("HTTP {}: No response body received from server", final_status.as_u16())
+            };
+            Err(ProviderError::ServerError(msg))
         }
         _ => {
             tracing::debug!(
@@ -1112,13 +1132,13 @@ mod tests {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
-                ProviderError::ServerError("None".to_string()),
+                ProviderError::ServerError("HTTP 500: No response body received from server".to_string()),
             ),
             // is_server_error() with payload
             (
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
-                ProviderError::ServerError("Some(Object {\"error\": String(\"upstream error\")})".to_string()),
+                ProviderError::ServerError("HTTP 502: Object {\"error\": String(\"upstream error\")}".to_string()),
             ),
             // Default - any other status code
             (
