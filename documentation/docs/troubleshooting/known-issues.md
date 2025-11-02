@@ -4,8 +4,6 @@ sidebar_label: Known Issues
 description: Comprehensive troubleshooting guide for common goose problems with step-by-step solutions.
 ---
 
-# Known Issues
-
 goose, like any system, may run into occasional issues. This guide provides solutions for common problems.
 
 :::tip Need help with an issue not listed here?
