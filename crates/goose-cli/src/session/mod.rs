@@ -987,9 +987,8 @@ impl CliSession {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
                                 
-                                if self.output_format == "json" {
-                                    // Don't render in JSON mode
-                                } else {
+                                // Don't render in JSON mode
+                                if self.output_format != "json" {
                                     output::render_message(&message, self.debug);
                                 }
                             }
