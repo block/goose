@@ -30,11 +30,12 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Installation](https://block.github.io/goose/docs/getting-started/installation)
 - [Tutorials](https://block.github.io/goose/docs/category/tutorials)
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
+- [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/ai-assisted-coding-guide.md)
 - [Governance](https://github.com/block/goose/blob/main/GOVERNANCE.md)
 
 ## Need Help?
-- [Diagnostics & Reporting](https://block.github.io/goose/docs/diagnostics-and-reporting)
-- [Known Issues](https://block.github.io/goose/docs/known-issues)
+- [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)
+- [Known Issues](https://block.github.io/goose/docs/troubleshooting/known-issues)
 
 # a little goose humor 🦢
 
