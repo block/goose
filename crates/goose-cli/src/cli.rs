@@ -725,7 +725,8 @@ enum Command {
             long = "output-format",
             value_name = "FORMAT",
             help = "Output format (text, json)",
-            default_value = "text"
+            default_value = "text",
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
         )]
         output_format: String,
 
