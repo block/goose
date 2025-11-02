@@ -298,9 +298,9 @@ export type GetToolsQuery = {
 export type GooseApp = {
     description?: string | null;
     height?: number | null;
-    jsImplementation: string;
+    jsImplementation?: string;
     name: string;
-    prd: string;
+    prd?: string;
     resizable?: boolean | null;
     width?: number | null;
 };
@@ -336,7 +336,7 @@ export type IterateAppRequest = {
     errors: string;
     jsImplementation: string;
     prd: string;
-    screenshot: Blob | File;
+    screenshotBase64: string;
 };
 
 export type IterateAppResponse = {

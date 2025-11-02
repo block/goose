@@ -3348,9 +3348,7 @@
       "GooseApp": {
         "type": "object",
         "required": [
-          "name",
-          "prd",
-          "jsImplementation"
+          "name"
         ],
         "properties": {
           "description": {
@@ -3467,7 +3465,7 @@
         "required": [
           "prd",
           "jsImplementation",
-          "screenshot",
+          "screenshotBase64",
           "errors"
         ],
         "properties": {
@@ -3480,9 +3478,8 @@
           "prd": {
             "type": "string"
           },
-          "screenshot": {
-            "type": "string",
-            "format": "binary"
+          "screenshotBase64": {
+            "type": "string"
           }
         }
       },

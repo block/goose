@@ -2080,7 +2080,7 @@ async function appMain() {
   });
 
   ipcMain.handle(
-    'capture-iframe-screenshot',
+    'capture-screenshot',
     async (
       event,
       bounds: {

@@ -46,7 +46,7 @@ pub struct UpdateAppRequest {
 pub struct IterateAppRequest {
     pub prd: String,
     pub js_implementation: String,
-    pub screenshot: Vec<u8>,
+    pub screenshot_base64: String,
     pub errors: String,
 }
 
@@ -364,11 +364,15 @@ async fn iterate_app(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<IterateAppRequest>,
 ) -> Result<Json<IterateAppResponse>, ErrorResponse> {
+    for file in GOOSE_APP_ASSETS.files() {
+        println!("{}", file.path().display());
+    }
+
     let goose_widget = GOOSE_APP_ASSETS
-        .get_file("goose_widget.js")
-        .ok_or_else(|| ErrorResponse::internal("goose_widget.js not found"))?
+        .get_file("goose-widget.js")
+        .ok_or_else(|| ErrorResponse::internal("goose-widget.js not found"))?
         .contents_utf8()
-        .ok_or_else(|| ErrorResponse::internal("goose_widget.js is not valid UTF-8"))?;
+        .ok_or_else(|| ErrorResponse::internal("goose-widget.js is not valid UTF-8"))?;
 
     let prompt = iterate_app_prompt(&request, goose_widget);
 
@@ -378,12 +382,9 @@ async fn iterate_app(
     let model_name: String = config.get_goose_model()?;
     let provider = create_with_named_model(&provider_name, &model_name).await?;
 
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-    let base64_image = BASE64.encode(&request.screenshot);
-
     let message_with_image = Message::user()
         .with_text(prompt)
-        .with_image(base64_image, "image/png".to_string());
+        .with_image(&request.screenshot_base64, "image/png".to_string());
 
     let (response, _) = provider
         .complete(

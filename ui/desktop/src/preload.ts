@@ -180,7 +180,7 @@ const electronAPI: ElectronAPI = {
     y: number;
     width: number;
     height: number;
-  }): Promise<Uint8Array> => ipcRenderer.invoke('capture-screen-shot', bounds),
+  }): Promise<Uint8Array> => ipcRenderer.invoke('capture-screenshot', bounds),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
   selectFileOrDirectory: (defaultPath?: string) =>

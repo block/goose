@@ -22,8 +22,8 @@ const DEFAULT_JS = `class HelloWidget extends GooseWidget {
 export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   const [name, setName] = useState(app?.name || '');
   const [description, setDescription] = useState(app?.description || '');
-  const [width, setWidth] = useState(app?.width?.toString() || '800');
-  const [height, setHeight] = useState(app?.height?.toString() || '600');
+  const [width, setWidth] = useState(app?.width?.toString() || '320');
+  const [height, setHeight] = useState(app?.height?.toString() || '200');
   const [resizable, setResizable] = useState(app?.resizable ?? true);
   const [prd, setPrd] = useState(app?.prd || '');
   const iframeRef = useRef<React.ComponentRef<'iframe'>>(null);
@@ -34,6 +34,7 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   const [iterationMessage, setIterationMessage] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
   const [containerHtml, setContainerHtml] = useState('<p style="color: #0f6636">Loading ...</p>');
+  const [detailsOpen, setDetailsOpen] = useState(!name || !width || !height);
 
   useEffect(() => {
     const handleMessage = (event: globalThis.MessageEvent) => {
@@ -49,14 +50,14 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
 
   useEffect(() => {
     const loadHtml = async () => {
-      const gooseApp: GooseApp = { jsImplementation, name, prd };
+      const gooseApp: GooseApp = { jsImplementation, name, prd: '' };
       const html = await window.electron.previewGooseApp(gooseApp);
       console.log(html);
       setContainerHtml(html);
       setIframeKey((prev) => prev + 1);
     };
     loadHtml();
-  }, [jsImplementation, name, prd]);
+  }, [jsImplementation, name]);
 
   const captureScreenshot = async (): Promise<Blob> => {
     if (!iframeRef.current) throw new Error('Iframe not ready');
@@ -83,13 +84,15 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
 
     while (!done) {
       const screenshot = await captureScreenshot();
+      const arrayBuffer = await screenshot.arrayBuffer();
+      const base64 = globalThis.btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
       const response = await iterateApp({
         body: {
           jsImplementation: currentJs,
           prd,
-          screenshot,
-          errors: iframeErrors.join('.'),
+          screenshotBase64: base64,
+          errors: iframeErrors.join('\n'),
         },
         throwOnError: true,
       });
@@ -135,52 +138,67 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
     <MainPanelLayout>
       <div className="flex flex-col min-w-0 flex-1 overflow-y-auto">
         <div className="bg-background-default px-8 pb-4 pt-16">
-          <h1 className="text-4xl font-light mb-6">{app ? 'Edit App' : 'Create App'}</h1>
-
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="col-span-2">
-              <Input
-                placeholder="App Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="col-span-2">
-              <Input
-                placeholder="Description (optional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div>
-              <Input
-                type="number"
-                placeholder="Width"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-              />
-            </div>
-            <div>
-              <Input
-                type="number"
-                placeholder="Height"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-              />
-            </div>
-            <div className="col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="resizable"
-                checked={resizable}
-                onChange={(e) => setResizable(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <label htmlFor="resizable" className="text-sm">
-                Resizable
-              </label>
-            </div>
+          <div className="flex items-center gap-4 mb-6">
+            <h1 className="text-4xl font-light">{app ? 'Edit App' : 'Create App'}</h1>
+            <button
+              onClick={() => setDetailsOpen(!detailsOpen)}
+              className="text-sm font-medium cursor-pointer flex items-center gap-1 text-text-muted hover:text-text-default"
+            >
+              <span
+                className={`inline-block transition-transform ${detailsOpen ? 'rotate-90' : ''}`}
+              >
+                ▶
+              </span>
+              Details
+            </button>
           </div>
+
+          {detailsOpen && (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="col-span-2">
+                <Input
+                  placeholder="App Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2">
+                <Input
+                  placeholder="Description (optional)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input
+                  type="number"
+                  placeholder="Width"
+                  value={width}
+                  onChange={(e) => setWidth(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input
+                  type="number"
+                  placeholder="Height"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="resizable"
+                  checked={resizable}
+                  onChange={(e) => setResizable(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="resizable" className="text-sm">
+                  Resizable
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="mb-6">
             <h2 className="text-lg font-medium mb-2">Preview</h2>
@@ -188,7 +206,11 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
               key={iframeKey}
               ref={iframeRef}
               srcDoc={containerHtml}
-              style={{ width: '300px', height: '180px', border: '1px solid #ccc' }}
+              style={{
+                width: width ? `${width}px` : '300px',
+                height: height ? `${height}px` : '180px',
+                border: '1px solid #ccc',
+              }}
               sandbox="allow-scripts"
             />
           </div>
@@ -199,7 +221,7 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
               placeholder="Describe what the widget should do..."
               value={prd}
               onChange={(e) => setPrd(e.target.value)}
-              className="min-h-[150px]"
+              className="w-full min-h-[150px] p-3 rounded border border-border-muted bg-background-panel text-text-default"
             />
           </div>
 
