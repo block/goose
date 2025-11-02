@@ -114,11 +114,19 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
-  // Get viewOptions from location.state or history.state
+  // Get viewOptions from location.state, history.state, or URL search params
   const viewOptions =
     (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
+
+  // If section is provided via URL search params, add it to viewOptions
+  const sectionFromUrl = searchParams.get('section');
+  if (sectionFromUrl) {
+    viewOptions.section = sectionFromUrl;
+  }
+
   return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
