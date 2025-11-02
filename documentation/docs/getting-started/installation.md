@@ -44,7 +44,7 @@ import { PanelLeft } from 'lucide-react';
 
           Ensure the `~/.config` directory has read and write access.
 
-          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Known Issues Guide](/docs/known-issues.md#macos-permission-issues)
+          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Known Issues Guide](/docs/troubleshooting/known-issues#macos-permission-issues)
           :::
         </div>
       </TabItem>

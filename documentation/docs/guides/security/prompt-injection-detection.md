@@ -78,7 +78,7 @@ When in doubt, deny.
 Beyond prompt injection detection, goose automatically:
 - Warns you before running new or updated recipes
 - Warns you when importing recipes that contain invisible Unicode Tag Block characters
-- [Checks for known malware](/docs/known-issues#malicious-package-detected) when installing extensions for locally-run MCP servers
+- [Checks for known malware](/docs/troubleshooting/known-issues#malicious-package-detected) when installing extensions for locally-run MCP servers
 :::
 
 ### Configuring Detection Threshold

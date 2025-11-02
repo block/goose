@@ -9,7 +9,7 @@ description: Comprehensive troubleshooting guide for common goose problems with 
 goose, like any system, may run into occasional issues. This guide provides solutions for common problems.
 
 :::tip Need help with an issue not listed here?
-Our [Discord community](https://discord.gg/goose-oss) is here to help! For the fastest support, consider generating a [diagnostic report](./diagnostics-and-reporting.md) - it helps us understand your setup quickly.
+Our [Discord community](https://discord.gg/goose-oss) is here to help! For the fastest support, consider generating a [diagnostic report](diagnostics-and-reporting) - it helps us understand your setup quickly.
 :::
 
 ### goose Edits Files
@@ -469,7 +469,7 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
 Still running into issues? We're here to help! Join our [Discord Community][discord] where the goose team and community members are happy to assist.
 
 :::tip
-If you can share a [diagnostic report](./diagnostics-and-reporting.md#diagnostics-system) along with your question, it helps us understand your setup and provide more targeted solutions.
+If you can share a [diagnostic report](diagnostics-and-reporting#diagnostics-system) along with your question, it helps us understand your setup and provide more targeted solutions.
 :::
 
 

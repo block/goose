@@ -1,7 +1,7 @@
 ---
-title: Help & Feedback
-sidebar_position: 30
-sidebar_label: Help & Feedback
+title: Diagnostics and Reporting
+sidebar_label: Diagnostics and Reporting
+description: Use built-in diagnostics, report bugs, and request new features with goose's integrated support tools.
 ---
 
 import Tabs from '@theme/Tabs';
@@ -139,4 +139,11 @@ The feature request system helps you suggest improvements and new functionality 
     ```
   </TabItem>
 </Tabs>
+
+## Additional Debugging
+
+For issues not resolved by diagnostics:
+
+- **[Session and System Logs](/docs/guides/logs)**: View detailed logs for debugging individual sessions
+- **[Telemetry Export](/docs/guides/environment-variables#observability)**: Configure telemetry for performance analysis and production monitoring
 
