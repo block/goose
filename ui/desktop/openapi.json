@@ -414,52 +414,7 @@
         ]
       }
     },
-    "/apps/list_apps": {
-      "get": {
-        "tags": [
-          "App Management"
-        ],
-        "operationId": "list_apps",
-        "responses": {
-          "200": {
-            "description": "List of installed apps retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/apps/{name}": {
+    "/apps/app/{name}": {
       "get": {
         "tags": [
           "App Management"
@@ -528,7 +483,7 @@
         "tags": [
           "App Management"
         ],
-        "operationId": "update_app",
+        "operationId": "store_app",
         "parameters": [
           {
             "name": "name",
@@ -647,6 +602,116 @@
           },
           "404": {
             "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/apps/iterate": {
+      "post": {
+        "tags": [
+          "App Management"
+        ],
+        "operationId": "iterate_app",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IterateAppRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "App iterated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterateAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid app data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/apps/list_apps": {
+      "get": {
+        "tags": [
+          "App Management"
+        ],
+        "operationId": "list_apps",
+        "responses": {
+          "200": {
+            "description": "List of installed apps retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key",
             "content": {
               "application/json": {
                 "schema": {
@@ -2831,10 +2896,10 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "message"
         ],
         "properties": {
-          "error": {
+          "message": {
             "type": "string"
           }
         }
@@ -3283,7 +3348,9 @@
       "GooseApp": {
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "prd",
+          "jsImplementation"
         ],
         "properties": {
           "description": {
@@ -3300,6 +3367,9 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "prd": {
             "type": "string"
           },
           "resizable": {
@@ -3389,6 +3459,49 @@
           "sessionId": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "IterateAppRequest": {
+        "type": "object",
+        "required": [
+          "prd",
+          "jsImplementation",
+          "screenshot",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "string"
+          },
+          "jsImplementation": {
+            "type": "string"
+          },
+          "prd": {
+            "type": "string"
+          },
+          "screenshot": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "IterateAppResponse": {
+        "type": "object",
+        "required": [
+          "message",
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "jsImplementation": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
           }
         }
       },

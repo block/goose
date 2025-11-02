@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Play, Plus } from 'lucide-react';
-import { GooseApp, listApps } from '../../api';
-import { Recipe } from '../../recipe';
+import { Play, Plus, Trash, Pencil } from 'lucide-react';
+import { deleteApp, GooseApp, listApps } from '../../api';
+import GooseAppEditor from './GooseAppEditor';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -37,50 +37,58 @@ const AddAppCard = ({ onClick }: { onClick: () => void }) => {
 
 export default function GooseAppsView() {
   const [apps, setApps] = useState<GooseApp[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingApp, setEditingApp] = useState<GooseApp | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const recipe = (for_app: GooseApp | null): Recipe => {
-    return {
-      description: '',
-      title: for_app ? `update ${for_app.name} app` : 'Create goose app',
-      internal: true,
-    };
-  };
+  const loadApps = useCallback(async () => {
+    try {
+      const response = await listApps({ throwOnError: true });
+      setApps(response.data?.apps || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load apps');
+    }
+  }, []);
 
   useEffect(() => {
-    const loadApps = async () => {
-      try {
-        setLoading(true);
-        const response = await listApps({ throwOnError: true });
-        setApps(response.data?.apps || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load apps');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadApps();
-  }, []);
+  }, [loadApps]);
 
   const handleLaunchApp = async (app: GooseApp) => {
     await window.electron.launchGooseApp(app);
   };
 
-  const handleAddApp = () => {
-    window.electron.createChatWindow(undefined, undefined, undefined, undefined, recipe(null));
+  const handleReturn = async () => {
+    setIsCreating(false);
+    setEditingApp(null);
+    await loadApps();
   };
 
-  if (loading) {
-    return (
-      <MainPanelLayout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
-        </div>
-      </MainPanelLayout>
-    );
+  if (isCreating || editingApp) {
+    return <GooseAppEditor app={editingApp || undefined} onReturn={handleReturn} />;
   }
+
+  const handleAddApp = () => {
+    setIsCreating(true);
+  };
+
+  const handleEditApp = (app: GooseApp) => {
+    setEditingApp(app);
+  };
+
+  const handleDeleteApp = async (app: GooseApp) => {
+    const name = app.name;
+    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteApp({ throwOnError: true, path: { name } });
+      setApps(apps.filter((a) => a !== app));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete app');
+    }
+  };
 
   if (error) {
     return (
@@ -125,15 +133,33 @@ export default function GooseAppsView() {
                       <p className="text-sm text-text-muted">{app.description}</p>
                     )}
                   </div>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleLaunchApp(app)}
-                    className="flex items-center gap-2 w-full"
-                  >
-                    <Play className="h-4 w-4" />
-                    Launch
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleLaunchApp(app)}
+                      className="flex items-center gap-2 flex-1"
+                    >
+                      <Play className="h-4 w-4" />
+                      Launch
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditApp(app)}
+                      className="flex items-center gap-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteApp(app)}
+                      className="flex items-center gap-2 text-red-500 hover:text-red-600"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
               <AddAppCard onClick={handleAddApp} />

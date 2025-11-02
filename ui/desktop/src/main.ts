@@ -49,7 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { launchGooseApp } from './goose_apps';
+import { getContainerHtml, launchGooseApp } from './goose_apps';
 import { GooseApp } from './api';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -1993,8 +1993,12 @@ async function appMain() {
     }
   );
 
-  ipcMain.handle('launch-goose-app', async (_, app: GooseApp) => {
+  ipcMain.handle('launch-goose-app', async (_event, app: GooseApp) => {
     await launchGooseApp(app);
+  });
+
+  ipcMain.handle('preview-goose-app', async (_event, app: GooseApp) => {
+    return getContainerHtml(app);
   });
 
   ipcMain.on('notify', (_event, data) => {
@@ -2074,6 +2078,23 @@ async function appMain() {
       window.reload();
     }
   });
+
+  ipcMain.handle(
+    'capture-iframe-screenshot',
+    async (
+      event,
+      bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+    ) => {
+      const webContents = event.sender;
+      const image = await webContents.capturePage(bounds);
+      return image.toPNG();
+    }
+  );
 
   ipcMain.handle('start-power-save-blocker', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

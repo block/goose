@@ -153,7 +153,7 @@ export type Envs = {
 };
 
 export type ErrorResponse = {
-    error: string;
+    message: string;
 };
 
 /**
@@ -298,8 +298,9 @@ export type GetToolsQuery = {
 export type GooseApp = {
     description?: string | null;
     height?: number | null;
-    jsImplementation?: string;
+    jsImplementation: string;
     name: string;
+    prd: string;
     resizable?: boolean | null;
     width?: number | null;
 };
@@ -329,6 +330,19 @@ export type InspectJobResponse = {
     processStartTime?: string | null;
     runningDurationSeconds?: number | null;
     sessionId?: string | null;
+};
+
+export type IterateAppRequest = {
+    errors: string;
+    jsImplementation: string;
+    prd: string;
+    screenshot: Blob | File;
+};
+
+export type IterateAppResponse = {
+    done: boolean;
+    jsImplementation?: string | null;
+    message: string;
 };
 
 export type JsonObject = {
@@ -1237,35 +1251,6 @@ export type CreateAppResponses = {
 
 export type CreateAppResponse = CreateAppResponses[keyof CreateAppResponses];
 
-export type ListAppsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/apps/list_apps';
-};
-
-export type ListAppsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
-
-export type ListAppsResponses = {
-    /**
-     * List of installed apps retrieved successfully
-     */
-    200: AppListResponse;
-};
-
-export type ListAppsResponse = ListAppsResponses[keyof ListAppsResponses];
-
 export type DeleteAppData = {
     body?: never;
     path: {
@@ -1275,7 +1260,7 @@ export type DeleteAppData = {
         name: string;
     };
     query?: never;
-    url: '/apps/{name}';
+    url: '/apps/app/{name}';
 };
 
 export type DeleteAppErrors = {
@@ -1313,7 +1298,7 @@ export type GetAppData = {
         name: string;
     };
     query?: never;
-    url: '/apps/{name}';
+    url: '/apps/app/{name}';
 };
 
 export type GetAppErrors = {
@@ -1342,7 +1327,7 @@ export type GetAppResponses = {
 
 export type GetAppResponse = GetAppResponses[keyof GetAppResponses];
 
-export type UpdateAppData = {
+export type StoreAppData = {
     body: UpdateAppRequest;
     path: {
         /**
@@ -1351,10 +1336,10 @@ export type UpdateAppData = {
         name: string;
     };
     query?: never;
-    url: '/apps/{name}';
+    url: '/apps/app/{name}';
 };
 
-export type UpdateAppErrors = {
+export type StoreAppErrors = {
     /**
      * Bad request - Invalid app data
      */
@@ -1373,16 +1358,78 @@ export type UpdateAppErrors = {
     500: ErrorResponse;
 };
 
-export type UpdateAppError = UpdateAppErrors[keyof UpdateAppErrors];
+export type StoreAppError = StoreAppErrors[keyof StoreAppErrors];
 
-export type UpdateAppResponses = {
+export type StoreAppResponses = {
     /**
      * App updated successfully
      */
     200: SuccessResponse;
 };
 
-export type UpdateAppResponse = UpdateAppResponses[keyof UpdateAppResponses];
+export type StoreAppResponse = StoreAppResponses[keyof StoreAppResponses];
+
+export type IterateAppData = {
+    body: IterateAppRequest;
+    path?: never;
+    query?: never;
+    url: '/apps/iterate';
+};
+
+export type IterateAppErrors = {
+    /**
+     * Bad request - Invalid app data
+     */
+    400: ErrorResponse;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type IterateAppError = IterateAppErrors[keyof IterateAppErrors];
+
+export type IterateAppResponses = {
+    /**
+     * App iterated successfully
+     */
+    200: IterateAppResponse;
+};
+
+export type IterateAppResponse2 = IterateAppResponses[keyof IterateAppResponses];
+
+export type ListAppsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/apps/list_apps';
+};
+
+export type ListAppsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
+
+export type ListAppsResponses = {
+    /**
+     * List of installed apps retrieved successfully
+     */
+    200: AppListResponse;
+};
+
+export type ListAppsResponse = ListAppsResponses[keyof ListAppsResponses];
 
 export type ReadAllConfigData = {
     body?: never;

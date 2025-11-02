@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Goose App Container</title>
+    <title>{{ TITLE }}</title>
     <style>
         body {
             margin: 0;
@@ -16,18 +16,35 @@
             height: 100vh;
             overflow: hidden;
         }
-
-        .error-container {
-            padding: 20px;
-            text-align: center;
-            color: #d32f2f;
-        }
     </style>
+    <script>
+        window.onerror = (message, source, lineno, colno, error) => {
+            window.parent.postMessage({
+                type: 'error',
+                message: `${message} at ${source}:${lineno}:${colno}`
+            }, '*');
+        };
+
+        window.addEventListener('load', () => {
+            window.parent.postMessage({type: 'ready'}, '*');
+        });
+    </script>
 </head>
 <body>
 <div id="app-container"></div>
 
-<script src="./goose-widget.js"></script>
-<script src="./container.js"></script>
+{{ GOOSE_WIDGET_JS }}
+{{ CONTAINER_JS }}
+{{ WIDGET_JS }}
+
+<script>
+    const appManager = new GooseAppManager('{{ WIDGET_CLASS_NAME }}');
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => appManager.loadWidget());
+    } else {
+        appManager.loadWidget();
+    }
+</script>
+
 </body>
 </html>

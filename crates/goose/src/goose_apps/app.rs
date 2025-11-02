@@ -12,23 +12,21 @@ pub struct GooseApp {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub resizable: Option<bool>,
+    // prd & js_implementation are read from the frontmatter, so are not in the json
+    #[serde(default)]
     pub prd: String,
+    #[serde(default)]
     pub js_implementation: String,
 }
 
 impl GooseApp {
-    // goose aps are stored in frontmatter format, with the delimiter being "---"
-    // name: GooseApp
-    // description: Optional description of the app
-    // ---
-    // JavaScript implementation of the app
     const FRONTMATTER_DELIMITER: &'static str = "\n---\n";
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
-        let parts: Vec<&str> = content.splitn(2, Self::FRONTMATTER_DELIMITER).collect();
+        let parts: Vec<&str> = content.splitn(3, Self::FRONTMATTER_DELIMITER).collect();
 
-        if parts.len() != 2 {
+        if parts.len() != 3 {
             return Err(anyhow::anyhow!(
                 "Invalid app file format - missing frontmatter delimiter"
             ));
@@ -36,6 +34,7 @@ impl GooseApp {
 
         let mut app: GooseApp = serde_yaml::from_str(parts[0])?;
         app.js_implementation = parts[1].to_string();
+        app.prd = parts[2].to_string();
 
         Ok(app)
     }
@@ -45,10 +44,12 @@ impl GooseApp {
         metadata.js_implementation = String::new();
         let yaml_content = serde_yaml::to_string(&metadata)?;
         Ok(format!(
-            "{}{}{}",
+            "{}{}{}{}{}",
             yaml_content,
             Self::FRONTMATTER_DELIMITER,
-            self.js_implementation
+            self.js_implementation,
+            Self::FRONTMATTER_DELIMITER,
+            self.prd,
         ))
     }
 }

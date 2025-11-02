@@ -4,7 +4,7 @@ const { resolve } = require('path');
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images'],
+  extraResource: ['src/bin', 'src/images', 'src/goose_apps/assets'],
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
@@ -26,12 +26,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -73,8 +73,8 @@ module.exports = {
         desktopTemplate: './forge.deb.desktop',
         options: {
           icon: 'src/images/icon.png',
-          prefix: '/opt'
-        }
+          prefix: '/opt',
+        },
       },
     },
     {
@@ -88,8 +88,8 @@ module.exports = {
         desktopTemplate: './forge.rpm.desktop',
         options: {
           icon: 'src/images/icon.png',
-          prefix: '/opt'
-        }
+          prefix: '/opt',
+        },
       },
     },
   ],
