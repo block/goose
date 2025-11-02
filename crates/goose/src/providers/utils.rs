@@ -69,13 +69,12 @@ fn check_context_length_exceeded(text: &str) -> bool {
 }
 
 fn format_server_error_message(status_code: u16, payload: Option<&Value>) -> String {
-    if let Some(p) = payload {
-        format!("HTTP {}: {}", status_code, p)
-    } else {
-        format!(
+    match payload {
+        Some(Value::Null) | None => format!(
             "HTTP {}: No response body received from server",
             status_code
-        )
+        ),
+        Some(p) => format!("HTTP {}: {}", status_code, p),
     }
 }
 
@@ -1123,6 +1122,12 @@ mod tests {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
+                ProviderError::ServerError("HTTP 500: No response body received from server".to_string()),
+            ),
+            // is_server_error() with null payload (the "Server error: None" bug)
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some(Value::Null),
                 ProviderError::ServerError("HTTP 500: No response body received from server".to_string()),
             ),
             // is_server_error() with payload
