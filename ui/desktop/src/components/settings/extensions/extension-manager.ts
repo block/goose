@@ -96,25 +96,21 @@ interface AddToAgentOnStartupProps {
 export async function addToAgentOnStartup({
   extensionConfig,
   sessionId,
+  toastOptions,
 }: AddToAgentOnStartupProps): Promise<void> {
-  try {
-    await retryWithBackoff(() => addToAgent(extensionConfig, sessionId, true), {
-      retries: 3,
-      delayMs: 1000,
-      shouldRetry: (error: ExtensionError) =>
-        !!error.message &&
-        (error.message.includes('428') ||
-          error.message.includes('Precondition Required') ||
-          error.message.includes('Agent is not initialized')),
-    });
-  } catch (finalError) {
-    toastService.configure({ silent: false });
-    toastService.error({
-      title: extensionConfig.name,
-      msg: 'Extension failed to start and will retry on a new session.',
-      traceback: finalError instanceof Error ? finalError.message : String(finalError),
-    });
-  }
+  const showToast = !toastOptions?.silent;
+
+  // Errors are caught by the grouped notification in providerUtils.ts
+  // Individual error toasts are suppressed during startup (showToast=false)
+  await retryWithBackoff(() => addToAgent(extensionConfig, sessionId, showToast), {
+    retries: 3,
+    delayMs: 1000,
+    shouldRetry: (error: ExtensionError) =>
+      !!error.message &&
+      (error.message.includes('428') ||
+        error.message.includes('Precondition Required') ||
+        error.message.includes('Agent is not initialized')),
+  });
 }
 
 interface UpdateExtensionProps {
