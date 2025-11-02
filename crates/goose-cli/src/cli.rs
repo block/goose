@@ -720,6 +720,15 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
+        /// Output format (text, json)
+        #[arg(
+            long = "output-format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        output_format: String,
+
         /// Provider to use for this run (overrides environment variable)
         #[arg(
             long = "provider",
@@ -974,6 +983,7 @@ pub async fn cli() -> anyhow::Result<()> {
                         sub_recipes: None,
                         final_output_response: None,
                         retry_config: None,
+                        output_format: "text".to_string(),
                     })
                     .await;
 
@@ -1054,6 +1064,7 @@ pub async fn cli() -> anyhow::Result<()> {
             scheduled_job_id,
             quiet,
             additional_sub_recipes,
+            output_format,
             provider,
             model,
         }) => {
@@ -1183,6 +1194,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     .as_ref()
                     .and_then(|r| r.final_output_response.clone()),
                 retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
+                output_format,
             })
             .await;
 
@@ -1366,6 +1378,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     sub_recipes: None,
                     final_output_response: None,
                     retry_config: None,
+                    output_format: "text".to_string(),
                 })
                 .await;
                 session.interactive(None).await?;

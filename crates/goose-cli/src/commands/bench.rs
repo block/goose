@@ -55,6 +55,7 @@ pub async fn agent_generator(
         sub_recipes: None,
         final_output_response: None,
         retry_config: None,
+        output_format: "text".to_string(),
     })
     .await;
 

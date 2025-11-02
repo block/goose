@@ -24,7 +24,7 @@ use tokio::task::JoinSet;
 ///
 /// This struct contains all the parameters needed to create a new session,
 /// including session identification, extension configuration, and debug settings.
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct SessionBuilderConfig {
     /// Session id, optional need to deduce from context
     pub session_id: Option<String>,
@@ -68,6 +68,37 @@ pub struct SessionBuilderConfig {
     pub final_output_response: Option<Response>,
     /// Retry configuration for automated validation and recovery
     pub retry_config: Option<RetryConfig>,
+    /// Output format (text, json)
+    pub output_format: String,
+}
+
+impl Default for SessionBuilderConfig {
+    fn default() -> Self {
+        SessionBuilderConfig {
+            session_id: None,
+            resume: false,
+            no_session: false,
+            extensions: Vec::new(),
+            remote_extensions: Vec::new(),
+            streamable_http_extensions: Vec::new(),
+            builtins: Vec::new(),
+            extensions_override: None,
+            additional_system_prompt: None,
+            settings: None,
+            provider: None,
+            model: None,
+            debug: false,
+            max_tool_repetitions: None,
+            max_turns: None,
+            scheduled_job_id: None,
+            interactive: false,
+            quiet: false,
+            sub_recipes: None,
+            final_output_response: None,
+            retry_config: None,
+            output_format: "text".to_string(),
+        }
+    }
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -133,6 +164,7 @@ async fn offer_extension_debugging_help(
         }
     }
 
+<<<<<<< HEAD
     let session = SessionManager::create_session(
         std::env::current_dir()?,
         "CLI Session".to_string(),
@@ -141,6 +173,10 @@ async fn offer_extension_debugging_help(
     .await?;
     let mut debug_session =
         CliSession::new(debug_agent, session.id, false, None, None, None, None).await;
+=======
+    // Create the debugging session
+    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None, "text".to_string()).await;
+>>>>>>> 231f658ef9 (feat: add --output-format json flag to goose run command)
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -459,6 +495,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
+        session_config.output_format.clone(),
     )
     .await;
 

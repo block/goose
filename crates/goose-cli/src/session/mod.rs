@@ -41,6 +41,7 @@ use goose::config::paths::Paths;
 use goose::conversation::message::{Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -49,6 +50,39 @@ use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JsonOutput {
+    messages: Vec<JsonMessage>,
+    tool_calls: Vec<JsonToolCall>,
+    responses: Vec<JsonToolResponse>,
+    metadata: JsonMetadata,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JsonMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JsonToolCall {
+    id: String,
+    name: String,
+    arguments: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JsonToolResponse {
+    id: String,
+    result: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JsonMetadata {
+    total_tokens: Option<i32>,
+    status: String,
+}
 
 pub enum RunMode {
     Normal,
@@ -66,6 +100,7 @@ pub struct CliSession {
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
+    output_format: String,
 }
 
 // Cache structure for completion data
@@ -128,6 +163,7 @@ impl CliSession {
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
+        output_format: String,
     ) -> Self {
         let messages = SessionManager::get_session(&session_id, true)
             .await
@@ -145,6 +181,7 @@ impl CliSession {
             max_turns,
             edit_mode,
             retry_config,
+            output_format,
         }
     }
 
@@ -760,8 +797,19 @@ impl CliSession {
     ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
+<<<<<<< HEAD
         let session_config = SessionConfig {
             id: self.session_id.clone(),
+=======
+        // Collect data for JSON output if needed
+        let mut json_messages = Vec::new();
+        let mut json_tool_calls = Vec::new();
+        let mut json_responses = Vec::new();
+
+        let session_config = self.session_id.as_ref().map(|session_id| SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
+>>>>>>> 231f658ef9 (feat: add --output-format json flag to goose run command)
             schedule_id: self.scheduled_job_id.clone(),
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
@@ -856,6 +904,15 @@ impl CliSession {
                                                 tool_name = %tool_call.name,
                                                 "Tool call started"
                                             );
+                                            // Capture tool call for JSON output
+                                            if self.output_format == "json" {
+                                                let args_value = tool_call.arguments.clone().unwrap_or_default();
+                                                json_tool_calls.push(JsonToolCall {
+                                                    id: tool_request.id.clone(),
+                                                    name: tool_call.name.to_string(),
+                                                    arguments: serde_json::to_value(args_value).unwrap_or(serde_json::Value::Null),
+                                                });
+                                            }
                                         }
                                     }
                                     if let MessageContent::ToolResponse(tool_response) = content {
@@ -889,13 +946,52 @@ impl CliSession {
                                             result = %result_status,
                                             "Tool call completed"
                                         );
+                                        
+                                        // Capture tool response for JSON output
+                                        if self.output_format == "json" {
+                                            let result_value = match &tool_response.tool_result {
+                                                Ok(contents) => serde_json::to_value(contents).unwrap_or(serde_json::Value::Null),
+                                                Err(error_data) => serde_json::to_value(error_data).unwrap_or(serde_json::Value::Null),
+                                            };
+                                            json_responses.push(JsonToolResponse {
+                                                id: tool_response.id.clone(),
+                                                result: result_value,
+                                            });
+                                        }
                                     }
                                 }
+                                
+                                // Capture message for JSON output
+                                if self.output_format == "json" {
+                                    let content_text = message
+                                        .content
+                                        .iter()
+                                        .filter_map(|c| match c {
+                                            MessageContent::Text(text) => Some(text.text.clone()),
+                                            _ => None,
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join("\n");
+                                    
+                                    json_messages.push(JsonMessage {
+                                        role: match message.role {
+                                            rmcp::model::Role::User => "user".to_string(),
+                                            rmcp::model::Role::Assistant => "assistant".to_string(),
+                                        },
+                                        content: content_text,
+                                    });
+                                }
+                                
                                 self.messages.push(message.clone());
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
-                                output::render_message(&message, self.debug);
+                                
+                                if self.output_format == "json" {
+                                    // Don't render in JSON mode
+                                } else {
+                                    output::render_message(&message, self.debug);
+                                }
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
@@ -967,7 +1063,9 @@ impl CliSession {
                                         // TODO: proper display for subagent notifications
                                         if interactive {
                                             let _ = progress_bars.hide();
-                                            println!("{}", console::style(&formatted_message).green().dim());
+                                            if self.output_format != "json" {
+                                                println!("{}", console::style(&formatted_message).green().dim());
+                                            }
                                         } else {
                                             progress_bars.log(&formatted_message);
                                         }
@@ -975,11 +1073,15 @@ impl CliSession {
                                         if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                print!("{}", formatted_message);
-                                                std::io::stdout().flush().unwrap();
+                                                if self.output_format != "json" {
+                                                    print!("{}", formatted_message);
+                                                    std::io::stdout().flush().unwrap();
+                                                }
                                             } else {
-                                                print!("{}", formatted_message);
-                                                std::io::stdout().flush().unwrap();
+                                                if self.output_format != "json" {
+                                                    print!("{}", formatted_message);
+                                                    std::io::stdout().flush().unwrap();
+                                                }
                                             }
                                         }
                                     }
@@ -1056,7 +1158,37 @@ impl CliSession {
                 }
             }
         }
-        println!();
+        
+        // Output JSON if requested
+        if self.output_format == "json" {
+            let metadata = match &self.session_id {
+                Some(id) => match SessionManager::get_session(id, false).await {
+                    Ok(session) => JsonMetadata {
+                        total_tokens: session.total_tokens,
+                        status: "completed".to_string(),
+                    },
+                    Err(_) => JsonMetadata {
+                        total_tokens: None,
+                        status: "completed".to_string(),
+                    },
+                },
+                None => JsonMetadata {
+                    total_tokens: None,
+                    status: "completed".to_string(),
+                },
+            };
+            
+            let json_output = JsonOutput {
+                messages: json_messages,
+                tool_calls: json_tool_calls,
+                responses: json_responses,
+                metadata,
+            };
+            
+            println!("{}", serde_json::to_string_pretty(&json_output)?);
+        } else {
+            println!();
+        }
 
         Ok(())
     }
