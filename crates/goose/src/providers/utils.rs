@@ -313,14 +313,6 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             };
             Err(ProviderError::ServerError(msg))
         }
-        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-            let msg = if let Some(p) = &payload {
-                format!("HTTP {}: {:?}", final_status.as_u16(), p)
-            } else {
-                format!("HTTP {}: No response body received from server", final_status.as_u16())
-            };
-            Err(ProviderError::ServerError(msg))
-        }
         _ => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
