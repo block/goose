@@ -134,7 +134,7 @@ goose run --with-streamable-http-extension "https://example.com/streamable" -t "
 
 ### Debug Mode
 
-When debugging or developing complex workflows, you can enable debug mode to get more detailed information about tool execution. The `--debug` flag provides:
+When troubleshooting or developing complex workflows, you can enable debug mode to get more detailed information about tool execution. The `--debug` flag provides:
 
 - Complete tool responses
 - Detailed parameter values

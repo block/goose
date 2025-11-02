@@ -54,4 +54,4 @@ Use [lead/worker model](/docs/tutorials/lead-worker/) to have goose use a "lead"
 Write [recipes](/docs/guides/recipes/session-recipes) that check your current state before acting, so they can be run multiple times without causing any errors or duplication. 
 
 ### Add Logging to Recipes
-Include informative log messages in your recipes for each major step to make debugging easier should something fail.
+Include informative log messages in your recipes for each major step to make debugging and troubleshooting easier should something fail.
