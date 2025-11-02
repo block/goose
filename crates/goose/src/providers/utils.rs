@@ -68,6 +68,17 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
+fn format_server_error_message(status_code: u16, payload: Option<&Value>) -> String {
+    if let Some(p) = payload {
+        format!("HTTP {}: {:?}", status_code, p)
+    } else {
+        format!(
+            "HTTP {}: No response body received from server",
+            status_code
+        )
+    }
+}
+
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
@@ -116,17 +127,10 @@ pub fn map_http_error_to_provider_error(
             details: format!("{:?}", payload),
             retry_delay: None,
         },
-        _ if status.is_server_error() => {
-            let msg = if let Some(p) = &payload {
-                format!("HTTP {}: {:?}", status.as_u16(), p)
-            } else {
-                format!(
-                    "HTTP {}: No response body received from server",
-                    status.as_u16()
-                )
-            };
-            ProviderError::ServerError(msg)
-        }
+        _ if status.is_server_error() => ProviderError::ServerError(format_server_error_message(
+            status.as_u16(),
+            payload.as_ref(),
+        )),
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
@@ -306,12 +310,10 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             })
         }
         _ if final_status.is_server_error() => {
-            let msg = if let Some(p) = &payload {
-                format!("HTTP {}: {:?}", final_status.as_u16(), p)
-            } else {
-                format!("HTTP {}: No response body received from server", final_status.as_u16())
-            };
-            Err(ProviderError::ServerError(msg))
+            Err(ProviderError::ServerError(format_server_error_message(
+                final_status.as_u16(),
+                payload.as_ref(),
+            )))
         }
         _ => {
             tracing::debug!(
