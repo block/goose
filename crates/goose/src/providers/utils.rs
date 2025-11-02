@@ -70,7 +70,7 @@ fn check_context_length_exceeded(text: &str) -> bool {
 
 fn format_server_error_message(status_code: u16, payload: Option<&Value>) -> String {
     if let Some(p) = payload {
-        format!("HTTP {}: {:?}", status_code, p)
+        format!("HTTP {}: {}", status_code, p.to_string())
     } else {
         format!(
             "HTTP {}: No response body received from server",
@@ -90,7 +90,7 @@ pub fn map_http_error_to_provider_error(
                 "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
         Status: {}{}",
                 status,
-                payload.as_ref().map(|p| format!(". Response: {:?}", p)).unwrap_or_default()
+                payload.as_ref().map(|p| format!(". Response: {}", p.to_string())).unwrap_or_default()
             );
             ProviderError::Authentication(message)
         }
@@ -1075,7 +1075,7 @@ mod tests {
                 StatusCode::UNAUTHORIZED,
                 Some(json!({"error": "auth failed"})),
                 ProviderError::Authentication(
-                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: Object {\"error\": String(\"auth failed\")}".to_string(),
+                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: {\"error\":\"auth failed\"}".to_string(),
                 ),
             ),
             // UNAUTHORIZED/FORBIDDEN - without payload
@@ -1129,7 +1129,7 @@ mod tests {
             (
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
-                ProviderError::ServerError("HTTP 502: Object {\"error\": String(\"upstream error\")}".to_string()),
+                ProviderError::ServerError("HTTP 502: {\"error\":\"upstream error\"}".to_string()),
             ),
             // Default - any other status code
             (
