@@ -906,7 +906,7 @@ impl CliSession {
                                             );
                                             // Capture tool call for JSON output
                                             if self.output_format == "json" {
-                                                let args_value = tool_call.arguments.clone().unwrap_or_default();
+                                                let args_value = tool_call.arguments.as_ref().cloned().unwrap_or_default();
                                                 json_tool_calls.push(JsonToolCall {
                                                     id: tool_request.id.clone(),
                                                     name: tool_call.name.to_string(),
