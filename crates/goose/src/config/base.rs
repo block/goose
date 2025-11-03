@@ -371,15 +371,15 @@ impl Config {
 
         // Convert to YAML for storage (sorted by key for stable serialization)
         let ordered: BTreeMap<String, serde_yaml::Value> = values
-        .into_iter()
-        .map(|(k, v)| {
-            let key = match k {
-                serde_yaml::Value::String(s) => s,
-                other => serde_yaml::to_string(&other).unwrap_or_else(|_| format!("{:?}", other)),
-            };
-            (key, v)
-        })
-        .collect();
+            .into_iter()
+            .map(|(k, v)| {
+                let key = match k {
+                    serde_yaml::Value::String(s) => s,
+                    other => serde_yaml::to_string(&other).unwrap_or_else(|_| format!("{:?}", other)),
+                };
+                (key, v)
+            })
+            .collect();
         let yaml_value = serde_yaml::to_string(&ordered)?;
 
         // Ensure the directory exists
