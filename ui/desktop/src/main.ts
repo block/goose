@@ -1698,12 +1698,14 @@ async function startMcpUIProxyServer(): Promise<number> {
         // Dev mode: require exact localhost:port match via Origin header
         isElectronRequest = !!origin && origin.startsWith(allowedOrigin);
       } else {
-        // Production mode: allow only if Origin header is missing or is file://
+        // Production mode: allow only if Origin header is file://, or if Origin is missing, Referer must be file:// or missing
         // (iframes in file:// context often don't send Origin headers)
-        isElectronRequest = !origin || origin.startsWith('file://');
-      }
-
-      if (!isElectronRequest) {
+        if (!origin) {
+          const referer = req.headers.referer as string | undefined;
+          isElectronRequest = !referer || referer.startsWith('file://');
+        } else {
+          isElectronRequest = origin.startsWith('file://');
+        }
         log.warn(
           `Unauthorized access attempt to MCP-UI proxy. Origin: ${origin || 'none'}, Expected: ${allowedOrigin || 'file:// or no origin'}, IP: ${req.ip}`
         );
