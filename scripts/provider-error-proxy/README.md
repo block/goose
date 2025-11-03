@@ -25,6 +25,9 @@ export OPENROUTER_HOST=http://localhost:8888
 export TETRATE_HOST=http://localhost:8888
 export DATABRICKS_HOST=http://localhost:8888
 
+# For Databricks with OAuth, also set the real host:
+export DATABRICKS_REAL_HOST=https://your-workspace.databricks.com
+
 # 3. Run Goose normally
 goose session start "tell me a joke"
 
@@ -91,16 +94,23 @@ export TETRATE_HOST=http://localhost:8888
 export DATABRICKS_HOST=http://localhost:8888
 ```
 
-Then run Goose normally. The proxy will intercept requests and you can manually trigger errors as needed.
+For providers that require authentication or metadata endpoints (like Databricks with OAuth), you also need to set the real host:
+
+```bash
+export DATABRICKS_REAL_HOST=https://your-workspace.databricks.com
+```
+
+Then run Goose normally. The proxy will intercept API requests and you can manually trigger errors as needed, while authentication and metadata requests are forwarded to the real provider.
 
 ## How It Works
 
 1. **Request Interception**: The proxy listens on localhost and receives all provider API requests
 2. **Provider Detection**: Identifies which provider the request is for based on headers and paths
-3. **Interactive Error Control**: Use stdin commands to control when and what type of errors to inject
-4. **Error Injection**: When an error mode is active, the next request returns a provider-specific error response
-5. **Streaming Support**: Detects streaming responses (SSE/chunked) and streams them through transparently
-6. **Transparent Forwarding**: All other requests are forwarded to the actual provider API unchanged
+3. **Smart Forwarding**: Authentication, OIDC, and metadata endpoints are always forwarded to the real provider without error injection
+4. **Interactive Error Control**: Use stdin commands to control when and what type of errors to inject
+5. **Error Injection**: When an error mode is active, API requests return provider-specific error responses
+6. **Streaming Support**: Detects streaming responses (SSE/chunked) and streams them through transparently
+7. **Transparent Forwarding**: All other requests are forwarded to the actual provider API unchanged
 
 ### Streaming Details
 

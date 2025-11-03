@@ -26,6 +26,7 @@ To use with Goose, set the provider host environment variables:
 
 import asyncio
 import logging
+import os
 import sys
 import threading
 from argparse import ArgumentParser
@@ -51,6 +52,15 @@ PROVIDER_HOSTS = {
     'tetrate': 'https://api.tetrate.io',
     'databricks': 'https://api.databricks.com',
 }
+
+# Paths that should always be forwarded without error injection
+# These are typically authentication, configuration, or metadata endpoints
+ALWAYS_FORWARD_PATHS = [
+    '/oidc/',  # OIDC authentication endpoints
+    '/.well-known/',  # Well-known endpoints for discovery
+    '/oauth',  # OAuth endpoints
+    '/api/2.0/',  # Databricks management API
+]
 
 
 class ErrorMode(Enum):
@@ -330,6 +340,12 @@ class ErrorProxy:
         Returns:
             Provider name
         """
+        path = request.path.lower()
+
+        # Check for databricks-specific paths first (before header checks)
+        if '/serving-endpoints/' in path or '/api/2.0/' in path or '/oidc/' in path:
+            return 'databricks'
+
         # Check for provider-specific headers
         if 'x-api-key' in request.headers:
             return 'anthropic'
@@ -339,7 +355,6 @@ class ErrorProxy:
             auth = request.headers['authorization'].lower()
             if 'bearer' in auth:
                 # Most providers use bearer tokens, check path for hints
-                path = request.path.lower()
                 if 'anthropic' in path or 'messages' in path:
                     return 'anthropic'
                 if 'google' in path or 'generativelanguage' in path:
@@ -352,29 +367,62 @@ class ErrorProxy:
                     return 'databricks'
                 # Default to openai for bearer tokens
                 return 'openai'
-                    
+
         # Default to openai if we can't determine
         return 'openai'
         
+    def should_always_forward(self, request: Request) -> bool:
+        """
+        Check if this request should always be forwarded (never injected with errors).
+
+        Args:
+            request: The incoming HTTP request
+
+        Returns:
+            True if request should always be forwarded
+        """
+        path = request.path
+        for forward_path in ALWAYS_FORWARD_PATHS:
+            if forward_path in path:
+                return True
+        return False
+
     def get_target_url(self, request: Request, provider: str) -> str:
         """
         Construct the target URL for the provider.
-        
+
         Args:
             request: The incoming HTTP request
             provider: The detected provider name
-            
+
         Returns:
             Full target URL
         """
-        base_host = PROVIDER_HOSTS.get(provider, PROVIDER_HOSTS['openai'])
+        # Check for provider-specific real host in environment
+        real_host_env = f"{provider.upper()}_REAL_HOST"
+        base_host = os.environ.get(real_host_env)
+
+        # If no provider-specific real host and this is an always-forward path,
+        # check if ANY *_REAL_HOST is set (for auth endpoints where provider detection might fail)
+        if base_host is None and self.should_always_forward(request):
+            for provider_name in PROVIDER_HOSTS.keys():
+                env_var = f"{provider_name.upper()}_REAL_HOST"
+                if env_var in os.environ:
+                    base_host = os.environ[env_var]
+                    logger.info(f"Using {env_var} for always-forward path")
+                    break
+
+        # Fall back to default provider host
+        if base_host is None:
+            base_host = PROVIDER_HOSTS.get(provider, PROVIDER_HOSTS['openai'])
+
         path = request.path
         query = request.query_string
-        
+
         url = f"{base_host}{path}"
         if query:
             url = f"{url}?{query}"
-            
+
         return url
         
     def _format_status_line(self) -> str:
@@ -414,23 +462,27 @@ class ErrorProxy:
 
         logger.info(f"📨 Request #{self.request_count}: {request.method} {request.path} -> {provider}")
 
-        # Capture the error mode BEFORE checking if we should inject (since that modifies state)
-        mode_before_check = self.get_error_mode()
+        # Check if this request should always be forwarded
+        if self.should_always_forward(request):
+            logger.info(f"🔄 Always forwarding: {request.path}")
+        else:
+            # Capture the error mode BEFORE checking if we should inject (since that modifies state)
+            mode_before_check = self.get_error_mode()
 
-        # Check if we should inject an error
-        should_error = self.should_inject_error()
-        if should_error:
-            # Use the mode captured before the check, since should_inject_error may have changed it
-            error_config = ERROR_CONFIGS.get(provider, ERROR_CONFIGS['openai']).get(
-                mode_before_check, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
-            )
-            logger.warning(f"💥 Injecting {mode_before_check.name} error (status {error_config['status']}) for {provider}")
-            # Show status after the injection to reflect the updated state
-            logger.info(f"Status: {self._format_status_line()}")
-            return web.json_response(
-                error_config['body'],
-                status=error_config['status']
-            )
+            # Check if we should inject an error
+            should_error = self.should_inject_error()
+            if should_error:
+                # Use the mode captured before the check, since should_inject_error may have changed it
+                error_config = ERROR_CONFIGS.get(provider, ERROR_CONFIGS['openai']).get(
+                    mode_before_check, ERROR_CONFIGS['openai'][ErrorMode.SERVER_ERROR]
+                )
+                logger.warning(f"💥 Injecting {mode_before_check.name} error (status {error_config['status']}) for {provider}")
+                # Show status after the injection to reflect the updated state
+                logger.info(f"Status: {self._format_status_line()}")
+                return web.json_response(
+                    error_config['body'],
+                    status=error_config['status']
+                )
         
         # Forward the request to the actual provider
         target_url = self.get_target_url(request, provider)
