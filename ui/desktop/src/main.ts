@@ -1696,7 +1696,7 @@ async function startMcpUIProxyServer(): Promise<number> {
 
       if (allowedOrigin) {
         // Dev mode: require exact localhost:port match via Origin header
-        isElectronRequest = !!origin && origin.startsWith(allowedOrigin);
+        isElectronRequest = !!origin && origin === allowedOrigin;
       } else {
         // Production mode: allow only if Origin header is file://, or if Origin is missing, Referer must be file:// or missing
         // (iframes in file:// context often don't send Origin headers)
