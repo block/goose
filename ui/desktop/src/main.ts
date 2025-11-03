@@ -1561,15 +1561,28 @@ ipcMain.handle('write-file', async (_event, filePath, content) => {
   }
 });
 
-ipcMain.handle('delete-file', async (_event, filePath) => {
-  try {
-    const expandedPath = expandTilde(filePath);
-    await fs.unlink(expandedPath);
-    return true;
-  } catch (error) {
-    console.error('Error deleting file:', error);
-    return false;
+ipcMain.handle('delete-file', async (event, filePath) => {
+  const workingDir = await event.sender.executeJavaScript(
+    `window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`
+  );
+
+  if (!workingDir) {
+    throw new Error('Unable to determine GOOSE_WORKING_DIR');
   }
+
+  const expandedPath = expandTilde(filePath);
+
+  // Resolve to absolute paths
+  const absoluteFilePath = path.resolve(expandedPath);
+  const absoluteWorkingDir = path.resolve(expandTilde(workingDir));
+
+  // Validate that the file is within GOOSE_WORKING_DIR (prevents path traversal)
+  if (!absoluteFilePath.startsWith(absoluteWorkingDir + path.sep)) {
+    throw new Error('Access denied: file must be in GOOSE_WORKING_DIR');
+  }
+
+  await fs.unlink(absoluteFilePath);
+  return true;
 });
 
 // Enhanced file operations
