@@ -2920,7 +2920,10 @@
             "type": "string"
           },
           "sizes": {
-            "type": "string"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "src": {
             "type": "string"

@@ -40,26 +40,22 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     // Print verbose info if requested
     if verbose {
         println!("\n{}", style("goose Configuration:").cyan().bold());
-        match config.load_values() {
-            Ok(values) => {
-                if values.is_empty() {
-                    println!("  No configuration values set");
-                    println!(
-                        "  Run '{}' to configure goose",
-                        style("goose configure").cyan()
-                    );
-                } else {
-                    let sorted_values: std::collections::BTreeMap<_, _> =
-                        values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let values = config.all_values()?;
+        if values.is_empty() {
+            println!("  No configuration values set");
+            println!(
+                "  Run '{}' to configure goose",
+                style("goose configure").cyan()
+            );
+        } else {
+            let sorted_values: std::collections::BTreeMap<_, _> =
+                values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-                    if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
-                        for line in yaml.lines() {
-                            println!("  {}", line);
-                        }
-                    }
+            if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
+                for line in yaml.lines() {
+                    println!("  {}", line);
                 }
             }
-            Err(e) => println!("  Error loading configuration: {}", e),
         }
     }
 
