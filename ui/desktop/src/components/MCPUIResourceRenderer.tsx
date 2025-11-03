@@ -112,7 +112,7 @@ export default function MCPUIResourceRenderer({
       }
     };
 
-    fetchProxyUrl();
+    fetchProxyUrl().catch(console.error);
   }, []);
 
   const handleUIAction = async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
