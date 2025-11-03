@@ -1834,7 +1834,8 @@ async function appMain() {
 
         if (details.url.includes(`:${mcpUIProxyServerPort}`)) {
           log.info(`✓ Injecting MCP-UI proxy token for request: ${details.url}`);
-          details.requestHeaders['X-MCP-UI-Proxy-Token'] = MCP_UI_PROXY_TOKEN;
+          // Use lowercase to match Express's normalized header names
+          details.requestHeaders['x-mcp-ui-proxy-token'] = MCP_UI_PROXY_TOKEN;
         }
       }
 
