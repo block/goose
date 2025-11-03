@@ -3,6 +3,7 @@
 #  - release.yml
 #  - canary.yml
 #  - pr-comment-bundle-desktop.yml
+#  - bundle-desktop-manual.yml
 on:
   workflow_call:
     inputs:

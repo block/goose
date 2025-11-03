@@ -1,10 +1,14 @@
 ---
-title: Troubleshooting
+title: Known Issues
+sidebar_label: Known Issues
+description: Comprehensive troubleshooting guide for common goose problems with step-by-step solutions.
 ---
 
-# Troubleshooting
-
 goose, like any system, may run into occasional issues. This guide provides solutions for common problems.
+
+:::tip Need help with an issue not listed here?
+Our [Discord community](https://discord.gg/goose-oss) is here to help! For the fastest support, consider generating a [diagnostic report](/docs/troubleshooting/diagnostics-and-reporting) - it helps us understand your setup quickly.
+:::
 
 ### goose Edits Files
 goose can and will edit files as part of its workflow. To avoid losing personal changes, use version control to stage your personal edits. Leave goose edits unstaged until reviewed. Consider separate commits for goose's edits so you can easily revert them if needed.
@@ -38,14 +42,7 @@ You can prevent these issues by customizing your shell to handle these commands 
 
 ---
 
-### Debugging and Diagnostics
 
-To help with troubleshooting issues, you can:
-
-- View [session and system logs](/docs/guides/logs) for debugging individual sessions
-- Configure [telemetry export](/docs/guides/environment-variables#observability) for performance analysis, trend monitoring, or production/CI debugging
-
----
 
 ### Context Length Exceeded Error
 
@@ -466,7 +463,12 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
 
 ---
 ### Need Further Help? 
-If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
+
+Still running into issues? We're here to help! Join our [Discord Community][discord] where the goose team and community members are happy to assist.
+
+:::tip
+If you can share a [diagnostic report](/docs/troubleshooting/diagnostics-and-reporting#diagnostics-system) along with your question, it helps us understand your setup and provide more targeted solutions.
+:::
 
 
 
