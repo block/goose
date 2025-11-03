@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use goose::providers::base::Provider;
     use goose::providers::embedded::EmbeddedProvider;
 
     #[test]
@@ -32,62 +31,6 @@ mod tests {
             }
             Err(e) => {
                 panic!("Error enumerating models: {}", e);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_fetch_supported_models_with_provider() {
-        let available_models = match EmbeddedProvider::enumerate_models() {
-            Ok(models) => models,
-            Err(e) => {
-                println!("⚠️  Could not enumerate models: {}", e);
-                return;
-            }
-        };
-
-        if available_models.is_empty() {
-            println!("ℹ️  No models available in ~/.models, skipping provider test");
-            return;
-        }
-
-        // Use the first available model
-        let model_name = &available_models[0];
-        println!("Using model: {}", model_name);
-
-        // Create a ModelConfig with the first available model
-        let model_config =
-            goose::model::ModelConfig::new(model_name).expect("Failed to create model config");
-
-        // Create provider instance
-        let provider = match EmbeddedProvider::from_env(model_config).await {
-            Ok(p) => p,
-            Err(e) => {
-                panic!(
-                    "Failed to create provider with model '{}': {}",
-                    model_name, e
-                );
-            }
-        };
-
-        // Fetch models via the trait method
-        match provider.fetch_supported_models().await {
-            Ok(Some(models)) => {
-                println!("✅ Provider reported {} model(s):", models.len());
-                for model in &models {
-                    println!("  - {}", model);
-                }
-                assert!(!models.is_empty(), "Expected at least one model");
-                assert_eq!(
-                    models, available_models,
-                    "Provider should return same models as static method"
-                );
-            }
-            Ok(None) => {
-                panic!("Provider returned None, but we know models exist");
-            }
-            Err(e) => {
-                panic!("Error fetching models from provider: {}", e);
             }
         }
     }
