@@ -1706,6 +1706,9 @@ async function startMcpUIProxyServer(): Promise<number> {
         } else {
           isElectronRequest = origin.startsWith('file://');
         }
+      }
+
+      if (!isElectronRequest) {
         log.warn(
           `Unauthorized access attempt to MCP-UI proxy. Origin: ${origin || 'none'}, Expected: ${allowedOrigin || 'file:// or no origin'}, IP: ${req.ip}`
         );
@@ -1806,26 +1809,26 @@ async function appMain() {
   // Register the default global hotkey
   registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
 
-  // Set up Origin header for all requests on default session (existing behavior)
-  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    details.requestHeaders['Origin'] = 'http://localhost:5173';
-    callback({ cancel: false, requestHeaders: details.requestHeaders });
-  });
-
   // Track sessions that have been set up to avoid duplicate handlers
-  const configuredSessions = new Set<string>();
+  const configuredSessions = new WeakSet<Session>();
 
-  // Helper function to set up MCP-UI proxy header injection for a session (only once per session)
+  // Helper function to set up header injection for a session (only once per session)
+  // Handles both Origin header (for dev mode) and MCP-UI proxy token injection
   const setupMcpProxyHeaderInjection = (sess: Session) => {
-    // Use session.id as a unique identifier
-    if (configuredSessions.has(sess.id)) {
+    // Skip if we've already configured this session
+    if (configuredSessions.has(sess)) {
       return;
     }
-    configuredSessions.add(sess.id);
+    configuredSessions.add(sess);
 
-    log.info(`Setting up MCP-UI proxy header injection for session`);
+    log.debug(`Setting up header injection for session`);
 
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
+      // Set up Origin header for all requests on default session (existing behavior for dev mode)
+      if (sess === session.defaultSession) {
+        details.requestHeaders['Origin'] = 'http://localhost:5173';
+      }
+
       // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
       if (mcpUIProxyServerPort) {
         try {
@@ -1838,7 +1841,7 @@ async function appMain() {
             // Use lowercase to match Express's normalized header names
             details.requestHeaders['x-mcp-ui-proxy-token'] = MCP_UI_PROXY_TOKEN;
           }
-        } catch (e) {
+        } catch {
           // If URL parsing fails, do not inject the header
         }
       }
