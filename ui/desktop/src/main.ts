@@ -1704,7 +1704,7 @@ async function startMcpUIProxyServer(): Promise<number> {
           const referer = req.headers.referer as string | undefined;
           isElectronRequest = !referer || referer.startsWith('file://');
         } else {
-          isElectronRequest = origin.startsWith('file://');
+          isElectronRequest = origin === 'null';
         }
       }
 
