@@ -11,6 +11,7 @@ fn print_aligned(label: &str, value: &str, width: usize) {
 pub fn handle_info(verbose: bool) -> Result<()> {
     let logs_dir = Paths::in_state_dir("logs");
     let sessions_dir = Paths::in_data_dir("sessions");
+    let sessions_db = sessions_dir.join("sessions.db");
 
     // Get paths using a stored reference to the global config
     let config = Config::global();
@@ -19,7 +20,7 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     // Define the labels and their corresponding path values once.
     let paths = [
         ("Config dir:", config_dir),
-        ("Sessions dir:", sessions_dir.display().to_string()),
+        ("Sessions DB (sqlite):", sessions_db.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
 
