@@ -113,7 +113,7 @@
               if (inner && inner.contentWindow) {
                 inner
                   .contentWindow
-                  .postMessage(event.data, '*');
+                  .postMessage(event.data, 'null');
               }
             }
           } else if (event.source === inner.contentWindow) {
