@@ -1,21 +1,31 @@
 use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
+use async_stream::try_stream;
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
+use futures::TryStreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
+use tokio::pin;
+use tokio_util::io::StreamReader;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::formats::openai::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+    RequestLog,
+};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
@@ -23,6 +33,8 @@ use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
@@ -32,9 +44,6 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "claude-3.7-sonnet",
     "claude-sonnet-4",
 ];
-
-pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -133,20 +142,7 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
-        use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
-        use futures::StreamExt;
-        // Detect gpt-4.1 and stream
-        let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
-        let stream_only_model = GITHUB_COPILOT_STREAM_MODELS
-            .iter()
-            .any(|prefix| model_name.starts_with(prefix));
-        if stream_only_model {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("stream".to_string(), serde_json::Value::Bool(true));
-        }
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
@@ -158,34 +154,7 @@ impl GithubCopilotProvider {
             .json(payload)
             .send()
             .await?;
-        if stream_only_model {
-            let mut collector = OAIStreamCollector::new();
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-                let text = String::from_utf8_lossy(&chunk);
-                for line in text.lines() {
-                    let tline = line.trim();
-                    if !tline.starts_with("data: ") {
-                        continue;
-                    }
-                    let payload = &tline[6..];
-                    if payload == "[DONE]" {
-                        break;
-                    }
-                    match serde_json::from_str::<OAIStreamChunk>(payload) {
-                        Ok(ch) => collector.add_chunk(&ch),
-                        Err(_) => continue,
-                    }
-                }
-            }
-            let final_response = collector.build_response();
-            let value = serde_json::to_value(final_response)
-                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-            Ok(value)
-        } else {
-            handle_response_openai_compat(response).await
-        }
+        handle_response_openai_compat(response).await
     }
 
     async fn get_api_info(&self) -> Result<(String, String)> {
@@ -418,12 +387,7 @@ impl Provider for GithubCopilotProvider {
         let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
-        let response = self
-            .with_retry(|| async {
-                let mut payload_clone = payload.clone();
-                self.post(&mut payload_clone).await
-            })
-            .await?;
+        let response = self.with_retry(|| self.post(&payload)).await?;
 
         // Parse response
         let message = response_to_message(&response)?;
@@ -434,6 +398,71 @@ impl Provider for GithubCopilotProvider {
         let response_model = get_model(&response);
         log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let model_config = self.model.clone();
+
+        let mut payload =
+            create_request(&model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("stream".to_string(), Value::Bool(true));
+
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        let (endpoint, token) = self.get_api_info().await?;
+        let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .client
+                    .post(url.clone())
+                    .headers(self.get_github_headers())
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&payload)
+                    .send()
+                    .await?;
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let error_text = resp.text().await.unwrap_or_default();
+
+                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
+                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                    return Err(map_http_error_to_provider_error(status, json_payload));
+                }
+                Ok(resp)
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+            let message_stream = response_to_streaming_message(framed);
+            pin!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                yield (message, usage);
+            }
+        }))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
