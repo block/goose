@@ -19,8 +19,6 @@ use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::session::SessionManager;
 use rmcp::model::Tool;
 
-const SYSTEM_PROMPT_TOKEN_ESTIMATE: i32 = 5000;
-
 async fn toolshim_postprocess(
     response: Message,
     toolshim_tools: &[Tool],
@@ -281,7 +279,7 @@ impl Agent {
             let new_input = usage
                 .usage
                 .output_tokens
-                .map(|out| out + SYSTEM_PROMPT_TOKEN_ESTIMATE);
+                .map(|out| out);
             (new_input, new_input, None)
         } else {
             (
