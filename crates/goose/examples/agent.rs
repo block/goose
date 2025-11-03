@@ -1,11 +1,13 @@
 use dotenvy::dotenv;
 use futures::StreamExt;
-use goose::agents::{Agent, AgentEvent, ExtensionConfig};
+use goose::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::conversation::message::Message;
-use goose::conversation::Conversation;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use goose::session::session_manager::SessionType;
+use goose::session::SessionManager;
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
@@ -32,11 +34,29 @@ async fn main() {
         println!("  {}", extension);
     }
 
+    let session = SessionManager::create_session(
+        PathBuf::default(),
+        "max-turn-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await
+    .expect("session manager creation failed");
+
+    let session_config = SessionConfig {
+        id: session.id,
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+
     let user_message = Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?");
-    let conversation = Conversation::new(vec![user_message.clone()]).unwrap();
 
-    let mut stream = agent.reply(user_message, None, None).await.unwrap();
+    let mut stream = agent
+        .reply(user_message, session_config, None)
+        .await
+        .unwrap();
+
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");
