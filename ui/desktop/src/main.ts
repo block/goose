@@ -1811,15 +1811,15 @@ async function appMain() {
   });
 
   // Track sessions that have been set up to avoid duplicate handlers
-  const configuredSessions = new WeakSet<Session>();
+  const configuredSessions = new Set<string>();
 
   // Helper function to set up MCP-UI proxy header injection for a session (only once per session)
   const setupMcpProxyHeaderInjection = (sess: Session) => {
-    // Skip if we've already configured this session
-    if (configuredSessions.has(sess)) {
+    // Use session.id as a unique identifier
+    if (configuredSessions.has(sess.id)) {
       return;
     }
-    configuredSessions.add(sess);
+    configuredSessions.add(sess.id);
 
     log.info(`Setting up MCP-UI proxy header injection for session`);
 
