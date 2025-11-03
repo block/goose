@@ -425,6 +425,11 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
+// Compute allowed origin once for dev mode (null in production)
+const ALLOWED_ORIGIN = MAIN_WINDOW_VITE_DEV_SERVER_URL
+  ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
+  : null;
+
 // State for environment variable toggles
 let envToggles: EnvToggles = loadSettings().envToggles;
 
@@ -1675,11 +1680,6 @@ async function startMcpUIProxyServer(): Promise<number> {
       log.error(`MCP UI Proxy: static directory not found at ${staticPath}`);
     }
 
-    // Determine the allowed Electron app origin
-    const allowedOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
-      ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
-      : null; // In production, we use file:// protocol
-
     // Security middleware: validate token and origin on all requests
     expressApp.use((req, res, next) => {
       // Check 1: Validate token via header
@@ -1694,9 +1694,9 @@ async function startMcpUIProxyServer(): Promise<number> {
       const origin = req.headers.origin || req.headers.referer;
       let isElectronRequest = false;
 
-      if (allowedOrigin) {
+      if (ALLOWED_ORIGIN) {
         // Dev mode: check for exact localhost:port match
-        isElectronRequest = origin?.startsWith(allowedOrigin) || false;
+        isElectronRequest = origin?.startsWith(ALLOWED_ORIGIN) || false;
       } else {
         // Production mode: check for file:// protocol OR allow missing origin
         // (iframes in file:// context often don't send origin/referer headers)
@@ -1705,7 +1705,7 @@ async function startMcpUIProxyServer(): Promise<number> {
 
       if (!isElectronRequest) {
         log.warn(
-          `Unauthorized access attempt to MCP-UI proxy. Origin: ${origin || 'none'}, Expected: ${allowedOrigin || 'file:// or no origin'}, IP: ${req.ip}`
+          `Unauthorized access attempt to MCP-UI proxy. Origin: ${origin || 'none'}, Expected: ${ALLOWED_ORIGIN || 'file:// or no origin'}, IP: ${req.ip}`
         );
         res.status(403).send('Forbidden');
         return;
@@ -1820,8 +1820,8 @@ async function appMain() {
 
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
       // Set up Origin header for all requests on default session (existing behavior for dev mode)
-      if (sess === session.defaultSession && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-        details.requestHeaders['Origin'] = new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin;
+      if (sess === session.defaultSession && ALLOWED_ORIGIN) {
+        details.requestHeaders['Origin'] = ALLOWED_ORIGIN;
       }
 
       // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
