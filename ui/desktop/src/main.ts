@@ -1711,7 +1711,6 @@ async function startMcpUIProxyServer(): Promise<number> {
         return;
       }
 
-      log.debug(`MCP-UI proxy request authorized. Origin: ${origin}, Path: ${req.path}`);
       next();
     });
 
