@@ -171,7 +171,9 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handleLinkAction = async (actionEvent: UIActionResultLink) => {
+    const handleLinkAction = async (
+      actionEvent: UIActionResultLink
+    ): Promise<UIActionHandlerResult> => {
       const { url } = actionEvent.payload;
 
       try {
