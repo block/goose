@@ -323,16 +323,18 @@ class ErrorProxy:
     def detect_provider(self, request: Request) -> str:
         """
         Detect which provider this request is for based on headers and path.
-        
+
         Args:
             request: The incoming HTTP request
-            
+
         Returns:
             Provider name
         """
         # Check for provider-specific headers
         if 'x-api-key' in request.headers:
             return 'anthropic'
+        if 'x-goog-api-key' in request.headers:
+            return 'google'
         if 'authorization' in request.headers:
             auth = request.headers['authorization'].lower()
             if 'bearer' in auth:
