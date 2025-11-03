@@ -1852,7 +1852,7 @@ async function appMain() {
 
   // Intercept all new webContents (including main window and iframes) and set up MCP-UI proxy header injection
   app.on('web-contents-created', (_event, contents) => {
-    log.info(`New webContents created: ${contents.getType()}`);
+    log.debug(`New webContents created: ${contents.getType()}`);
     setupMcpProxyHeaderInjection(contents.session);
   });
 
