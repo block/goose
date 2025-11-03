@@ -1826,17 +1826,9 @@ async function appMain() {
 
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
       // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
-      if (mcpUIProxyServerPort) {
-        // Debug: log all localhost requests to see what's being requested
-        if (details.url.includes('localhost')) {
-          log.info(`Request to localhost: ${details.url}, proxyPort: ${mcpUIProxyServerPort}`);
-        }
-
-        if (details.url.includes(`:${mcpUIProxyServerPort}`)) {
-          log.info(`✓ Injecting MCP-UI proxy token for request: ${details.url}`);
-          // Use lowercase to match Express's normalized header names
-          details.requestHeaders['x-mcp-ui-proxy-token'] = MCP_UI_PROXY_TOKEN;
-        }
+      if (mcpUIProxyServerPort && details.url.includes(`:${mcpUIProxyServerPort}`)) {
+        // Use lowercase to match Express's normalized header names
+        details.requestHeaders['x-mcp-ui-proxy-token'] = MCP_UI_PROXY_TOKEN;
       }
 
       callback({ cancel: false, requestHeaders: details.requestHeaders });
