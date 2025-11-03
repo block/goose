@@ -323,15 +323,23 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }
   }, [fetchSchedules]);
 
-  const handleCloseCreateModal = async () => {
-    if (pendingTempFile) {
-      try {
-        await window.electron.deleteFile(pendingTempFile);
-      } catch (error) {
-        console.error('Failed to delete temporary file:', error);
+  const cleanupTempFile = async (filePath: string | null | undefined) => {
+    if (!filePath) return;
+
+    try {
+      await window.electron.deleteFile(filePath);
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'ENOENT') {
+        return;
       }
+      console.error('Failed to delete temporary file:', error);
+    } finally {
       setPendingTempFile(null);
     }
+  };
+
+  const handleCloseCreateModal = async () => {
+    await cleanupTempFile(pendingTempFile);
     setIsCreateModalOpen(false);
     setSubmitApiError(null);
     setPendingDeepLink(null);
@@ -361,29 +369,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       await createSchedule(payload);
       await fetchSchedules();
       setIsCreateModalOpen(false);
-      if (payload.temp_file_path) {
-        try {
-          await window.electron.deleteFile(payload.temp_file_path);
-          setPendingTempFile(null);
-        } catch (error) {
-          console.error('Failed to delete temporary file:', error);
-        }
-      }
     } catch (error) {
       console.error('Failed to create schedule:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error creating schedule.';
       setSubmitApiError(errorMessage);
-
-      if (payload.temp_file_path) {
-        try {
-          await window.electron.deleteFile(payload.temp_file_path);
-          setPendingTempFile(null);
-        } catch (cleanupError) {
-          console.error('Failed to delete temporary file:', cleanupError);
-        }
-      }
     } finally {
+      await cleanupTempFile(payload.temp_file_path);
       setIsSubmitting(false);
     }
   };
