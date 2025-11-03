@@ -83,10 +83,8 @@ pub struct FrontendTool {
 /// Session configuration for an agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfig {
-    /// Unique identifier for the session
+    /// Identifier of the underlying Session
     pub id: String,
-    /// Working directory for the session
-    //pub working_dir: PathBuf,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
     /// Maximum number of turns (iterations) allowed without user input
