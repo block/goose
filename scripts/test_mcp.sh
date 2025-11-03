@@ -17,13 +17,12 @@ SCRIPT_DIR=$(pwd)
 JUDGE_PROVIDER=${GOOSE_JUDGE_PROVIDER:-openrouter}
 JUDGE_MODEL=${GOOSE_JUDGE_MODEL:-google/gemini-2.5-flash}
 
-# slightly slimmed down list vs the one in _providers for now
 PROVIDERS=(
-  "openrouter:google/gemini-2.5-pro:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
-  "openai:gpt-5-mini"
   "anthropic:claude-sonnet-4-5-20250929"
-  "google:gemini-2.5-pro"
-  "tetrate:claude-sonnet-4-20250514"
+  "google:gemini-2.5-flash"
+  "openrouter:qwen/qwen3-coder"
+  "openai:gpt-5-mini"
+  "tetrate:deepseek-r1"
 )
 
 # In CI, only run Databricks tests if DATABRICKS_HOST and DATABRICKS_TOKEN are set
