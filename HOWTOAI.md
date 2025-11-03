@@ -67,7 +67,7 @@ Before submitting AI assisted code, confirm that:
 ## Using goose for goose development
 
 - Protect sensitive files with `.gooseignore` (e.g., `.env*`, `*.key`, `target/`, `.git/`)  
-- Guide Goose with `.goosehints` (patterns, error handling, formatting, tests, docs)  
+- Guide goose with `.goosehints` (patterns, error handling, formatting, tests, docs)  
 - Use `/plan` to structure work, and choose modes wisely:  
   - **Chat** for understanding  
   - **Smart Approval** for most dev work  
