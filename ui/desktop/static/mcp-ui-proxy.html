@@ -152,9 +152,11 @@
                 return;
               }
               // listen for messages from the parent and send them to the iframe
-              inner
-                .contentWindow
-                .postMessage(event.data, urlOrigin);
+              if (inner.contentWindow) {
+                inner.contentWindow.postMessage(event.data, urlOrigin);
+              } else {
+                console.warn('iframe contentWindow is not available; message not sent');
+              }
             } else if (event.source === inner.contentWindow) {
               // listen for messages from the iframe and send them to the parent
               window
