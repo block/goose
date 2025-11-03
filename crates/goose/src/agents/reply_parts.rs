@@ -276,7 +276,7 @@ impl Agent {
 
         let (current_total, current_input, current_output) = if is_compaction_usage {
             // After compaction: summary output becomes new input context
-            let new_input = usage.usage.output_tokens.map(|out| out);
+            let new_input = usage.usage.output_tokens;
             (new_input, new_input, None)
         } else {
             (
