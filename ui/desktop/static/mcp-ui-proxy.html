@@ -47,20 +47,6 @@
       const contentType = params.get('contentType');
       const target = params.get('url');
 
-      // Determine the expected parent origin based on the referrer
-      // In production: file:// protocol, in dev: http://localhost:<port>
-      let expectedParentOrigin = 'null'; // file:// URLs have origin 'null'
-      if (document.referrer) {
-        try {
-          const referrerUrl = new URL(document.referrer);
-          if (referrerUrl.protocol === 'http:' || referrerUrl.protocol === 'https:') {
-            expectedParentOrigin = referrerUrl.origin;
-          }
-        } catch (e) {
-          console.warn('Could not parse referrer, defaulting to null origin', e);
-        }
-      }
-
       // Validate that the URL is a valid HTTP or HTTPS URL
       function isValidHttpUrl(string) {
         try {
@@ -69,15 +55,6 @@
         } catch (error) {
           return false;
         }
-      }
-
-      // Validate message origin matches expected parent
-      function isValidParentOrigin(eventOrigin) {
-        // file:// origins come through as 'null'
-        if (expectedParentOrigin === 'null') {
-          return eventOrigin === 'null';
-        }
-        return eventOrigin === expectedParentOrigin;
       }
 
       if (contentType === 'rawhtml') {
@@ -93,12 +70,6 @@
         // Wait for HTML content from parent
         window.addEventListener('message', (event) => {
           if (event.source === window.parent) {
-            // Validate message is from expected parent origin
-            if (!isValidParentOrigin(event.origin)) {
-              console.warn('Received message from unexpected origin:', event.origin);
-              return;
-            }
-
             if (event.data && event.data.type === 'ui-html-content') {
               const payload = event.data.payload || {};
               const html = payload.html;
@@ -113,14 +84,14 @@
               if (inner && inner.contentWindow) {
                 inner
                   .contentWindow
-                  .postMessage(event.data, 'null');
+                  .postMessage(event.data, '*');
               }
             }
           } else if (event.source === inner.contentWindow) {
             // Relay messages from inner to parent
             window
               .parent
-              .postMessage(event.data, expectedParentOrigin);
+              .postMessage(event.data, '*');
           }
         });
 
@@ -129,7 +100,7 @@
           .parent
           .postMessage({
             type: 'ui-proxy-iframe-ready'
-          }, expectedParentOrigin);
+          }, '*');
       } else if (target) {
         if (!isValidHttpUrl(target)) {
           document.body.textContent = 'Error: invalid URL. Only HTTP and HTTPS URLs are allowed.';
@@ -146,22 +117,15 @@
 
           window.addEventListener('message', (event) => {
             if (event.source === window.parent) {
-              // Validate message is from expected parent origin
-              if (!isValidParentOrigin(event.origin)) {
-                console.warn('Received message from unexpected origin:', event.origin);
-                return;
-              }
               // listen for messages from the parent and send them to the iframe
-              if (inner.contentWindow) {
-                inner.contentWindow.postMessage(event.data, urlOrigin);
-              } else {
-                console.warn('iframe contentWindow is not available; message not sent');
-              }
+              inner
+                .contentWindow
+                .postMessage(event.data, urlOrigin);
             } else if (event.source === inner.contentWindow) {
               // listen for messages from the iframe and send them to the parent
               window
                 .parent
-                .postMessage(event.data, expectedParentOrigin);
+                .postMessage(event.data, '*');
             }
           });
         }

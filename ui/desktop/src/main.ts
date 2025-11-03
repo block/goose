@@ -1691,21 +1691,16 @@ async function startMcpUIProxyServer(): Promise<number> {
       }
 
       // Check 2: Validate origin (defense in depth) - require exact Electron origin
-      const origin = req.headers.origin as string | undefined;
+      const origin = req.headers.origin || req.headers.referer;
       let isElectronRequest = false;
 
       if (allowedOrigin) {
-        // Dev mode: require exact localhost:port match via Origin header
-        isElectronRequest = !!origin && origin === allowedOrigin;
+        // Dev mode: check for exact localhost:port match
+        isElectronRequest = origin?.startsWith(allowedOrigin) || false;
       } else {
-        // Production mode: allow only if Origin header is file://, or if Origin is missing, Referer must be file:// or missing
-        // (iframes in file:// context often don't send Origin headers)
-        if (!origin) {
-          const referer = req.headers.referer as string | undefined;
-          isElectronRequest = !referer || referer.startsWith('file://');
-        } else {
-          isElectronRequest = origin === 'null';
-        }
+        // Production mode: check for file:// protocol OR allow missing origin
+        // (iframes in file:// context often don't send origin/referer headers)
+        isElectronRequest = !origin || origin.startsWith('file://');
       }
 
       if (!isElectronRequest) {
@@ -1825,8 +1820,8 @@ async function appMain() {
 
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
       // Set up Origin header for all requests on default session (existing behavior for dev mode)
-      if (sess === session.defaultSession) {
-        details.requestHeaders['Origin'] = 'http://localhost:5173';
+      if (sess === session.defaultSession && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+        details.requestHeaders['Origin'] = new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin;
       }
 
       // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
