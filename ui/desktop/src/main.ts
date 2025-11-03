@@ -1691,15 +1691,15 @@ async function startMcpUIProxyServer(): Promise<number> {
       }
 
       // Check 2: Validate origin (defense in depth) - require exact Electron origin
-      const origin = req.headers.origin || req.headers.referer;
+      const origin = req.headers.origin as string | undefined;
       let isElectronRequest = false;
 
       if (allowedOrigin) {
-        // Dev mode: check for exact localhost:port match
-        isElectronRequest = origin?.startsWith(allowedOrigin) || false;
+        // Dev mode: require exact localhost:port match via Origin header
+        isElectronRequest = !!origin && origin.startsWith(allowedOrigin);
       } else {
-        // Production mode: check for file:// protocol OR allow missing origin
-        // (iframes in file:// context often don't send origin/referer headers)
+        // Production mode: allow only if Origin header is missing or is file://
+        // (iframes in file:// context often don't send Origin headers)
         isElectronRequest = !origin || origin.startsWith('file://');
       }
 
