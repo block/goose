@@ -195,6 +195,18 @@
       "hacktoberfest": true
     },
     {
+      "title": "Goose with Canva MCP",
+      "author": {
+        "name": "BestCodes",
+        "handle": "the-best-codes"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/xBGTa8XenVc",
+      "submittedDate": "2025-10-30",
+      "tags": ["hacktoberfest"],
+      "hacktoberfest": true
+    },
+    {
       "title": "goose with Apify MCP",
       "author": {
         "name": "abhi",
@@ -206,7 +218,7 @@
       "tags": ["hacktoberfest"],
       "hacktoberfest": true
     },
-      {
+    {
       "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
       "author": {
         "name": "Anudhyan Datta",
