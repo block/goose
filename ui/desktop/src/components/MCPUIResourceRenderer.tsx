@@ -265,7 +265,6 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    console.log('ACTION EVENT:', actionEvent);
     try {
       switch (actionEvent.type) {
         case 'tool':
