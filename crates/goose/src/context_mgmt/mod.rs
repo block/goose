@@ -31,13 +31,12 @@ struct SummarizeContext {
 /// # Returns
 /// * A tuple containing:
 ///   - `Conversation`: The compacted messages
-///   - `Vec<usize>`: Token counts for each message
-///   - `Option<ProviderUsage>`: Provider usage from summarization
+///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     agent: &Agent,
     conversation: &Conversation,
     preserve_last_user_message: bool,
-) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
+) -> Result<(Conversation, ProviderUsage)> {
     info!("Performing message compaction");
 
     let messages = conversation.messages();
@@ -99,16 +98,8 @@ pub async fn compact_messages(
     };
 
     let provider = agent.provider().await?;
-    let summary = do_compact(provider.clone(), messages_to_compact).await?;
-
-    let (summary_message, summarization_usage) = match summary {
-        Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
-        None => {
-            // No summary was generated (empty input)
-            tracing::warn!("Summarization failed. Returning empty messages.");
-            return Ok((Conversation::empty(), vec![], None));
-        }
-    };
+    let (summary_message, summarization_usage) =
+        do_compact(provider.clone(), messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -116,27 +107,17 @@ pub async fn compact_messages(
     // 3. Assistant messages to continue the conversation remain both user_visible and agent_visible
 
     let mut final_messages = Vec::new();
-    let mut final_token_counts = Vec::new();
 
     // Add all original messages with updated visibility (preserve user_visible, set agent_visible=false)
     for msg in messages_to_compact.iter().cloned() {
         let updated_metadata = msg.metadata.with_agent_invisible();
         let updated_msg = msg.with_metadata(updated_metadata);
         final_messages.push(updated_msg);
-        // Token count doesn't matter for agent_visible=false messages, but we'll use 0
-        final_token_counts.push(0);
     }
 
     // Add the summary message (agent_visible=true, user_visible=false)
     let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
-    // For token counting purposes, we use the output tokens (the actual summary content)
-    // since that's what will be in the context going forward
-    let summary_tokens = summarization_usage
-        .as_ref()
-        .and_then(|usage| usage.usage.output_tokens)
-        .unwrap_or(0) as usize;
     final_messages.push(summary_msg);
-    final_token_counts.push(summary_tokens);
 
     // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
     let assistant_message = Message::assistant()
@@ -146,9 +127,7 @@ Do not mention that you read a summary or that conversation summarization occurr
 Just continue the conversation naturally based on the summarized context"
         )
         .with_metadata(MessageMetadata::agent_only());
-    let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
     final_messages.push(assistant_message);
-    final_token_counts.push(assistant_message_tokens);
 
     // Add back the preserved user message if it exists
     if let Some(user_text) = preserved_user_text {
@@ -157,7 +136,6 @@ Just continue the conversation naturally based on the summarized context"
 
     Ok((
         Conversation::new_unvalidated(final_messages),
-        final_token_counts,
         summarization_usage,
     ))
 }
@@ -221,7 +199,7 @@ pub async fn check_if_compaction_needed(
 async fn do_compact(
     provider: Arc<dyn Provider>,
     messages: &[Message],
-) -> Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
+) -> Result<(Message, ProviderUsage), anyhow::Error> {
     let agent_visible_messages: Vec<&Message> = messages
         .iter()
         .filter(|msg| msg.is_agent_visible())
@@ -254,7 +232,7 @@ async fn do_compact(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-    Ok(Some((response, provider_usage)))
+    Ok((response, provider_usage))
 }
 
 fn format_message_for_compacting(msg: &Message) -> String {

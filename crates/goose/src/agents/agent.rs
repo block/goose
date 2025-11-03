@@ -65,7 +65,7 @@ use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -788,8 +788,9 @@ impl Agent {
                 );
 
                 match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
-                    Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
+                    Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                        Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -934,7 +935,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                Self::update_session_metrics(&session_config, usage).await?;
+                                Self::update_session_metrics(&session_config, usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1105,8 +1106,9 @@ impl Agent {
                             );
 
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
-                                Ok((compacted_conversation, _token_counts, _usage)) => {
+                                Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                                    Self::update_session_metrics(&session_config, &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
