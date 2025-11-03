@@ -1572,7 +1572,6 @@ ipcMain.handle('delete-file', async (event, filePath) => {
 
   const expandedPath = expandTilde(filePath);
 
-  // Resolve to absolute paths
   const absoluteFilePath = path.resolve(expandedPath);
   const absoluteWorkingDir = path.resolve(expandTilde(workingDir));
 
