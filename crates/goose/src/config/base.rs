@@ -6,7 +6,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml::Mapping;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -369,8 +369,18 @@ impl Config {
         // Create backup before writing new config
         self.create_backup_if_needed()?;
 
-        // Convert to YAML for storage
-        let yaml_value = serde_yaml::to_string(&values)?;
+        // Convert to YAML for storage (sorted by key for stable serialization)
+        let ordered: BTreeMap<String, serde_yaml::Value> = values
+        .into_iter()
+        .map(|(k, v)| {
+            let key = match k {
+                serde_yaml::Value::String(s) => s,
+                other => serde_yaml::to_string(&other).unwrap_or_else(|_| format!("{:?}", other)),
+            };
+            (key, v)
+        })
+        .collect();
+        let yaml_value = serde_yaml::to_string(&ordered)?;
 
         // Ensure the directory exists
         if let Some(parent) = self.config_path.parent() {
@@ -701,7 +711,8 @@ impl Config {
                 entry.set_password(&json_value)?;
             }
             SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(&values)?;
+                let ordered: BTreeMap<String, serde_json::Value> = values.into_iter().collect();
+                let yaml_value = serde_yaml::to_string(&ordered)?;
                 std::fs::write(path, yaml_value)?;
             }
         };
