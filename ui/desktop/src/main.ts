@@ -2335,8 +2335,12 @@ app.on('will-quit', async () => {
 
   // Close MCP-UI proxy server
   if (mcpUIProxyServer) {
-    mcpUIProxyServer.close(() => {
-      log.info('MCP UI Proxy server closed');
+    const server = mcpUIProxyServer;
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        log.info('MCP UI Proxy server closed');
+        resolve();
+      });
     });
   }
 
