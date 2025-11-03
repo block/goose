@@ -212,13 +212,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     // Skip tool confirmation requests
                 }
                 MessageContent::Image(image) => {
-                    // Handle direct image content
-                    content_array.push(json!({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": convert_image(image, image_format)
-                        }
-                    }));
+                    content_array.push(convert_image(image, image_format));
                 }
                 MessageContent::FrontendToolRequest(req) => {
                     // Frontend tool requests are converted to text messages
