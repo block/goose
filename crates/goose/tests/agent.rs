@@ -118,6 +118,9 @@ async fn run_truncate_test(
     agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
+    let user_message = Message::user().with_text(
+        "did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'",
+    );
     let conversation = Conversation::new(vec![
         Message::user().with_text("hi there. what is 2 + 2?"),
         Message::assistant().with_text("hey! I think it's 4."),
@@ -125,9 +128,7 @@ async fn run_truncate_test(
         Message::assistant().with_text("heyy!!"),
         Message::user().with_text("what's the meaning of life?"),
         Message::assistant().with_text("the meaning of life is 42"),
-        Message::user().with_text(
-            "did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'",
-        ),
+        user_message.clone(),
     ])
     .unwrap();
 

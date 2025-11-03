@@ -830,10 +830,14 @@ impl CliSession {
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
         };
+        let user_message = self
+            .messages
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("No user message"))?;
         let mut stream = self
             .agent
             .reply(
-                self.messages.clone(),
+                user_message.clone(),
                 session_config.clone(),
                 Some(cancel_token.clone()),
             )

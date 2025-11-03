@@ -13,7 +13,6 @@ use goose::session::SessionManager;
 use rmcp::model::{RawContent, ResourceContents};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
@@ -22,17 +21,15 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use url::Url;
 
-/// Represents a single goose session for ACP
-struct GooseSession {
+struct GooseAcpSession {
     messages: Conversation,
     tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
     cancel_token: Option<CancellationToken>, // Active cancellation token for prompt processing
 }
 
-/// goose ACP Agent implementation that connects to real goose agents
 struct GooseAcpAgent {
     session_update_tx: mpsc::UnboundedSender<(SessionNotification, oneshot::Sender<()>)>,
-    sessions: Arc<Mutex<HashMap<String, GooseSession>>>,
+    sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     agent: Agent, // Shared agent instance
 }
 
@@ -100,7 +97,6 @@ impl GooseAcpAgent {
     async fn new(
         session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     ) -> Result<Self> {
-        // Load config and create provider
         let config = Config::global();
 
         let provider_name: String = config
@@ -220,7 +216,7 @@ impl GooseAcpAgent {
         &self,
         content_item: &MessageContent,
         session_id: &acp::SessionId,
-        session: &mut GooseSession,
+        session: &mut GooseAcpSession,
     ) -> Result<(), acp::Error> {
         match content_item {
             MessageContent::Text(text) => {
@@ -276,7 +272,7 @@ impl GooseAcpAgent {
         &self,
         tool_request: &goose::conversation::message::ToolRequest,
         session_id: &acp::SessionId,
-        session: &mut GooseSession,
+        session: &mut GooseAcpSession,
     ) -> Result<(), acp::Error> {
         // Generate ACP tool call ID and track mapping
         let acp_tool_id = format!("tool_{}", uuid::Uuid::new_v4());
@@ -344,7 +340,7 @@ impl GooseAcpAgent {
         &self,
         tool_response: &goose::conversation::message::ToolResponse,
         session_id: &acp::SessionId,
-        session: &mut GooseSession,
+        session: &mut GooseAcpSession,
     ) -> Result<(), acp::Error> {
         // Look up the ACP tool call ID
         if let Some(acp_tool_id) = session.tool_call_ids.get(&tool_response.id) {
@@ -499,7 +495,7 @@ impl acp::Agent for GooseAcpAgent {
         // Generate a unique session ID
         let session_id = uuid::Uuid::new_v4().to_string();
 
-        let session = GooseSession {
+        let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
             tool_call_ids: HashMap::new(),
             cancel_token: None,
@@ -550,7 +546,7 @@ impl acp::Agent for GooseAcpAgent {
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
         let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or(PathBuf::new()),
+            std::env::current_dir().unwrap_or_default(),
             "ACP Session".to_string(),
             SessionType::Hidden,
         )

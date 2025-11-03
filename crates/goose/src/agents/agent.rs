@@ -311,7 +311,7 @@ impl Agent {
                         tool_call,
                         request.id.clone(),
                         cancel_token.clone(),
-                        &session,
+                        session,
                     )
                     .await;
 

@@ -139,10 +139,12 @@ fn get_agent_messages(
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,
         };
-        let mut stream = agent
-            .reply(user_message, session_config, None)
-            .await
-            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+
+        let mut stream = crate::session_context::with_session_id(Some(session.id.clone()), async {
+            agent.reply(user_message, session_config, None).await
+        })
+        .await
+        .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
                 Ok(AgentEvent::Message(msg)) => conversation.push(msg),
