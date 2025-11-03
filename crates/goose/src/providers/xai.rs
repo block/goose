@@ -1,9 +1,9 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat};
+use super::utils::{get_model, handle_response_openai_compat, RequestLog};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -13,8 +13,9 @@ use rmcp::model::Tool;
 use serde_json::Value;
 
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
-pub const XAI_DEFAULT_MODEL: &str = "grok-3";
+pub const XAI_DEFAULT_MODEL: &str = "grok-code-fast-1";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
+    "grok-code-fast-1",
     "grok-4-0709",
     "grok-3",
     "grok-3-fast",
@@ -43,10 +44,8 @@ pub struct XaiProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(XaiProvider);
-
 impl XaiProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("XAI_API_KEY")?;
         let host: String = config
@@ -111,6 +110,7 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
+        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
@@ -119,7 +119,7 @@ impl Provider for XaiProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

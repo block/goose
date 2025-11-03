@@ -8,15 +8,25 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
+use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-4-sonnet";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-4-sonnet", "claude-3-7-sonnet"];
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.5 series
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    // Claude 4 series
+    "claude-4-sonnet",
+    "claude-4-opus",
+    // Claude 3 series
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+];
 
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model";
@@ -40,10 +50,8 @@ pub struct SnowflakeProvider {
     image_format: ImageFormat,
 }
 
-impl_provider_default!(SnowflakeProvider);
-
 impl SnowflakeProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {
@@ -311,6 +319,8 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
 
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
@@ -318,11 +328,11 @@ impl Provider for SnowflakeProvider {
             })
             .await?;
 
-        // Parse response
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+
+        log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }

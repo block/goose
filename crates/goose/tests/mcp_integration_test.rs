@@ -137,6 +137,7 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParam>,
     required_envs: Vec<&str>,
 ) {
+    std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
     let replay_file_name = command
         .iter()
         .map(|s| s.replace("/", "_"))
@@ -188,7 +189,7 @@ async fn test_replayed_session(
     let envs = Envs::new(env);
     let extension_config = ExtensionConfig::Stdio {
         name: "test".to_string(),
-        description: Some("Test".to_string()),
+        description: "Test".to_string(),
         cmd,
         args,
         envs,

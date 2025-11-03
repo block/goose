@@ -179,7 +179,104 @@ impl Formatter {
             output.push('\n');
         }
 
+        // References (type tracking) - only show if present
+        if !result.references.is_empty() {
+            Self::append_references(&mut output, result);
+        }
+
         output
+    }
+
+    /// Append reference tracking information (method-to-type associations, type usage)
+    fn append_references(output: &mut String, result: &AnalysisResult) {
+        use crate::developer::analyze::types::ReferenceType;
+
+        // Group references by type
+        let mut method_defs = Vec::new();
+        let mut type_inst = Vec::new();
+        let mut field_types = Vec::new();
+        let mut var_types = Vec::new();
+        let mut param_types = Vec::new();
+
+        for ref_info in &result.references {
+            match ref_info.ref_type {
+                ReferenceType::MethodDefinition => method_defs.push(ref_info),
+                ReferenceType::TypeInstantiation => type_inst.push(ref_info),
+                ReferenceType::FieldType => field_types.push(ref_info),
+                ReferenceType::VariableType => var_types.push(ref_info),
+                ReferenceType::ParameterType => param_types.push(ref_info),
+                ReferenceType::Call | ReferenceType::Definition | ReferenceType::Import => {}
+            }
+        }
+
+        // Only show section if we have non-call references
+        if method_defs.is_empty()
+            && type_inst.is_empty()
+            && field_types.is_empty()
+            && var_types.is_empty()
+            && param_types.is_empty()
+        {
+            return;
+        }
+
+        output.push_str("\nR: ");
+
+        let mut sections = Vec::new();
+
+        // Method definitions (methods associated with types)
+        if !method_defs.is_empty() {
+            let mut method_strs: Vec<String> = method_defs
+                .iter()
+                .map(|r| {
+                    if let Some(type_name) = &r.associated_type {
+                        format!("{}({})", r.symbol, type_name)
+                    } else {
+                        r.symbol.clone()
+                    }
+                })
+                .collect();
+            method_strs.sort();
+            method_strs.dedup();
+            sections.push(format!("methods[{}]", method_strs.join(" ")));
+        }
+
+        // Type instantiations (struct literals)
+        if !type_inst.is_empty() {
+            let mut type_names: Vec<String> = type_inst.iter().map(|r| r.symbol.clone()).collect();
+            type_names.sort();
+            type_names.dedup();
+            sections.push(format!("types[{}]", type_names.join(" ")));
+        }
+
+        // Field types (only show unique types, not all occurrences)
+        if !field_types.is_empty() {
+            let mut field_type_names: Vec<String> =
+                field_types.iter().map(|r| r.symbol.clone()).collect();
+            field_type_names.sort();
+            field_type_names.dedup();
+            sections.push(format!("fields[{}]", field_type_names.join(" ")));
+        }
+
+        // Variable types (only show unique types)
+        if !var_types.is_empty() {
+            let mut var_type_names: Vec<String> =
+                var_types.iter().map(|r| r.symbol.clone()).collect();
+            var_type_names.sort();
+            var_type_names.dedup();
+            sections.push(format!("vars[{}]", var_type_names.join(" ")));
+        }
+
+        // Parameter types (only show unique types)
+        if !param_types.is_empty() {
+            let mut param_type_names: Vec<String> =
+                param_types.iter().map(|r| r.symbol.clone()).collect();
+            param_type_names.sort();
+            param_type_names.dedup();
+            sections.push(format!("params[{}]", param_type_names.join(" ")));
+        }
+
+        output.push_str(&sections.join("; "));
+        output.push('\n');
     }
 
     /// Format directory structure with summary

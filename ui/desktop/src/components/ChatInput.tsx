@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -8,10 +8,10 @@ import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
@@ -20,15 +20,15 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
-import { COST_TRACKING_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { getApiUrl } from '../config';
+import { DiagnosticsModal } from './ui/DownloadDiagnostics';
+import { Message } from '../api';
 
 interface QueuedMessage {
   id: string;
@@ -52,6 +52,9 @@ const MAX_IMAGE_SIZE_MB = 5;
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
+// Manual compact trigger message - must match backend constant
+const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
+
 interface ModelLimit {
   pattern: string;
   context_limit: number;
@@ -71,7 +74,6 @@ interface ChatInputProps {
   inputTokens?: number;
   outputTokens?: number;
   messages?: Message[];
-  setMessages: (messages: Message[]) => void;
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
@@ -81,7 +83,8 @@ interface ChatInputProps {
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
-  recipeConfig?: Recipe | null;
+  recipe?: Recipe | null;
+  recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
@@ -104,16 +107,16 @@ export default function ChatInput({
   inputTokens,
   outputTokens,
   messages = [],
-  setMessages,
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
-  recipeConfig,
+  recipe,
+  recipeId,
   recipeAccepted,
   initialPrompt,
   toolCount,
   autoSubmit = false,
-  append,
+  append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -135,18 +138,18 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
-  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
 
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
   const chatContext = useChatContext(); // This should always be available now
   const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
+
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   // Debug logging for draft context
   useEffect(() => {
@@ -318,7 +321,7 @@ export default function ChatInput({
 
   useEffect(() => {
     // Only load draft once and if conditions are met
-    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -329,7 +332,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipeConfig]);
+  }, [chatContext, initialValue, recipe]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(
@@ -497,64 +500,12 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
-  // Load auto-compact threshold
-  const loadAutoCompactThreshold = useCallback(async () => {
-    try {
-      const secretKey = await window.electron.getSecretKey();
-      const response = await fetch(getApiUrl('/config/read'), {
-        method: 'POST',
-        headers: {
-          'X-Secret-Key': secretKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          is_secret: false,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Loaded auto-compact threshold from config:', data);
-        if (data !== undefined && data !== null) {
-          setAutoCompactThreshold(data);
-          console.log('Set auto-compact threshold to:', data);
-        }
-      } else {
-        console.error('Failed to fetch auto-compact threshold, status:', response.status);
-      }
-    } catch (err) {
-      console.error('Error fetching auto-compact threshold:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadAutoCompactThreshold();
-  }, [loadAutoCompactThreshold]);
-
-  // Listen for threshold change events from AlertBox
-  useEffect(() => {
-    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
-      setAutoCompactThreshold(event.detail.threshold);
-    };
-
-    // Type assertion to handle the mismatch between CustomEvent and EventListener
-    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
-    window.addEventListener('autoCompactThresholdChanged', eventListener);
-
-    return () => {
-      window.removeEventListener('autoCompactThresholdChanged', eventListener);
-    };
-  }, []);
-
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
     if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
-      // in these conditions we want it to be present but disabled
-      const compactButtonDisabled = !numTokens || isCompacting;
-
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
@@ -563,15 +514,17 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled,
+        compactButtonDisabled: !numTokens,
         onCompact: () => {
-          // Hide the alert popup by dispatching a custom event that the popover can listen to
-          // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append, sessionId || '');
+
+          const customEvent = new CustomEvent('submit', {
+            detail: { value: MANUAL_COMPACT_TRIGGER },
+          }) as unknown as React.FormEvent;
+
+          handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
-        autoCompactThreshold: autoCompactThreshold,
       });
     }
 
@@ -589,16 +542,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    numTokens,
-    toolCount,
-    tokenLimit,
-    isTokenLimitLoaded,
-    addAlert,
-    isCompacting,
-    clearAlerts,
-    autoCompactThreshold,
-  ]);
+  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -966,7 +910,6 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
-    !isCompacting &&
     agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1123,7 +1066,6 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isCompacting &&
       agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
@@ -1178,16 +1120,6 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isCompacting ||
-    !agentIsReady ||
-    isExtensionsLoading;
-
-  const isUserInputDisabled =
-    isAnyImageLoading ||
-    isAnyDroppedFileLoading ||
-    isRecording ||
-    isTranscribing ||
-    isCompacting ||
     !agentIsReady ||
     isExtensionsLoading;
 
@@ -1305,7 +1237,6 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1352,7 +1283,8 @@ export default function ChatInput({
                         OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Models.</b>
                       </p>
-                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
+                      dictationSettings.provider === 'elevenlabs' ? (
                       <p>
                         ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                         <b>Chat</b> {'>'} <b>Voice Dictation.</b>
@@ -1432,17 +1364,15 @@ export default function ChatInput({
                 <p>
                   {isExtensionsLoading
                     ? 'Loading extensions...'
-                    : isCompacting
-                      ? 'Compacting conversation...'
-                      : isAnyImageLoading
-                        ? 'Waiting for images to save...'
-                        : isAnyDroppedFileLoading
-                          ? 'Processing dropped files...'
-                          : isRecording
-                            ? 'Recording...'
-                            : isTranscribing
-                              ? 'Transcribing...'
-                              : (chatContext?.agentWaitingMessage ?? 'Send')}
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1586,7 +1516,6 @@ export default function ChatInput({
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Attach button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1601,6 +1530,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
+
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1624,14 +1554,20 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipeConfig={recipeConfig}
+                recipe={recipe}
+                recipeId={recipeId}
                 hasMessages={messages.length > 0}
               />
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          {process.env.ALPHA && sessionId && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <BottomMenuExtensionSelection sessionId={sessionId} />
+            </>
+          )}
           <div className="flex items-center h-full">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1647,7 +1583,31 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
+          {sessionId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={() => setDiagnosticsOpen(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                >
+                  <Bug className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Generate diagnostics bundle</TooltipContent>
+            </Tooltip>
+          )}
         </div>
+
+        {sessionId && diagnosticsOpen && (
+          <DiagnosticsModal
+            isOpen={diagnosticsOpen}
+            onClose={() => setDiagnosticsOpen(false)}
+            sessionId={sessionId}
+          />
+        )}
 
         <MentionPopover
           ref={mentionPopoverRef}

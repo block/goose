@@ -1,11 +1,11 @@
+use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
-use crate::config::APP_STRATEGY;
+use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::create;
 use crate::scheduler_factory::SchedulerFactory;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -36,10 +36,7 @@ impl AgentManager {
 
     // Private constructor - prevents direct instantiation in production
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
-        // Construct scheduler with the standard goose-server path
-        let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
-            .data_dir()
-            .join("schedule.json");
+        let schedule_file_path = Paths::data_dir().join("schedule.json");
 
         let scheduler = SchedulerFactory::create(schedule_file_path).await?;
 
@@ -91,7 +88,7 @@ impl AgentManager {
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
             match ModelConfig::new(&model_name) {
-                Ok(model_config) => match create(&provider_name, model_config) {
+                Ok(model_config) => match create(&provider_name, model_config).await {
                     Ok(provider) => {
                         self.set_default_provider(provider).await;
                         info!(
@@ -119,6 +116,14 @@ impl AgentManager {
 
         let agent = Arc::new(Agent::new());
         agent.set_scheduler(Arc::clone(&self.scheduler)).await;
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some(session_id.clone()),
+                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+            })
+            .await;
         if let Some(provider) = &*self.default_provider.read().await {
             agent.update_provider(Arc::clone(provider)).await?;
         }

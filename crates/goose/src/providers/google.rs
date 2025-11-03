@@ -1,9 +1,9 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, handle_response_google_compat, unescape_json_values};
+use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
@@ -13,10 +13,9 @@ use rmcp::model::Tool;
 use serde_json::Value;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
-pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-flash";
-pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-1.5-flash";
+pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
+pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
-    // Gemini 2.5 models (latest generation)
     "gemini-2.5-pro",
     "gemini-2.5-pro-preview-06-05",
     "gemini-2.5-pro-preview-05-06",
@@ -27,20 +26,10 @@ pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     "gemini-2.5-flash-exp-native-audio-thinking-dialog",
     "gemini-2.5-flash-preview-tts",
     "gemini-2.5-pro-preview-tts",
-    // Gemini 2.0 models
     "gemini-2.0-flash",
     "gemini-2.0-flash-exp",
     "gemini-2.0-flash-preview-image-generation",
     "gemini-2.0-flash-lite",
-    // Gemini 1.5 models
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash-002",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-flash-8b-latest",
-    "gemini-1.5-pro",
-    "gemini-1.5-pro-latest",
-    "gemini-1.5-pro-002",
 ];
 
 pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
@@ -52,10 +41,8 @@ pub struct GoogleProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GoogleProvider);
-
 impl GoogleProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -115,8 +102,8 @@ impl Provider for GoogleProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
-        // Make request
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
@@ -124,19 +111,17 @@ impl Provider for GoogleProvider {
             })
             .await?;
 
-        // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
         let usage = get_usage(&response)?;
         let response_model = match response.get("modelVersion") {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => model_config.model_name.clone(),
         };
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }
 
-    /// Fetch supported models from Google Generative Language API; returns Err on failure, Ok(None) if not present
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self.api_client.response_get("v1beta/models").await?;
         let json: serde_json::Value = response.json().await?;

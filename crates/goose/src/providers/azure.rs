@@ -9,10 +9,10 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
@@ -68,10 +68,8 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl_provider_default!(AzureProvider);
-
 impl AzureProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
         let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
@@ -159,7 +157,8 @@ impl Provider for AzureProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

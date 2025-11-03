@@ -16,7 +16,7 @@ Files should be named either:
 - `recipe.yaml`/`recipe.json` 
 - `<recipe_name>.yaml`/`<recipe_name>.json`
 
-After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goose-cli-commands) to run or validate the files and to manage recipe sharing.
+After creating recipe files, you can use the [`goose recipe` subcommands](/docs/guides/goose-cli-commands#recipe) to validate, share, and open your recipes.
 
 ### CLI and Desktop Formats
 
@@ -535,10 +535,10 @@ Recipes can be loaded from:
 
 1. Local filesystem:
    - Current directory
-   - Directories specified in `GOOSE_RECIPE_PATH` environment variable
+   - Directories specified in [`GOOSE_RECIPE_PATH`](/docs/guides/environment-variables#recipe-configuration) environment variable
    
 2. GitHub repositories:
-   - Configure using `GOOSE_RECIPE_GITHUB_REPO` configuration key
+   - Configure using [`GOOSE_RECIPE_GITHUB_REPO`](/docs/guides/environment-variables#recipe-configuration) configuration key
    - Requires GitHub CLI (`gh`) to be installed and authenticated
 
 ## Validation Rules

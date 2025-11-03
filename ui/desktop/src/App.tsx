@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -36,14 +36,15 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
-import RecipeEditor from './components/recipes/RecipeEditor';
-import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
+import { View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
   InitializationContext,
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
+import { useNavigation } from './hooks/useNavigation';
+import Pair2 from './components/Pair2';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -55,8 +56,7 @@ const HubRouteWrapper = ({
   isExtensionsLoading: boolean;
   resetChat: () => void;
 }) => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   return (
     <Hub
@@ -86,16 +86,38 @@ const PairRouteWrapper = ({
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  return (
+  // Determine which session ID to use:
+  // 1. From route state (when navigating from Hub with a new session)
+  // 2. From URL params (when resuming a session)
+  // 3. From the existing chat state (when navigating to Pair directly)
+  const sessionId = routeState.resumeSessionId || resumeSessionId || chat.sessionId;
+
+  // Update URL with session ID if it's not already there (new chat from pair)
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+      setSearchParams((prev) => {
+        prev.set('resumeSessionId', sessionId);
+        return prev;
+      });
+    }
+  }, [sessionId, resumeSessionId, setSearchParams]);
+
+  return process.env.ALPHA ? (
+    <Pair2
+      setChat={setChat}
+      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      sessionId={sessionId}
+      initialMessage={initialMessage}
+    />
+  ) : (
     <Pair
       chat={chat}
       setChat={setChat}
@@ -115,7 +137,7 @@ const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const setView = useNavigation();
 
   // Get viewOptions from location.state, history.state, or URL search params
   const viewOptions =
@@ -131,10 +153,7 @@ const SettingsRoute = () => {
 };
 
 const SessionsRoute = () => {
-  const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
-
-  return <SessionsView setView={setView} />;
+  return <SessionsView />;
 };
 
 const SchedulesRoute = () => {
@@ -144,30 +163,6 @@ const SchedulesRoute = () => {
 
 const RecipesRoute = () => {
   return <RecipesView />;
-};
-
-const RecipeEditorRoute = () => {
-  // Check for config from multiple sources:
-  // 1. localStorage (from "View Recipe" button)
-  // 2. Window electron config (from deeplinks)
-  let config;
-  const storedConfig = localStorage.getItem('viewRecipeConfig');
-  if (storedConfig) {
-    try {
-      config = JSON.parse(storedConfig);
-      // Clear the stored config after using it
-      localStorage.removeItem('viewRecipeConfig');
-    } catch (error) {
-      console.error('Failed to parse stored recipe config:', error);
-    }
-  }
-
-  if (!config) {
-    const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipe;
-  }
-
-  return <RecipeEditor config={config} />;
 };
 
 const PermissionRoute = () => {
@@ -249,8 +244,7 @@ const SharedSessionRouteWrapper = ({
   sharedSessionError: string | null;
 }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const setView = createNavigationHandler(navigate);
+  const setView = useNavigation();
 
   const historyState = window.history.state;
   const sessionDetails = (location.state?.sessionDetails ||
@@ -323,16 +317,17 @@ export function AppInner() {
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
+  const setView = useNavigation();
 
   const location = useLocation();
   const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    title: 'Pair Chat',
+    name: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
-    recipeConfig: null,
+    recipe: null,
   });
 
   const { addExtension } = useConfig();
@@ -369,7 +364,6 @@ export function AppInner() {
             setAgentWaitingMessage,
             setIsExtensionsLoading,
           });
-          // Update the chat state with the loaded session to ensure sessionId is available globally
           setChat(loadedChat);
         } catch (e) {
           if (e instanceof NoProviderOrModelError) {
@@ -543,7 +537,7 @@ export function AppInner() {
         closeOnClick
         pauseOnHover
       />
-      <ExtensionInstallModal addExtension={addExtension} />
+      <ExtensionInstallModal addExtension={addExtension} setView={setView} />
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
@@ -608,7 +602,6 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="recipe-editor" element={<RecipeEditorRoute />} />
             <Route
               path="shared-session"
               element={

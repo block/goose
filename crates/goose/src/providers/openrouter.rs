@@ -7,17 +7,17 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
-    is_google_model,
+    get_model, handle_response_google_compat, handle_response_openai_compat, is_google_model,
+    RequestLog,
 };
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
-pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-1.5";
+pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-2.5";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
@@ -28,7 +28,7 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-opus-4",
     "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
-    "google/gemini-flash-1.5",
+    "google/gemini-2.5-flash",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
@@ -42,10 +42,8 @@ pub struct OpenRouterProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(OpenRouterProvider);
-
 impl OpenRouterProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -261,6 +259,7 @@ impl Provider for OpenRouterProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
         let payload = create_request_based_on_model(self, system, messages, tools)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
         let response = self
@@ -277,7 +276,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

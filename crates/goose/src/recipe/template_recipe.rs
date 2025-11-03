@@ -98,7 +98,7 @@ pub fn render_recipe_content_with_params(
 
     let env = add_template_in_env(
         &content_with_safe_variables,
-        params.get(BUILT_IN_RECIPE_DIR_PARAM).unwrap().clone(),
+        params.get(BUILT_IN_RECIPE_DIR_PARAM).cloned(),
         UndefinedBehavior::Strict,
     )?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
@@ -110,23 +110,26 @@ pub fn render_recipe_content_with_params(
 
 fn add_template_in_env(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
     undefined_behavior: UndefinedBehavior,
 ) -> Result<Environment<'_>> {
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(undefined_behavior);
-    env.set_loader(move |name| {
-        let path = Path::new(recipe_dir.as_str()).join(name);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => Ok(Some(content)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                "could not read template",
-            )
-            .with_source(e)),
-        }
-    });
+
+    if let Some(recipe_dir) = recipe_dir {
+        env.set_loader(move |name| {
+            let path = Path::new(recipe_dir.as_str()).join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => Ok(Some(content)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "could not read template",
+                )
+                .with_source(e)),
+            }
+        });
+    }
 
     env.add_template(CURRENT_TEMPLATE_NAME, content)?;
     Ok(env)
@@ -134,7 +137,7 @@ fn add_template_in_env(
 
 fn get_env_with_template_variables(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
     undefined_behavior: UndefinedBehavior,
 ) -> Result<(Environment<'_>, HashSet<String>)> {
     let env = add_template_in_env(content, recipe_dir, undefined_behavior)?;
@@ -147,9 +150,14 @@ fn get_env_with_template_variables(
     Ok((env, template_variables))
 }
 
+fn uses_template_inheritance(content: &str) -> bool {
+    let re = Regex::new(r"\{%-?\s*(extends|include)").unwrap();
+    re.is_match(content)
+}
+
 pub fn parse_recipe_content(
     content: &str,
-    recipe_dir: String,
+    recipe_dir: Option<String>,
 ) -> Result<(Recipe, HashSet<String>)> {
     // Pre-process template variables to handle invalid variable names
     let preprocessed_content = preprocess_template_variables(content)?;
@@ -160,44 +168,21 @@ pub fn parse_recipe_content(
         UndefinedBehavior::Lenient,
     )?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
-    let rendered_content = template
-        .render(())
-        .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?;
-    let recipe = Recipe::from_content(&rendered_content)?;
+
+    // Detect if template uses inheritance or includes
+    let recipe_content = if uses_template_inheritance(&preprocessed_content) {
+        // Must render to resolve inheritance
+        template
+            .render(())
+            .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?
+    } else {
+        // Preserve conditionals and variables as-is
+        preprocessed_content
+    };
+
+    let recipe = Recipe::from_content(&recipe_content)?;
     // return recipe (without loading any variables) and the variable names that are in the recipe
     Ok((recipe, template_variables))
-}
-
-// render the recipe for validation, deeplink and explain, etc.
-pub fn render_recipe_for_preview(
-    content: &str,
-    recipe_dir: String,
-    params: &HashMap<String, String>,
-) -> Result<Recipe> {
-    // Pre-process template variables to handle invalid variable names
-    let preprocessed_content = preprocess_template_variables(content)?;
-
-    let (env, template_variables) = get_env_with_template_variables(
-        &preprocessed_content,
-        recipe_dir,
-        UndefinedBehavior::Lenient,
-    )?;
-    let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
-    // if the variables are not provided, the template will be rendered with the variables, otherwise it will keep the variables as is
-    let mut ctx = preserve_vars(&template_variables).clone();
-    ctx.extend(params.clone());
-    let rendered_content = template
-        .render(ctx)
-        .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?;
-    Recipe::from_content(&rendered_content)
-}
-
-fn preserve_vars(variables: &HashSet<String>) -> HashMap<String, String> {
-    let mut context = HashMap::<String, String>::new();
-    for template_var in variables {
-        context.insert(template_var.clone(), format!("{{{{ {} }}}}", template_var));
-    }
-    context
 }
 
 #[cfg(test)]

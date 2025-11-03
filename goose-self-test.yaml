@@ -1,0 +1,309 @@
+version: 1.0.0
+title: Goose Self-Testing Integration Suite
+description: A comprehensive meta-testing recipe where goose tests its own capabilities using its own tools - true first-person integration testing
+author:
+  contact: goose-self-test
+  
+activities:
+  - Initialize test workspace and logging infrastructure
+  - Test file operations (create, read, update, delete, undo)
+  - Validate shell command execution and error handling
+  - Analyze code structure and parsing capabilities
+  - Test extension discovery and management
+  - Create and orchestrate subagents for meta-testing
+  - Generate and execute test recipes
+  - Test error boundaries and security controls
+  - Measure performance and resource usage
+  - Generate comprehensive test report
+
+parameters:
+  - key: test_phases
+    input_type: string
+    requirement: optional
+    default: "all"
+    description: "Which test phases to run: all, basic, extensions, subagents, recipes, advanced"
+  
+  - key: test_depth
+    input_type: string
+    requirement: optional
+    default: "standard"
+    description: "Testing depth: quick (smoke tests), standard (normal coverage), deep (exhaustive)"
+  
+  - key: workspace_dir
+    input_type: string
+    requirement: optional
+    default: "./gooseselftest"
+    description: "Directory for test artifacts and results"
+  
+  - key: parallel_tests
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Run independent tests in parallel where possible"
+  
+  - key: cleanup_after
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Clean up test artifacts after completion"
+
+instructions: |
+  You are testing yourself - a running goose instance validating its own capabilities through meta-testing.
+  This is true first-person integration testing where you use your own tools to test your own functionality.
+  
+  ## Understanding First-Person Integration Testing
+  This is a crucial distinction - as a running goose instance, you are testing yourself using your own capabilities.
+  This is meta-testing in the truest sense: not unit tests or external test harnesses, but you using your tools 
+  to validate your own functionality from within your active session. You can only test what you can observe and 
+  control from inside your running instance - your tools, your behaviors, your error handling, your consistency.
+  
+  ## Core Testing Philosophy
+  - You ARE the system under test AND the tester
+  - Use your tools to create test scenarios, then validate the results
+  - Test both success and failure paths
+  - Document everything meticulously
+  - Handle errors gracefully - a test failure shouldn't stop the suite
+  
+  ## Test Execution Framework
+  
+  ### Phase 1: Environment Setup & Basic Tool Validation
+  Create a structured test workspace and validate core developer tools:
+  - File operations (CRUD + undo)
+  - Shell command execution
+  - Code analysis capabilities
+  - Error handling and recovery
+  
+  ### Phase 2: Extension System Testing
+  Test dynamic extension management:
+  - Discover available extensions
+  - Enable/disable extensions
+  - Test extension interactions
+  - Verify isolation between extensions
+  
+  ### Phase 3: Subagent Testing (Meta-Recursion)
+  Create subagents to test yourself recursively:
+  - Basic subagent creation and execution
+  - Parallel subagent orchestration
+  - Sequential subagent chains
+  - Recursive depth testing (subagent creating subagent)
+  - Test return_last_only optimization
+  
+  ### Phase 4: Advanced Self-Testing
+  Push boundaries and test limits:
+  - Intentionally trigger errors
+  - Test timeout scenarios
+  - Validate security controls
+  - Measure performance metrics
+  - Test resource constraints
+  
+  ### Phase 5: Report Generation
+  Compile comprehensive test results:
+  - Aggregate all test outcomes
+  - Calculate success metrics
+  - Document failures and issues
+  - Generate recommendations
+  
+  ## Success Criteria
+  - Phase success: ≥80% tests pass
+  - Suite success: All phases complete, critical features work
+  - Each test logs: setup → execute → validate → result → cleanup
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: Core tool for file operations, shell commands, and code analysis
+  
+prompt: |
+  Execute the Goose Self-Testing Integration Suite in {{ workspace_dir }}.
+  Test phases: {{ test_phases }}, Depth: {{ test_depth }}, Parallel: {{ parallel_tests }}
+  
+  ## 🚀 INITIALIZATION
+  Create test workspace: {{ workspace_dir }}/ for all test artifacts and reports.
+  
+  Track your progress using the todo extension. Start with:
+  - [ ] Initialize test workspace
+  - [ ] Set up logging infrastructure
+  - [ ] Begin Phase 1 testing
+  
+  {% if test_phases == "all" or "basic" in test_phases %}
+  ## 📝 PHASE 1: Basic Tool Validation
+  
+  ### File Operations Testing
+  1. Create test files with various content types (.txt, .py, .md, .json)
+  2. Test str_replace on each file type
+  3. Test insert operations at different line positions
+  4. Test undo functionality
+  5. Verify file deletion and recreation
+  6. Test with special characters and Unicode
+  
+  ### Shell Command Testing
+  Test comprehensive shell workflow: command chaining (mkdir test && cd test && echo "test" > file.txt), 
+  error handling (false || echo "handled"), and environment variables (export VAR=test && echo $VAR).
+  Verify both success and failure paths work correctly.
+  
+  ### Code Analysis Testing
+  1. Create sample code files in Python, JavaScript, and Go
+  2. Analyze each file for structure
+  3. Test directory-wide analysis
+  4. Test symbol focus and call graphs
+  5. Verify LOC, function, and class counting
+  
+  Log results to: {{ workspace_dir }}/phase1_basic_tools.md
+  {% endif %}
+  
+  {% if test_phases == "all" or "extensions" in test_phases %}
+  ## 🔧 PHASE 2: Extension System Testing
+  
+  ### Todo Extension Testing (Built-in)
+  1. Create initial todos and verify they persist
+  2. Update todos and confirm changes are retained
+  3. Clear todos and verify clean state
+
+  ### Dynamic Extension Management
+  1. Use platform__search_available_extensions to discover available extensions
+  2. Document all available extensions
+  3. Test enabling and disabling dynamic extensions (if any available)
+  4. Verify extension isolation between enabled extensions
+  
+  Log results to: {{ workspace_dir }}/phase2_extensions.md
+  {% endif %}
+  
+  {% if test_phases == "all" or "subagents" in test_phases %}
+  ## 🤖 PHASE 3: Subagent Meta-Testing
+  
+  ### Basic Subagent Test
+  Create a simple subagent task:
+  ```
+  Task: "Create a file called subagent_test.txt with 'Hello from subagent'"
+  ```
+  
+  ### Parallel Subagent Test
+  {% if parallel_tests == "true" %}
+  Create 3 parallel subagents:
+  1. Count files in current directory
+  2. Get current timestamp
+  3. Create a test file
+  
+  Use execution_mode: "parallel" and verify all complete.
+  {% endif %}
+  
+  ### Sequential Chain Test
+  Create dependent subagents:
+  1. First: Create a Python file
+  2. Second: Analyze the created file
+  3. Third: Run the Python file
+  
+  ### Recursive Depth Test (if test_depth == "deep")
+  {% if test_depth == "deep" %}
+  Create a subagent that creates another subagent (test depth limit).
+  Monitor for resource constraints and context window limits.
+  {% endif %}
+  
+  ### Return Last Only Test
+  Create subagents with return_last_only=true and verify condensed output.
+  
+  Log results to: {{ workspace_dir }}/phase3_subagents.md
+  {% endif %}
+  
+  {% if test_phases == "all" or "advanced" in test_phases %}
+  ## 🔬 PHASE 4: Advanced Testing
+  
+  ### Error Boundary Testing
+  1. Create a file with an invalid path (should fail gracefully)
+  2. Run a non-existent shell command
+  3. Try to analyze a binary file
+  4. Test with extremely long filenames
+  5. Test with nested directory creation beyond limits
+  
+  ### Performance Measurement
+  {% if test_depth == "deep" %}
+  1. Create and analyze a large file (>1MB)
+  2. Run multiple parallel operations
+  3. Track execution times for each operation
+  4. Monitor token usage if accessible
+  {% endif %}
+  
+  ### Security Validation
+  1. Test input with special shell characters: $(echo test)
+  2. Attempt directory traversal: ../../../etc/passwd
+  3. Test with harmful Unicode characters
+  4. Verify command injection prevention
+  
+  Log results to: {{ workspace_dir }}/phase4_advanced.md
+  {% endif %}
+  
+  ## 📊 PHASE 5: Final Report Generation
+  
+  Create TWO reports:
+  
+  ### 1. Detailed Report at {{ workspace_dir }}/detailed_report.md
+  Include all test details, logs, and technical information.
+  
+  ### 2. Executive Summary (REQUIRED - Display in Terminal)
+  
+  **IMPORTANT**: At the very end, generate and display a concise summary directly in the terminal:
+  
+  ```
+  ========================================
+  GOOSE SELF-TEST SUMMARY
+  ========================================
+  
+  ✅ OVERALL RESULT: [PASS/FAIL]
+  
+  📊 Quick Stats:
+  • Tests Run: [X]
+  • Passed: [X] ([%])  
+  • Failed: [X] ([%])
+  • Duration: [X minutes]
+  
+  ✅ Working Features:
+  • File operations: [✓/✗]
+  • Shell commands: [✓/✗]
+  • Code analysis: [✓/✗]
+  • Extensions: [✓/✗]
+  • Subagents: [✓/✗]
+  
+  ⚠️ Issues Found:
+  • [Issue 1 - brief description]
+  • [Issue 2 - brief description]
+  
+  💡 Key Insights:
+  • [Most important finding]
+  • [Performance observation]
+  • [Recommendation]
+  
+  📁 Full report: {{ workspace_dir }}/detailed_report.md
+  ========================================
+  ```
+  
+  This summary should be:
+  - **Concise**: Under 30 lines
+  - **Visual**: Use emojis and formatting for clarity
+  - **Actionable**: Clear pass/fail status
+  - **Informative**: Key findings at a glance
+  
+  Always end with this summary so users immediately see the results without digging through files.
+  
+  {% if cleanup_after == "true" %}
+  ## 🧹 CLEANUP
+  After report generation:
+  1. Archive results to {{ workspace_dir }}/archive/
+  2. Remove temporary test artifacts
+  3. Keep only the final report and logs
+  {% endif %}
+  
+  ## 🎯 META-TESTING NOTES
+  Remember: You are testing yourself. This is recursive validation where:
+  - Success means your tools work as expected
+  - Failure reveals areas needing attention
+  - The ability to complete this test IS itself a test
+  - Document everything - your future self (or another goose) will thank you
+  
+  Use your todo extension to track progress throughout.
+  Handle errors gracefully - a failed test shouldn't crash the suite.
+  Be thorough but efficient based on the test_depth parameter.
+  
+  This is true first-person integration testing. Execute with precision and document with clarity.

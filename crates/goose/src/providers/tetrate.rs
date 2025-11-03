@@ -15,12 +15,12 @@ use super::errors::ProviderError;
 use super::formats::openai::response_to_streaming_message;
 use super::retry::ProviderRetry;
 use super::utils::{
-    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model,
+    get_model, handle_response_google_compat, handle_response_openai_compat,
+    handle_status_openai_compat, is_google_model, RequestLog,
 };
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
@@ -48,10 +48,8 @@ pub struct TetrateProvider {
     supports_streaming: bool,
 }
 
-impl_provider_default!(TetrateProvider);
-
 impl TetrateProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("TETRATE_API_KEY")?;
         // API host for LLM endpoints (/v1/chat/completions, /v1/models)
@@ -175,6 +173,7 @@ impl Provider for TetrateProvider {
             tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
         let response = self
@@ -191,7 +190,7 @@ impl Provider for TetrateProvider {
             Usage::default()
         });
         let model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
@@ -222,7 +221,7 @@ impl Provider for TetrateProvider {
 
         let response = handle_status_openai_compat(response).await?;
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let model_config = self.model.clone();
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
@@ -232,7 +231,7 @@ impl Provider for TetrateProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))

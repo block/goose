@@ -8,9 +8,9 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -25,10 +25,8 @@ pub struct LiteLLMProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(LiteLLMProvider);
-
 impl LiteLLMProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config
             .get_secret("LITELLM_API_KEY")
@@ -190,7 +188,8 @@ impl Provider for LiteLLMProvider {
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

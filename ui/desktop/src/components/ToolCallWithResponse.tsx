@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
@@ -12,6 +12,7 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
+import { Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -22,16 +23,34 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
+function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
+  if ('value' in toolResult && Array.isArray(toolResult.value)) {
+    return toolResult.value as Content[];
+  }
+  return null;
+}
+
+function isEmbeddedResource(content: Content): content is EmbeddedResource {
+  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
+}
+
 export default function ToolCallWithResponse({
   isCancelledMessage,
   toolRequest,
   toolResponse,
   notifications,
-  isStreamingMessage = false,
+  isStreamingMessage,
   append,
 }: ToolCallWithResponseProps) {
-  const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
-  if (!toolCall) {
+  // Handle both the wrapped ToolResult format and the unwrapped format
+  // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
+  const toolCallData = toolRequest.toolCall as Record<string, unknown>;
+  const toolCall =
+    toolCallData?.status === 'success'
+      ? (toolCallData.value as { name: string; arguments: Record<string, unknown> })
+      : (toolCallData as { name: string; arguments: Record<string, unknown> });
+
+  if (!toolCall || !toolCall.name) {
     return null;
   }
 
@@ -53,12 +72,15 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {toolResponse?.toolResult?.value &&
-        toolResponse.toolResult.value.map((content, index) => {
-          if (isUIResource(content)) {
+      {toolResponse?.toolResult &&
+        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+          const resourceContent = isEmbeddedResource(content)
+            ? { ...content, type: 'resource' as const }
+            : null;
+          if (resourceContent && isUIResource(resourceContent)) {
             return (
-              <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
+              <div key={index} className="mt-3">
+                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
@@ -200,7 +222,7 @@ function ToolCallView({
     }
   })();
 
-  const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
+  const isToolDetails = toolCall?.arguments && Object.entries(toolCall.arguments).length > 0;
 
   // Check if streaming has finished but no tool response was received
   // This is a workaround for cases where the backend doesn't send tool responses
@@ -211,7 +233,9 @@ function ToolCallView({
     ? shouldShowAsComplete
       ? 'success'
       : 'loading'
-    : toolResponse.toolResult.status;
+    : (toolResponse.toolResult as Record<string, unknown>).status === 'error'
+      ? 'error'
+      : 'success';
 
   // Tool call timing tracking
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -547,19 +571,30 @@ interface ToolResultViewProps {
 }
 
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+  const hasText = (c: Content): c is Content & { text: string } =>
+    'text' in c && typeof (c as Record<string, unknown>).text === 'string';
+
+  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
+    if (!('data' in c && 'mimeType' in c)) return false;
+    const mimeType = (c as Record<string, unknown>).mimeType;
+    return typeof mimeType === 'string' && mimeType.startsWith('image');
+  };
+
+  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
+
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
-        {result.type === 'text' && result.text && (
+        {hasText(result) && (
           <MarkdownContent
             content={result.text}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}
-        {result.type === 'image' && (
+        {hasImage(result) && (
           <img
             src={`data:${result.mimeType};base64,${result.data}`}
             alt="Tool result"
@@ -570,7 +605,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
-        {result.type === 'resource' && (
+        {hasResource(result) && (
           <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
         )}
       </div>

@@ -1,10 +1,9 @@
-// src/lib.rs or tests/truncate_agent_tests.rs
-
 use std::sync::Arc;
 
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
+use goose::config::extensions::{set_extension, ExtensionEntry};
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
@@ -12,8 +11,8 @@ use goose::providers::base::Provider;
 use goose::providers::{
     anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
     databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
-    groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider, xai::XaiProvider,
+    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    xai::XaiProvider,
 };
 
 #[derive(Debug, PartialEq)]
@@ -26,7 +25,6 @@ enum ProviderType {
     Databricks,
     GcpVertexAI,
     Google,
-    Groq,
     Ollama,
     OpenRouter,
     Xai,
@@ -45,7 +43,6 @@ impl ProviderType {
             ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
-            ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
             ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
@@ -71,19 +68,20 @@ impl ProviderType {
         }
     }
 
-    fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
+    async fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
         Ok(match self {
-            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config)?),
-            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config)?),
-            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config)?),
-            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config)?),
-            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config)?),
-            ProviderType::GcpVertexAI => Arc::new(GcpVertexAIProvider::from_env(model_config)?),
-            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config)?),
-            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config)?),
-            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config)?),
-            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config)?),
-            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config)?),
+            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config).await?),
+            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config).await?),
+            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config).await?),
+            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config).await?),
+            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config).await?),
+            ProviderType::GcpVertexAI => {
+                Arc::new(GcpVertexAIProvider::from_env(model_config).await?)
+            }
+            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config).await?),
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config).await?),
+            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config).await?),
+            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config).await?),
         })
     }
 }
@@ -114,13 +112,13 @@ async fn run_truncate_test(
         .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
-    let provider = provider_type.create_provider(model_config)?;
+    let provider = provider_type.create_provider(model_config).await?;
 
     let agent = Agent::new();
     agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
-    let messages = Conversation::new(vec![
+    let conversation = Conversation::new(vec![
         Message::user().with_text("hi there. what is 2 + 2?"),
         Message::assistant().with_text("hey! I think it's 4."),
         Message::user().with_text(&large_message_content),
@@ -133,7 +131,7 @@ async fn run_truncate_test(
     ])
     .unwrap();
 
-    let reply_stream = agent.reply(messages, None, None).await?;
+    let reply_stream = agent.reply(conversation, None, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -146,8 +144,8 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-            Ok(AgentEvent::HistoryReplaced(_)) => {
-                // Handle history replacement events if needed
+            Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                // Should update the conversation here, but we're not reading it
             }
             Err(e) => {
                 println!("Error: {:?}", e);
@@ -177,14 +175,6 @@ async fn run_truncate_test(
         goose::conversation::message::MessageContent::Text(ref text_content) => {
             assert!(text_content.text.to_lowercase().contains("no"));
             assert!(!text_content.text.to_lowercase().contains("yes"));
-        }
-        goose::conversation::message::MessageContent::ContextLengthExceeded(_) => {
-            // This is an acceptable outcome for providers that don't truncate themselves
-            // and correctly report that the context length was exceeded.
-            println!(
-                "Received ContextLengthExceeded as expected for {:?}",
-                provider_type
-            );
         }
         _ => {
             panic!(
@@ -301,16 +291,6 @@ mod tests {
             provider_type: ProviderType::Google,
             model: "gemini-2.0-flash-exp",
             context_window: 1_200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_agent_with_groq() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Groq,
-            model: "gemma2-9b-it",
-            context_window: 9_000,
         })
         .await
     }
@@ -630,7 +610,7 @@ mod final_output_tool_tests {
         };
 
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string(), None, &None)
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None, None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");
@@ -1132,7 +1112,9 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
-                Ok(AgentEvent::HistoryReplaced(_)) => {}
+                Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
+                    // We should update the conversation here, but we're not reading it
+                }
                 Err(e) => {
                     return Err(e);
                 }
@@ -1156,5 +1138,273 @@ mod max_turns_tests {
             panic!("Expected text content in last message");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod extension_manager_tests {
+    use super::*;
+    use goose::agents::extension::{ExtensionConfig, PlatformExtensionContext};
+    use goose::agents::extension_manager_extension::{
+        MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    };
+    use rmcp::model::CallToolRequestParam;
+    use rmcp::object;
+
+    async fn setup_agent_with_extension_manager() -> Agent {
+        // Add the TODO extension to the config so it can be discovered by search_available_extensions
+        // Set it as disabled initially so tests can enable it
+        let todo_extension_entry = ExtensionEntry {
+            enabled: false,
+            config: ExtensionConfig::Platform {
+                name: "todo".to_string(),
+                description:
+                    "Enable a todo list for Goose so it can keep track of what it is doing"
+                        .to_string(),
+                bundled: Some(true),
+                available_tools: vec![],
+            },
+        };
+        set_extension(todo_extension_entry);
+
+        let agent = Agent::new();
+
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some("test_session".to_string()),
+                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+            })
+            .await;
+
+        // Now add the extension manager platform extension
+        let ext_config = ExtensionConfig::Platform {
+            name: "extensionmanager".to_string(),
+            description: "Extension Manager".to_string(),
+            bundled: Some(true),
+            available_tools: vec![],
+        };
+
+        agent
+            .add_extension(ext_config)
+            .await
+            .expect("Failed to add extension manager");
+        agent
+    }
+
+    #[tokio::test]
+    async fn test_extension_manager_tools_available() {
+        let agent = setup_agent_with_extension_manager().await;
+        let tools = agent.list_tools(None).await;
+
+        // Note: Tool names are prefixed with the normalized extension name "extensionmanager"
+        // not the display name "Extension Manager"
+        let search_tool = tools.iter().find(|tool| {
+            tool.name == format!("extensionmanager__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}")
+        });
+        assert!(
+            search_tool.is_some(),
+            "search_available_extensions tool should be available"
+        );
+
+        let manage_tool = tools
+            .iter()
+            .find(|tool| tool.name == format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}"));
+        assert!(
+            manage_tool.is_some(),
+            "manage_extensions tool should be available"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_search_available_extensions_tool_call() {
+        let agent = setup_agent_with_extension_manager().await;
+
+        let tool_call = CallToolRequestParam {
+            name: format!("extensionmanager__{SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({})),
+        };
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_1".to_string(), None, None)
+            .await;
+
+        assert!(result.is_ok(), "search_available_extensions should succeed");
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "search_available_extensions execution should succeed"
+        );
+
+        let content = call_result.unwrap();
+        assert!(!content.is_empty(), "Should return some content");
+
+        // Verify the content contains expected text
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("Extensions available to enable:"),
+            "Content should contain 'Extensions available to enable:'"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_manage_extensions_enable_disable_success() {
+        let agent = setup_agent_with_extension_manager().await;
+
+        let enable_call = CallToolRequestParam {
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({
+                "action": "enable",
+                "extension_name": "todo"
+            })),
+        };
+        let (_, result) = agent
+            .dispatch_tool_call(enable_call, "request_3a".to_string(), None, None)
+            .await;
+        assert!(result.is_ok());
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "manage_extensions enable execution should succeed"
+        );
+
+        let content = call_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("todo") && text.text.contains("installed successfully"),
+            "Response should indicate success, got: {}",
+            text.text
+        );
+
+        // Now disable it
+        let disable_call = CallToolRequestParam {
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({
+                "action": "disable",
+                "extension_name": "todo"
+            })),
+        };
+
+        let (_, result) = agent
+            .dispatch_tool_call(disable_call, "request_3b".to_string(), None, None)
+            .await;
+
+        assert!(result.is_ok(), "manage_extensions disable should succeed");
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "manage_extensions disable execution should succeed"
+        );
+
+        let content = call_result.unwrap();
+        assert!(!content.is_empty(), "Should return confirmation message");
+
+        // Verify the message indicates success
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("successfully") || text.text.contains("disabled"),
+            "Response should indicate success, got: {}",
+            text.text
+        );
+    }
+
+    #[tokio::test]
+    async fn test_manage_extensions_missing_parameters() {
+        let agent = setup_agent_with_extension_manager().await;
+
+        // Call manage_extensions without action parameter
+        let tool_call = CallToolRequestParam {
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({
+                "extension_name": "todo"
+            })),
+        };
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_4".to_string(), None, None)
+            .await;
+
+        assert!(result.is_ok(), "Tool call should return a result");
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "Tool execution should return an error result"
+        );
+
+        let content = call_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("action") || text.text.contains("parameter"),
+            "Error should mention missing action parameter"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_manage_extensions_invalid_action() {
+        let agent = setup_agent_with_extension_manager().await;
+
+        let tool_call = CallToolRequestParam {
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({
+                "action": "invalid_action",
+                "extension_name": "todo"
+            })),
+        };
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_6".to_string(), None, None)
+            .await;
+
+        assert!(result.is_ok(), "Tool call should return a result");
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "Tool execution should return an error result"
+        );
+
+        let content = call_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("Invalid action")
+                || text.text.contains("enable")
+                || text.text.contains("disable"),
+            "Error should mention invalid action, got: {}",
+            text.text
+        );
+    }
+
+    #[tokio::test]
+    async fn test_manage_extensions_extension_not_found() {
+        let agent = setup_agent_with_extension_manager().await;
+
+        // Try to enable a non-existent extension
+        let tool_call = CallToolRequestParam {
+            name: format!("extensionmanager__{MANAGE_EXTENSIONS_TOOL_NAME}").into(),
+            arguments: Some(object!({
+                "action": "enable",
+                "extension_name": "nonexistent_extension_12345"
+            })),
+        };
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_7".to_string(), None, None)
+            .await;
+
+        assert!(result.is_ok(), "Tool call should return a result");
+        let call_result = result.unwrap().result.await;
+        assert!(
+            call_result.is_ok(),
+            "Tool execution should return an error result"
+        );
+
+        // Check that the error message indicates extension not found
+        let content = call_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("not found") || text.text.contains("Extension"),
+            "Error should mention extension not found, got: {}",
+            text.text
+        );
     }
 }
