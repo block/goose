@@ -1,0 +1,19 @@
+name: Manual Desktop Bundle (Unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch name to bundle app from'
+        required: true
+        type: string
+
+jobs:
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      signing: false
+      ref: ${{ inputs.branch }}
