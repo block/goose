@@ -483,9 +483,7 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-
-// Track power save blockers per window
-const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+const windowPowerSaveBlockers = new Map<number, number>();
 
 const createChat = async (
   app: App,
@@ -1872,6 +1870,50 @@ async function appMain() {
     );
   }
 
+  if (menu) {
+    let windowMenu = menu.items.find((item) => item.label === 'Window');
+
+    if (!windowMenu) {
+      windowMenu = new MenuItem({
+        label: 'Window',
+        submenu: Menu.buildFromTemplate([]),
+      });
+
+      const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
+      if (helpMenuIndex >= 0) {
+        menu.items.splice(helpMenuIndex, 0, windowMenu);
+      } else {
+        menu.items.push(windowMenu);
+      }
+    }
+
+    if (windowMenu.submenu) {
+      windowMenu.submenu.append(
+        new MenuItem({
+          label: 'Always on Top',
+          type: 'checkbox',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
+          click(menuItem) {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              const isAlwaysOnTop = menuItem.checked;
+
+              if (process.platform === 'darwin') {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
+              } else {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+              }
+
+              console.log(
+                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+              );
+            }
+          },
+        })
+      );
+    }
+  }
+
   // on macOS, the topbar is hidden
   if (menu && process.platform !== 'darwin') {
     let helpMenu = menu.items.find((item) => item.label === 'Help');
@@ -2007,6 +2049,17 @@ async function appMain() {
     } catch (error) {
       console.error('Error logging info:', error);
     }
+  });
+
+  ipcMain.on('broadcast-theme-change', (event, themeData) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const allWindows = BrowserWindow.getAllWindows();
+
+    allWindows.forEach((window) => {
+      if (window.id !== senderWindow?.id) {
+        window.webContents.send('theme-changed', themeData);
+      }
+    });
   });
 
   ipcMain.on('reload-app', (event) => {

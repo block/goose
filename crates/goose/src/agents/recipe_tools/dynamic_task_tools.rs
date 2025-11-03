@@ -9,6 +9,7 @@ use crate::agents::subagent_execution_tool::{
     task_types::{Task, TaskType},
 };
 use crate::agents::tool_execution::ToolCallResult;
+use crate::config::GooseMode;
 use crate::recipe::{Recipe, RecipeBuilder};
 use anyhow::{anyhow, Result};
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
@@ -93,7 +94,7 @@ pub struct TaskParameter {
 
 pub fn should_enabled_subagents(model_name: &str) -> bool {
     let config = crate::config::Config::global();
-    let is_autonomous = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string()) == "auto";
+    let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
     if !is_autonomous {
         return false;
     }

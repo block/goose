@@ -29,7 +29,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, Config};
+use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -73,7 +73,7 @@ pub struct ReplyContext {
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
-    pub goose_mode: String,
+    pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
     pub config: &'static Config,
 }
@@ -193,7 +193,7 @@ impl Agent {
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            "smart_approve".to_string(),
+            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
@@ -264,7 +264,7 @@ impl Agent {
 
         // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.clone())
+            .update_permission_inspector_mode(goose_mode)
             .await;
 
         Ok(ReplyContext {
@@ -826,11 +826,9 @@ impl Agent {
                     }
                 }
                 Err(e) => {
-                    yield AgentEvent::Message(
-                        Message::assistant().with_text(
-                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                        )
-                    );
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                    ));
                 }
             }
         }))
@@ -1031,8 +1029,7 @@ impl Agent {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                let mode = goose_mode.clone();
-                                if mode.as_str() == "chat" {
+                                if goose_mode == GooseMode::Chat {
                                     // Skip all tool calls in chat mode
                                     for request in remaining_requests {
                                         let mut response = message_tool_response.lock().await;
@@ -1260,15 +1257,13 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
+    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> GooseMode {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "chat".to_string(),
-            Some("background") => "auto".to_string(),
-            _ => config
-                .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| "auto".to_string()),
+            Some("foreground") => GooseMode::Chat,
+            Some("background") => GooseMode::Auto,
+            _ => config.get_goose_mode().unwrap_or(GooseMode::Auto),
         }
     }
 
@@ -1527,7 +1522,7 @@ impl Agent {
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first");
 
         let settings = Settings {
