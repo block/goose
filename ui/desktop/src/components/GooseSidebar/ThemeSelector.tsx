@@ -3,7 +3,12 @@ import { Moon, Sliders, Sun, Palette, type LucideIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { CustomColorPicker } from './CustomColorPicker';
-import { applyCustomTheme, resetThemeColors, DEFAULT_THEME_COLOR } from '../../utils/colorUtils';
+import {
+  applyCustomTheme,
+  resetThemeColors,
+  DEFAULT_THEME_COLOR,
+  isValidHexColor,
+} from '../../utils/colorUtils';
 import { cn } from '../../utils';
 
 interface ThemeSelectorProps {
@@ -68,7 +73,10 @@ export function ThemeSelector({
       }
 
       if (e.key === 'custom_theme_color' && e.newValue) {
-        setCustomColor(e.newValue);
+        // Validate the color before setting it to state
+        if (isValidHexColor(e.newValue)) {
+          setCustomColor(e.newValue);
+        }
       }
 
       if (e.key === 'custom_theme_enabled') {

@@ -25,7 +25,11 @@
               // Apply custom theme colors if enabled
               const customThemeEnabled = localStorage.getItem('custom_theme_enabled') === 'true';
               if (customThemeEnabled) {
-                const customColor = localStorage.getItem('custom_theme_color') || '#32353b';
+                let customColor = localStorage.getItem('custom_theme_color') || '#32353b';
+                // Validate the color before applying it
+                if (!hexToRgb(customColor)) {
+                  customColor = '#32353b';
+                }
                 applyCustomThemeColors(customColor, isDark);
               }
             } else {
@@ -78,9 +82,9 @@
             const hue2rgb = (p, q, t) => {
               if (t < 0) t += 1;
               if (t > 1) t -= 1;
-              if (t < 1/6) return p + (q - p) * 6 * t;
-              if (t < 1/2) return q;
-              if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+              if (t < 1/6) return p + (q - p) * 6 * t; // Hue in red-yellow range
+              if (t < 1/2) return q; // Hue in yellow-green range
+              if (t < 2/3) return p + (q - p) * (2/3 - t) * 6; // Hue in green-blue range
               return p;
             };
             const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
