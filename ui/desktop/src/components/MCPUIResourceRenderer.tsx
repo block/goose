@@ -105,10 +105,10 @@ export default function MCPUIResourceRenderer({
         if (url) {
           setProxyUrl(url);
         } else {
-          console.error('Failed to get proxy MCP-UI Proxy URL');
+          console.error('Failed to get MCP-UI Proxy URL');
         }
       } catch (error) {
-        console.error('Error fetching proxy MCP-UI Proxy URL:', error);
+        console.error('Error fetching MCP-UI Proxy URL:', error);
       }
     };
 
