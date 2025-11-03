@@ -357,12 +357,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setSubmitApiError(null);
   };
 
-  const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
+  const handleCreateScheduleSubmit = async (payload: NewSchedulePayload, tempFilePath?: string) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
 
-    if (payload.temp_file_path) {
-      setPendingTempFile(payload.temp_file_path);
+    if (tempFilePath) {
+      setPendingTempFile(tempFilePath);
     }
 
     try {
@@ -375,7 +375,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         error instanceof Error ? error.message : 'Unknown error creating schedule.';
       setSubmitApiError(errorMessage);
     } finally {
-      await cleanupTempFile(payload.temp_file_path);
+      await cleanupTempFile(tempFilePath);
       setIsSubmitting(false);
     }
   };

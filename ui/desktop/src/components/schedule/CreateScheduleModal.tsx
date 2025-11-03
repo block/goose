@@ -23,13 +23,12 @@ export interface NewSchedulePayload {
   recipe_source: string;
   cron: string;
   execution_mode?: string;
-  temp_file_path?: string;
 }
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (payload: NewSchedulePayload) => Promise<void>;
+  onSubmit: (payload: NewSchedulePayload, tempFilePath?: string) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
   initialDeepLink?: string | null;
@@ -539,10 +538,9 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
       execution_mode: executionMode,
-      temp_file_path: tempFilePathForCleanup,
     };
 
-    await onSubmit(newSchedulePayload);
+    await onSubmit(newSchedulePayload, tempFilePathForCleanup);
   };
 
   const handleClose = () => {
