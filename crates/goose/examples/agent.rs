@@ -32,11 +32,11 @@ async fn main() {
         println!("  {}", extension);
     }
 
-    let conversation = Conversation::new(vec![Message::user()
-        .with_text("can you summarize the readme.md in this dir using just a haiku?")])
-    .unwrap();
+    let user_message = Message::user()
+        .with_text("can you summarize the readme.md in this dir using just a haiku?");
+    let conversation = Conversation::new(vec![user_message.clone()]).unwrap();
 
-    let mut stream = agent.reply(conversation, None, None).await.unwrap();
+    let mut stream = agent.reply(user_message, None, None).await.unwrap();
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");
