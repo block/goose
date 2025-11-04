@@ -219,10 +219,7 @@ export function ThemeSelector({
       <div className={cn(!horizontal && 'px-3', 'py-3')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex-1">
-            <div className="mb-1">
-              <span className="leading-none text-text-default">Custom Accent</span>
-            </div>
-            <p className="text-sm text-text-muted">Customize the look and feel of goose</p>
+            <span className="leading-none text-text-default">Custom Accent</span>
           </div>
           <Switch
             checked={customColorEnabled}
