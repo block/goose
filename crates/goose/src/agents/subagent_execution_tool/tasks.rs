@@ -249,7 +249,7 @@ fn extract_json_from_line(line: &str) -> Option<String> {
         return None;
     }
 
-    let potential_json = &line[start..=end];
+    let potential_json = line.get(start..=end)?;
     if serde_json::from_str::<Value>(potential_json).is_ok() {
         Some(potential_json.to_string())
     } else {
