@@ -136,7 +136,7 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
   return (
     <div className={cn(className)}>
       {/* Color Flex Layout */}
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Accent colors">
+      <div className="flex flex-wrap gap-1 p-1" role="group" aria-label="Accent colors">
         {allColors.map((color) => (
           <button
             key={color}
