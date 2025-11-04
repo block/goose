@@ -136,41 +136,38 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
   return (
     <div className={cn('space-y-3', className)}>
       {/* Color Grid */}
-      <div className="space-y-2">
-        <label className="text-xs text-text-muted">Accent Color</label>
-        <div className="grid grid-cols-6 gap-2" role="group" aria-label="Accent colors">
-          {allColors.map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => handleColorSelect(color)}
-              className={cn(
-                'w-full aspect-square rounded-md border-2 transition-all hover:scale-105',
-                isSelected(color)
-                  ? 'border-background-accent ring-2 ring-background-accent/30 scale-105'
-                  : 'border-border-default hover:border-border-strong'
-              )}
-              style={{ backgroundColor: color }}
-              title={color}
-              aria-label={`Select color ${color}`}
-              aria-pressed={isSelected(color)}
-            />
-          ))}
+      <div className="grid grid-cols-6 gap-2" role="group" aria-label="Accent colors">
+        {allColors.map((color) => (
+          <button
+            key={color}
+            type="button"
+            onClick={() => handleColorSelect(color)}
+            className={cn(
+              'w-full aspect-square rounded-md border-2 transition-all hover:scale-105',
+              isSelected(color)
+                ? 'border-background-accent ring-2 ring-background-accent/30 scale-105'
+                : 'border-border-default hover:border-border-strong'
+            )}
+            style={{ backgroundColor: color }}
+            title={color}
+            aria-label={`Select color ${color}`}
+            aria-pressed={isSelected(color)}
+          />
+        ))}
 
-          {/* Add Custom Color Button */}
-          {allColors.length < MAX_COLORS && (
-            <button
-              type="button"
-              onClick={handleOpenDialog}
-              className="w-full aspect-square rounded-md border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-105 flex items-center justify-center"
-              title="Add custom color"
-              aria-label="Add custom color"
-              data-testid="add-custom-color-button"
-            >
-              <Plus className="h-5 w-5 text-text-muted" />
-            </button>
-          )}
-        </div>
+        {/* Add Custom Color Button */}
+        {allColors.length < MAX_COLORS && (
+          <button
+            type="button"
+            onClick={handleOpenDialog}
+            className="w-full aspect-square rounded-md border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-105 flex items-center justify-center"
+            title="Add custom color"
+            aria-label="Add custom color"
+            data-testid="add-custom-color-button"
+          >
+            <Plus className="h-5 w-5 text-text-muted" />
+          </button>
+        )}
       </div>
 
       {/* Custom Color Dialog */}
