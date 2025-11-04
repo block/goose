@@ -1,18 +1,12 @@
 pub mod config;
 pub mod lapstone;
-pub mod tailscale;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum TunnelMode {
-    #[default]
-    Lapstone,
-    Tailscale,
-}
+// Note: TunnelMode removed - only Lapstone is currently supported
+// See tunnel/archived/README.md for archived Tailscale implementation
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -44,8 +38,6 @@ pub struct TunnelInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TunnelConfig {
     #[serde(default)]
-    pub mode: TunnelMode,
-    #[serde(default)]
     pub auto_start: bool,
     #[serde(default)]
     pub secret: Option<String>,
@@ -57,6 +49,7 @@ pub struct TunnelConfig {
 pub struct TunnelStatus {
     pub state: TunnelState,
     pub info: Option<TunnelInfo>,
+    pub auto_start: bool,
 }
 
 pub struct TunnelManager {
@@ -79,15 +72,12 @@ impl TunnelManager {
     pub async fn get_status(&self) -> TunnelStatus {
         let state = self.state.read().await.clone();
         let info = self.info.read().await.clone();
-        TunnelStatus { state, info }
-    }
-
-    pub async fn get_mode(&self) -> TunnelMode {
-        self.config.read().await.mode.clone()
-    }
-
-    pub async fn set_mode(&self, mode: TunnelMode) {
-        self.config.write().await.mode = mode;
+        let auto_start = self.config.read().await.auto_start;
+        TunnelStatus {
+            state,
+            info,
+            auto_start,
+        }
     }
 
     pub async fn update_config<F>(&self, f: F)
@@ -110,37 +100,28 @@ impl TunnelManager {
         *state = TunnelState::Starting;
         drop(state);
 
-        let mode = self.get_mode().await;
         let config = self.config.read().await.clone();
 
-        let result = match mode {
-            TunnelMode::Lapstone => {
-                let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
-                let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-                    .expect("GOOSE_SERVER__SECRET_KEY must be set for tunnel to work");
-                let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
+        // Only Lapstone tunnel is currently supported
+        let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
+        let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
+            .expect("GOOSE_SERVER__SECRET_KEY must be set for tunnel to work");
+        let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
-                self.update_config(|c| {
-                    c.secret = Some(tunnel_secret.clone());
-                    c.agent_id = Some(agent_id.clone());
-                })
-                .await;
+        self.update_config(|c| {
+            c.secret = Some(tunnel_secret.clone());
+            c.agent_id = Some(agent_id.clone());
+        })
+        .await;
 
-                let info = lapstone::start(
-                    port,
-                    tunnel_secret,
-                    server_secret,
-                    agent_id,
-                    self.lapstone_handle.clone(),
-                )
-                .await?;
-                Ok(info)
-            }
-            TunnelMode::Tailscale => {
-                let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
-                tailscale::start(port, tunnel_secret).await
-            }
-        };
+        let result = lapstone::start(
+            port,
+            tunnel_secret,
+            server_secret,
+            agent_id,
+            self.lapstone_handle.clone(),
+        )
+        .await;
 
         match result {
             Ok(info) => {
@@ -157,16 +138,8 @@ impl TunnelManager {
     }
 
     pub async fn stop(&self, clear_auto_start: bool) {
-        let mode = self.get_mode().await;
-
-        match mode {
-            TunnelMode::Lapstone => {
-                lapstone::stop(self.lapstone_handle.clone()).await;
-            }
-            TunnelMode::Tailscale => {
-                tailscale::stop().await;
-            }
-        }
+        // Only Lapstone tunnel is currently supported
+        lapstone::stop(self.lapstone_handle.clone()).await;
 
         *self.state.write().await = TunnelState::Idle;
         *self.info.write().await = None;
@@ -211,14 +184,5 @@ mod tests {
         let status = manager.get_status().await;
         assert_eq!(status.state, TunnelState::Idle);
         assert!(status.info.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_tunnel_mode() {
-        let manager = TunnelManager::new(TunnelConfig::default());
-        assert_eq!(manager.get_mode().await, TunnelMode::Lapstone);
-
-        manager.set_mode(TunnelMode::Tailscale).await;
-        assert_eq!(manager.get_mode().await, TunnelMode::Tailscale);
     }
 }

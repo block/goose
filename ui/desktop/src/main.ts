@@ -1255,27 +1255,6 @@ ipcMain.handle('get-tunnel-status', async () => {
   }
 });
 
-ipcMain.handle('get-tunnel-mode', async () => {
-  try {
-    const { loadSettings } = await import('./utils/settings');
-    const settings = loadSettings();
-    return settings.tunnelMode || 'lapstone';
-  } catch (error) {
-    console.error('Error getting tunnel mode:', error);
-    return 'lapstone';
-  }
-});
-
-ipcMain.handle('set-tunnel-mode', async (_event, mode: string) => {
-  try {
-    const { setTunnelMode } = await import('./utils/tunnel');
-    setTunnelMode(mode as 'lapstone' | 'tailscale');
-  } catch (error) {
-    console.error('Error setting tunnel mode:', error);
-    throw error;
-  }
-});
-
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
   const dialogOptions: OpenDialogOptions = {
@@ -1775,9 +1754,8 @@ async function appMain() {
     app.dock?.hide();
   }
 
-  // Setup tunnel cleanup on app quit (will use first goosed port/secret)
-  const { setupTunnelCleanup } = await import('./utils/tunnel');
-  setupTunnelCleanup(app, globalGoosedPort, SERVER_SECRET);
+  // Note: Tunnel cleanup is handled by Rust backend on server shutdown
+  // The tunnel will keep running if auto_start is enabled (user's intent)
 
   // Parse command line arguments
   const { dirPath } = parseArgs();
@@ -2247,16 +2225,7 @@ async function appMain() {
 app.whenReady().then(async () => {
   try {
     await appMain();
-
-    // Auto-start tunnel if it was running when app closed (with delay to ensure window is loaded)
-    setTimeout(async () => {
-      try {
-        const { autoStartTunnel } = await import('./utils/tunnel');
-        await autoStartTunnel(globalGoosedPort, SERVER_SECRET);
-      } catch (error) {
-        log.error('Failed to auto-start tunnel:', error);
-      }
-    }, 10000); // 10 second delay
+    // Note: Tunnel auto-start is now handled by the Rust backend
   } catch (error) {
     dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
     app.quit();

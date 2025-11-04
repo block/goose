@@ -102,7 +102,7 @@ async fn handle_request(
             request_builder = request_builder.header(key, value);
         }
     }
-    
+
     request_builder = request_builder.header("X-Secret-Key", &server_secret);
 
     if let Some(body) = &message.body {
@@ -363,8 +363,13 @@ async fn run_tunnel_loop(
                             let ws_tx_clone = ws_tx.clone();
                             let server_secret_clone = server_secret.clone();
                             tokio::spawn(async move {
-                                if let Err(e) =
-                                    handle_request(tunnel_msg, port, ws_tx_clone, server_secret_clone).await
+                                if let Err(e) = handle_request(
+                                    tunnel_msg,
+                                    port,
+                                    ws_tx_clone,
+                                    server_secret_clone,
+                                )
+                                .await
                                 {
                                     error!("Error handling request: {}", e);
                                 }

@@ -39,7 +39,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
-  // Check if platform supports Tailscale tunnel (macOS or Linux)
+  // Check if platform supports tunnel (macOS or Linux)
   const supportsTunnel =
     window.electron.platform === 'darwin' || window.electron.platform === 'linux';
 

@@ -27,10 +27,6 @@ impl AppState {
         let tunnel_config = crate::tunnel::config::load_config().await;
         let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config.clone()));
 
-        // NOTE: Auto-start is handled by the desktop app, not here
-        // The desktop app calls /api/tunnel/start after it knows the port
-        // If we auto-start here, we don't know which port goosed is listening on
-
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
@@ -38,6 +34,26 @@ impl AppState {
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
         }))
+    }
+
+    /// Auto-start tunnel if configured to do so
+    pub async fn auto_start_tunnel(&self, port: u16) {
+        let status = self.tunnel_manager.get_status().await;
+        
+        // Only auto-start if:
+        // 1. auto_start is enabled
+        // 2. tunnel is not already running
+        if status.auto_start && status.state == crate::tunnel::TunnelState::Idle {
+            tracing::info!("Auto-starting tunnel on port {}", port);
+            match self.tunnel_manager.start(port).await {
+                Ok(info) => {
+                    tracing::info!("Tunnel auto-started successfully: {}", info.url);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to auto-start tunnel: {}", e);
+                }
+            }
+        }
     }
 
     pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
