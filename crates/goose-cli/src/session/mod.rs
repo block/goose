@@ -299,22 +299,22 @@ impl CliSession {
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
-            let extension_name = name.trim().to_string();
+            let extension_name = name.trim();
 
-            let config = if PLATFORM_EXTENSIONS.contains_key(name) {
+            let config = if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                 ExtensionConfig::Platform {
-                    name: extension_name,
+                    name: extension_name.to_string(),
                     bundled: None,
-                    description: name.trim().to_string(),
+                    description: name.to_string(),
                     available_tools: Vec::new(),
                 }
             } else {
                 ExtensionConfig::Builtin {
-                    name: extension_name,
+                    name: extension_name.to_string(),
                     display_name: None,
                     timeout: None,
                     bundled: None,
-                    description: name.trim().to_string(),
+                    description: name.to_string(),
                     available_tools: Vec::new(),
                 }
             };
