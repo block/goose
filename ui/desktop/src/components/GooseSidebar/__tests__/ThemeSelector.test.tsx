@@ -118,10 +118,10 @@ describe('ThemeSelector', () => {
       expect(screen.getByTestId('system-mode-button')).toBeInTheDocument();
     });
 
-    it('should render custom accent color section', () => {
+    it('should render custom accent section', () => {
       render(<ThemeSelector />);
 
-      expect(screen.getByText('Custom Accent Color')).toBeInTheDocument();
+      expect(screen.getByText('Custom Accent')).toBeInTheDocument();
       expect(screen.getByTestId('custom-color-toggle')).toBeInTheDocument();
     });
 

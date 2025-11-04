@@ -220,7 +220,7 @@ export function ThemeSelector({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-text-muted" />
-            <span className="text-xs text-text-default">Custom Accent Color</span>
+            <span className="text-xs text-text-default">Custom Accent</span>
           </div>
           <Switch
             checked={customColorEnabled}
@@ -230,13 +230,20 @@ export function ThemeSelector({
           />
         </div>
 
-        {customColorEnabled && (
-          <CustomColorPicker
-            value={customColor}
-            onChange={handleCustomColorChange}
-            onReset={handleResetColor}
-          />
-        )}
+        <div
+          className={cn(
+            'overflow-hidden transition-all duration-300 ease-in-out',
+            customColorEnabled ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          )}
+        >
+          <div className="pt-2">
+            <CustomColorPicker
+              value={customColor}
+              onChange={handleCustomColorChange}
+              onReset={handleResetColor}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
