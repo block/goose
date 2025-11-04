@@ -160,7 +160,7 @@ export function ThemeSelector({
       document.documentElement.classList.add('light');
     }
 
-    // Apply custom theme colors if enabled
+    // Apply custom theme if enabled
     if (customColorEnabled) {
       applyCustomTheme(customColor, isDarkMode);
     } else {
