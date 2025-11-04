@@ -751,7 +751,7 @@ impl Agent {
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         let needs_auto_compact =
-            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+            crate::context_mgmt::check_if_compaction_needed(self.provider().await?.as_ref(), &conversation, None, &session)
                 .await?;
 
         let conversation_to_compact = conversation.clone();
@@ -787,7 +787,7 @@ impl Agent {
                     )
                 );
 
-                match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+                match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -1105,7 +1105,7 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                            match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation, true).await {
                                 Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     Self::update_session_metrics(&session_config, &usage, true).await?;
