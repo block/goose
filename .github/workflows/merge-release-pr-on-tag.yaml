@@ -1,4 +1,4 @@
-name: Create release tag and patch release PR on merge
+name: Merge release PR on tag push
 
 on:
   push:
@@ -20,8 +20,9 @@ jobs:
 
     - name: Extract version from tag
       id: version
+      env:
+        TAG: ${{ github.ref_name }}
       run: |
-        TAG=${{ github.ref_name }}
         VERSION=${TAG#v}
         BRANCH="release/${VERSION}"
 
@@ -35,9 +36,10 @@ jobs:
 
     - name: Find matching PR
       id: find_pr
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BRANCH: ${{ steps.version.outputs.branch }}
       run: |
-        BRANCH="${{ steps.version.outputs.branch }}"
-
         PR_NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
         if [ -z "$PR_NUMBER" ]; then
@@ -49,15 +51,14 @@ jobs:
           echo "pr_found=true" >> $GITHUB_OUTPUT
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
         fi
-      env:
-        GH_TOKEN: ${{ github.token }}
 
     - name: Get PR details and check status
       if: steps.find_pr.outputs.pr_found == 'true'
       id: pr_status
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ steps.find_pr.outputs.pr_number }}
       run: |
-        PR_NUMBER="${{ steps.find_pr.outputs.pr_number }}"
-
         PR_DATA=$(gh pr view $PR_NUMBER --json title,headRefName,baseRefName,mergeable,statusCheckRollup)
 
         TITLE=$(echo "$PR_DATA" | jq -r '.title')
@@ -106,15 +107,13 @@ jobs:
 
         echo "✅ All checks are passing and PR is ready to merge"
         echo "can_merge=true" >> $GITHUB_OUTPUT
-      env:
-        GH_TOKEN: ${{ github.token }}
 
     - name: Get branch SHA before merge
       if: steps.find_pr.outputs.pr_found == 'true' && steps.pr_status.outputs.can_merge == 'true'
       id: branch_info
+      env:
+        BRANCH: ${{ steps.version.outputs.branch }}
       run: |
-        BRANCH="${{ steps.version.outputs.branch }}"
-
         git fetch origin
 
         BRANCH_SHA=$(git rev-parse "origin/$BRANCH")
@@ -123,29 +122,27 @@ jobs:
 
     - name: Merge PR
       if: steps.find_pr.outputs.pr_found == 'true' && steps.pr_status.outputs.can_merge == 'true'
-      run: |
-        PR_NUMBER="${{ steps.find_pr.outputs.pr_number }}"
-        VERSION="${{ steps.version.outputs.version }}"
-
-        gh pr merge $PR_NUMBER --squash --delete-branch --subject "Release $VERSION" --body "Auto-merged release PR after tag ${{ steps.version.outputs.tag }} was pushed"
       env:
         GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ steps.find_pr.outputs.pr_number }}
+        VERSION: ${{ steps.version.outputs.version }}
+        TAG: ${{ steps.version.outputs.tag }}
+      run: |
+        gh pr merge $PR_NUMBER --squash --delete-branch --subject "Release $VERSION" --body "Auto-merged release PR after tag $TAG was pushed"
 
     - name: Restore branch
       if: steps.find_pr.outputs.pr_found == 'true' && steps.pr_status.outputs.can_merge == 'true'
+      env:
+        BRANCH: ${{ steps.version.outputs.branch }}
+        BRANCH_SHA: ${{ steps.branch_info.outputs.branch_sha }}
       run: |
-        BRANCH="${{ steps.version.outputs.branch }}"
-        BRANCH_SHA="${{ steps.branch_info.outputs.branch_sha }}"
-
         git checkout -b "$BRANCH" "$BRANCH_SHA"
         git push origin "$BRANCH"
 
     - name: Trigger patch release
+      env:
+        BRANCH: ${{ steps.version.outputs.branch }}
+        GH_TOKEN: ${{ github.token }}
       run: |
-        BRANCH="${{ steps.version.outputs.branch }}"
         gh workflow run patch-release.yaml \
           --field target_branch=$BRANCH
-
-        echo "✅ Triggered patch release workflow"
-      env:
-        GH_TOKEN: ${{ github.token }}
