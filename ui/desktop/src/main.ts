@@ -1576,7 +1576,7 @@ ipcMain.handle('delete-file', async (event, filePath) => {
   const absoluteWorkingDir = path.resolve(expandTilde(workingDir));
 
   // Validate that the file is within GOOSE_WORKING_DIR (prevents path traversal)
-  if (!absoluteFilePath.startsWith(absoluteWorkingDir + path.sep)) {
+  if (absoluteFilePath === absoluteWorkingDir || !absoluteFilePath.startsWith(absoluteWorkingDir + path.sep)) {
     throw new Error('Access denied: file must be in GOOSE_WORKING_DIR');
   }
 
