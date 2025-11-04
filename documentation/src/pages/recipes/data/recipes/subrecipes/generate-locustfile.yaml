@@ -1,0 +1,111 @@
+version: "1.0.0"
+title: "Main Locustfile Generator"
+description: "Generate the main locustfile.py that orchestrates all TaskSets"
+instructions: |
+  You are a Locust expert. Create the main locustfile.py that ties together
+  all the TaskSets and provides the entry point for load testing.
+
+  The main locustfile should:
+  - Import all TaskSet classes from the tasks directory
+  - Define HttpUser classes that use the TaskSets
+  - Configure wait times and user behavior
+  - Set up authentication and session handling
+  - Include environment configuration (host, users, spawn rate)
+  - Add event hooks for setup/teardown and custom stats
+  - Include command-line argument handling if needed
+
+  Support multiple user types/personas if the API has different access levels
+  (e.g., AdminUser, RegularUser, GuestUser)
+
+parameters:
+  - key: output_dir
+    input_type: string
+    requirement: required
+    description: "Output directory"
+
+  - key: base_url
+    input_type: string
+    requirement: required
+    description: "Base URL for the API"
+
+  - key: include_auth
+    input_type: string
+    requirement: required
+    description: "Whether to include authentication"
+
+  - key: test_complexity
+    input_type: string
+    requirement: required
+    description: "Test complexity level"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  Generate the main locustfile.py that orchestrates the load tests.
+
+  Structure:
+  ```python
+  from locust import HttpUser, between, events
+  import os
+  from tasks.users_tasks import UsersTaskSet
+  from tasks.products_tasks import ProductsTaskSet
+  # ... import other TaskSets
+
+  class APIUser(HttpUser):
+      wait_time = between(1, 3)
+      host = "{{ base_url }}"
+
+      tasks = [UsersTaskSet, ProductsTaskSet]  # Mix of all TaskSets
+
+      def on_start(self):
+          """Called when a simulated user starts"""
+          {% if include_auth == "true" %}
+          # Perform login and store token
+          response = self.client.post("/auth/login", json={
+              "username": "test_user",
+              "password": "test_pass"
+          })
+          self.token = response.json().get("token")
+          self.client.headers.update({"Authorization": f"Bearer {self.token}"})
+          {% endif %}
+
+      def on_stop(self):
+          """Called when a simulated user stops"""
+          pass
+
+  # Event hooks for custom behavior
+  @events.test_start.add_listener
+  def on_test_start(environment, **kwargs):
+      print("Load test starting...")
+
+  @events.test_stop.add_listener
+  def on_test_stop(environment, **kwargs):
+      print("Load test complete!")
+  ```
+
+  {% if test_complexity == "advanced" %}
+  Include multiple user types with different behavior patterns:
+  - AdminUser: Has access to admin endpoints
+  - RegularUser: Normal user operations
+  - ReadOnlyUser: Only GET requests
+
+  Use task distribution weights for realistic traffic patterns.
+  {% endif %}
+
+  Add configuration for:
+  - Environment variables for credentials
+  - Custom headers
+  - Connection pooling settings
+  - Request/response hooks for logging
+
+  Save to {{ output_dir }}/locustfile.py
+
+  Also create a .env.example file with placeholder values for:
+  - API_BASE_URL
+  - AUTH_USERNAME
+  - AUTH_PASSWORD
+  - Any API keys or tokens needed

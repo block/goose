@@ -1,7 +1,9 @@
 mod agent;
+pub(crate) mod chatrecall_extension;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
+pub mod extension_manager_extension;
 pub mod final_output_tool;
 mod large_response_handler;
 pub mod mcp_client;
@@ -25,7 +27,7 @@ mod tool_route_manager;
 mod tool_router_index_manager;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent};
+pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGER};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;

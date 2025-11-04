@@ -35,7 +35,7 @@
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "prepare": "cd ../.. && husky install",
+    "prepare": "husky",
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
@@ -68,7 +68,6 @@
     "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3",
     "express": "^5.1.0",
-    "gsap": "^3.13.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.546.0",
     "react": "^19.2.0",
@@ -77,7 +76,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.9.4",
     "react-select": "^5.10.2",
-    "react-syntax-highlighter": "^15.6.6",
+    "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",

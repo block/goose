@@ -10,12 +10,9 @@ use uuid::Uuid;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
+use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
@@ -31,8 +28,8 @@ use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, get_extension_by_name, Config};
+use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -62,11 +59,13 @@ use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::SessionManager;
+use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -74,9 +73,8 @@ pub struct ReplyContext {
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
-    pub goose_mode: String,
+    pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
-    pub config: &'static Config,
 }
 
 pub struct ToolCategorizeResult {
@@ -87,8 +85,9 @@ pub struct ToolCategorizeResult {
 
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub extension_manager: ExtensionManager,
+    pub(super) provider: SharedProvider,
+
+    pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -100,7 +99,7 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub(super) tool_route_manager: ToolRouteManager,
+    pub tool_route_manager: Arc<ToolRouteManager>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -160,10 +159,11 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        let provider = Arc::new(Mutex::new(None));
 
         Self {
-            provider: Mutex::new(None),
-            extension_manager: ExtensionManager::new(),
+            provider: provider.clone(),
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -174,7 +174,7 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_route_manager: ToolRouteManager::new(),
+            tool_route_manager: Arc::new(ToolRouteManager::new()),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
@@ -192,7 +192,7 @@ impl Agent {
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            "smart_approve".to_string(),
+            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
@@ -218,16 +218,20 @@ impl Agent {
         self.retry_manager.get_attempts().await
     }
 
-    /// Handle retry logic for the agent reply loop
     async fn handle_retry_logic(
         &self,
         messages: &mut Conversation,
-        session: &Option<SessionConfig>,
+        session_config: &SessionConfig,
         initial_messages: &[Message],
     ) -> Result<bool> {
         let result = self
             .retry_manager
-            .handle_retry_logic(messages, session, initial_messages, &self.final_output_tool)
+            .handle_retry_logic(
+                messages,
+                session_config,
+                initial_messages,
+                &self.final_output_tool,
+            )
             .await?;
 
         match result {
@@ -241,7 +245,6 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
-        session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -259,11 +262,10 @@ impl Agent {
         let config = Config::global();
 
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
-        // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.clone())
+            .update_permission_inspector_mode(goose_mode)
             .await;
 
         Ok(ReplyContext {
@@ -273,7 +275,6 @@ impl Agent {
             system_prompt,
             goose_mode,
             initial_messages,
-            config,
         })
     }
 
@@ -298,7 +299,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: Option<SessionConfig>,
+        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -310,7 +311,7 @@ impl Agent {
                         tool_call,
                         request.id.clone(),
                         cancel_token.clone(),
-                        session.clone(),
+                        session,
                     )
                     .await;
 
@@ -391,7 +392,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        session: Option<SessionConfig>,
+        session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -401,28 +402,6 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            return (request_id, Ok(ToolCallResult::from(result)));
-        }
-
-        if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
-            let extension_name = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("extension_name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let action = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("action"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let (request_id, result) = self
-                .manage_extensions(action, extension_name, request_id)
-                .await;
-
             return (request_id, Ok(ToolCallResult::from(result)));
         }
 
@@ -472,28 +451,13 @@ impl Agent {
                     );
                 }
             };
-            let session = match session.as_ref() {
-                Some(s) => s,
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Session is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-            let parent_session_id = session.id.to_string();
-            let parent_working_dir = session.working_dir.clone();
 
-            let task_config = TaskConfig::new(
-                provider,
-                parent_session_id,
-                parent_working_dir,
-                get_enabled_extensions(),
-            );
+            // Get extensions from the agent's runtime state rather than global config
+            // This ensures subagents inherit extensions that were dynamically enabled by the parent
+            let extensions = self.get_extension_configs().await;
+
+            let task_config =
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
 
             let arguments = match tool_call.arguments.clone() {
                 Some(args) => Value::Object(args),
@@ -560,31 +524,6 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
-        } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
-            // Check if the tool is read_resource and handle it separately
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            ToolCallResult::from(
-                self.extension_manager
-                    .read_resource(arguments, cancellation_token.unwrap_or_default())
-                    .await,
-            )
-        } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            ToolCallResult::from(
-                self.extension_manager
-                    .list_resources(arguments, cancellation_token.unwrap_or_default())
-                    .await,
-            )
-        } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
-            ToolCallResult::from(self.extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -651,109 +590,6 @@ impl Agent {
             .await?;
 
         Ok(())
-    }
-
-    #[allow(clippy::too_many_lines)]
-    pub(super) async fn manage_extensions(
-        &self,
-        action: String,
-        extension_name: String,
-        request_id: String,
-    ) -> (String, Result<Vec<Content>, ErrorData>) {
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                let selector_action = if action == "disable" { "remove" } else { "add" };
-                let selector = Arc::new(selector);
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    &extension_name,
-                    selector_action,
-                )
-                .await
-                {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to update LLM index: {}", e),
-                            None,
-                        )),
-                    );
-                }
-            }
-        }
-        if action == "disable" {
-            let result = self
-                .extension_manager
-                .remove_extension(&extension_name)
-                .await
-                .map(|_| {
-                    vec![Content::text(format!(
-                        "The extension '{}' has been disabled successfully",
-                        extension_name
-                    ))]
-                })
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
-            return (request_id, result);
-        }
-
-        let config = match get_extension_by_name(&extension_name) {
-            Some(config) => config,
-            None => {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::RESOURCE_NOT_FOUND,
-                        format!(
-                        "Extension '{}' not found. Please check the extension name and try again.",
-                        extension_name
-                    ),
-                        None,
-                    )),
-                )
-            }
-        };
-        let result = self
-            .extension_manager
-            .add_extension(config)
-            .await
-            .map(|_| {
-                vec![Content::text(format!(
-                    "The extension '{}' has been installed successfully",
-                    extension_name
-                ))]
-            })
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
-
-        // Update LLM index if operation was successful and LLM routing is functional
-        if result.is_ok() && self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                let llm_action = if action == "disable" { "remove" } else { "add" };
-                let selector = Arc::new(selector);
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    &extension_name,
-                    llm_action,
-                )
-                .await
-                {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to update LLM index: {}", e),
-                            None,
-                        )),
-                    );
-                }
-            }
-        }
-
-        (request_id, result)
     }
 
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
@@ -824,21 +660,10 @@ impl Agent {
 
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
-            prefixed_tools.extend([
-                platform_tools::search_available_extensions_tool(),
-                platform_tools::manage_extensions_tool(),
-                platform_tools::manage_schedule_tool(),
-            ]);
+            // TODO: migrate the manage schedule tool as well
+            prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
-
-            // Add resource tools if supported
-            if self.extension_manager.supports_resources().await {
-                prefixed_tools.extend([
-                    platform_tools::read_resource_tool(),
-                    platform_tools::list_resources_tool(),
-                ]);
-            }
         }
 
         if extension_name.is_none() {
@@ -902,94 +727,110 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
+    #[instrument(skip(self, user_message, session_config), fields(user_message))]
     pub async fn reply(
         &self,
-        unfixed_conversation: Conversation,
-        session: Option<SessionConfig>,
+        user_message: Message,
+        session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Try to get session metadata for more accurate token counts
-        let session_metadata = if let Some(session_config) = &session {
-            SessionManager::get_session(&session_config.id, false)
-                .await
-                .ok()
-        } else {
-            None
-        };
-
-        let check_result = crate::context_mgmt::check_if_compaction_needed(
-            self,
-            &unfixed_conversation,
-            None,
-            session_metadata.as_ref(),
-        )
-        .await;
-
-        let (did_compact, compacted_conversation, compaction_error) = match check_result {
-            // TODO(dkatz): send a notification that we are starting compaction here.
-            Ok(true) => {
-                match crate::context_mgmt::compact_messages(self, &unfixed_conversation, false)
-                    .await
-                {
-                    Ok((conversation, _token_counts, _summarization_usage)) => {
-                        (true, conversation, None)
-                    }
-                    Err(e) => (false, unfixed_conversation.clone(), Some(e)),
-                }
+        let is_manual_compact = user_message.content.iter().any(|c| {
+            if let MessageContent::Text(text) = c {
+                text.text.trim() == MANUAL_COMPACT_TRIGGER
+            } else {
+                false
             }
-            Ok(false) => (false, unfixed_conversation, None),
-            Err(e) => (false, unfixed_conversation.clone(), Some(e)),
-        };
+        });
 
-        if did_compact {
-            // Get threshold from config to include in message
-            let config = crate::config::Config::global();
-            let threshold = config
-                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-            let threshold_percentage = (threshold * 100.0) as u32;
+        SessionManager::add_message(&session_config.id, &user_message).await?;
+        let session = SessionManager::get_session(&session_config.id, true).await?;
 
-            let compaction_msg = format!(
-                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
-                threshold_percentage
-            );
+        let conversation = session
+            .conversation
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-            Ok(Box::pin(async_stream::try_stream! {
-                // TODO(Douwe): send this before we actually compact:
-                yield AgentEvent::Message(
-                    Message::assistant().with_conversation_compacted(compaction_msg)
-                );
-                yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
-                if let Some(session_to_store) = &session {
-                    SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
+        let needs_auto_compact =
+            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+                .await?;
+
+        let conversation_to_compact = conversation.clone();
+
+        Ok(Box::pin(async_stream::try_stream! {
+            let final_conversation = if !needs_auto_compact {
+                conversation
+            } else {
+                if !is_manual_compact {
+                    let config = crate::config::Config::global();
+                    let threshold = config
+                        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                    let threshold_percentage = (threshold * 100.0) as u32;
+
+                    let inline_msg = format!(
+                        "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                        threshold_percentage
+                    );
+
+                    yield AgentEvent::Message(
+                        Message::assistant().with_system_notification(
+                            SystemNotificationType::InlineMessage,
+                            inline_msg,
+                        )
+                    );
                 }
 
-                let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
+                yield AgentEvent::Message(
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::ThinkingMessage,
+                        COMPACTION_THINKING_TEXT,
+                    )
+                );
+
+                match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+                    Ok((compacted_conversation, summarization_usage)) => {
+                        SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                        Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
+
+                        yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
+
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                "Compaction complete",
+                            )
+                        );
+
+                        compacted_conversation
+                    }
+                    Err(e) => {
+                        yield AgentEvent::Message(
+                            Message::assistant().with_text(
+                                format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                            )
+                        );
+                        return;
+                    }
+                }
+            };
+
+            if !is_manual_compact {
+                let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
-            }))
-        } else if let Some(error) = compaction_error {
-            Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_text(
-                    format!("Ran into this error trying to auto-compact: {error}.\n\nPlease try again or create a new session")
-                ));
-            }))
-        } else {
-            self.reply_internal(compacted_conversation, session, cancel_token)
-                .await
-        }
+            }
+        }))
     }
 
-    /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
         conversation: Conversation,
-        session: Option<SessionConfig>,
+        session_config: SessionConfig,
+        session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(conversation, &session).await?;
+        let context = self.prepare_reply_context(conversation).await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -997,66 +838,22 @@ impl Agent {
             mut system_prompt,
             goose_mode,
             initial_messages,
-            config,
         } = context;
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
-        // This will need further refactoring. In the ideal world we pass the new message into
-        // reply and load the existing conversation. Until we get to that point, fetch the conversation
-        // so far and append the last (user) message that the caller already added.
-        if let Some(session_config) = &session {
-            let stored_conversation = SessionManager::get_session(&session_config.id, true)
-                .await?
-                .conversation
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Session {} has no conversation", session_config.id)
-                })?;
-
-            match conversation.len().cmp(&stored_conversation.len()) {
-                std::cmp::Ordering::Equal => {
-                    if conversation != stored_conversation {
-                        warn!("Session messages mismatch - replacing with incoming");
-                        SessionManager::replace_conversation(&session_config.id, &conversation)
-                            .await?;
-                    }
-                }
-                std::cmp::Ordering::Greater
-                    if conversation.len() == stored_conversation.len() + 1 =>
-                {
-                    let last_message = conversation.last().unwrap();
-                    if let Some(content) = last_message.content.first().and_then(|c| c.as_text()) {
-                        debug!("user_message" = &content);
-                    }
-                    SessionManager::add_message(&session_config.id, last_message).await?;
-                }
-                _ => {
-                    warn!(
-                        "Unexpected session state: stored={}, incoming={}. Replacing.",
-                        stored_conversation.len(),
-                        conversation.len()
-                    );
-                    SessionManager::replace_conversation(&session_config.id, &conversation).await?;
-                }
+        let provider = self.provider().await?;
+        let session_id = session_config.id.clone();
+        tokio::spawn(async move {
+            if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
+                warn!("Failed to generate session description: {}", e);
             }
-            let provider = self.provider().await?;
-            let session_id = session_config.id.clone();
-            tokio::spawn(async move {
-                if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
-                    warn!("Failed to generate session description: {}", e);
-                }
-            });
-        }
+        });
 
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
-            let max_turns = session
-                .as_ref()
-                .and_then(|s| s.max_turns)
-                .unwrap_or_else(|| {
-                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
-                });
+            let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1066,7 +863,7 @@ impl Agent {
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                     if final_output_tool.final_output.is_some() {
                         let final_event = AgentEvent::Message(
-                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
                         );
                         yield final_event;
                         break;
@@ -1075,9 +872,11 @@ impl Agent {
 
                 turns_taken += 1;
                 if turns_taken > max_turns {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                    ));
+                    yield AgentEvent::Message(
+                        Message::assistant().with_text(
+                            "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                        )
+                    );
                     break;
                 }
 
@@ -1142,11 +941,8 @@ impl Agent {
                                 }
                             }
 
-                            // Record usage for the session
-                            if let Some(ref session_config) = &session {
-                                if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage).await?;
-                                }
+                            if let Some(ref usage) = usage {
+                                Self::update_session_metrics(&session_config, usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1182,8 +978,7 @@ impl Agent {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                let mode = goose_mode.clone();
-                                if mode.as_str() == "chat" {
+                                if goose_mode == GooseMode::Chat {
                                     // Skip all tool calls in chat mode
                                     for request in remaining_requests {
                                         let mut response = message_tool_response.lock().await;
@@ -1222,7 +1017,7 @@ impl Agent {
                                     let mut enable_extension_request_ids = vec![];
                                     for request in &remaining_requests {
                                         if let Ok(tool_call) = &request.tool_call {
-                                            if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                                            if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
                                                 enable_extension_request_ids.push(request.id.clone());
                                             }
                                         }
@@ -1232,18 +1027,17 @@ impl Agent {
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
-                                        session.clone(),
+                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
-                                    // Process tools requiring approval
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
-                                        session.clone(),
+                                        &session,
                                         &inspection_results,
                                     );
 
@@ -1290,10 +1084,8 @@ impl Agent {
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
-                                        if let Some(ref session_config) = session {
-                                            if let Err(e) = self.save_extension_state(session_config).await {
-                                                warn!("Failed to save extension state after runtime changes: {}", e);
-                                            }
+                                        if let Err(e) = self.save_extension_state(&session_config).await {
+                                            warn!("Failed to save extension state after runtime changes: {}", e);
                                         }
                                         tools_updated = true;
                                     }
@@ -1307,39 +1099,46 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
-                            info!("Context length exceeded, attempting compaction");
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    "Context limit reached. Compacting to continue conversation...",
+                                )
+                            );
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::ThinkingMessage,
+                                    COMPACTION_THINKING_TEXT,
+                                )
+                            );
 
-                            // TODO(dkatz): send a notification that we are starting compaction here.
                             match crate::context_mgmt::compact_messages(self, &conversation, true).await {
-                                Ok((compacted_conversation, _token_counts, _usage)) => {
+                                Ok((compacted_conversation, usage)) => {
+                                    SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                                    Self::update_session_metrics(&session_config, &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
-
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_conversation_compacted(
-                                            "Context limit reached. Conversation has been automatically compacted to continue."
-                                        )
-                                    );
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    if let Some(session_to_store) = &session {
-                                        SessionManager::replace_conversation(&session_to_store.id, &conversation).await?
-                                    }
                                     continue;
                                 }
                                 Err(e) => {
                                     error!("Error: {}", e);
-                                    yield AgentEvent::Message(Message::assistant().with_text(
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        ));
+                                        )
+                                    );
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
                                     format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                ));
+                                )
+                            );
                             break;
                         }
                     }
@@ -1364,7 +1163,7 @@ impl Agent {
                     } else if did_recovery_compact_this_iteration {
                         // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
-                        match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
+                        match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                             Ok(should_retry) => {
                                 if should_retry {
                                     info!("Retry logic triggered, restarting agent loop");
@@ -1374,19 +1173,19 @@ impl Agent {
                             }
                             Err(e) => {
                                 error!("Retry logic failed: {}", e);
-                                yield AgentEvent::Message(Message::assistant().with_text(
-                                    format!("Retry logic encountered an error: {}", e)
-                                ));
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Retry logic encountered an error: {}", e)
+                                    )
+                                );
                                 exit_chat = true;
                             }
                         }
                     }
                 }
 
-                if let Some(session_config) = &session {
-                    for msg in &messages_to_add {
-                        SessionManager::add_message(&session_config.id, msg).await?;
-                    }
+                for msg in &messages_to_add {
+                    SessionManager::add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
                 if exit_chat {
@@ -1398,19 +1197,6 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
-        let mode = session.and_then(|s| s.execution_mode.as_deref());
-
-        match mode {
-            Some("foreground") => "chat".to_string(),
-            Some("background") => "auto".to_string(),
-            _ => config
-                .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| "auto".to_string()),
-        }
-    }
-
-    /// Extend the system prompt with one line of additional instruction
     pub async fn extend_system_prompt(&self, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(instruction);
@@ -1510,6 +1296,8 @@ impl Agent {
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
+        let (extension_count, tool_count) =
+            self.extension_manager.get_extension_and_tool_counts().await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1521,19 +1309,12 @@ impl Agent {
         tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.build_system_prompt(
-            extensions_info,
-            self.frontend_instructions.lock().await.clone(),
-            self.extension_manager
-                .suggest_disable_extensions_prompt()
-                .await,
-            Some(model_name),
-            false,
-        );
-        tracing::debug!(
-            "Built system prompt with {} characters",
-            system_prompt.len()
-        );
+        let system_prompt = prompt_manager
+            .builder(model_name)
+            .with_extensions(extensions_info.into_iter())
+            .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_extension_and_tool_counts(extension_count, tool_count)
+            .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = self
@@ -1544,7 +1325,6 @@ impl Agent {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
                 e
             })?;
-        tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
 
@@ -1671,7 +1451,7 @@ impl Agent {
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first");
 
         let settings = Settings {
@@ -1758,8 +1538,7 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, false);
+        let system_prompt = prompt_manager.builder("gpt-4o").build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

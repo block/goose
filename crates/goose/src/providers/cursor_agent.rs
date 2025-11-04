@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -23,6 +23,8 @@ pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview"
 pub struct CursorAgentProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl CursorAgentProvider {
@@ -41,6 +43,7 @@ impl CursorAgentProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -395,6 +398,10 @@ impl Provider for CursorAgentProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Cursor models
         self.model.clone()
@@ -433,7 +440,8 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,

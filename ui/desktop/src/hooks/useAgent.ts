@@ -73,6 +73,7 @@ export function useAgent(): UseAgentReturn {
         const agentResponse = await resumeAgent({
           body: {
             session_id: sessionId,
+            load_model_and_extensions: false,
           },
           throwOnError: true,
         });
@@ -85,7 +86,7 @@ export function useAgent(): UseAgentReturn {
           messageHistoryIndex: 0,
           messages,
           recipe: agentSession.recipe,
-          recipeParameters: agentSession.user_recipe_values || null,
+          recipeParameterValues: agentSession.user_recipe_values || null,
         };
       }
 
@@ -112,6 +113,7 @@ export function useAgent(): UseAgentReturn {
             ? await resumeAgent({
                 body: {
                   session_id: initContext.resumeSessionId,
+                  load_model_and_extensions: false,
                 },
                 throwOnError: true,
               })
@@ -186,7 +188,7 @@ export function useAgent(): UseAgentReturn {
             messageHistoryIndex: 0,
             messages: messages,
             recipe: recipe,
-            recipeParameters: agentSession.user_recipe_values || null,
+            recipeParameterValues: agentSession.user_recipe_values || null,
           };
 
           setAgentState(AgentState.INITIALIZED);

@@ -9,8 +9,8 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
-use crate::config::Config;
+use super::utils::RequestLog;
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -24,6 +24,8 @@ pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 pub struct ClaudeCodeProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl ClaudeCodeProvider {
@@ -42,6 +44,7 @@ impl ClaudeCodeProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -335,10 +338,8 @@ impl ClaudeCodeProvider {
 
         // Add permission mode based on GOOSE_MODE setting
         let config = Config::global();
-        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
-            if goose_mode.as_str() == "auto" {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-            }
+        if let Ok(GooseMode::Auto) = config.get_goose_mode() {
+            cmd.arg("--permission-mode").arg("acceptEdits");
         }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -463,6 +464,10 @@ impl Provider for ClaudeCodeProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Claude models
         self.model.clone()
@@ -495,13 +500,14 @@ impl Provider for ClaudeCodeProvider {
             "system": system,
             "messages": messages.len()
         });
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = json!({
             "lines": json_lines.len(),
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,
@@ -514,18 +520,6 @@ impl Provider for ClaudeCodeProvider {
 mod tests {
     use super::ModelConfig;
     use super::*;
-
-    #[test]
-    fn test_permission_mode_flag_construction() {
-        // Test that in auto mode, the --permission-mode acceptEdits flag is added
-        std::env::set_var("GOOSE_MODE", "auto");
-
-        let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
-        assert_eq!(goose_mode, "auto");
-
-        std::env::remove_var("GOOSE_MODE");
-    }
 
     #[tokio::test]
     async fn test_claude_code_invalid_model_no_fallback() {

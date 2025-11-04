@@ -68,7 +68,7 @@ const config: Config = {
         gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        } : undefined,
+        } : false,
       } satisfies Preset.Options,
     ],
   ],
@@ -161,6 +161,10 @@ const config: Config = {
           {
             from: '/docs/guides/creating-plans',
             to: '/docs/guides/multi-model/creating-plans'
+          },
+          {
+            from: '/docs/guides/config-file',
+            to: '/docs/guides/config-files',
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
@@ -377,7 +381,7 @@ const config: Config = {
         },
 
         {
-          href: "https://discord.gg/block-opensource",
+          href: "https://discord.gg/goose-oss",
           label: "Discord",
           position: "right",
         },
@@ -412,7 +416,7 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/block-opensource",
+              href: "https://discord.gg/goose-oss",
             },
             {
               label: "YouTube",

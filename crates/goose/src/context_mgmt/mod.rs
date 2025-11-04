@@ -31,32 +31,65 @@ struct SummarizeContext {
 /// # Returns
 /// * A tuple containing:
 ///   - `Conversation`: The compacted messages
-///   - `Vec<usize>`: Token counts for each message
-///   - `Option<ProviderUsage>`: Provider usage from summarization
+///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     agent: &Agent,
     conversation: &Conversation,
     preserve_last_user_message: bool,
-) -> Result<(Conversation, Vec<usize>, Option<ProviderUsage>)> {
+) -> Result<(Conversation, ProviderUsage)> {
     info!("Performing message compaction");
 
     let messages = conversation.messages();
 
-    // Check if the most recent message is a user message
-    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
-    {
-        if matches!(last_message.role, rmcp::model::Role::User) {
-            // Remove the last user message before compaction
-            (&messages[..messages.len() - 1], Some(last_message.clone()))
+    let has_text_only = |msg: &Message| {
+        let has_text = msg
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::Text(_)));
+        let has_tool_content = msg.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        });
+        has_text && !has_tool_content
+    };
+
+    // Helper function to extract text content from a message
+    let extract_text = |msg: &Message| -> Option<String> {
+        let text_parts: Vec<String> = msg
+            .content
+            .iter()
+            .filter_map(|c| {
+                if let MessageContent::Text(text) = c {
+                    Some(text.text.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if text_parts.is_empty() {
+            None
+        } else {
+            Some(text_parts.join("\n"))
+        }
+    };
+
+    // Check if the most recent message is a user message with text content only
+    let (messages_to_compact, preserved_user_text) = if let Some(last_message) = messages.last() {
+        if matches!(last_message.role, rmcp::model::Role::User) && has_text_only(last_message) {
+            // Remove the last user message before compaction and preserve its text
+            (&messages[..messages.len() - 1], extract_text(last_message))
         } else if preserve_last_user_message {
-            // Last message is not a user message, but we want to preserve the most recent user message
-            // Find the most recent user message and copy it (don't remove from history)
-            let most_recent_user_message = messages
+            // Last message is not a user message with text only, but we want to preserve the most recent user message with text only
+            // Find the most recent user message with text content only and extract its text
+            let preserved_text = messages
                 .iter()
                 .rev()
-                .find(|msg| matches!(msg.role, rmcp::model::Role::User))
-                .cloned();
-            (messages.as_slice(), most_recent_user_message)
+                .find(|msg| matches!(msg.role, rmcp::model::Role::User) && has_text_only(msg))
+                .and_then(extract_text);
+            (messages.as_slice(), preserved_text)
         } else {
             (messages.as_slice(), None)
         }
@@ -65,16 +98,8 @@ pub async fn compact_messages(
     };
 
     let provider = agent.provider().await?;
-    let summary = do_compact(provider.clone(), messages_to_compact).await?;
-
-    let (summary_message, summarization_usage) = match summary {
-        Some((summary_message, provider_usage)) => (summary_message, Some(provider_usage)),
-        None => {
-            // No summary was generated (empty input)
-            tracing::warn!("Summarization failed. Returning empty messages.");
-            return Ok((Conversation::empty(), vec![], None));
-        }
-    };
+    let (summary_message, summarization_usage) =
+        do_compact(provider.clone(), messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -82,35 +107,17 @@ pub async fn compact_messages(
     // 3. Assistant messages to continue the conversation remain both user_visible and agent_visible
 
     let mut final_messages = Vec::new();
-    let mut final_token_counts = Vec::new();
 
     // Add all original messages with updated visibility (preserve user_visible, set agent_visible=false)
     for msg in messages_to_compact.iter().cloned() {
         let updated_metadata = msg.metadata.with_agent_invisible();
         let updated_msg = msg.with_metadata(updated_metadata);
         final_messages.push(updated_msg);
-        // Token count doesn't matter for agent_visible=false messages, but we'll use 0
-        final_token_counts.push(0);
     }
-
-    // Add the compaction marker (user_visible=true, agent_visible=false)
-    let compaction_marker = Message::assistant()
-        .with_conversation_compacted("Conversation compacted and summarized")
-        .with_metadata(MessageMetadata::user_only());
-    let compaction_marker_tokens: usize = 0; // Not counted since agent_visible=false
-    final_messages.push(compaction_marker);
-    final_token_counts.push(compaction_marker_tokens);
 
     // Add the summary message (agent_visible=true, user_visible=false)
     let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
-    // For token counting purposes, we use the output tokens (the actual summary content)
-    // since that's what will be in the context going forward
-    let summary_tokens = summarization_usage
-        .as_ref()
-        .and_then(|usage| usage.usage.output_tokens)
-        .unwrap_or(0) as usize;
     final_messages.push(summary_msg);
-    final_token_counts.push(summary_tokens);
 
     // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
     let assistant_message = Message::assistant()
@@ -120,18 +127,15 @@ Do not mention that you read a summary or that conversation summarization occurr
 Just continue the conversation naturally based on the summarized context"
         )
         .with_metadata(MessageMetadata::agent_only());
-    let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
     final_messages.push(assistant_message);
-    final_token_counts.push(assistant_message_tokens);
 
     // Add back the preserved user message if it exists
-    if let Some(user_message) = preserved_user_message {
-        final_messages.push(user_message);
+    if let Some(user_text) = preserved_user_text {
+        final_messages.push(Message::user().with_text(&user_text));
     }
 
     Ok((
         Conversation::new_unvalidated(final_messages),
-        final_token_counts,
         summarization_usage,
     ))
 }
@@ -141,11 +145,10 @@ pub async fn check_if_compaction_needed(
     agent: &Agent,
     conversation: &Conversation,
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::Session>,
+    session: &crate::session::Session,
 ) -> Result<bool> {
     let messages = conversation.messages();
     let config = Config::global();
-    // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
@@ -155,7 +158,7 @@ pub async fn check_if_compaction_needed(
     let provider = agent.provider().await?;
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
+    let (current_tokens, token_source) = match session.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()
@@ -175,7 +178,7 @@ pub async fn check_if_compaction_needed(
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
     let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        usage_ratio > DEFAULT_COMPACTION_THRESHOLD
+        false // Auto-compact is disabled.
     } else {
         usage_ratio > threshold
     };
@@ -196,7 +199,7 @@ pub async fn check_if_compaction_needed(
 async fn do_compact(
     provider: Arc<dyn Provider>,
     messages: &[Message],
-) -> Result<Option<(Message, ProviderUsage)>, anyhow::Error> {
+) -> Result<(Message, ProviderUsage), anyhow::Error> {
     let agent_visible_messages: Vec<&Message> = messages
         .iter()
         .filter(|msg| msg.is_agent_visible())
@@ -229,7 +232,7 @@ async fn do_compact(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-    Ok(Some((response, provider_usage)))
+    Ok((response, provider_usage))
 }
 
 fn format_message_for_compacting(msg: &Message) -> String {
@@ -281,7 +284,9 @@ fn format_message_for_compacting(msg: &Message) -> String {
             }
             MessageContent::Thinking(thinking) => format!("thinking: {}", thinking.thinking),
             MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
-            MessageContent::ConversationCompacted(compact) => format!("compacted: {}", compact.msg),
+            MessageContent::SystemNotification(notification) => {
+                format!("system_notification: {}", notification.msg)
+            }
         })
         .collect();
 

@@ -1,3 +1,5 @@
+use crate::agents::chatrecall_extension;
+use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -34,8 +36,8 @@ impl ProcessExit {
     }
 }
 
-pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> =
-    Lazy::new(|| {
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
+    || {
         let mut map = HashMap::new();
 
         map.insert(
@@ -49,12 +51,41 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
-        map
-    });
+        map.insert(
+            chatrecall_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: chatrecall_extension::EXTENSION_NAME,
+                description:
+                    "Search past conversations and load session summaries for contextual memory",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
+                },
+            },
+        );
 
-#[derive(Debug, Clone)]
+        map.insert(
+            "extensionmanager",
+            PlatformExtensionDef {
+                name: extension_manager_extension::EXTENSION_NAME,
+                description:
+                    "Enable extension management tools for discovering, enabling, and disabling extensions",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
+        map
+    },
+);
+
+#[derive(Clone)]
 pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
+    pub extension_manager:
+        Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
+    pub tool_route_manager:
+        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,6 +215,8 @@ pub enum ExtensionConfig {
     Sse {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         uri: String,
         #[serde(default)]
@@ -203,6 +236,8 @@ pub enum ExtensionConfig {
     Stdio {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         cmd: String,
         args: Vec<String>,
@@ -221,6 +256,8 @@ pub enum ExtensionConfig {
     Builtin {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
@@ -234,6 +271,8 @@ pub enum ExtensionConfig {
     Platform {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         #[serde(default)]
         bundled: Option<bool>,
@@ -245,6 +284,8 @@ pub enum ExtensionConfig {
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         uri: String,
         #[serde(default)]
@@ -266,6 +307,8 @@ pub enum ExtensionConfig {
     Frontend {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         /// The tools provided by the frontend
         tools: Vec<Tool>,
@@ -281,6 +324,8 @@ pub enum ExtensionConfig {
     InlinePython {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[schema(required)]
         description: String,
         /// The Python code to execute
         code: String,

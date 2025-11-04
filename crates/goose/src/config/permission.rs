@@ -91,6 +91,11 @@ impl PermissionManager {
         self.get_permission(SMART_APPROVE_PERMISSION, principal_name)
     }
 
+    /// Retrieves the config file path.
+    pub fn get_config_path(&self) -> &Path {
+        self.config_path.as_path()
+    }
+
     /// Helper function to retrieve the permission level for a specific permission category and tool.
     fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
         // Check if the permission category exists in the map

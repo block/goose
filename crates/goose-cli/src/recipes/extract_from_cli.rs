@@ -49,7 +49,7 @@ pub fn extract_recipe_info_from_cli(
     }
     let input_config = InputConfig {
         contents: recipe.prompt.clone().filter(|s| !s.trim().is_empty()),
-        extensions_override: recipe.extensions.clone(),
+        extensions_override: recipe.extensions.clone().or(Some(vec![])),
         additional_system_prompt: recipe.instructions.clone(),
     };
 
@@ -107,7 +107,8 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_none());
+        assert!(input_config.extensions_override.is_some());
+        assert!(input_config.extensions_override.unwrap().is_empty());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -171,7 +172,8 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_none());
+        assert!(input_config.extensions_override.is_some());
+        assert!(input_config.extensions_override.unwrap().is_empty());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -241,7 +243,7 @@ settings:
   temperature: 0.7
 sub_recipes:
 - path: existing_sub_recipe.yaml
-  name: existing_sub_recipe        
+  name: existing_sub_recipe
 response:
   json_schema:
     type: object
@@ -249,10 +251,18 @@ response:
       result:
         type: string
 "#;
+        let sub_recipe_content = r#"
+title: existing_sub_recipe
+description: An existing sub recipe
+instructions: sub recipe instructions
+prompt: sub recipe prompt
+"#;
         let temp_dir = tempfile::tempdir().unwrap();
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+        let sub_recipe_path: std::path::PathBuf = temp_dir.path().join("existing_sub_recipe.yaml");
 
         std::fs::write(&recipe_path, test_recipe_content).unwrap();
+        std::fs::write(&sub_recipe_path, sub_recipe_content).unwrap();
         let canonical_recipe_path = recipe_path.canonicalize().unwrap();
         (temp_dir, canonical_recipe_path)
     }

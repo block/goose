@@ -4,13 +4,9 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
-export type AddSubRecipesRequest = {
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
     session_id: string;
-    sub_recipes: Array<SubRecipe>;
-};
-
-export type AddSubRecipesResponse = {
-    success: boolean;
 };
 
 export type Annotations = {
@@ -76,39 +72,7 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-/**
- * Request payload for context management operations
- */
-export type ContextManageRequest = {
-    /**
-     * Collection of messages to be managed
-     */
-    messages: Array<Message>;
-    /**
-     * Optional session ID for session-specific agent
-     */
-    sessionId: string;
-};
-
-/**
- * Response from context management operations
- */
-export type ContextManageResponse = {
-    /**
-     * Processed messages after the operation
-     */
-    messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
-};
-
 export type Conversation = Array<Message>;
-
-export type ConversationCompacted = {
-    msg: string;
-};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -178,15 +142,6 @@ export type Envs = {
 
 export type ErrorResponse = {
     message: string;
-};
-
-export type ExtendPromptRequest = {
-    extension: string;
-    session_id: string;
-};
-
-export type ExtendPromptResponse = {
-    success: boolean;
 };
 
 /**
@@ -330,7 +285,7 @@ export type GetToolsQuery = {
 
 export type Icon = {
     mimeType?: string;
-    sizes?: string;
+    sizes?: Array<string>;
     src: string;
 };
 
@@ -406,9 +361,36 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ConversationCompacted & {
-    type: 'conversationCompacted';
+}) | (SystemNotificationContent & {
+    type: 'systemNotification';
 });
+
+export type MessageEvent = {
+    message: Message;
+    token_state: TokenState;
+    type: 'Message';
+} | {
+    error: string;
+    type: 'Error';
+} | {
+    reason: string;
+    type: 'Finish';
+} | {
+    mode: string;
+    model: string;
+    type: 'ModelChange';
+} | {
+    message: {
+        [key: string]: unknown;
+    };
+    request_id: string;
+    type: 'Notification';
+} | {
+    conversation: Conversation;
+    type: 'UpdateConversation';
+} | {
+    type: 'Ping';
+};
 
 /**
  * Metadata for message visibility
@@ -602,6 +584,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -623,6 +610,7 @@ export type Response = {
 };
 
 export type ResumeAgentRequest = {
+    load_model_and_extensions: boolean;
     session_id: string;
 };
 
@@ -679,7 +667,6 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
-    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
@@ -701,6 +688,7 @@ export type Session = {
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
+    session_type?: SessionType;
     total_tokens?: number | null;
     updated_at: string;
     user_recipe_values?: {
@@ -708,11 +696,6 @@ export type Session = {
     } | null;
     user_set_name?: boolean;
     working_dir: string;
-};
-
-export type SessionConfigRequest = {
-    response?: Response | null;
-    session_id: string;
 };
 
 export type SessionDisplayInfo = {
@@ -731,13 +714,7 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionInsights = {
-    /**
-     * Total number of sessions
-     */
     totalSessions: number;
-    /**
-     * Total tokens used across all sessions
-     */
     totalTokens: number;
 };
 
@@ -747,6 +724,8 @@ export type SessionListResponse = {
      */
     sessions: Array<Session>;
 };
+
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
     limit?: number;
@@ -791,6 +770,13 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
+export type SystemNotificationContent = {
+    msg: string;
+    notificationType: SystemNotificationType;
+};
+
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -804,6 +790,15 @@ export type TextContent = {
 export type ThinkingContent = {
     signature: string;
     thinking: string;
+};
+
+export type TokenState = {
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
 };
 
 export type Tool = {
@@ -875,6 +870,10 @@ export type UpdateCustomProviderRequest = {
     supports_streaming?: boolean | null;
 };
 
+export type UpdateFromSessionRequest = {
+    session_id: string;
+};
+
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
@@ -905,6 +904,10 @@ export type UpdateSessionUserRecipeValuesRequest = {
     };
 };
 
+export type UpdateSessionUserRecipeValuesResponse = {
+    recipe: Recipe;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -915,14 +918,14 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
-export type AddSubRecipesData = {
-    body: AddSubRecipesRequest;
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
     path?: never;
     query?: never;
-    url: '/agent/add_sub_recipes';
+    url: '/agent/add_extension';
 };
 
-export type AddSubRecipesErrors = {
+export type AgentAddExtensionErrors = {
     /**
      * Unauthorized - invalid secret key
      */
@@ -931,25 +934,29 @@ export type AddSubRecipesErrors = {
      * Agent not initialized
      */
     424: unknown;
-};
-
-export type AddSubRecipesResponses = {
     /**
-     * Added sub recipes to agent successfully
+     * Internal server error
      */
-    200: AddSubRecipesResponse;
+    500: unknown;
 };
 
-export type AddSubRecipesResponse2 = AddSubRecipesResponses[keyof AddSubRecipesResponses];
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
 
-export type ExtendPromptData = {
-    body: ExtendPromptRequest;
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
     path?: never;
     query?: never;
-    url: '/agent/prompt';
+    url: '/agent/remove_extension';
 };
 
-export type ExtendPromptErrors = {
+export type AgentRemoveExtensionErrors = {
     /**
      * Unauthorized - invalid secret key
      */
@@ -958,16 +965,20 @@ export type ExtendPromptErrors = {
      * Agent not initialized
      */
     424: unknown;
-};
-
-export type ExtendPromptResponses = {
     /**
-     * Extended system prompt successfully
+     * Internal server error
      */
-    200: ExtendPromptResponse;
+    500: unknown;
 };
 
-export type ExtendPromptResponse2 = ExtendPromptResponses[keyof ExtendPromptResponses];
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
@@ -999,37 +1010,6 @@ export type ResumeAgentResponses = {
 };
 
 export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
-
-export type UpdateSessionConfigData = {
-    body: SessionConfigRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/session_config';
-};
-
-export type UpdateSessionConfigErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionConfigResponses = {
-    /**
-     * Session config updated successfully
-     */
-    200: string;
-};
-
-export type UpdateSessionConfigResponse = UpdateSessionConfigResponses[keyof UpdateSessionConfigResponses];
 
 export type StartAgentData = {
     body: StartAgentRequest;
@@ -1103,6 +1083,31 @@ export type GetToolsResponses = {
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
+export type UpdateFromSessionData = {
+    body: UpdateFromSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_from_session';
+};
+
+export type UpdateFromSessionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+};
+
+export type UpdateFromSessionResponses = {
+    /**
+     * Update agent from session data successfully
+     */
+    200: unknown;
+};
 
 export type UpdateAgentProviderData = {
     body: UpdateProviderRequest;
@@ -1644,36 +1649,30 @@ export type ConfirmPermissionResponses = {
     200: unknown;
 };
 
-export type ManageContextData = {
-    body: ContextManageRequest;
-    path?: never;
+export type DiagnosticsData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
     query?: never;
-    url: '/context/manage';
+    url: '/diagnostics/{session_id}';
 };
 
-export type ManageContextErrors = {
+export type DiagnosticsErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
+     * Failed to generate diagnostics
      */
     500: unknown;
 };
 
-export type ManageContextResponses = {
+export type DiagnosticsResponses = {
     /**
-     * Context managed successfully
+     * Diagnostics zip file
      */
-    200: ContextManageResponse;
+    200: Blob | File;
 };
 
-export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
@@ -1936,8 +1935,10 @@ export type ReplyResponses = {
     /**
      * Streaming response initiated
      */
-    200: unknown;
+    200: MessageEvent;
 };
+
+export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
@@ -2488,19 +2489,23 @@ export type UpdateSessionUserRecipeValuesErrors = {
     /**
      * Session not found
      */
-    404: unknown;
+    404: ErrorResponse;
     /**
      * Internal server error
      */
-    500: unknown;
+    500: ErrorResponse;
 };
+
+export type UpdateSessionUserRecipeValuesError = UpdateSessionUserRecipeValuesErrors[keyof UpdateSessionUserRecipeValuesErrors];
 
 export type UpdateSessionUserRecipeValuesResponses = {
     /**
      * Session user recipe values updated successfully
      */
-    200: unknown;
+    200: UpdateSessionUserRecipeValuesResponse;
 };
+
+export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
 
 export type StatusData = {
     body?: never;

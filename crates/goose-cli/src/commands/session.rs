@@ -2,10 +2,11 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
-use goose::session::{Session, SessionManager};
+use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
@@ -201,10 +202,39 @@ pub async fn handle_session_export(
 
     Ok(())
 }
-/// Convert a list of messages to markdown format for session export
-///
-/// This function handles the formatting of a complete session including headers,
-/// message organization, and proper tool request/response pairing.
+
+pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
+    println!(
+        "Generating diagnostics bundle for session '{}'...",
+        session_id
+    );
+
+    let diagnostics_data = generate_diagnostics(session_id).await.with_context(|| {
+        format!(
+            "Failed to write to generate diagnostics bundle for session '{}'",
+            session_id
+        )
+    })?;
+
+    let output_file = if let Some(path) = output_path {
+        path.clone()
+    } else {
+        PathBuf::from(format!("diagnostics_{}.zip", session_id))
+    };
+
+    let mut file = fs::File::create(&output_file).context(format!(
+        "Failed to create output file: {}",
+        output_file.display()
+    ))?;
+
+    file.write_all(&diagnostics_data)
+        .context("Failed to write diagnostics data")?;
+
+    println!("Diagnostics bundle saved to: {}", output_file.display());
+
+    Ok(())
+}
+
 fn export_session_to_markdown(
     messages: Vec<goose::conversation::message::Message>,
     session_name: &String,

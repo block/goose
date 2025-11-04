@@ -8,8 +8,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use chrono::NaiveDateTime;
-
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
 
@@ -82,12 +80,6 @@ pub struct SessionDisplayInfo {
     accumulated_output_tokens: Option<i32>,
 }
 
-fn parse_session_name_to_iso(session_name: &str) -> String {
-    NaiveDateTime::parse_from_str(session_name, "%Y%m%d_%H%M%S")
-        .map(|dt| dt.and_utc().to_rfc3339())
-        .unwrap_or_else(|_| String::new()) // Fallback to empty string if parsing fails
-}
-
 #[utoipa::path(
     post,
     path = "/schedule/create",
@@ -123,7 +115,6 @@ async fn create_schedule(
         paused: false,
         current_session_id: None,
         process_start_time: None,
-        execution_mode: req.execution_mode.or(Some("background".to_string())), // Default to background
     };
     scheduler
         .add_scheduled_job(job.clone())
@@ -326,7 +317,7 @@ async fn sessions_handler(
                 display_infos.push(SessionDisplayInfo {
                     id: session_name.clone(),
                     name: session.name,
-                    created_at: parse_session_name_to_iso(&session_name),
+                    created_at: session.created_at.to_rfc3339(),
                     working_dir: session.working_dir.to_string_lossy().into_owned(),
                     schedule_id: session.schedule_id,
                     message_count: session.message_count,
