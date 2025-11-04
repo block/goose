@@ -764,30 +764,43 @@ const destroyTray = () => {
   }
 };
 
+const disableTray = () => {
+  const settings = loadSettings();
+  settings.showMenuBarIcon = false;
+  saveSettings(settings);
+};
+
 const createTray = () => {
-  // If tray already exists, destroy it first
   destroyTray();
 
-  const isDev = process.env.NODE_ENV === 'development';
-  let iconPath: string;
+  const possiblePaths = [
+    path.join(process.resourcesPath, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'src', 'images', 'iconTemplate.png'),
+    path.join(__dirname, '..', 'images', 'iconTemplate.png'),
+    path.join(__dirname, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'images', 'iconTemplate.png'),
+  ];
 
-  if (isDev) {
-    iconPath = path.join(process.cwd(), 'src', 'images', 'iconTemplate.png');
-  } else {
-    iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
+  const iconPath = possiblePaths.find((p) => fsSync.existsSync(p));
+
+  if (!iconPath) {
+    console.warn('[Main] Tray icon not found. App will continue without system tray.');
+    disableTray();
+    return;
   }
 
-  tray = new Tray(iconPath);
+  try {
+    tray = new Tray(iconPath);
+    setTrayRef(tray);
+    updateTrayMenu(getUpdateAvailable());
 
-  // Set tray reference for auto-updater
-  setTrayRef(tray);
-
-  // Initially build menu based on update status
-  updateTrayMenu(getUpdateAvailable());
-
-  // On Windows, clicking the tray icon should show the window
-  if (process.platform === 'win32') {
-    tray.on('click', showWindow);
+    if (process.platform === 'win32') {
+      tray.on('click', showWindow);
+    }
+  } catch (error) {
+    console.error('[Main] Tray creation failed. App will continue without system tray.', error);
+    disableTray();
+    tray = null;
   }
 };
 
@@ -802,7 +815,6 @@ const showWindow = async () => {
     return;
   }
 
-  // Define the initial offset values
   const initialOffsetX = 30;
   const initialOffsetY = 30;
 
