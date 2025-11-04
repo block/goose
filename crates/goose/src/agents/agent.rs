@@ -731,7 +731,13 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
+    #[instrument(
+        skip(self, unfixed_conversation, session),
+        fields(
+            user_message,
+            session_id = session.as_ref().map(|s| s.id.as_str())
+        )
+    )]
     pub async fn reply(
         &self,
         unfixed_conversation: Conversation,

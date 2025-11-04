@@ -65,6 +65,7 @@ pub trait BatchManager: Send + Sync + 'static {
 pub struct SpanTracker {
     active_spans: HashMap<u64, String>, // span_id -> observation_id. span_id in Tracing is u64 whereas Langfuse requires UUID v4 strings
     current_trace_id: Option<String>,
+    session_id: Option<String>,
 }
 
 impl Default for SpanTracker {
@@ -78,7 +79,12 @@ impl SpanTracker {
         Self {
             active_spans: HashMap::new(),
             current_trace_id: None,
+            session_id: None,
         }
+    }
+
+    pub fn set_session_id(&mut self, session_id: Option<String>) {
+        self.session_id = session_id;
     }
 
     pub fn add_span(&mut self, span_id: u64, observation_id: String) {
@@ -104,6 +110,15 @@ impl ObservationLayer {
     pub async fn handle_span(&self, span_id: u64, span_data: SpanData) {
         let observation_id = span_data.observation_id.clone();
 
+        if let Some(session_id) = span_data
+            .metadata
+            .get("session_id")
+            .and_then(|v| v.as_str())
+        {
+            let mut spans = self.span_tracker.lock().await;
+            spans.set_session_id(Some(session_id.to_string()));
+        }
+
         {
             let mut spans = self.span_tracker.lock().await;
             spans.add_span(span_id, observation_id.clone());
@@ -120,20 +135,28 @@ impl ObservationLayer {
         let trace_id = self.ensure_trace_id().await;
 
         // Create the span observation
+        let session_id = {
+            let spans = self.span_tracker.lock().await;
+            spans.session_id.clone()
+        };
+
+        let mut observation_body = json!({
+            "id": observation_id,
+            "traceId": trace_id,
+            "type": "SPAN",
+            "name": span_data.name,
+            "startTime": span_data.start_time,
+            "parentObservationId": parent_id,
+            "metadata": span_data.metadata,
+            "level": span_data.level
+        });
+
+        if let Some(session_id) = session_id {
+            observation_body["sessionId"] = json!(session_id);
+        }
+
         let mut batch = self.batch_manager.lock().await;
-        batch.add_event(
-            "observation-create",
-            json!({
-                "id": observation_id,
-                "traceId": trace_id,
-                "type": "SPAN",
-                "name": span_data.name,
-                "startTime": span_data.start_time,
-                "parentObservationId": parent_id,
-                "metadata": span_data.metadata,
-                "level": span_data.level
-            }),
-        );
+        batch.add_event("observation-create", observation_body);
     }
 
     pub async fn handle_span_close(&self, span_id: u64) {
@@ -144,16 +167,25 @@ impl ObservationLayer {
 
         if let Some(observation_id) = observation_id {
             let trace_id = self.ensure_trace_id().await;
+
+            let session_id = {
+                let spans = self.span_tracker.lock().await;
+                spans.session_id.clone()
+            };
+
+            let mut update_body = json!({
+                "id": observation_id,
+                "type": "SPAN",
+                "traceId": trace_id,
+                "endTime": Utc::now().to_rfc3339()
+            });
+
+            if let Some(session_id) = session_id {
+                update_body["sessionId"] = json!(session_id);
+            }
+
             let mut batch = self.batch_manager.lock().await;
-            batch.add_event(
-                "observation-update",
-                json!({
-                    "id": observation_id,
-                    "type": "SPAN",
-                    "traceId": trace_id,
-                    "endTime": Utc::now().to_rfc3339()
-                }),
-            );
+            batch.add_event("observation-update", update_body);
         }
     }
 
@@ -166,19 +198,22 @@ impl ObservationLayer {
         let trace_id = Uuid::new_v4().to_string();
         spans.current_trace_id = Some(trace_id.clone());
 
+        let mut trace_body = json!({
+            "id": trace_id,
+            "name": Utc::now().timestamp().to_string(),
+            "timestamp": Utc::now().to_rfc3339(),
+            "input": {},
+            "metadata": {},
+            "tags": [],
+            "public": false
+        });
+
+        if let Some(session_id) = &spans.session_id {
+            trace_body["sessionId"] = json!(session_id);
+        }
+
         let mut batch = self.batch_manager.lock().await;
-        batch.add_event(
-            "trace-create",
-            json!({
-                "id": trace_id,
-                "name": Utc::now().timestamp().to_string(),
-                "timestamp": Utc::now().to_rfc3339(),
-                "input": {},
-                "metadata": {},
-                "tags": [],
-                "public": false
-            }),
-        );
+        batch.add_event("trace-create", trace_body);
 
         trace_id
     }
@@ -192,11 +227,25 @@ impl ObservationLayer {
         if let Some(observation_id) = observation_id {
             let trace_id = self.ensure_trace_id().await;
 
+            if let Some(session_id) = metadata.get("session_id").and_then(|v| v.as_str()) {
+                let mut spans = self.span_tracker.lock().await;
+                spans.set_session_id(Some(session_id.to_string()));
+            }
+
+            let session_id = {
+                let spans = self.span_tracker.lock().await;
+                spans.session_id.clone()
+            };
+
             let mut update = json!({
                 "id": observation_id,
                 "traceId": trace_id,
                 "type": "SPAN"
             });
+
+            if let Some(session_id) = session_id {
+                update["sessionId"] = json!(session_id);
+            }
 
             // Handle special fields
             if let Some(val) = metadata.get("input") {
