@@ -1068,7 +1068,6 @@ mod tests {
     #[test]
     fn test_map_http_error_to_provider_error() {
         let test_cases = vec![
-            // UNAUTHORIZED/FORBIDDEN - with payload
             (
                 StatusCode::UNAUTHORIZED,
                 Some(json!({"error": "auth failed"})),
@@ -1076,7 +1075,6 @@ mod tests {
                     "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: {\"error\":\"auth failed\"}".to_string(),
                 ),
             ),
-            // UNAUTHORIZED/FORBIDDEN - without payload
             (
                 StatusCode::FORBIDDEN,
                 None,
@@ -1084,7 +1082,6 @@ mod tests {
                     "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 403 Forbidden".to_string(),
                 ),
             ),
-            // BAD_REQUEST - with context_length_exceeded detection
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "context_length_exceeded"}})),
@@ -1092,7 +1089,6 @@ mod tests {
                     "{\"error\":{\"message\":\"context_length_exceeded\"}}".to_string(),
                 ),
             ),
-            // BAD_REQUEST - with error.message extraction
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "Custom error"}})),
@@ -1100,7 +1096,6 @@ mod tests {
                     "Request failed with status: 400 Bad Request. Message: Custom error".to_string(),
                 ),
             ),
-            // BAD_REQUEST - without payload
             (
                 StatusCode::BAD_REQUEST,
                 None,
@@ -1108,7 +1103,6 @@ mod tests {
                     "Request failed with status: 400 Bad Request".to_string(),
                 ),
             ),
-            // TOO_MANY_REQUESTS
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 Some(json!({"retry_after": 60})),
@@ -1117,7 +1111,6 @@ mod tests {
                     retry_delay: None,
                 },
             ),
-            // is_server_error() without payload
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
@@ -1126,7 +1119,6 @@ mod tests {
                     None,
                 )),
             ),
-            // is_server_error() with null payload (the "Server error: None" bug)
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(Value::Null),
@@ -1135,7 +1127,6 @@ mod tests {
                     Some(&Value::Null),
                 )),
             ),
-            // is_server_error() with payload
             (
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
