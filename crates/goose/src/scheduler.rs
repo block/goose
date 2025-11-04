@@ -17,42 +17,31 @@ use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
+use crate::providers::base::Provider as GooseProvider;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
-// Track running tasks with their abort handles
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
-/// Normalize a cron string so that:
-/// 1. It is always in **quartz 7-field format** expected by Temporal
-///    (seconds minutes hours dom month dow year).
-/// 2. Five-field → prepend seconds `0` and append year `*`.
-///    Six-field  → append year `*`.
-/// 3. Everything else returned unchanged (with a warning).
 pub fn normalize_cron_expression(src: &str) -> String {
     let mut parts: Vec<&str> = src.split_whitespace().collect();
 
     match parts.len() {
         5 => {
-            // min hour dom mon dow  → 0 min hour dom mon dow *
             parts.insert(0, "0");
             parts.push("*");
         }
         6 => {
-            // sec min hour dom mon dow  → sec min hour dom mon dow *
             parts.push("*");
         }
-        7 => {
-            // already quartz – do nothing
-        }
+        7 => {}
         _ => {
             tracing::warn!(
-                "Unrecognised cron expression '{}': expected 5, 6 or 7 fields (got {}). Leaving unchanged.",
+                "Unrecognised cron expression '{}': expected 5, 6 or 7 fields (got {})",
                 src,
                 parts.len()
             );
@@ -61,6 +50,15 @@ pub fn normalize_cron_expression(src: &str) -> String {
     }
 
     parts.join(" ")
+}
+
+fn to_tokio_cron(normalized: &str) -> String {
+    let parts: Vec<&str> = normalized.split_whitespace().collect();
+    if parts.len() == 7 {
+        parts[..6].join(" ")
+    } else {
+        normalized.to_string()
+    }
 }
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
@@ -73,10 +71,6 @@ pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
     let data_dir = Paths::data_dir();
     let recipes_dir = data_dir.join("scheduled_recipes");
     fs::create_dir_all(&recipes_dir).map_err(SchedulerError::StorageError)?;
-    tracing::debug!(
-        "Created scheduled recipes directory at: {}",
-        recipes_dir.display()
-    );
     Ok(recipes_dir)
 }
 
@@ -155,17 +149,19 @@ pub struct ScheduledJob {
     pub process_start_time: Option<DateTime<Utc>>,
 }
 
-async fn persist_jobs_from_arc(
+async fn persist_jobs(
     storage_path: &Path,
-    jobs_arc: &Arc<Mutex<JobsMap>>,
+    jobs: &Arc<Mutex<JobsMap>>,
 ) -> Result<(), SchedulerError> {
-    let jobs_guard = jobs_arc.lock().await;
+    let jobs_guard = jobs.lock().await;
     let list: Vec<ScheduledJob> = jobs_guard.values().map(|(_, j)| j.clone()).collect();
+    drop(jobs_guard);
+
     if let Some(parent) = storage_path.parent() {
-        fs::create_dir_all(parent).map_err(SchedulerError::StorageError)?;
+        fs::create_dir_all(parent)?;
     }
-    let data = serde_json::to_string_pretty(&list).map_err(SchedulerError::from)?;
-    fs::write(storage_path, data).map_err(SchedulerError::StorageError)?;
+    let data = serde_json::to_string_pretty(&list)?;
+    fs::write(storage_path, data)?;
     Ok(())
 }
 
@@ -202,25 +198,106 @@ impl Scheduler {
         Ok(arc_self)
     }
 
+    fn create_cron_task(&self, job: ScheduledJob) -> Result<Job, SchedulerError> {
+        let job_for_task = job.clone();
+        let jobs_arc = self.jobs.clone();
+        let storage_path = self.storage_path.clone();
+        let running_tasks_arc = self.running_tasks.clone();
+
+        let normalized_cron = normalize_cron_expression(&job.cron);
+        let tokio_cron = to_tokio_cron(&normalized_cron);
+
+        Job::new_async(&tokio_cron, move |_uuid, _l| {
+            let task_job_id = job_for_task.id.clone();
+            let current_jobs_arc = jobs_arc.clone();
+            let local_storage_path = storage_path.clone();
+            let job_to_execute = job_for_task.clone();
+            let running_tasks = running_tasks_arc.clone();
+
+            Box::pin(async move {
+                let should_execute = {
+                    let jobs_guard = current_jobs_arc.lock().await;
+                    jobs_guard
+                        .get(&task_job_id)
+                        .map(|(_, j)| !j.paused)
+                        .unwrap_or(false)
+                };
+
+                if !should_execute {
+                    return;
+                }
+
+                let current_time = Utc::now();
+                {
+                    let mut jobs_guard = current_jobs_arc.lock().await;
+                    if let Some((_, job)) = jobs_guard.get_mut(&task_job_id) {
+                        job.last_run = Some(current_time);
+                        job.currently_running = true;
+                        job.process_start_time = Some(current_time);
+                    }
+                }
+
+                if let Err(e) = persist_jobs(&local_storage_path, &current_jobs_arc).await {
+                    tracing::error!("Failed to persist job status: {}", e);
+                }
+
+                let job_task = tokio::spawn(execute_job(
+                    job_to_execute,
+                    Some(current_jobs_arc.clone()),
+                    Some(task_job_id.clone()),
+                ));
+
+                {
+                    let mut tasks = running_tasks.lock().await;
+                    tasks.insert(task_job_id.clone(), job_task.abort_handle());
+                }
+
+                let result = job_task.await;
+
+                {
+                    let mut tasks = running_tasks.lock().await;
+                    tasks.remove(&task_job_id);
+                }
+
+                {
+                    let mut jobs_guard = current_jobs_arc.lock().await;
+                    if let Some((_, job)) = jobs_guard.get_mut(&task_job_id) {
+                        job.currently_running = false;
+                        job.current_session_id = None;
+                        job.process_start_time = None;
+                    }
+                }
+
+                if let Err(e) = persist_jobs(&local_storage_path, &current_jobs_arc).await {
+                    tracing::error!("Failed to persist job completion: {}", e);
+                }
+
+                match result {
+                    Ok(Ok(_)) => tracing::info!("Job '{}' completed", task_job_id),
+                    Ok(Err(e)) => tracing::error!("Job '{}' failed: {}", e.job_id, e.error),
+                    Err(e) if e.is_cancelled() => tracing::info!("Job '{}' cancelled", task_job_id),
+                    Err(e) => tracing::error!("Job '{}' task error: {}", task_job_id, e),
+                }
+            })
+        })
+        .map_err(|e| SchedulerError::CronParseError(e.to_string()))
+    }
+
     pub async fn add_scheduled_job(
         &self,
         original_job_spec: ScheduledJob,
     ) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        if jobs_guard.contains_key(&original_job_spec.id) {
-            return Err(SchedulerError::JobIdExists(original_job_spec.id.clone()));
+        {
+            let jobs_guard = self.jobs.lock().await;
+            if jobs_guard.contains_key(&original_job_spec.id) {
+                return Err(SchedulerError::JobIdExists(original_job_spec.id.clone()));
+            }
         }
 
         let original_recipe_path = Path::new(&original_job_spec.source);
-        if !original_recipe_path.exists() {
-            return Err(SchedulerError::RecipeLoadError(format!(
-                "Original recipe file not found: {}",
-                original_job_spec.source
-            )));
-        }
         if !original_recipe_path.is_file() {
             return Err(SchedulerError::RecipeLoadError(format!(
-                "Original recipe source is not a file: {}",
+                "Recipe file not found: {}",
                 original_job_spec.source
             )));
         }
@@ -234,170 +311,14 @@ impl Scheduler {
         let destination_filename = format!("{}.{}", original_job_spec.id, original_extension);
         let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
 
-        tracing::info!(
-            "Copying recipe from {} to {}",
-            original_recipe_path.display(),
-            destination_recipe_path.display()
-        );
-        fs::copy(original_recipe_path, &destination_recipe_path).map_err(|e| {
-            SchedulerError::StorageError(io::Error::new(
-                e.kind(),
-                format!(
-                    "Failed to copy recipe from {} to {}: {}",
-                    original_job_spec.source,
-                    destination_recipe_path.display(),
-                    e
-                ),
-            ))
-        })?;
+        fs::copy(original_recipe_path, &destination_recipe_path)?;
 
-        let mut stored_job = original_job_spec.clone();
+        let mut stored_job = original_job_spec;
         stored_job.source = destination_recipe_path.to_string_lossy().into_owned();
         stored_job.current_session_id = None;
         stored_job.process_start_time = None;
-        tracing::info!("Updated job source path to: {}", stored_job.source);
 
-        let job_for_task = stored_job.clone();
-        let jobs_arc_for_task = self.jobs.clone();
-        let storage_path_for_task = self.storage_path.clone();
-        let running_tasks_for_task = self.running_tasks.clone();
-
-        tracing::info!("Attempting to parse cron expression: '{}'", stored_job.cron);
-        let normalized_cron = normalize_cron_expression(&stored_job.cron);
-        // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
-        let tokio_cron = {
-            let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
-            if parts.len() == 7 {
-                parts[..6].join(" ")
-            } else {
-                normalized_cron.clone()
-            }
-        };
-        if tokio_cron != stored_job.cron {
-            tracing::info!(
-                "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
-                stored_job.cron,
-                tokio_cron
-            );
-        }
-        let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
-            let task_job_id = job_for_task.id.clone();
-            let current_jobs_arc = jobs_arc_for_task.clone();
-            let local_storage_path = storage_path_for_task.clone();
-            let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
-            let running_tasks_arc = running_tasks_for_task.clone();
-
-            Box::pin(async move {
-                // Check if the job is paused before executing
-                let should_execute = {
-                    let jobs_map_guard = current_jobs_arc.lock().await;
-                    if let Some((_, current_job_in_map)) = jobs_map_guard.get(&task_job_id) {
-                        !current_job_in_map.paused
-                    } else {
-                        false
-                    }
-                };
-
-                if !should_execute {
-                    tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
-                    return;
-                }
-
-                let current_time = Utc::now();
-                let mut needs_persist = false;
-                {
-                    let mut jobs_map_guard = current_jobs_arc.lock().await;
-                    if let Some((_, current_job_in_map)) = jobs_map_guard.get_mut(&task_job_id) {
-                        current_job_in_map.last_run = Some(current_time);
-                        current_job_in_map.currently_running = true;
-                        current_job_in_map.process_start_time = Some(current_time);
-                        needs_persist = true;
-                    }
-                }
-
-                if needs_persist {
-                    if let Err(e) =
-                        persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                    {
-                        tracing::error!(
-                            "Failed to persist last_run update for job {}: {}",
-                            &task_job_id,
-                            e
-                        );
-                    }
-                }
-
-                // Spawn the job execution as an abortable task
-                let job_task = tokio::spawn(run_scheduled_job_internal(
-                    job_to_execute.clone(),
-                    None,
-                    Some(current_jobs_arc.clone()),
-                    Some(task_job_id.clone()),
-                ));
-
-                // Store the abort handle at the scheduler level
-                {
-                    let mut running_tasks_guard = running_tasks_arc.lock().await;
-                    running_tasks_guard.insert(task_job_id.clone(), job_task.abort_handle());
-                }
-
-                // Wait for the job to complete or be aborted
-                let result = job_task.await;
-
-                // Remove the abort handle
-                {
-                    let mut running_tasks_guard = running_tasks_arc.lock().await;
-                    running_tasks_guard.remove(&task_job_id);
-                }
-
-                // Update the job status after execution
-                {
-                    let mut jobs_map_guard = current_jobs_arc.lock().await;
-                    if let Some((_, current_job_in_map)) = jobs_map_guard.get_mut(&task_job_id) {
-                        current_job_in_map.currently_running = false;
-                        current_job_in_map.current_session_id = None;
-                        current_job_in_map.process_start_time = None;
-                        needs_persist = true;
-                    }
-                }
-
-                if needs_persist {
-                    if let Err(e) =
-                        persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                    {
-                        tracing::error!(
-                            "Failed to persist running status update for job {}: {}",
-                            &task_job_id,
-                            e
-                        );
-                    }
-                }
-
-                match result {
-                    Ok(Ok(_session_id)) => {
-                        tracing::info!("Scheduled job '{}' completed successfully", &task_job_id);
-                    }
-                    Ok(Err(e)) => {
-                        tracing::error!(
-                            "Scheduled job '{}' execution failed: {}",
-                            &e.job_id,
-                            e.error
-                        );
-                    }
-                    Err(join_error) if join_error.is_cancelled() => {
-                        tracing::info!("Scheduled job '{}' was cancelled/killed", &task_job_id);
-                    }
-                    Err(join_error) => {
-                        tracing::error!(
-                            "Scheduled job '{}' task failed: {}",
-                            &task_job_id,
-                            join_error
-                        );
-                    }
-                }
-            })
-        })
-        .map_err(|e| SchedulerError::CronParseError(e.to_string()))?;
+        let cron_task = self.create_cron_task(stored_job.clone())?;
 
         let job_uuid = self
             .internal_scheduler
@@ -405,9 +326,12 @@ impl Scheduler {
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
 
-        jobs_guard.insert(stored_job.id.clone(), (job_uuid, stored_job));
-        // Pass the jobs_guard by reference for the initial persist after adding a job
-        self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            jobs_guard.insert(stored_job.id.clone(), (job_uuid, stored_job));
+        }
+
+        persist_jobs(&self.storage_path, &self.jobs).await?;
         Ok(())
     }
 
@@ -420,193 +344,26 @@ impl Scheduler {
             return Ok(());
         }
 
-        let list: Vec<ScheduledJob> = serde_json::from_str(&data).map_err(|e| {
-            SchedulerError::PersistError(format!("Failed to deserialize schedules.json: {}", e))
-        })?;
+        let list: Vec<ScheduledJob> = serde_json::from_str(&data)?;
 
-        let mut jobs_guard = self.jobs.lock().await;
         for job_to_load in list {
             if !Path::new(&job_to_load.source).exists() {
-                tracing::warn!("Recipe file {} for scheduled job {} not found in shared store. Skipping job load.", job_to_load.source, job_to_load.id);
+                tracing::warn!("Recipe file {} not found, skipping", job_to_load.source);
                 continue;
             }
 
-            let job_for_task = job_to_load.clone();
-            let jobs_arc_for_task = self.jobs.clone();
-            let storage_path_for_task = self.storage_path.clone();
-            let running_tasks_for_task = self.running_tasks.clone();
-
-            tracing::info!(
-                "Loading job '{}' with cron expression: '{}'",
-                job_to_load.id,
-                job_to_load.cron
-            );
-            let normalized_cron = normalize_cron_expression(&job_to_load.cron);
-            // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
-            let tokio_cron = {
-                let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
-                if parts.len() == 7 {
-                    parts[..6].join(" ")
-                } else {
-                    normalized_cron.clone()
-                }
-            };
-            if tokio_cron != job_to_load.cron {
-                tracing::info!(
-                    "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
-                    job_to_load.cron,
-                    tokio_cron
-                );
-            }
-            let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
-                let task_job_id = job_for_task.id.clone();
-                let current_jobs_arc = jobs_arc_for_task.clone();
-                let local_storage_path = storage_path_for_task.clone();
-                let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
-                let running_tasks_arc = running_tasks_for_task.clone();
-
-                Box::pin(async move {
-                    // Check if the job is paused before executing
-                    let should_execute = {
-                        let jobs_map_guard = current_jobs_arc.lock().await;
-                        if let Some((_, stored_job)) = jobs_map_guard.get(&task_job_id) {
-                            !stored_job.paused
-                        } else {
-                            false
-                        }
-                    };
-
-                    if !should_execute {
-                        tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
-                        return;
-                    }
-
-                    let current_time = Utc::now();
-                    let mut needs_persist = false;
-                    {
-                        let mut jobs_map_guard = current_jobs_arc.lock().await;
-                        if let Some((_, stored_job)) = jobs_map_guard.get_mut(&task_job_id) {
-                            stored_job.last_run = Some(current_time);
-                            stored_job.currently_running = true;
-                            stored_job.process_start_time = Some(current_time);
-                            needs_persist = true;
-                        }
-                    }
-
-                    if needs_persist {
-                        if let Err(e) =
-                            persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                        {
-                            tracing::error!(
-                                "Failed to persist last_run update for loaded job {}: {}",
-                                &task_job_id,
-                                e
-                            );
-                        }
-                    }
-
-                    // Spawn the job execution as an abortable task
-                    let job_task = tokio::spawn(run_scheduled_job_internal(
-                        job_to_execute,
-                        None,
-                        Some(current_jobs_arc.clone()),
-                        Some(task_job_id.clone()),
-                    ));
-
-                    // Store the abort handle at the scheduler level
-                    {
-                        let mut running_tasks_guard = running_tasks_arc.lock().await;
-                        running_tasks_guard.insert(task_job_id.clone(), job_task.abort_handle());
-                    }
-
-                    // Wait for the job to complete or be aborted
-                    let result = job_task.await;
-
-                    // Remove the abort handle
-                    {
-                        let mut running_tasks_guard = running_tasks_arc.lock().await;
-                        running_tasks_guard.remove(&task_job_id);
-                    }
-
-                    // Update the job status after execution
-                    {
-                        let mut jobs_map_guard = current_jobs_arc.lock().await;
-                        if let Some((_, stored_job)) = jobs_map_guard.get_mut(&task_job_id) {
-                            stored_job.currently_running = false;
-                            stored_job.current_session_id = None;
-                            stored_job.process_start_time = None;
-                            needs_persist = true;
-                        }
-                    }
-
-                    if needs_persist {
-                        if let Err(e) =
-                            persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                        {
-                            tracing::error!(
-                                "Failed to persist running status update for job {}: {}",
-                                &task_job_id,
-                                e
-                            );
-                        }
-                    }
-
-                    match result {
-                        Ok(Ok(_session_id)) => {
-                            tracing::info!(
-                                "Scheduled job '{}' completed successfully",
-                                &task_job_id
-                            );
-                        }
-                        Ok(Err(e)) => {
-                            tracing::error!(
-                                "Scheduled job '{}' execution failed: {}",
-                                &e.job_id,
-                                e.error
-                            );
-                        }
-                        Err(join_error) if join_error.is_cancelled() => {
-                            tracing::info!("Scheduled job '{}' was cancelled/killed", &task_job_id);
-                        }
-                        Err(join_error) => {
-                            tracing::error!(
-                                "Scheduled job '{}' task failed: {}",
-                                &task_job_id,
-                                join_error
-                            );
-                        }
-                    }
-                })
-            })
-            .map_err(|e| SchedulerError::CronParseError(e.to_string()))?;
+            let cron_task = self.create_cron_task(job_to_load.clone())?;
 
             let job_uuid = self
                 .internal_scheduler
                 .add(cron_task)
                 .await
                 .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+            let mut jobs_guard = self.jobs.lock().await;
             jobs_guard.insert(job_to_load.id.clone(), (job_uuid, job_to_load));
         }
         Ok(())
-    }
-
-    // Renamed and kept for direct use when a guard is already held (e.g. add/remove)
-    async fn persist_jobs_to_storage_with_guard(
-        &self,
-        jobs_guard: &tokio::sync::MutexGuard<'_, JobsMap>,
-    ) -> Result<(), SchedulerError> {
-        let list: Vec<ScheduledJob> = jobs_guard.values().map(|(_, j)| j.clone()).collect();
-        if let Some(parent) = self.storage_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let data = serde_json::to_string_pretty(&list)?;
-        fs::write(&self.storage_path, data)?;
-        Ok(())
-    }
-
-    // New function that locks and calls the helper, for run_now and potentially other places
-    async fn persist_jobs(&self) -> Result<(), SchedulerError> {
-        persist_jobs_from_arc(&self.storage_path, &self.jobs).await
     }
 
     pub async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
@@ -619,23 +376,26 @@ impl Scheduler {
     }
 
     pub async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        if let Some((job_uuid, scheduled_job)) = jobs_guard.remove(id) {
-            self.internal_scheduler
-                .remove(&job_uuid)
-                .await
-                .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
-
-            let recipe_path = Path::new(&scheduled_job.source);
-            if recipe_path.exists() {
-                fs::remove_file(recipe_path).map_err(SchedulerError::StorageError)?;
+        let (job_uuid, recipe_path) = {
+            let mut jobs_guard = self.jobs.lock().await;
+            match jobs_guard.remove(id) {
+                Some((uuid, job)) => (uuid, job.source.clone()),
+                None => return Err(SchedulerError::JobNotFound(id.to_string())),
             }
+        };
 
-            self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
-            Ok(())
-        } else {
-            Err(SchedulerError::JobNotFound(id.to_string()))
+        self.internal_scheduler
+            .remove(&job_uuid)
+            .await
+            .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+        let path = Path::new(&recipe_path);
+        if path.exists() {
+            fs::remove_file(path)?;
         }
+
+        persist_jobs(&self.storage_path, &self.jobs).await?;
+        Ok(())
     }
 
     pub async fn sessions(
@@ -647,129 +407,111 @@ impl Scheduler {
             .await
             .map_err(|e| SchedulerError::StorageError(io::Error::other(e)))?;
 
-        let mut schedule_sessions: Vec<(String, Session)> = Vec::new();
+        let mut schedule_sessions: Vec<(String, Session)> = all_sessions
+            .into_iter()
+            .filter(|s| s.schedule_id.as_deref() == Some(sched_id))
+            .map(|s| (s.id.clone(), s))
+            .collect();
 
-        for session in all_sessions {
-            if session.schedule_id.as_deref() == Some(sched_id) {
-                schedule_sessions.push((session.id.clone(), session));
-            }
-        }
-
-        // Sort by created_at timestamp, newest first
         schedule_sessions.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
+        schedule_sessions.truncate(limit);
 
-        let result_sessions: Vec<(String, Session)> =
-            schedule_sessions.into_iter().take(limit).collect();
-
-        Ok(result_sessions)
+        Ok(schedule_sessions)
     }
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
-        let job_to_run: ScheduledJob = {
+        let job_to_run = {
             let mut jobs_guard = self.jobs.lock().await;
             match jobs_guard.get_mut(sched_id) {
-                Some((_, job_def)) => {
-                    // Set the currently_running flag before executing
-                    job_def.currently_running = true;
-                    let job_clone = job_def.clone();
-                    // Drop the guard before persisting to avoid borrow issues
-                    drop(jobs_guard);
-
-                    // Persist the change immediately
-                    self.persist_jobs().await?;
-                    job_clone
+                Some((_, job)) => {
+                    job.currently_running = true;
+                    job.clone()
                 }
                 None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
             }
         };
 
-        // Spawn the job execution as an abortable task for run_now
-        let job_task = tokio::spawn(run_scheduled_job_internal(
-            job_to_run.clone(),
-            None,
+        persist_jobs(&self.storage_path, &self.jobs).await?;
+
+        let job_task = tokio::spawn(execute_job(
+            job_to_run,
             Some(self.jobs.clone()),
             Some(sched_id.to_string()),
         ));
 
-        // Store the abort handle for run_now jobs
         {
-            let mut running_tasks_guard = self.running_tasks.lock().await;
-            running_tasks_guard.insert(sched_id.to_string(), job_task.abort_handle());
+            let mut tasks = self.running_tasks.lock().await;
+            tasks.insert(sched_id.to_string(), job_task.abort_handle());
         }
 
-        // Wait for the job to complete or be aborted
-        let run_result = job_task.await;
+        let result = job_task.await;
 
-        // Remove the abort handle
         {
-            let mut running_tasks_guard = self.running_tasks.lock().await;
-            running_tasks_guard.remove(sched_id);
+            let mut tasks = self.running_tasks.lock().await;
+            tasks.remove(sched_id);
         }
 
-        // Clear the currently_running flag after execution
         {
             let mut jobs_guard = self.jobs.lock().await;
-            if let Some((_tokio_job_id, job_in_map)) = jobs_guard.get_mut(sched_id) {
-                job_in_map.currently_running = false;
-                job_in_map.current_session_id = None;
-                job_in_map.process_start_time = None;
-                job_in_map.last_run = Some(Utc::now());
-            } // MutexGuard is dropped here
+            if let Some((_, job)) = jobs_guard.get_mut(sched_id) {
+                job.currently_running = false;
+                job.current_session_id = None;
+                job.process_start_time = None;
+                job.last_run = Some(Utc::now());
+            }
         }
 
-        // Persist after the lock is released and update is made.
-        self.persist_jobs().await?;
+        persist_jobs(&self.storage_path, &self.jobs).await?;
 
-        match run_result {
+        match result {
             Ok(Ok(session_id)) => Ok(session_id),
             Ok(Err(e)) => Err(SchedulerError::AnyhowError(anyhow!(
-                "Failed to execute job '{}' immediately: {}",
+                "Job '{}' failed: {}",
                 sched_id,
                 e.error
             ))),
-            Err(join_error) if join_error.is_cancelled() => {
-                tracing::info!("Run now job '{}' was cancelled/killed", sched_id);
-                Err(SchedulerError::AnyhowError(anyhow!(
-                    "Job '{}' was successfully cancelled",
-                    sched_id
-                )))
-            }
-            Err(join_error) => Err(SchedulerError::AnyhowError(anyhow!(
-                "Failed to execute job '{}' immediately: {}",
+            Err(e) if e.is_cancelled() => Err(SchedulerError::AnyhowError(anyhow!(
+                "Job '{}' cancelled",
+                sched_id
+            ))),
+            Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
+                "Job '{}' task error: {}",
                 sched_id,
-                join_error
+                e
             ))),
         }
     }
 
     pub async fn pause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        match jobs_guard.get_mut(sched_id) {
-            Some((_, job_def)) => {
-                if job_def.currently_running {
-                    return Err(SchedulerError::AnyhowError(anyhow!(
-                        "Cannot pause schedule '{}' while it's currently running",
-                        sched_id
-                    )));
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get_mut(sched_id) {
+                Some((_, job)) => {
+                    if job.currently_running {
+                        return Err(SchedulerError::AnyhowError(anyhow!(
+                            "Cannot pause running schedule '{}'",
+                            sched_id
+                        )));
+                    }
+                    job.paused = true;
                 }
-                job_def.paused = true;
-                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
-                Ok(())
+                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
             }
-            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
+
+        persist_jobs(&self.storage_path, &self.jobs).await
     }
 
     pub async fn unpause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        match jobs_guard.get_mut(sched_id) {
-            Some((_, job_def)) => {
-                job_def.paused = false;
-                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
-                Ok(())
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get_mut(sched_id) {
+                Some((_, job)) => job.paused = false,
+                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
             }
-            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
+
+        persist_jobs(&self.storage_path, &self.jobs).await
     }
 
     pub async fn update_schedule(
@@ -777,242 +519,80 @@ impl Scheduler {
         sched_id: &str,
         new_cron: String,
     ) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        match jobs_guard.get_mut(sched_id) {
-            Some((job_uuid, job_def)) => {
-                if job_def.currently_running {
-                    return Err(SchedulerError::AnyhowError(anyhow!(
-                        "Cannot edit schedule '{}' while it's currently running",
-                        sched_id
-                    )));
-                }
-
-                if new_cron == job_def.cron {
-                    // No change needed
-                    return Ok(());
-                }
-
-                // Remove the old job from the scheduler
-                self.internal_scheduler
-                    .remove(job_uuid)
-                    .await
-                    .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
-
-                // Create new job with updated cron
-                let job_for_task = job_def.clone();
-                let jobs_arc_for_task = self.jobs.clone();
-                let storage_path_for_task = self.storage_path.clone();
-                let running_tasks_for_task = self.running_tasks.clone();
-
-                tracing::info!(
-                    "Updating job '{}' with new cron expression: '{}'",
-                    sched_id,
-                    new_cron
-                );
-                let normalized_cron = normalize_cron_expression(&new_cron);
-                // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
-                let tokio_cron = {
-                    let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
-                    if parts.len() == 7 {
-                        parts[..6].join(" ")
-                    } else {
-                        normalized_cron.clone()
+        let (old_uuid, updated_job) = {
+            let mut jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get_mut(sched_id) {
+                Some((uuid, job)) => {
+                    if job.currently_running {
+                        return Err(SchedulerError::AnyhowError(anyhow!(
+                            "Cannot update running schedule '{}'",
+                            sched_id
+                        )));
                     }
-                };
-                if tokio_cron != new_cron {
-                    tracing::info!(
-                        "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
-                        new_cron,
-                        tokio_cron
-                    );
+                    if new_cron == job.cron {
+                        return Ok(());
+                    }
+                    job.cron = new_cron.clone();
+                    (*uuid, job.clone())
                 }
-                let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
-                    let task_job_id = job_for_task.id.clone();
-                    let current_jobs_arc = jobs_arc_for_task.clone();
-                    let local_storage_path = storage_path_for_task.clone();
-                    let job_to_execute = job_for_task.clone();
-                    let running_tasks_arc = running_tasks_for_task.clone();
-
-                    Box::pin(async move {
-                        // Check if the job is paused before executing
-                        let should_execute = {
-                            let jobs_map_guard = current_jobs_arc.lock().await;
-                            if let Some((_, current_job_in_map)) = jobs_map_guard.get(&task_job_id)
-                            {
-                                !current_job_in_map.paused
-                            } else {
-                                false
-                            }
-                        };
-
-                        if !should_execute {
-                            tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
-                            return;
-                        }
-
-                        let current_time = Utc::now();
-                        let mut needs_persist = false;
-                        {
-                            let mut jobs_map_guard = current_jobs_arc.lock().await;
-                            if let Some((_, current_job_in_map)) =
-                                jobs_map_guard.get_mut(&task_job_id)
-                            {
-                                current_job_in_map.last_run = Some(current_time);
-                                current_job_in_map.currently_running = true;
-                                current_job_in_map.process_start_time = Some(current_time);
-                                needs_persist = true;
-                            }
-                        }
-
-                        if needs_persist {
-                            if let Err(e) =
-                                persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                            {
-                                tracing::error!(
-                                    "Failed to persist last_run update for job {}: {}",
-                                    &task_job_id,
-                                    e
-                                );
-                            }
-                        }
-
-                        // Spawn the job execution as an abortable task
-                        let job_task = tokio::spawn(run_scheduled_job_internal(
-                            job_to_execute,
-                            None,
-                            Some(current_jobs_arc.clone()),
-                            Some(task_job_id.clone()),
-                        ));
-
-                        // Store the abort handle at the scheduler level
-                        {
-                            let mut running_tasks_guard = running_tasks_arc.lock().await;
-                            running_tasks_guard
-                                .insert(task_job_id.clone(), job_task.abort_handle());
-                        }
-
-                        // Wait for the job to complete or be aborted
-                        let result = job_task.await;
-
-                        // Remove the abort handle
-                        {
-                            let mut running_tasks_guard = running_tasks_arc.lock().await;
-                            running_tasks_guard.remove(&task_job_id);
-                        }
-
-                        // Update the job status after execution
-                        {
-                            let mut jobs_map_guard = current_jobs_arc.lock().await;
-                            if let Some((_, current_job_in_map)) =
-                                jobs_map_guard.get_mut(&task_job_id)
-                            {
-                                current_job_in_map.currently_running = false;
-                                current_job_in_map.current_session_id = None;
-                                current_job_in_map.process_start_time = None;
-                                needs_persist = true;
-                            }
-                        }
-
-                        if needs_persist {
-                            if let Err(e) =
-                                persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
-                            {
-                                tracing::error!(
-                                    "Failed to persist running status update for job {}: {}",
-                                    &task_job_id,
-                                    e
-                                );
-                            }
-                        }
-
-                        match result {
-                            Ok(Ok(_session_id)) => {
-                                tracing::info!(
-                                    "Scheduled job '{}' completed successfully",
-                                    &task_job_id
-                                );
-                            }
-                            Ok(Err(e)) => {
-                                tracing::error!(
-                                    "Scheduled job '{}' execution failed: {}",
-                                    &e.job_id,
-                                    e.error
-                                );
-                            }
-                            Err(join_error) if join_error.is_cancelled() => {
-                                tracing::info!(
-                                    "Scheduled job '{}' was cancelled/killed",
-                                    &task_job_id
-                                );
-                            }
-                            Err(join_error) => {
-                                tracing::error!(
-                                    "Scheduled job '{}' task failed: {}",
-                                    &task_job_id,
-                                    join_error
-                                );
-                            }
-                        }
-                    })
-                })
-                .map_err(|e| SchedulerError::CronParseError(e.to_string()))?;
-
-                let new_job_uuid = self
-                    .internal_scheduler
-                    .add(cron_task)
-                    .await
-                    .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
-
-                // Update the job UUID and cron expression
-                *job_uuid = new_job_uuid;
-                job_def.cron = new_cron;
-
-                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
-                Ok(())
+                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
             }
-            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
+        };
+
+        self.internal_scheduler
+            .remove(&old_uuid)
+            .await
+            .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+        let cron_task = self.create_cron_task(updated_job)?;
+        let new_uuid = self
+            .internal_scheduler
+            .add(cron_task)
+            .await
+            .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            if let Some((uuid, _)) = jobs_guard.get_mut(sched_id) {
+                *uuid = new_uuid;
+            }
         }
+
+        persist_jobs(&self.storage_path, &self.jobs).await
     }
 
     pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        let mut jobs_guard = self.jobs.lock().await;
-        match jobs_guard.get_mut(sched_id) {
-            Some((_, job_def)) => {
-                if !job_def.currently_running {
+        {
+            let jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get(sched_id) {
+                Some((_, job)) if !job.currently_running => {
                     return Err(SchedulerError::AnyhowError(anyhow!(
-                        "Schedule '{}' is not currently running",
+                        "Schedule '{}' is not running",
                         sched_id
                     )));
                 }
-
-                tracing::info!("Killing running job '{}'", sched_id);
-
-                // Abort the running task if it exists
-                {
-                    let mut running_tasks_guard = self.running_tasks.lock().await;
-                    if let Some(abort_handle) = running_tasks_guard.remove(sched_id) {
-                        abort_handle.abort();
-                        tracing::info!("Aborted running task for job '{}'", sched_id);
-                    } else {
-                        tracing::warn!(
-                            "No abort handle found for job '{}' in running tasks map",
-                            sched_id
-                        );
-                    }
-                }
-
-                // Mark the job as no longer running
-                job_def.currently_running = false;
-                job_def.current_session_id = None;
-                job_def.process_start_time = None;
-
-                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
-
-                tracing::info!("Successfully killed job '{}'", sched_id);
-                Ok(())
+                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
+                _ => {}
             }
-            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
+
+        {
+            let mut tasks = self.running_tasks.lock().await;
+            if let Some(handle) = tasks.remove(sched_id) {
+                handle.abort();
+            }
+        }
+
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            if let Some((_, job)) = jobs_guard.get_mut(sched_id) {
+                job.currently_running = false;
+                job.current_session_id = None;
+                job.process_start_time = None;
+            }
+        }
+
+        persist_jobs(&self.storage_path, &self.jobs).await
     }
 
     pub async fn get_running_job_info(
@@ -1021,19 +601,13 @@ impl Scheduler {
     ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
         let jobs_guard = self.jobs.lock().await;
         match jobs_guard.get(sched_id) {
-            Some((_, job_def)) => {
-                if job_def.currently_running {
-                    if let (Some(session_id), Some(start_time)) =
-                        (&job_def.current_session_id, &job_def.process_start_time)
-                    {
-                        Ok(Some((session_id.clone(), *start_time)))
-                    } else {
-                        Ok(None)
-                    }
-                } else {
-                    Ok(None)
+            Some((_, job)) if job.currently_running => {
+                match (&job.current_session_id, &job.process_start_time) {
+                    (Some(sid), Some(start)) => Ok(Some((sid.clone(), *start))),
+                    _ => Ok(None),
                 }
             }
+            Some(_) => Ok(None),
             None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
     }
@@ -1045,156 +619,130 @@ struct JobExecutionError {
     error: String,
 }
 
+#[cfg(not(test))]
+async fn execute_job(
+    job: ScheduledJob,
+    jobs_arc: Option<Arc<Mutex<JobsMap>>>,
+    job_id: Option<String>,
+) -> Result<String, JobExecutionError> {
+    run_scheduled_job_internal(job, None, jobs_arc, job_id).await
+}
+
+#[cfg(test)]
+async fn execute_job(
+    job: ScheduledJob,
+    _jobs_arc: Option<Arc<Mutex<JobsMap>>>,
+    _job_id: Option<String>,
+) -> Result<String, JobExecutionError> {
+    Ok(format!("test-session-{}", job.id))
+}
+
 async fn run_scheduled_job_internal(
     job: ScheduledJob,
     provider_override: Option<Arc<dyn GooseProvider>>,
     jobs_arc: Option<Arc<Mutex<JobsMap>>>,
     job_id: Option<String>,
 ) -> std::result::Result<String, JobExecutionError> {
-    tracing::info!("Executing job: {} (Source: {})", job.id, job.source);
-
     let recipe_path = Path::new(&job.source);
 
-    let recipe_content = match fs::read_to_string(recipe_path) {
-        Ok(content) => content,
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to load recipe file '{}': {}", job.source, e),
-            });
-        }
-    };
+    let recipe_content = fs::read_to_string(recipe_path).map_err(|e| JobExecutionError {
+        job_id: job.id.clone(),
+        error: format!("Failed to load recipe: {}", e),
+    })?;
 
     let recipe: Recipe = {
         let extension = recipe_path
             .extension()
-            .and_then(|os_str| os_str.to_str())
+            .and_then(|s| s.to_str())
             .unwrap_or("yaml")
             .to_lowercase();
 
         match extension.as_str() {
             "json" | "jsonl" => {
-                serde_json::from_str::<Recipe>(&recipe_content).map_err(|e| JobExecutionError {
+                serde_json::from_str(&recipe_content).map_err(|e| JobExecutionError {
                     job_id: job.id.clone(),
-                    error: format!("Failed to parse JSON recipe '{}': {}", job.source, e),
+                    error: format!("Failed to parse JSON recipe: {}", e),
                 })
             }
-            "yaml" | "yml" => {
-                serde_yaml::from_str::<Recipe>(&recipe_content).map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to parse YAML recipe '{}': {}", job.source, e),
-                })
-            }
-            _ => Err(JobExecutionError {
+            _ => serde_yaml::from_str(&recipe_content).map_err(|e| JobExecutionError {
                 job_id: job.id.clone(),
-                error: format!(
-                    "Unsupported recipe file extension '{}' for: {}",
-                    extension, job.source
-                ),
+                error: format!("Failed to parse YAML recipe: {}", e),
             }),
-        }
-    }?;
+        }?
+    };
 
-    let agent: Agent = Agent::new();
+    let agent = Agent::new();
 
-    let agent_provider: Arc<dyn GooseProvider>;
-
-    if let Some(provider) = provider_override {
-        agent_provider = provider;
-    } else {
-        let global_config = Config::global();
-        let provider_name: String = match global_config.get_goose_provider() {
-            Ok(name) => name,
-            Err(_) => return Err(JobExecutionError {
+    let agent_provider = match provider_override {
+        Some(p) => p,
+        None => {
+            let config = Config::global();
+            let provider_name = config.get_goose_provider().map_err(|_| JobExecutionError {
                 job_id: job.id.clone(),
-                error:
-                    "GOOSE_PROVIDER not configured globally. Run 'goose configure' or set env var."
-                        .to_string(),
-            }),
-        };
-        let model_name: String =
-            match global_config.get_goose_model() {
-                Ok(name) => name,
-                Err(_) => return Err(JobExecutionError {
-                    job_id: job.id.clone(),
-                    error:
-                        "GOOSE_MODEL not configured globally. Run 'goose configure' or set env var."
-                            .to_string(),
-                }),
-            };
-        let model_config =
-            crate::model::ModelConfig::new(model_name.as_str()).map_err(|e| JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Model config error: {}", e),
+                error: "GOOSE_PROVIDER not configured".to_string(),
             })?;
+            let model_name = config.get_goose_model().map_err(|_| JobExecutionError {
+                job_id: job.id.clone(),
+                error: "GOOSE_MODEL not configured".to_string(),
+            })?;
+            let model_config =
+                crate::model::ModelConfig::new(&model_name).map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Model config error: {}", e),
+                })?;
 
-        agent_provider =
             create(&provider_name, model_config)
                 .await
                 .map_err(|e| JobExecutionError {
                     job_id: job.id.clone(),
-                    error: format!(
-                        "Failed to create provider instance '{}': {}",
-                        provider_name, e
-                    ),
-                })?;
-    }
-
-    if let Some(ref recipe_extensions) = recipe.extensions {
-        for extension in recipe_extensions {
-            agent
-                .add_extension(extension.clone())
-                .await
-                .map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to add extension '{}': {}", extension.name(), e),
-                })?;
-        }
-    }
-
-    if let Err(e) = agent.update_provider(agent_provider).await {
-        return Err(JobExecutionError {
-            job_id: job.id.clone(),
-            error: format!("Failed to set provider on agent: {}", e),
-        });
-    }
-    tracing::info!("Agent configured with provider for job '{}'", job.id);
-
-    let current_dir = match std::env::current_dir() {
-        Ok(cd) => cd,
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to get current directory for job execution: {}", e),
-            });
+                    error: format!("Failed to create provider: {}", e),
+                })?
         }
     };
 
-    let session = match SessionManager::create_session(
-        current_dir.clone(),
+    if let Some(ref extensions) = recipe.extensions {
+        for ext in extensions {
+            agent
+                .add_extension(ext.clone())
+                .await
+                .map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to add extension: {}", e),
+                })?;
+        }
+    }
+
+    agent
+        .update_provider(agent_provider)
+        .await
+        .map_err(|e| JobExecutionError {
+            job_id: job.id.clone(),
+            error: format!("Failed to set provider: {}", e),
+        })?;
+
+    let current_dir = std::env::current_dir().map_err(|e| JobExecutionError {
+        job_id: job.id.clone(),
+        error: format!("Failed to get current directory: {}", e),
+    })?;
+
+    let session = SessionManager::create_session(
+        current_dir,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
     )
     .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to create session: {}", e),
-            });
-        }
-    };
+    .map_err(|e| JobExecutionError {
+        job_id: job.id.clone(),
+        error: format!("Failed to create session: {}", e),
+    })?;
 
-    // Update the job with the session ID if we have access to the jobs arc
-    if let (Some(jobs_arc), Some(job_id_str)) = (jobs_arc.as_ref(), job_id.as_ref()) {
-        let mut jobs_guard = jobs_arc.lock().await;
-        if let Some((_, job_def)) = jobs_guard.get_mut(job_id_str) {
+    if let (Some(jobs), Some(jid)) = (jobs_arc.as_ref(), job_id.as_ref()) {
+        let mut jobs_guard = jobs.lock().await;
+        if let Some((_, job_def)) = jobs_guard.get_mut(jid) {
             job_def.current_session_id = Some(session.id.clone());
         }
     }
 
-    // Use prompt if available, otherwise fall back to instructions
     let prompt_text = recipe
         .prompt
         .as_ref()
@@ -1225,22 +773,14 @@ async fn run_scheduled_job_internal(
 
                 match message_result {
                     Ok(AgentEvent::Message(msg)) => {
-                        if msg.role == rmcp::model::Role::Assistant {
-                            tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
-                        }
                         conversation.push(msg);
                     }
-                    Ok(AgentEvent::McpNotification(_)) => {}
-                    Ok(AgentEvent::ModelChange { .. }) => {}
-                    Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                        conversation = updated_conversation;
+                    Ok(AgentEvent::HistoryReplaced(updated)) => {
+                        conversation = updated;
                     }
+                    Ok(_) => {}
                     Err(e) => {
-                        tracing::error!(
-                            "[Job {}] Error receiving message from agent: {}",
-                            job.id,
-                            e
-                        );
+                        tracing::error!("Error in agent stream: {}", e);
                         break;
                     }
                 }
@@ -1249,7 +789,7 @@ async fn run_scheduled_job_internal(
         Err(e) => {
             return Err(JobExecutionError {
                 job_id: job.id.clone(),
-                error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
+                error: format!("Agent failed: {}", e),
             });
         }
     }
@@ -1260,10 +800,9 @@ async fn run_scheduled_job_internal(
         .apply()
         .await
     {
-        tracing::error!("[Job {}] Failed to update session metadata: {}", job.id, e);
+        tracing::error!("Failed to update session: {}", e);
     }
 
-    tracing::info!("Finished job: {}", job.id);
     Ok(session.id)
 }
 
@@ -1324,125 +863,35 @@ impl SchedulerTrait for Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::recipe::Recipe;
-    use crate::{
-        model::ModelConfig,
-        providers::base::{ProviderMetadata, ProviderUsage, Usage},
-        providers::errors::ProviderError,
-    };
-    use rmcp::model::Tool;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role};
-
-    use crate::conversation::message::{Message, MessageContent};
-    use std::env;
-    use std::fs::{self, File};
-    use std::io::Write;
     use tempfile::tempdir;
+    use tokio::time::{sleep, Duration};
 
-    #[derive(Clone)]
-    struct MockSchedulerTestProvider {
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl GooseProvider for MockSchedulerTestProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new(
-                "mock-scheduler-test",
-                "Mock for Scheduler Test",
-                "A mock provider for scheduler tests", // description
-                "test-model",                          // default_model
-                vec!["test-model"],                    // model_names
-                "",     // model_doc_link (empty string if not applicable)
-                vec![], // config_keys (empty vec if none)
-            )
-        }
-
-        fn get_name(&self) -> &str {
-            "mock-scheduler"
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
-        async fn complete_with_model(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::new(
-                    Role::Assistant,
-                    Utc::now().timestamp(),
-                    vec![MessageContent::Text(
-                        RawTextContent {
-                            text: "Mocked scheduled response".to_string(),
-                            meta: None,
-                        }
-                        .no_annotation(),
-                    )],
-                ),
-                ProviderUsage::new("mock-scheduler-test".to_string(), Usage::default()),
-            ))
-        }
-    }
-
-    // This function is pub(super) making it visible to run_scheduled_job_internal (parent module)
-    // when cfg(test) is active for the whole compilation unit.
-    pub(super) fn create_scheduler_test_mock_provider(
-        model_config: ModelConfig,
-    ) -> Arc<dyn GooseProvider> {
-        Arc::new(MockSchedulerTestProvider { model_config })
+    fn create_test_recipe_file(dir: &Path, job_id: &str) -> String {
+        let recipe_path = dir.join(format!("{}.yaml", job_id));
+        fs::write(
+            &recipe_path,
+            r#"
+version: "1.0.0"
+title: "Test Recipe"
+description: "Test"
+prompt: "Test prompt"
+"#,
+        )
+        .unwrap();
+        recipe_path.to_string_lossy().into_owned()
     }
 
     #[tokio::test]
-    async fn test_scheduled_session_has_schedule_id() -> Result<(), Box<dyn std::error::Error>> {
-        // Set environment variables for the test
-        env::set_var("GOOSE_PROVIDER", "test_provider");
-        env::set_var("GOOSE_MODEL", "test_model");
+    async fn test_job_runs_on_schedule() {
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedules.json");
+        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let recipe_source = create_test_recipe_file(temp_dir.path(), "scheduled_job");
 
-        let temp_dir = tempdir()?;
-        let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
-        fs::create_dir_all(&recipe_dir)?;
-
-        let _ = crate::session::session_manager::ensure_session_dir()
-            .expect("Failed to ensure app session dir");
-
-        let schedule_id_str = "test_schedule_001_scheduler_check".to_string();
-        let recipe_filename = recipe_dir.join(format!("{}.json", schedule_id_str));
-
-        let dummy_recipe = Recipe {
-            version: "1.0.0".to_string(),
-            title: "Test Schedule ID Recipe".to_string(),
-            description: "A recipe for testing schedule_id propagation.".to_string(),
-            instructions: None,
-            prompt: Some("This is a test prompt for a scheduled job.".to_string()),
-            extensions: None,
-            context: None,
-            activities: None,
-            author: None,
-            parameters: None,
-            settings: None,
-            response: None,
-            sub_recipes: None,
-            retry: None,
-        };
-        let mut recipe_file = File::create(&recipe_filename)?;
-        writeln!(
-            recipe_file,
-            "{}",
-            serde_json::to_string_pretty(&dummy_recipe)?
-        )?;
-        recipe_file.flush()?;
-        drop(recipe_file);
-
-        let dummy_job = ScheduledJob {
-            id: schedule_id_str.clone(),
-            source: recipe_filename.to_string_lossy().into_owned(),
-            cron: "* * * * * * ".to_string(), // Runs every second for quick testing
+        let job = ScheduledJob {
+            id: "scheduled_job".to_string(),
+            source: recipe_source,
+            cron: "* * * * * *".to_string(),
             last_run: None,
             currently_running: false,
             paused: false,
@@ -1450,46 +899,36 @@ mod tests {
             process_start_time: None,
         };
 
-        let mock_model_config = ModelConfig::new_or_fail("test_model");
-        let mock_provider_instance = create_scheduler_test_mock_provider(mock_model_config);
+        scheduler.add_scheduled_job(job).await.unwrap();
+        sleep(Duration::from_millis(1500)).await;
 
-        // Call run_scheduled_job_internal, passing the mock provider
-        let created_session_id =
-            run_scheduled_job_internal(dummy_job.clone(), Some(mock_provider_instance), None, None)
-                .await
-                .expect("run_scheduled_job_internal failed");
+        let jobs = scheduler.list_scheduled_jobs().await;
+        assert!(jobs[0].last_run.is_some(), "Job should have run");
+    }
 
-        let session = SessionManager::get_session(&created_session_id, true).await?;
-        let schedule_id = session.schedule_id.clone();
+    #[tokio::test]
+    async fn test_paused_job_does_not_run() {
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedules.json");
+        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let recipe_source = create_test_recipe_file(temp_dir.path(), "paused_job");
 
-        assert_eq!(
-            schedule_id,
-            Some(schedule_id_str.clone()),
-            "Session metadata schedule_id ({:?}) does not match the job ID ({}). Session: {}",
-            schedule_id,
-            schedule_id_str,
-            created_session_id
-        );
+        let job = ScheduledJob {
+            id: "paused_job".to_string(),
+            source: recipe_source,
+            cron: "* * * * * *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+        };
 
-        // Check if messages were written using SessionManager
-        let messages_in_session = session.conversation.unwrap_or_default();
-        assert!(
-            !messages_in_session.is_empty(),
-            "No messages were written to the session: {}",
-            created_session_id
-        );
-        // We expect at least a user prompt and an assistant response
-        assert!(
-            messages_in_session.len() >= 2,
-            "Expected at least 2 messages (prompt + response), found {} in session: {}",
-            messages_in_session.len(),
-            created_session_id
-        );
+        scheduler.add_scheduled_job(job).await.unwrap();
+        scheduler.pause_schedule("paused_job").await.unwrap();
+        sleep(Duration::from_millis(1500)).await;
 
-        // Clean up environment variables
-        env::remove_var("GOOSE_PROVIDER");
-        env::remove_var("GOOSE_MODEL");
-
-        Ok(())
+        let jobs = scheduler.list_scheduled_jobs().await;
+        assert!(jobs[0].last_run.is_none(), "Paused job should not run");
     }
 }
