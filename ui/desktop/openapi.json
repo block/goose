@@ -2654,6 +2654,10 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
+              "toggleable": {
+                "type": "boolean",
+                "nullable": true
+              },
               "type": {
                 "type": "string",
                 "enum": [

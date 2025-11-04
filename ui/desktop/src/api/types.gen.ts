@@ -193,6 +193,7 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    toggleable?: boolean | null;
     type: 'platform';
 } | {
     available_tools?: Array<string>;

@@ -61,6 +61,8 @@ enum RecipeExtensionConfigInternal {
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
+        #[serde(default)]
+        toggleable: Option<bool>,
     },
     #[serde(rename = "streamable_http")]
     StreamableHttp {
@@ -153,7 +155,8 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
             },
             Platform {
                 bundled,
-                available_tools
+                available_tools,
+                toggleable
             },
             StreamableHttp {
                 uri,
