@@ -897,7 +897,7 @@ impl Agent {
                 let messages_with_moim = super::moim::inject_moim(
                     conversation.messages(),
                     &self.extension_manager,
-                    &session
+                    &Some(session_config.clone())
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(

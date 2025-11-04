@@ -77,6 +77,7 @@ mod tests {
     use crate::conversation::message::{ToolRequest, ToolResponse};
     use rmcp::model::{CallToolRequestParam, Content};
     use rmcp::object;
+    use std::sync::Arc;
 
     #[test]
     fn test_find_insertion_point_edge_cases() {
@@ -167,7 +168,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_basic() {
-        let extension_manager = ExtensionManager::new();
+        let provider = Arc::new(tokio::sync::Mutex::new(None));
+        let extension_manager = ExtensionManager::new(provider);
 
         // Test empty conversation
         let messages = vec![];
@@ -219,7 +221,8 @@ mod tests {
             Message::user().with_content(MessageContent::ToolResponse(tool_response)),
         ];
 
-        let extension_manager = ExtensionManager::new();
+        let provider = Arc::new(tokio::sync::Mutex::new(None));
+        let extension_manager = ExtensionManager::new(provider);
         let result = inject_moim(&messages, &extension_manager, &None).await;
 
         // Should have 4 messages total (3 original + 1 MOIM)
