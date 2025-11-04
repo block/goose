@@ -134,18 +134,18 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
   const isSelected = (color: string) => value.toLowerCase() === color.toLowerCase();
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn(className)}>
       {/* Color Grid */}
-      <div className="grid grid-cols-6 gap-2" role="group" aria-label="Accent colors">
+      <div className="grid grid-cols-6 gap-1.5" role="group" aria-label="Accent colors">
         {allColors.map((color) => (
           <button
             key={color}
             type="button"
             onClick={() => handleColorSelect(color)}
             className={cn(
-              'w-full aspect-square rounded-md border-2 transition-all hover:scale-105',
+              'w-8 h-8 rounded border-2 transition-all hover:scale-110',
               isSelected(color)
-                ? 'border-background-accent ring-2 ring-background-accent/30 scale-105'
+                ? 'border-background-accent ring-2 ring-background-accent/30 scale-110'
                 : 'border-border-default hover:border-border-strong'
             )}
             style={{ backgroundColor: color }}
@@ -160,12 +160,12 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
           <button
             type="button"
             onClick={handleOpenDialog}
-            className="w-full aspect-square rounded-md border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-105 flex items-center justify-center"
+            className="w-8 h-8 rounded border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-110 flex items-center justify-center"
             title="Add custom color"
             aria-label="Add custom color"
             data-testid="add-custom-color-button"
           >
-            <Plus className="h-5 w-5 text-text-muted" />
+            <Plus className="h-4 w-4 text-text-muted" />
           </button>
         )}
       </div>
