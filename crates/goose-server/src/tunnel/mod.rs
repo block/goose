@@ -5,9 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-// Note: TunnelMode removed - only Lapstone is currently supported
-// See tunnel/archived/README.md for archived Tailscale implementation
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelState {
@@ -86,7 +83,6 @@ impl TunnelManager {
     {
         let mut cfg = self.config.write().await;
         f(&mut cfg);
-        // Save config via goose Config system (keyring + config.yaml)
         if let Err(e) = config::save_config(&cfg).await {
             tracing::error!("Failed to save tunnel config: {}", e);
         }
@@ -102,7 +98,6 @@ impl TunnelManager {
 
         let config = self.config.read().await.clone();
 
-        // Only Lapstone tunnel is currently supported
         let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
         let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
             .expect("GOOSE_SERVER__SECRET_KEY must be set for tunnel to work");
@@ -138,7 +133,6 @@ impl TunnelManager {
     }
 
     pub async fn stop(&self, clear_auto_start: bool) {
-        // Only Lapstone tunnel is currently supported
         lapstone::stop(self.lapstone_handle.clone()).await;
 
         *self.state.write().await = TunnelState::Idle;

@@ -64,7 +64,6 @@ pub async fn run() -> Result<()> {
     let local_addr = listener.local_addr()?;
     info!("listening on {}", local_addr);
     
-    // Auto-start tunnel if configured (spawn as background task to not block server startup)
     let port = local_addr.port();
     let app_state_clone = app_state.clone();
     tokio::spawn(async move {

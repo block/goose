@@ -21,8 +21,6 @@ pub struct ErrorResponse {
 }
 
 /// Start the tunnel
-///
-/// Starts a Lapstone tunnel with the specified port.
 #[utoipa::path(
     post,
     path = "/api/tunnel/start",
@@ -40,7 +38,6 @@ pub async fn start_tunnel(
 ) -> Response {
     match state.tunnel_manager.start(req.port).await {
         Ok(_info) => {
-            // Return current status (includes auto_start flag)
             let status = state.tunnel_manager.get_status().await;
             (StatusCode::OK, Json(status)).into_response()
         }
