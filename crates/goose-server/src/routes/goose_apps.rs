@@ -364,10 +364,6 @@ async fn iterate_app(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<IterateAppRequest>,
 ) -> Result<Json<IterateAppResponse>, ErrorResponse> {
-    for file in GOOSE_APP_ASSETS.files() {
-        println!("{}", file.path().display());
-    }
-
     let goose_widget = GOOSE_APP_ASSETS
         .get_file("goose-widget.js")
         .ok_or_else(|| ErrorResponse::internal("goose-widget.js not found"))?
