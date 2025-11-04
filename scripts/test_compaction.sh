@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Compaction smoke test script
-# Tests both manual (/compact command) and auto compaction (threshold-based)
+# Tests both manual (trigger prompt) and auto compaction (threshold-based)
 
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
@@ -27,7 +27,7 @@ validate_compaction() {
   echo "Validating compaction structure for session: $session_id"
 
   # Export the session to JSON
-  local session_json=$($GOOSE_BIN session export --format json "$session_id" 2>&1)
+  local session_json=$($GOOSE_BIN session export --format json --session-id "$session_id" 2>&1)
 
   if [ $? -ne 0 ]; then
     echo "✗ FAILED: Could not export session JSON"
@@ -98,7 +98,7 @@ RESULTS=()
 # TEST 1: Manual Compaction
 # ==================================================
 echo "---------------------------------------------------"
-echo "TEST 1: Manual Compaction via /compact command"
+echo "TEST 1: Manual Compaction via trigger prompt"
 echo "---------------------------------------------------"
 
 TESTDIR=$(mktemp -d)
@@ -108,49 +108,48 @@ echo ""
 
 OUTPUT=$(mktemp)
 
-echo "Running session with prompts followed by /compact..."
-# Use a script to send commands with delays so each is processed separately
-(cd "$TESTDIR" && (
-  sleep 1
-  echo "list files"
-  sleep 3
-  echo "read hello.txt"
-  sleep 3
-  echo "/compact"
-  sleep 3
-  echo "exit"
-) | "$GOOSE_BIN" session 2>&1) | tee "$OUTPUT"
+echo "Step 1: Creating session with initial messages..."
+(cd "$TESTDIR" && "$GOOSE_BIN" run --text "list files and read hello.txt" 2>&1) | tee "$OUTPUT"
 
-echo ""
-echo "Checking for compaction evidence..."
+if ! command -v jq &> /dev/null; then
+  echo "✗ FAILED: jq is required for this test"
+  RESULTS+=("✗ Manual Compaction (jq required)")
+  rm -f "$OUTPUT"
+  rm -rf "$TESTDIR"
+else
+  SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
 
-# Check if compaction occurred
-if grep -qi "compacting\|compacted" "$OUTPUT"; then
-  echo "✓ SUCCESS: Manual compaction was triggered"
+  if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+    echo "✗ FAILED: Could not create session"
+    RESULTS+=("✗ Manual Compaction (no session)")
+  else
+    echo ""
+    echo "Session created: $SESSION_ID"
+    echo "Step 2: Sending manual compaction trigger..."
 
-  # Get the most recent session and validate structure
-  if command -v jq &> /dev/null; then
-    RECENT_SESSION=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
-    if [ -n "$RECENT_SESSION" ] && [ "$RECENT_SESSION" != "null" ]; then
-      if validate_compaction "$RECENT_SESSION" "manual compaction"; then
+    # Send the manual compact trigger prompt
+    (cd "$TESTDIR" && "$GOOSE_BIN" run --resume --session-id "$SESSION_ID" --text "Please compact this conversation" 2>&1) | tee -a "$OUTPUT"
+
+    echo ""
+    echo "Checking for compaction evidence..."
+
+    if grep -qi "compacting\|compacted\|compaction" "$OUTPUT"; then
+      echo "✓ SUCCESS: Manual compaction was triggered"
+
+      if validate_compaction "$SESSION_ID" "manual compaction"; then
         RESULTS+=("✓ Manual Compaction")
       else
         RESULTS+=("✗ Manual Compaction (structure validation failed)")
       fi
     else
-      echo "⚠ Could not retrieve recent session ID"
-      RESULTS+=("✓ Manual Compaction (no structure validation)")
+      echo "✗ FAILED: Manual compaction was not triggered"
+      RESULTS+=("✗ Manual Compaction")
     fi
-  else
-    RESULTS+=("✓ Manual Compaction (jq not available)")
   fi
-else
-  echo "✗ FAILED: Manual compaction was not triggered"
-  RESULTS+=("✗ Manual Compaction")
-fi
 
-rm -f "$OUTPUT"
-rm -rf "$TESTDIR"
+  rm -f "$OUTPUT"
+  rm -rf "$TESTDIR"
+fi
 
 echo ""
 echo ""
@@ -172,44 +171,43 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.01
 
 OUTPUT=$(mktemp)
 
-# Send two simple prompts - auto-compaction triggers on the second one
-echo "Sending two prompts to trigger auto-compaction..."
-(cd "$TESTDIR" && (
-  sleep 1
-  echo "hello"
-  sleep 3
-  echo "hi again"
-  sleep 3
-  echo "exit"
-) | "$GOOSE_BIN" session 2>&1) | tee "$OUTPUT"
+echo "Step 1: Creating session with first message..."
+(cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello" 2>&1) | tee "$OUTPUT"
 
-echo ""
-echo "Checking for auto-compaction evidence..."
+if ! command -v jq &> /dev/null; then
+  echo "✗ FAILED: jq is required for this test"
+  RESULTS+=("✗ Auto Compaction (jq required)")
+else
+  SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
 
-# Check if auto-compaction occurred
-if grep -qi "auto.*compact\|exceeded.*auto.*compact.*threshold" "$OUTPUT"; then
-  echo "✓ SUCCESS: Auto compaction was triggered"
+  if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+    echo "✗ FAILED: Could not create session"
+    RESULTS+=("✗ Auto Compaction (no session)")
+  else
+    echo ""
+    echo "Session created: $SESSION_ID"
+    echo "Step 2: Sending second message (should trigger auto-compact)..."
 
-  # Validate the compaction structure
-  if command -v jq &> /dev/null; then
-    RECENT_SESSION=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
-    if [ -n "$RECENT_SESSION" ] && [ "$RECENT_SESSION" != "null" ]; then
-      if validate_compaction "$RECENT_SESSION" "auto compaction"; then
+    # Send second message - auto-compaction should trigger before processing this
+    (cd "$TESTDIR" && "$GOOSE_BIN" run --resume --session-id "$SESSION_ID" --text "hi again" 2>&1) | tee -a "$OUTPUT"
+
+    echo ""
+    echo "Checking for auto-compaction evidence..."
+
+    if grep -qi "auto.*compact\|exceeded.*auto.*compact.*threshold" "$OUTPUT"; then
+      echo "✓ SUCCESS: Auto compaction was triggered"
+
+      if validate_compaction "$SESSION_ID" "auto compaction"; then
         RESULTS+=("✓ Auto Compaction")
       else
         RESULTS+=("✗ Auto Compaction (structure validation failed)")
       fi
     else
-      echo "⚠ Could not retrieve session ID"
-      RESULTS+=("✓ Auto Compaction (no structure validation)")
+      echo "✗ FAILED: Auto compaction was not triggered"
+      echo "   Expected to see auto-compact messages with threshold of 0.01"
+      RESULTS+=("✗ Auto Compaction")
     fi
-  else
-    RESULTS+=("✓ Auto Compaction (jq not available)")
   fi
-else
-  echo "✗ FAILED: Auto compaction was not triggered"
-  echo "   Expected to see auto-compact messages with threshold of 0.01"
-  RESULTS+=("✗ Auto Compaction")
 fi
 
 # Unset the env variable
@@ -231,7 +229,7 @@ for result in "${RESULTS[@]}"; do
   echo "$result"
 done
 
-# Count actual failures
+# Count results
 FAILURE_COUNT=$(echo "${RESULTS[@]}" | grep -o "✗" | wc -l | tr -d ' ')
 
 if [ "$FAILURE_COUNT" -gt 0 ]; then
