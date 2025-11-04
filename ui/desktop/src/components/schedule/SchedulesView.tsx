@@ -361,10 +361,6 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
 
-    if (tempFilePath) {
-      setPendingTempFile(tempFilePath);
-    }
-
     try {
       await createSchedule(payload);
       await fetchSchedules();
