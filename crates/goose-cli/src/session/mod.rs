@@ -58,7 +58,7 @@ pub enum RunMode {
 pub struct CliSession {
     agent: Agent,
     messages: Conversation,
-    session_id: Option<String>,
+    session_id: String,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool,
     run_mode: RunMode,
@@ -122,21 +122,17 @@ pub async fn classify_planner_response(
 impl CliSession {
     pub async fn new(
         agent: Agent,
-        session_id: Option<String>,
+        session_id: String,
         debug: bool,
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
     ) -> Self {
-        let messages = if let Some(session_id) = &session_id {
-            SessionManager::get_session(session_id, true)
-                .await
-                .map(|session| session.conversation.unwrap_or_default())
-                .unwrap()
-        } else {
-            Conversation::new_unvalidated(Vec::new())
-        };
+        let messages = SessionManager::get_session(&session_id, true)
+            .await
+            .map(|session| session.conversation.unwrap_or_default())
+            .unwrap();
 
         CliSession {
             agent,
@@ -152,8 +148,8 @@ impl CliSession {
         }
     }
 
-    pub fn session_id(&self) -> Option<&String> {
-        self.session_id.as_ref()
+    pub fn session_id(&self) -> &String {
+        &self.session_id
     }
 
     /// Add a stdio extension to the session
@@ -359,9 +355,6 @@ impl CliSession {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
-
-        // TODO(Douwe): Make sure we generate the description here still:
-
         self.push_message(message);
         self.process_agent_response(false, cancel_token).await?;
         Ok(())
@@ -443,7 +436,7 @@ impl CliSession {
                             // Track the current directory and last instruction in projects.json
                             if let Err(e) = crate::project_tracker::update_project_tracker(
                                 Some(&content),
-                                self.session_id.as_deref(),
+                                Some(&self.session_id),
                             ) {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
@@ -583,16 +576,14 @@ impl CliSession {
                 input::InputResult::Clear => {
                     save_history(&mut editor);
 
-                    if let Some(session_id) = &self.session_id {
-                        if let Err(e) = SessionManager::replace_conversation(
-                            session_id,
-                            &Conversation::default(),
-                        )
-                        .await
-                        {
-                            output::render_error(&format!("Failed to clear session: {}", e));
-                            continue;
-                        }
+                    if let Err(e) = SessionManager::replace_conversation(
+                        &self.session_id,
+                        &Conversation::default(),
+                    )
+                    .await
+                    {
+                        output::render_error(&format!("Failed to clear session: {}", e));
+                        continue;
                     }
 
                     self.messages.clear();
@@ -671,9 +662,10 @@ impl CliSession {
             }
         }
 
-        if let Some(id) = &self.session_id {
-            println!("Closing session. Session ID: {}", console::style(id).cyan());
-        }
+        println!(
+            "Closing session. Session ID: {}",
+            console::style(&self.session_id).cyan()
+        );
 
         Ok(())
     }
@@ -768,18 +760,20 @@ impl CliSession {
     ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
-        let session_config = self.session_id.as_ref().map(|session_id| SessionConfig {
-            id: session_id.clone(),
-            working_dir: std::env::current_dir().unwrap_or_default(),
+        let session_config = SessionConfig {
+            id: self.session_id.clone(),
             schedule_id: self.scheduled_job_id.clone(),
-            execution_mode: None,
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
-        });
+        };
+        let user_message = self
+            .messages
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("No user message"))?;
         let mut stream = self
             .agent
             .reply(
-                self.messages.clone(),
+                user_message.clone(),
                 session_config.clone(),
                 Some(cancel_token.clone()),
             )
@@ -1224,16 +1218,13 @@ impl CliSession {
         );
     }
 
-    pub async fn get_metadata(&self) -> Result<goose::session::Session> {
-        match &self.session_id {
-            Some(id) => SessionManager::get_session(id, false).await,
-            None => Err(anyhow::anyhow!("No session available")),
-        }
+    pub async fn get_session(&self) -> Result<goose::session::Session> {
+        SessionManager::get_session(&self.session_id, false).await
     }
 
     // Get the session's total token usage
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
-        let metadata = self.get_metadata().await?;
+        let metadata = self.get_session().await?;
         Ok(metadata.total_tokens)
     }
 
@@ -1265,7 +1256,7 @@ impl CliSession {
             }
         }
 
-        match self.get_metadata().await {
+        match self.get_session().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
 
