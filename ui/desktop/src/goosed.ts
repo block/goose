@@ -92,15 +92,10 @@ export const startGoosed = async (
     return connectToExternalBackend(dir, 3000);
   }
 
-  // Validate that the directory actually exists and is a directory
   try {
     const stats = fs.lstatSync(dir);
 
-    // Reject symlinks for security - they could point outside intended directories
-    if (stats.isSymbolicLink()) {
-      log.warn(`Provided path is a symlink, falling back to home directory for security`);
-      dir = homeDir;
-    } else if (!stats.isDirectory()) {
+    if (!stats.isDirectory()) {
       log.warn(`Provided path is not a directory, falling back to home directory`);
       dir = homeDir;
     }
@@ -109,48 +104,14 @@ export const startGoosed = async (
     dir = homeDir;
   }
 
-  // Security check: Ensure the directory path doesn't contain suspicious characters
-  if (dir.includes('..') || dir.includes(';') || dir.includes('|') || dir.includes('&')) {
-    throw new Error(`Invalid directory path: ${dir}`);
-  }
-
-  // Get the goosed binary path using the shared utility
   let goosedPath = getBinaryPath(app, 'goosed');
 
-  // Security validation: Ensure the binary path is safe
   const resolvedGoosedPath = path.resolve(goosedPath);
-
-  // Validate that the binary path doesn't contain suspicious characters or sequences
-  if (
-    resolvedGoosedPath.includes('..') ||
-    resolvedGoosedPath.includes(';') ||
-    resolvedGoosedPath.includes('|') ||
-    resolvedGoosedPath.includes('&') ||
-    resolvedGoosedPath.includes('`') ||
-    resolvedGoosedPath.includes('$')
-  ) {
-    throw new Error(`Invalid binary path detected: ${resolvedGoosedPath}`);
-  }
-
-  // Ensure the binary path is within expected application directories
-  const appPath = app.getAppPath();
-  const resourcesPath = process.resourcesPath;
-  const currentWorkingDir = process.cwd();
-
-  const isValidPath =
-    resolvedGoosedPath.startsWith(path.resolve(appPath)) ||
-    resolvedGoosedPath.startsWith(path.resolve(resourcesPath)) ||
-    resolvedGoosedPath.startsWith(path.resolve(currentWorkingDir));
-
-  if (!isValidPath) {
-    throw new Error(`Binary path is outside of allowed directories: ${resolvedGoosedPath}`);
-  }
 
   const port = await findAvailablePort();
 
   log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
 
-  // Define additional environment variables
   const additionalEnv: GooseProcessEnv = {
     // Set HOME for UNIX-like systems
     HOME: homeDir,
@@ -162,25 +123,13 @@ export const startGoosed = async (
     LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
     // Set PATH to include the binary directory
     PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
-    // start with the port specified
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: serverSecret,
     // Add any additional environment variables passed in
     ...env,
   } as GooseProcessEnv;
 
-  // Merge parent environment with additional environment variables
   const processEnv: GooseProcessEnv = { ...process.env, ...additionalEnv } as GooseProcessEnv;
-
-  // Add detailed logging for troubleshooting
-  log.info(`Process platform: ${process.platform}`);
-  log.info(`Process cwd: ${process.cwd()}`);
-  log.info(`Target working directory: ${dir}`);
-  log.info(`Environment HOME: ${processEnv.HOME}`);
-  log.info(`Environment USERPROFILE: ${processEnv.USERPROFILE}`);
-  log.info(`Environment APPDATA: ${processEnv.APPDATA}`);
-  log.info(`Environment LOCALAPPDATA: ${processEnv.LOCALAPPDATA}`);
-  log.info(`Environment PATH: ${processEnv.PATH}`);
 
   // Ensure proper executable path on Windows
   if (isWindows && !resolvedGoosedPath.toLowerCase().endsWith('.exe')) {
@@ -220,9 +169,8 @@ export const startGoosed = async (
   log.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
   // Security: Use only hardcoded, safe arguments
-  const safeArgs = ['agent']; // Only allow the 'agent' argument
+  const safeArgs = ['agent'];
 
-  // Spawn the goosed process with validated inputs
   const goosedProcess: ChildProcess = spawn(goosedPath, safeArgs, spawnOptions);
 
   // Only unref on Windows to allow it to run independently of the parent

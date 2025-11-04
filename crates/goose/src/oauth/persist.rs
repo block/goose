@@ -27,9 +27,8 @@ pub async fn save_credentials(
         token_response,
     };
 
-    let value = serde_json::to_value(&credentials)?;
     let key = secret_key(name);
-    config.set_secret(&key, value)?;
+    config.set_secret(&key, &credentials)?;
 
     Ok(())
 }

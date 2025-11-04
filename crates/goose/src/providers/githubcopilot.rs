@@ -237,7 +237,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
                     token
                 }
                 _ => return Err(err.into()),
@@ -502,7 +502,7 @@ impl Provider for GithubCopilotProvider {
 
         // Save the token
         config
-            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
         Ok(())

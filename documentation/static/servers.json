@@ -34,10 +34,10 @@
     ]
   },
   {
-    "id": "apify-mcp-server",
+    "id": "apify",
     "name": "Apify",
     "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
-    "command": "npx -y apify-mcp-server@latest",
+    "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
     "is_builtin": false,
@@ -73,7 +73,7 @@
     "description": "Automatic data visualisation via MCP-UI",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/autovisualiser",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -168,7 +168,7 @@
     "description": "Built-in computer controls for webscraping, file caching, and automations",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -176,7 +176,7 @@
   {
     "id": "container-use",
     "name": "Container Use",
-    "description": "Integrate container workflows with Goose using the Container-Use MCP",
+    "description": "Integrate container workflows with goose using the Container-Use MCP",
     "command": "npx -y mcp-remote https://container-use.com/mcp",
     "link": "https://container-use.com",
     "installation_notes": "Requires Node.js and Docker.",
@@ -201,7 +201,7 @@
     "description": "Built-in developer tools for file editing and shell command execution",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with goose and is enabled by default. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -300,8 +300,8 @@
   },
   {
     "id": "goose-docs",
-    "name": "Goose Docs",
-    "description": "GitMCP for Goose documentation",
+    "name": "goose Docs",
+    "description": "GitMCP for goose documentation",
     "command": "npx mcp-remote https://block.gitmcp.io/goose/",
     "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
@@ -376,7 +376,7 @@
     "description": "Built-in memory system for persistent context and information storage",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -540,17 +540,6 @@
     "environmentVariables": []
   },
   {
-    "id": "speech_mcp",
-    "name": "Speech Interface",
-    "description": "Voice interaction with audio visualization for Goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
-    "command": "uvx -p 3.10.14 speech-mcp@latest",
-    "link": "https://github.com/Kvadratni/speech-mcp",
-    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
@@ -594,8 +583,8 @@
     "name": "Tutorial",
     "description": "Built-in tutorial and learning management system",
     "command": "",
-    "link": "https://github.com/tutorial/tutorial-mcp",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/tutorial",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
     "endorsed": false,
     "environmentVariables": []

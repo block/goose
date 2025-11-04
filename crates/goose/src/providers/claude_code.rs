@@ -10,7 +10,7 @@ use tokio::process::Command;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::Config;
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -315,10 +315,8 @@ impl ClaudeCodeProvider {
 
         // Add permission mode based on GOOSE_MODE setting
         let config = Config::global();
-        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
-            if goose_mode.as_str() == "auto" {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-            }
+        if let Ok(GooseMode::Auto) = config.get_goose_mode() {
+            cmd.arg("--permission-mode").arg("acceptEdits");
         }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -499,18 +497,6 @@ impl Provider for ClaudeCodeProvider {
 mod tests {
     use super::ModelConfig;
     use super::*;
-
-    #[test]
-    fn test_permission_mode_flag_construction() {
-        // Test that in auto mode, the --permission-mode acceptEdits flag is added
-        std::env::set_var("GOOSE_MODE", "auto");
-
-        let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
-        assert_eq!(goose_mode, "auto");
-
-        std::env::remove_var("GOOSE_MODE");
-    }
 
     #[tokio::test]
     async fn test_claude_code_invalid_model_no_fallback() {
