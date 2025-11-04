@@ -53,29 +53,8 @@ use tracing::warn;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
-    messages: Vec<JsonMessage>,
-    tool_calls: Vec<JsonToolCall>,
-    responses: Vec<JsonToolResponse>,
+    messages: Vec<Message>,
     metadata: JsonMetadata,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonToolCall {
-    id: String,
-    name: String,
-    arguments: serde_json::Value,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonToolResponse {
-    id: String,
-    result: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -155,6 +134,7 @@ pub async fn classify_planner_response(
 }
 
 impl CliSession {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         agent: Agent,
         session_id: String,
@@ -800,16 +780,9 @@ impl CliSession {
         // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
 
-        // Collect data for JSON output if needed
-        let mut json_messages = Vec::new();
-        let mut json_tool_calls = Vec::new();
-        let mut json_responses = Vec::new();
-
         let session_config = SessionConfig {
             id: self.session_id.clone(),
-            working_dir: std::env::current_dir().unwrap_or_default(),
             schedule_id: self.scheduled_job_id.clone(),
-            execution_mode: None,
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
         };
@@ -903,15 +876,6 @@ impl CliSession {
                                                 tool_name = %tool_call.name,
                                                 "Tool call started"
                                             );
-                                            // Capture tool call for JSON output
-                                            if is_json_mode {
-                                                let args_value = tool_call.arguments.as_ref().cloned().unwrap_or_default();
-                                                json_tool_calls.push(JsonToolCall {
-                                                    id: tool_request.id.clone(),
-                                                    name: tool_call.name.to_string(),
-                                                    arguments: serde_json::to_value(args_value).unwrap_or(serde_json::Value::Null),
-                                                });
-                                            }
                                         }
                                     }
                                     if let MessageContent::ToolResponse(tool_response) = content {
@@ -945,50 +909,14 @@ impl CliSession {
                                             result = %result_status,
                                             "Tool call completed"
                                         );
-                                        
-                                        // Capture tool response for JSON output
-                                        if is_json_mode {
-                                            let result_value = match &tool_response.tool_result {
-                                                Ok(contents) => serde_json::to_value(contents).unwrap_or(serde_json::Value::Null),
-                                                Err(error_data) => serde_json::to_value(error_data).unwrap_or(serde_json::Value::Null),
-                                            };
-                                            json_responses.push(JsonToolResponse {
-                                                id: tool_response.id.clone(),
-                                                result: result_value,
-                                            });
-                                        }
                                     }
                                 }
-                                
-                                // Capture message for JSON output
-                                if is_json_mode {
-                                    let content_text = message
-                                        .content
-                                        .iter()
-                                        .filter_map(|c| match c {
-                                            MessageContent::Text(text) => Some(text.text.clone()),
-                                            _ => None,
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join("\n");
-                                    
-                                    // Only add to json_messages if content_text is not empty
-                                    if !content_text.is_empty() {
-                                        json_messages.push(JsonMessage {
-                                            role: match message.role {
-                                                rmcp::model::Role::User => "user".to_string(),
-                                                rmcp::model::Role::Assistant => "assistant".to_string(),
-                                            },
-                                            content: content_text,
-                                        });
-                                    }
-                                }
-                                
+
                                 self.messages.push(message.clone());
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
-                                
+
                                 // Don't render in JSON mode
                                 if !is_json_mode {
                                     output::render_message(&message, self.debug);
@@ -1067,10 +995,8 @@ impl CliSession {
                                             if !is_json_mode {
                                                 println!("{}", console::style(&formatted_message).green().dim());
                                             }
-                                        } else {
-                                            if !is_json_mode {
-                                                progress_bars.log(&formatted_message);
-                                            }
+                                        } else if !is_json_mode {
+                                            progress_bars.log(&formatted_message);
                                         }
                                     } else if let Some(ref notification_type) = message_notification_type {
                                         if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
@@ -1080,11 +1006,9 @@ impl CliSession {
                                                     print!("{}", formatted_message);
                                                     std::io::stdout().flush().unwrap();
                                                 }
-                                            } else {
-                                                if !is_json_mode {
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                }
+                                            } else if !is_json_mode {
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
                                             }
                                         }
                                     }
@@ -1161,33 +1085,25 @@ impl CliSession {
                 }
             }
         }
-        
+
         // Output JSON if requested
         if is_json_mode {
-            let metadata = match &self.session_id {
-                Some(id) => match SessionManager::get_session(id, false).await {
-                    Ok(session) => JsonMetadata {
-                        total_tokens: session.total_tokens,
-                        status: "completed".to_string(),
-                    },
-                    Err(_) => JsonMetadata {
-                        total_tokens: None,
-                        status: "completed".to_string(),
-                    },
+            let metadata = match SessionManager::get_session(&self.session_id, false).await {
+                Ok(session) => JsonMetadata {
+                    total_tokens: session.total_tokens,
+                    status: "completed".to_string(),
                 },
-                None => JsonMetadata {
+                Err(_) => JsonMetadata {
                     total_tokens: None,
                     status: "completed".to_string(),
                 },
             };
-            
+
             let json_output = JsonOutput {
-                messages: json_messages,
-                tool_calls: json_tool_calls,
-                responses: json_responses,
+                messages: self.messages.messages().to_vec(),
                 metadata,
             };
-            
+
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else {
             println!();

@@ -219,17 +219,23 @@ where
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
         .await?;
 
-<<<<<<< HEAD
     let session = SessionManager::create_session(
         PathBuf::default(),
         "scenario-runner".to_string(),
         SessionType::Hidden,
     )
     .await?;
-    let mut cli_session = CliSession::new(agent, session.id, false, None, None, None, None).await;
-=======
-    let mut session = CliSession::new(agent, None, false, None, None, None, None, "text".to_string()).await;
->>>>>>> 231f658ef9 (feat: add --output-format json flag to goose run command)
+    let mut cli_session = CliSession::new(
+        agent,
+        session.id,
+        false,
+        None,
+        None,
+        None,
+        None,
+        "text".to_string(),
+    )
+    .await;
 
     let mut error = None;
     for message in &messages {

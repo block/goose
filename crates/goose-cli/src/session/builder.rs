@@ -166,19 +166,23 @@ async fn offer_extension_debugging_help(
         }
     }
 
-<<<<<<< HEAD
     let session = SessionManager::create_session(
         std::env::current_dir()?,
         "CLI Session".to_string(),
         SessionType::Hidden,
     )
     .await?;
-    let mut debug_session =
-        CliSession::new(debug_agent, session.id, false, None, None, None, None).await;
-=======
-    // Create the debugging session
-    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None, "text".to_string()).await;
->>>>>>> 231f658ef9 (feat: add --output-format json flag to goose run command)
+    let mut debug_session = CliSession::new(
+        debug_agent,
+        session.id,
+        false,
+        None,
+        None,
+        None,
+        None,
+        "text".to_string(),
+    )
+    .await;
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
