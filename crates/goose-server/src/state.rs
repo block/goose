@@ -38,7 +38,7 @@ impl AppState {
 
     pub async fn auto_start_tunnel(&self, port: u16) {
         let status = self.tunnel_manager.get_status().await;
-        
+
         if status.auto_start && status.state == crate::tunnel::TunnelState::Idle {
             tracing::info!("Auto-starting tunnel on port {}", port);
             match self.tunnel_manager.start(port).await {

@@ -415,6 +415,13 @@ pub async fn start(
     agent_id: String,
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 ) -> Result<TunnelInfo> {
+    let worker_url =
+        std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
+
+    if worker_url.to_lowercase() == "none" || worker_url.to_lowercase() == "no" {
+        anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL_WORKER_URL environment variable");
+    }
+
     let agent_id_clone = agent_id.clone();
     let server_secret_clone = server_secret;
     let handle_clone = handle.clone();
@@ -425,8 +432,6 @@ pub async fn start(
 
     *handle.write().await = Some(task);
 
-    let worker_url =
-        std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
     let public_url = format!("{}/tunnel/{}", worker_url, agent_id);
     let hostname = Url::parse(&worker_url)?
         .host_str()

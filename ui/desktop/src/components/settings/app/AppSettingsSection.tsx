@@ -39,12 +39,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
-  // Check if platform supports tunnel (macOS or Linux)
   const supportsTunnel =
     window.electron.platform === 'darwin' || window.electron.platform === 'linux';
 
-  // Check if experimental features should be hidden
-  const hideExperimental = window.appConfig.get('GOOSE_HIDE_EXPERIMENTAL') === 'true';
+  const tunnelWorkerUrl = window.appConfig.get('GOOSE_TUNNEL_WORKER_URL');
+  const hideTunnel = tunnelWorkerUrl === 'none' || tunnelWorkerUrl === 'no';
 
   // Detect theme changes
   useEffect(() => {
@@ -403,8 +402,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      {/* Experimental Features - only show on macOS and Linux, and not hidden by env var */}
-      {supportsTunnel && !hideExperimental && (
+      {supportsTunnel && !hideTunnel && (
         <Card className="rounded-lg">
           <CardHeader className="pb-0">
             <button
