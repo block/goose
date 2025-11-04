@@ -192,7 +192,7 @@ export function ThemeSelector({
   return (
     <div className={cn(!horizontal && 'px-1 py-2 space-y-3', className)}>
       {!hideTitle && <div className="text-xs text-text-default px-3">Theme</div>}
-      <div className={cn(horizontal ? 'flex' : 'grid grid-cols-3', 'gap-1', !horizontal && 'px-3')}>
+      <div className={cn(horizontal ? 'flex' : 'grid grid-cols-3', 'gap-1', !horizontal && 'px-3 pb-3')}>
         <ThemeButton
           mode="light"
           icon={Sun}
@@ -216,7 +216,7 @@ export function ThemeSelector({
         />
       </div>
 
-      <div className={cn(!horizontal && 'px-3', 'py-3 border-t border-border-default')}>
+      <div className={cn(!horizontal && 'px-3', 'pt-3 border-t border-border-default')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-text-muted" />
