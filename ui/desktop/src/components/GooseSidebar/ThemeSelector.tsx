@@ -219,7 +219,7 @@ export function ThemeSelector({
       <div className={cn(!horizontal && 'px-3', 'py-3')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex-1">
-            <span className="leading-none text-text-default">Custom Accent</span>
+            <h3 className="text-text-default text-xs">Custom Accent</h3>
           </div>
           <Switch
             checked={customColorEnabled}
