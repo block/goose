@@ -1,0 +1,52 @@
+version: 1.0.0
+title: "Code Complexity Analyzer"
+description: "Analyzes cyclomatic complexity and identifies overly complex functions and classes"
+instructions: |
+  You are analyzing code complexity to identify technical debt.
+  
+  Your tasks:
+  1. Scan all source code files in {{ repository_path }}
+  2. Calculate cyclomatic complexity for functions, methods, and classes
+  3. Identify code that exceeds the complexity threshold of {{ complexity_threshold }}
+  4. Look for:
+     - Long functions (>50 lines)
+     - Deep nesting levels (>4 levels)
+     - High parameter counts (>5 parameters)
+     - Large classes (>500 lines)
+  
+  5. For each complex item found, provide:
+     - File path and line number
+     - Current complexity score
+     - Brief explanation of why it's complex
+     - Suggested refactoring approach
+  
+  Return results in a structured format with severity levels:
+  - Critical: Complexity > 2x threshold
+  - High: Complexity > 1.5x threshold
+  - Medium: Complexity > threshold
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository"
+  
+  - key: complexity_threshold
+    input_type: number
+    requirement: optional
+    default: 15
+    description: "Cyclomatic complexity threshold"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+settings:
+  temperature: 0.2
+
+prompt: |
+  Analyze code complexity in {{ repository_path }}.
+  Flag any function/method with cyclomatic complexity > {{ complexity_threshold }}.
+  Provide specific file paths, line numbers, and refactoring recommendations.

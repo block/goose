@@ -7,7 +7,7 @@ use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights};
+use goose::session::{Session, SessionInsights, SessionType};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -20,8 +20,8 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SystemNotificationContent, SystemNotificationType, ThinkingContent, ToolConfirmationRequest,
-    ToolRequest, ToolResponse,
+    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use crate::routes::reply::MessageEvent;
@@ -349,6 +349,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::update_from_session,
+        super::routes::agent::agent_add_extension,
+        super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
         super::routes::reply::confirm_permission,
@@ -403,6 +405,7 @@ derive_utoipa!(Icon as IconSchema);
         Message,
         MessageContent,
         MessageMetadata,
+        TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -443,6 +446,7 @@ derive_utoipa!(Icon as IconSchema);
         ModelConfig,
         Session,
         SessionInsights,
+        SessionType,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,
@@ -488,6 +492,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::UpdateFromSessionRequest,
+        super::routes::agent::AddExtensionRequest,
+        super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
     ))
 )]

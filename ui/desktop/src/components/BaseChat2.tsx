@@ -72,6 +72,7 @@ function BaseChatContent({
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
+    tokenState,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -281,9 +282,13 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={session?.total_tokens || undefined}
-            inputTokens={session?.input_tokens || undefined}
-            outputTokens={session?.output_tokens || undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            accumulatedInputTokens={
+              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+            }
+            accumulatedOutputTokens={
+              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}

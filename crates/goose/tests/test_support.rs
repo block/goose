@@ -345,7 +345,6 @@ impl ScheduleToolTestBuilder {
             paused: false,
             current_session_id: None,
             process_start_time: None,
-            execution_mode: Some("background".to_string()),
         };
         {
             let mut jobs = self.scheduler.jobs.lock().await;
@@ -397,7 +396,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         conversation: None,
         message_count,
         user_recipe_values: None,
-        model_config: None,
+        session_type: Default::default(),
         provider_name: None,
+        model_config: None,
     }
 }

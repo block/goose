@@ -77,6 +77,7 @@ export const useChatEngine = ({
     notifications,
     session,
     setError,
+    tokenState,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.sessionId,
@@ -451,6 +452,7 @@ export const useChatEngine = ({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    tokenState,
 
     // UI helpers
     commandHistory,
