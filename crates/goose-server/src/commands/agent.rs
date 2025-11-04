@@ -42,6 +42,7 @@ pub async fn run() -> Result<()> {
         );
     }
 
+    // Get server secret key from environment (desktop app will pass it)
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 

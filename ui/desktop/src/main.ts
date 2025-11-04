@@ -466,9 +466,28 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
-const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
-  ? 'test'
-  : crypto.randomBytes(32).toString('hex');
+// Get or generate persistent server secret
+function getOrGenerateServerSecret(): string {
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    return 'test';
+  }
+
+  const settings = loadSettings();
+  if (settings.serverSecret) {
+    return settings.serverSecret;
+  }
+
+  // Generate new secret and save it
+  const newSecret = crypto.randomBytes(32).toString('hex');
+  settings.serverSecret = newSecret;
+  saveSettings(settings);
+  return newSecret;
+}
+
+const SERVER_SECRET = getOrGenerateServerSecret();
+
+// Track goosed port for tunnel
+let globalGoosedPort = 0;
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
@@ -523,6 +542,11 @@ const createChat = async (
     port = newPort;
     workingDir = newWorkingDir;
     goosedProcess = newGoosedProcess;
+
+    // Track first goosed port globally for tunnel
+    if (globalGoosedPort === 0) {
+      globalGoosedPort = port;
+    }
   }
 
   // Create window config with loading state for recipe deeplinks
@@ -1219,7 +1243,7 @@ ipcMain.handle('get-wakelock-state', () => {
 ipcMain.handle('start-tunnel', async () => {
   try {
     const { startTunnel } = await import('./utils/tunnel');
-    const tunnelInfo = await startTunnel();
+    const tunnelInfo = await startTunnel(globalGoosedPort, SERVER_SECRET);
     return tunnelInfo;
   } catch (error) {
     console.error('Error starting tunnel:', error);
@@ -1230,7 +1254,7 @@ ipcMain.handle('start-tunnel', async () => {
 ipcMain.handle('stop-tunnel', async () => {
   try {
     const { stopTunnel } = await import('./utils/tunnel');
-    stopTunnel();
+    await stopTunnel(globalGoosedPort, SERVER_SECRET);
   } catch (error) {
     console.error('Error stopping tunnel:', error);
     throw error;
@@ -1239,8 +1263,8 @@ ipcMain.handle('stop-tunnel', async () => {
 
 ipcMain.handle('get-tunnel-status', async () => {
   try {
-    const { getTunnelStatus } = await import('./utils/tunnel');
-    return getTunnelStatus();
+    const { syncTunnelStatus } = await import('./utils/tunnel');
+    return await syncTunnelStatus(globalGoosedPort, SERVER_SECRET);
   } catch (error) {
     console.error('Error getting tunnel status:', error);
     return { state: 'error', info: null };
@@ -1767,9 +1791,9 @@ async function appMain() {
     app.dock?.hide();
   }
 
-  // Setup tunnel cleanup on app quit
+  // Setup tunnel cleanup on app quit (will use first goosed port/secret)
   const { setupTunnelCleanup } = await import('./utils/tunnel');
-  setupTunnelCleanup(app);
+  setupTunnelCleanup(app, globalGoosedPort, SERVER_SECRET);
 
   // Parse command line arguments
   const { dirPath } = parseArgs();
@@ -2244,7 +2268,7 @@ app.whenReady().then(async () => {
     setTimeout(async () => {
       try {
         const { autoStartTunnel } = await import('./utils/tunnel');
-        await autoStartTunnel();
+        await autoStartTunnel(globalGoosedPort, SERVER_SECRET);
       } catch (error) {
         log.error('Failed to auto-start tunnel:', error);
       }

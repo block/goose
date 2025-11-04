@@ -71,7 +71,11 @@ struct TunnelResponse {
     is_last_chunk: Option<bool>,
 }
 
-async fn handle_request(message: TunnelMessage, port: u16, ws_tx: WebSocketSender) -> Result<()> {
+async fn handle_request(
+    message: TunnelMessage,
+    port: u16,
+    ws_tx: WebSocketSender,
+) -> Result<()> {
     let request_id = message.request_id.clone();
     info!("→ {} {} [{}]", message.method, message.path, request_id);
 
@@ -87,6 +91,7 @@ async fn handle_request(message: TunnelMessage, port: u16, ws_tx: WebSocketSende
         _ => client.get(&url),
     };
 
+    // Forward headers as-is from the client request
     if let Some(headers) = &message.headers {
         for (key, value) in headers {
             request_builder = request_builder.header(key, value);

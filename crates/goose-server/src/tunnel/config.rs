@@ -55,22 +55,17 @@ pub async fn save_config(config: &TunnelConfig) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-/// Clear tunnel secrets from keyring/secrets.yaml
-pub fn clear_secrets() -> Result<(), Box<dyn std::error::Error>> {
-    let cfg = Config::global();
-
-    // Best effort deletion - don't fail if secrets don't exist
-    let _ = cfg.delete_secret(SECRET_KEY_SECRET);
-    let _ = cfg.delete_secret(SECRET_KEY_AGENT_ID);
-
-    info!("Cleared tunnel secrets");
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tunnel::TunnelMode;
+
+    fn clear_secrets() -> Result<(), Box<dyn std::error::Error>> {
+        let cfg = Config::global();
+        let _ = cfg.delete_secret(SECRET_KEY_SECRET);
+        let _ = cfg.delete_secret(SECRET_KEY_AGENT_ID);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_save_and_load_config() {
@@ -101,8 +96,8 @@ mod tests {
         let _ = clear_secrets();
 
         let cfg = Config::global();
-        let _ = cfg.delete_param(CONFIG_KEY_MODE);
-        let _ = cfg.delete_param(CONFIG_KEY_AUTO_START);
+        let _ = cfg.delete(CONFIG_KEY_MODE);
+        let _ = cfg.delete(CONFIG_KEY_AUTO_START);
 
         // Load should return defaults
         let loaded = load_config().await;

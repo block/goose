@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::tunnel::{TunnelConfig, TunnelManager};
+use crate::tunnel::TunnelManager;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -27,19 +27,9 @@ impl AppState {
         let tunnel_config = crate::tunnel::config::load_config().await;
         let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config.clone()));
 
-        // Auto-start tunnel if configured
-        if tunnel_config.auto_start {
-            tracing::info!("Auto-starting tunnel from saved configuration");
-            // Use port 3000 as default, or we could add it to config
-            let port = std::env::var("GOOSE_PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(3000);
-
-            if let Err(e) = tunnel_manager.start(port).await {
-                tracing::error!("Failed to auto-start tunnel: {}", e);
-            }
-        }
+        // NOTE: Auto-start is handled by the desktop app, not here
+        // The desktop app calls /api/tunnel/start after it knows the port
+        // If we auto-start here, we don't know which port goosed is listening on
 
         Ok(Arc::new(Self {
             agent_manager,

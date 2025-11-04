@@ -116,10 +116,6 @@ impl TunnelManager {
         self.config.write().await.mode = mode;
     }
 
-    pub async fn get_config(&self) -> TunnelConfig {
-        self.config.read().await.clone()
-    }
-
     pub async fn update_config<F>(&self, f: F)
     where
         F: FnOnce(&mut TunnelConfig),
@@ -145,29 +141,33 @@ impl TunnelManager {
 
         let result = match mode {
             TunnelMode::Lapstone => {
-                let secret = config.secret.clone().unwrap_or_else(|| generate_secret());
+                // Use the server secret from env var (same secret that authenticates API requests)
+                // This ensures the QR code secret matches what goosed expects
+                let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
+                    .unwrap_or_else(|_| {
+                        config.secret.clone().unwrap_or_else(|| generate_secret())
+                    });
+                    
                 let agent_id = config
                     .agent_id
                     .clone()
                     .unwrap_or_else(|| generate_agent_id());
 
-                // Update config with generated values
+                // Update config with values (but don't persist server secret to disk for security)
                 self.update_config(|c| {
-                    c.secret = Some(secret.clone());
                     c.agent_id = Some(agent_id.clone());
                 })
                 .await;
 
-                let info =
-                    lapstone::start(port, secret, agent_id, self.lapstone_handle.clone()).await?;
+                let info = lapstone::start(port, secret, agent_id, self.lapstone_handle.clone()).await?;
                 Ok(info)
             }
             TunnelMode::Tailscale => {
-                let secret = config.secret.clone().unwrap_or_else(|| generate_secret());
-                self.update_config(|c| {
-                    c.secret = Some(secret.clone());
-                })
-                .await;
+                // Use server secret for tailscale too
+                let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
+                    .unwrap_or_else(|_| {
+                        config.secret.clone().unwrap_or_else(|| generate_secret())
+                    });
 
                 tailscale::start(port, secret).await
             }
