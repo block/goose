@@ -19,6 +19,34 @@ interface ThemeSelectorProps {
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
+interface ThemeButtonProps {
+  mode: ThemeMode;
+  icon: LucideIcon;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+function ThemeButton({ mode, icon: Icon, label, isActive, onClick }: ThemeButtonProps) {
+  return (
+    <Button
+      data-testid={`${mode}-mode-button`}
+      onClick={onClick}
+      className={cn(
+        'flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs',
+        isActive
+          ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
+          : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
+      )}
+      variant="ghost"
+      size="sm"
+    >
+      <Icon className="h-3 w-3" />
+      <span>{label}</span>
+    </Button>
+  );
+}
+
 const getIsDarkMode = (mode: ThemeMode): boolean => {
   if (typeof window === 'undefined') return false;
   return mode === 'system'
@@ -149,34 +177,31 @@ export function ThemeSelector({
     }
   }, []);
 
-  const ThemeButton = useCallback(
-    ({ mode, icon: Icon, label }: { mode: ThemeMode; icon: LucideIcon; label: string }) => (
-      <Button
-        data-testid={`${mode}-mode-button`}
-        onClick={() => setThemeMode(mode)}
-        className={cn(
-          'flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs',
-          themeMode === mode
-            ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-            : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
-        )}
-        variant="ghost"
-        size="sm"
-      >
-        <Icon className="h-3 w-3" />
-        <span>{label}</span>
-      </Button>
-    ),
-    [themeMode]
-  );
-
   return (
     <div className={cn(!horizontal && 'px-1 py-2 space-y-3', className)}>
       {!hideTitle && <div className="text-xs text-text-default px-3">Theme</div>}
       <div className={cn(horizontal ? 'flex' : 'grid grid-cols-3', 'gap-1', !horizontal && 'px-3')}>
-        <ThemeButton mode="light" icon={Sun} label="Light" />
-        <ThemeButton mode="dark" icon={Moon} label="Dark" />
-        <ThemeButton mode="system" icon={Sliders} label="System" />
+        <ThemeButton
+          mode="light"
+          icon={Sun}
+          label="Light"
+          isActive={themeMode === 'light'}
+          onClick={() => setThemeMode('light')}
+        />
+        <ThemeButton
+          mode="dark"
+          icon={Moon}
+          label="Dark"
+          isActive={themeMode === 'dark'}
+          onClick={() => setThemeMode('dark')}
+        />
+        <ThemeButton
+          mode="system"
+          icon={Sliders}
+          label="System"
+          isActive={themeMode === 'system'}
+          onClick={() => setThemeMode('system')}
+        />
       </div>
 
       <div className={cn(!horizontal && 'px-3', 'pt-3 border-t border-border-default')}>
