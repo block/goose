@@ -64,9 +64,12 @@ pub async fn run() -> Result<()> {
     let local_addr = listener.local_addr()?;
     info!("listening on {}", local_addr);
     
-    // Auto-start tunnel if configured
+    // Auto-start tunnel if configured (spawn as background task to not block server startup)
     let port = local_addr.port();
-    app_state.auto_start_tunnel(port).await;
+    let app_state_clone = app_state.clone();
+    tokio::spawn(async move {
+        app_state_clone.auto_start_tunnel(port).await;
+    });
     
     // Ensure the listener/socket is properly closed on cancellation by using graceful shutdown
     axum::serve(listener, app)
