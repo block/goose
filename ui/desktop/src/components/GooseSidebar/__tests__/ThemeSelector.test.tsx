@@ -28,6 +28,7 @@ vi.mock('../../../utils/colorUtils', () => ({
   applyCustomTheme: vi.fn(),
   resetThemeColors: vi.fn(),
   DEFAULT_THEME_COLOR: '#32353b',
+  isValidHexColor: vi.fn((color: string) => /^#[0-9A-Fa-f]{6}$/.test(color)),
 }));
 
 // Mock lucide-react icons
@@ -291,6 +292,37 @@ describe('ThemeSelector', () => {
 
       const colorInput = screen.getByTestId('color-input') as HTMLInputElement;
       expect(colorInput.value).toBe('#32353b');
+    });
+
+    it('should validate custom color from storage events', async () => {
+      mockLocalStorage['custom_theme_enabled'] = 'true';
+      mockLocalStorage['custom_theme_color'] = '#ff0000';
+      render(<ThemeSelector />);
+
+      const colorInput = screen.getByTestId('color-input') as HTMLInputElement;
+      expect(colorInput.value).toBe('#ff0000');
+
+      // Simulate a storage event with an invalid color
+      const invalidEvent = new Event('storage');
+      Object.defineProperty(invalidEvent, 'key', { value: 'custom_theme_color' });
+      Object.defineProperty(invalidEvent, 'newValue', { value: 'invalid-color' });
+      window.dispatchEvent(invalidEvent);
+
+      // Color should not change because validation should reject it
+      await waitFor(() => {
+        expect(colorInput.value).toBe('#ff0000');
+      });
+
+      // Now simulate a storage event with a valid color
+      const validEvent = new Event('storage');
+      Object.defineProperty(validEvent, 'key', { value: 'custom_theme_color' });
+      Object.defineProperty(validEvent, 'newValue', { value: '#00ff00' });
+      window.dispatchEvent(validEvent);
+
+      // Color should update because validation should pass
+      await waitFor(() => {
+        expect(colorInput.value).toBe('#00ff00');
+      });
     });
   });
 
