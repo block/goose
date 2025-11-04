@@ -216,7 +216,7 @@ export function ThemeSelector({
         />
       </div>
 
-      <div className={cn(!horizontal && 'px-3', 'py-3 border-t border-border-default')}>
+      <div className={cn(!horizontal && 'px-3', 'py-3')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-text-muted" />
