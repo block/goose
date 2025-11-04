@@ -135,15 +135,15 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
 
   return (
     <div className={cn(className)}>
-      {/* Color Grid */}
-      <div className="grid grid-cols-6 gap-1" role="group" aria-label="Accent colors">
+      {/* Color Flex Layout */}
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Accent colors">
         {allColors.map((color) => (
           <button
             key={color}
             type="button"
             onClick={() => handleColorSelect(color)}
             className={cn(
-              'w-8 h-8 rounded border-2 transition-all hover:scale-110',
+              'w-8 h-8 rounded border-2 transition-all hover:scale-110 flex-shrink-0',
               isSelected(color)
                 ? 'border-background-accent ring-2 ring-background-accent/30 scale-110'
                 : 'border-border-default hover:border-border-strong'
@@ -160,7 +160,7 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
           <button
             type="button"
             onClick={handleOpenDialog}
-            className="w-8 h-8 rounded border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-110 flex items-center justify-center"
+            className="w-8 h-8 rounded border-2 border-dashed border-border-default hover:border-border-strong transition-all hover:scale-110 flex items-center justify-center flex-shrink-0"
             title="Add custom color"
             aria-label="Add custom color"
             data-testid="add-custom-color-button"
