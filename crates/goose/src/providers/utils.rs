@@ -1122,19 +1122,28 @@ mod tests {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
-                ProviderError::ServerError("HTTP 500: No response body received from server".to_string()),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    None,
+                )),
             ),
             // is_server_error() with null payload (the "Server error: None" bug)
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(Value::Null),
-                ProviderError::ServerError("HTTP 500: No response body received from server".to_string()),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    Some(&Value::Null),
+                )),
             ),
             // is_server_error() with payload
             (
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
-                ProviderError::ServerError("HTTP 502: {\"error\":\"upstream error\"}".to_string()),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::BAD_GATEWAY.as_u16(),
+                    Some(&json!({"error": "upstream error"})),
+                )),
             ),
             // Default - any other status code
             (
