@@ -68,7 +68,7 @@ jobs:
         cat > pr_body.txt <<EOF
         Release version ${{ env.version }}
 
-        Merging this PR will trigger the release of version ${{ env.version }}. Closing this PR will do nothing.
+        This PR will be merged automatically when the v${{ env.version }} tag is pushed.
 
         Release log:
         EOF
