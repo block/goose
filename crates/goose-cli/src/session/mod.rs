@@ -28,7 +28,7 @@ use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use goose::agents::extension::{Envs, ExtensionConfig};
+use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
 use goose::config::{Config, GooseMode};
@@ -300,14 +300,23 @@ impl CliSession {
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
             let extension_name = name.trim().to_string();
-            let config = ExtensionConfig::Builtin {
-                name: extension_name,
-                display_name: None,
-                // TODO: should set a timeout
-                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                bundled: None,
-                description: name.trim().to_string(),
-                available_tools: Vec::new(),
+
+            let config = if PLATFORM_EXTENSIONS.contains_key(name) {
+                ExtensionConfig::Platform {
+                    name: extension_name,
+                    bundled: None,
+                    description: name.trim().to_string(),
+                    available_tools: Vec::new(),
+                }
+            } else {
+                ExtensionConfig::Builtin {
+                    name: extension_name,
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    description: name.trim().to_string(),
+                    available_tools: Vec::new(),
+                }
             };
             self.agent
                 .add_extension(config)
