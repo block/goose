@@ -13,21 +13,18 @@ use goose::tracing::{langfuse_layer, otlp_layer};
 /// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
 pub fn setup_logging(name: Option<&str>) -> Result<()> {
-    let _ = goose::logging::cleanup_old_logs("server");
-    let _ = goose::logging::cleanup_old_logs("llm");
-    let log_dir = goose::logging::get_log_directory("server", true)?;
+    let log_dir = goose::logging::prepare_log_directory("server", true)?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-
-    // Create log file name by prefixing with timestamp
     let log_filename = if name.is_some() {
         format!("{}-{}.log", timestamp, name.unwrap())
     } else {
         format!("{}.log", timestamp)
     };
-
-    // Create daily rolling file appender for detailed logs
-    let file_appender =
-        tracing_appender::rolling::RollingFileAppender::new(Rotation::DAILY, log_dir, log_filename);
+    let file_appender = tracing_appender::rolling::RollingFileAppender::new(
+        Rotation::NEVER, // we do manual rotation via file naming and cleanup_old_logs
+        log_dir,
+        log_filename,
+    );
 
     // Create JSON file logging layer
     let file_layer = fmt::layer()

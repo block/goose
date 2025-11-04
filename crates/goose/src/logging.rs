@@ -9,22 +9,21 @@ use std::time::{Duration, SystemTime};
 ///
 /// # Arguments
 ///
-/// * `component` - The component name (e.g., "cli", "server", "debug")
+/// * `component` - The component name (e.g., "cli", "server", "debug", "llm")
 /// * `use_date_subdir` - Whether to create a date-based subdirectory
-pub fn get_log_directory(component: &str, use_date_subdir: bool) -> Result<PathBuf> {
+pub fn prepare_log_directory(component: &str, use_date_subdir: bool) -> Result<PathBuf> {
     let base_log_dir = Paths::in_state_dir("logs");
+
+    let _ = cleanup_old_logs(component);
 
     let component_dir = base_log_dir.join(component);
 
     let log_dir = if use_date_subdir {
-        // Create date-based subdirectory
-        let now = chrono::Local::now();
-        component_dir.join(now.format("%Y-%m-%d").to_string())
+        component_dir.join(chrono::Local::now().format("%Y-%m-%d").to_string())
     } else {
         component_dir
     };
 
-    // Ensure log directory exists
     fs::create_dir_all(&log_dir).context("Failed to create log directory")?;
 
     Ok(log_dir)
@@ -39,25 +38,15 @@ pub fn cleanup_old_logs(component: &str) -> Result<()> {
     }
 
     let two_weeks = SystemTime::now() - Duration::from_secs(14 * 24 * 60 * 60);
-    let entries = fs::read_dir(&component_dir).context("Failed to read log directory")?;
+    let entries = fs::read_dir(&component_dir)?;
 
     for entry in entries.flatten() {
         let path = entry.path();
 
         if let Ok(metadata) = entry.metadata() {
             if let Ok(modified) = metadata.modified() {
-                if modified < two_weeks {
-                    if path.is_dir() {
-                        if let Err(e) = fs::remove_dir_all(&path) {
-                            tracing::warn!("Failed to remove old log directory {:?}: {}", path, e);
-                        } else {
-                            tracing::debug!("Removed old log directory: {:?}", path);
-                        }
-                    } else if let Err(e) = fs::remove_file(&path) {
-                        tracing::warn!("Failed to remove old log file {:?}: {}", path, e);
-                    } else {
-                        tracing::debug!("Removed old log file: {:?}", path);
-                    }
+                if modified < two_weeks && path.is_dir() {
+                    let _ = fs::remove_dir_all(&path);
                 }
             }
         }
@@ -74,7 +63,7 @@ mod tests {
     #[test]
     fn test_get_log_directory_basic_functionality() {
         // Test basic directory creation without date subdirectory
-        let result = get_log_directory("cli", false);
+        let result = prepare_log_directory("cli", false);
         assert!(result.is_ok());
 
         let log_dir = result.unwrap();
@@ -96,7 +85,7 @@ mod tests {
     #[test]
     fn test_get_log_directory_with_date_subdir() {
         // Test date-based subdirectory creation
-        let result = get_log_directory("server", true);
+        let result = prepare_log_directory("server", true);
         assert!(result.is_ok());
 
         let log_dir = result.unwrap();
@@ -127,11 +116,11 @@ mod tests {
         // Test that multiple calls return the same result and don't fail
         let component = "debug";
 
-        let result1 = get_log_directory(component, false);
+        let result1 = prepare_log_directory(component, false);
         assert!(result1.is_ok());
         let log_dir1 = result1.unwrap();
 
-        let result2 = get_log_directory(component, false);
+        let result2 = prepare_log_directory(component, false);
         assert!(result2.is_ok());
         let log_dir2 = result2.unwrap();
 
@@ -141,11 +130,11 @@ mod tests {
         assert!(log_dir2.exists());
 
         // Test same behavior with date subdirectories
-        let result3 = get_log_directory(component, true);
+        let result3 = prepare_log_directory(component, true);
         assert!(result3.is_ok());
         let log_dir3 = result3.unwrap();
 
-        let result4 = get_log_directory(component, true);
+        let result4 = prepare_log_directory(component, true);
         assert!(result4.is_ok());
         let log_dir4 = result4.unwrap();
 
@@ -160,7 +149,7 @@ mod tests {
         let mut created_dirs = Vec::new();
 
         for component in &components {
-            let result = get_log_directory(component, false);
+            let result = prepare_log_directory(component, false);
             assert!(result.is_ok(), "Failed for component: {}", component);
 
             let log_dir = result.unwrap();
