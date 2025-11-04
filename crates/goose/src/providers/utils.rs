@@ -68,13 +68,13 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
-fn format_server_error_message(status_code: u16, payload: Option<&Value>) -> String {
+fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>) -> String {
     match payload {
         Some(Value::Null) | None => format!(
             "HTTP {}: No response body received from server",
-            status_code
+            status_code.as_u16()
         ),
-        Some(p) => format!("HTTP {}: {}", status_code, p),
+        Some(p) => format!("HTTP {}: {}", status_code.as_u16(), p),
     }
 }
 
@@ -126,10 +126,9 @@ pub fn map_http_error_to_provider_error(
             details: format!("{:?}", payload),
             retry_delay: None,
         },
-        _ if status.is_server_error() => ProviderError::ServerError(format_server_error_message(
-            status.as_u16(),
-            payload.as_ref(),
-        )),
+        _ if status.is_server_error() => {
+            ProviderError::ServerError(format_server_error_message(status, payload.as_ref()))
+        }
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
@@ -309,7 +308,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             })
         }
         _ if final_status.is_server_error() => Err(ProviderError::ServerError(
-            format_server_error_message(final_status.as_u16(), payload.as_ref()),
+            format_server_error_message(final_status, payload.as_ref()),
         )),
         _ => {
             tracing::debug!(
@@ -1123,7 +1122,7 @@ mod tests {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
                 ProviderError::ServerError(format_server_error_message(
-                    StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     None,
                 )),
             ),
@@ -1132,7 +1131,7 @@ mod tests {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(Value::Null),
                 ProviderError::ServerError(format_server_error_message(
-                    StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     Some(&Value::Null),
                 )),
             ),
@@ -1141,7 +1140,7 @@ mod tests {
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
                 ProviderError::ServerError(format_server_error_message(
-                    StatusCode::BAD_GATEWAY.as_u16(),
+                    StatusCode::BAD_GATEWAY,
                     Some(&json!({"error": "upstream error"})),
                 )),
             ),
