@@ -3,7 +3,9 @@ use anyhow::{Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest;
 use serde::{Deserialize, Serialize};
+use socket2::{Socket, TcpKeepalive};
 use std::collections::HashMap;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -71,11 +73,7 @@ struct TunnelResponse {
     is_last_chunk: Option<bool>,
 }
 
-async fn handle_request(
-    message: TunnelMessage,
-    port: u16,
-    ws_tx: WebSocketSender,
-) -> Result<()> {
+async fn handle_request(message: TunnelMessage, port: u16, ws_tx: WebSocketSender) -> Result<()> {
     let request_id = message.request_id.clone();
     info!("→ {} {} [{}]", message.method, message.path, request_id);
 
@@ -140,29 +138,69 @@ async fn handle_request(
 
     if is_streaming {
         info!("← {} {} [{}] (streaming)", status, message.path, request_id);
-        // For streaming responses, we'd need to handle chunks differently
-        // For now, collect the full response
-        let body = response.text().await.unwrap_or_default();
+
+        // Stream the response chunk by chunk
+        let mut stream = response.bytes_stream();
+        let mut chunk_index = 0;
+        let mut is_first_chunk = true;
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    let chunk_str = String::from_utf8_lossy(&chunk).to_string();
+                    let tunnel_response = TunnelResponse {
+                        request_id: request_id.clone(),
+                        status,
+                        headers: if is_first_chunk {
+                            Some(headers_map.clone())
+                        } else {
+                            None
+                        },
+                        body: Some(chunk_str),
+                        error: None,
+                        chunk_index: Some(chunk_index),
+                        total_chunks: None,
+                        is_chunked: None,
+                        is_streaming: Some(true),
+                        is_first_chunk: Some(is_first_chunk),
+                        is_last_chunk: Some(false),
+                    };
+                    send_response(ws_tx.clone(), tunnel_response).await?;
+                    chunk_index += 1;
+                    is_first_chunk = false;
+                }
+                Err(e) => {
+                    error!("Error reading stream chunk: {}", e);
+                    break;
+                }
+            }
+        }
+
+        // Send final chunk to indicate end of stream
         let tunnel_response = TunnelResponse {
-            request_id,
+            request_id: request_id.clone(),
             status,
-            headers: Some(headers_map),
-            body: Some(body),
+            headers: None,
+            body: Some(String::new()),
             error: None,
-            chunk_index: None,
+            chunk_index: Some(chunk_index),
             total_chunks: None,
             is_chunked: None,
             is_streaming: Some(true),
-            is_first_chunk: Some(true),
+            is_first_chunk: Some(false),
             is_last_chunk: Some(true),
         };
         send_response(ws_tx, tunnel_response).await?;
+        info!(
+            "← {} {} [{}] (complete, {} chunks)",
+            status, message.path, request_id, chunk_index
+        );
     } else {
         let body = response.text().await.unwrap_or_default();
         const MAX_WS_SIZE: usize = 900_000; // 900KB
 
         if body.len() > MAX_WS_SIZE {
-            let total_chunks = (body.len() + MAX_WS_SIZE - 1) / MAX_WS_SIZE;
+            let total_chunks = body.len().div_ceil(MAX_WS_SIZE);
             info!(
                 "← {} {} [{}] ({} bytes, {} chunks)",
                 status,
@@ -251,7 +289,27 @@ async fn run_tunnel_loop(
         };
 
         let ws_stream = match connect_async(url.clone()).await {
-            Ok((stream, _)) => stream,
+            Ok((stream, _)) => {
+                // Enable TCP keep-alive to detect dead connections faster
+                let tcp_stream = stream.get_ref().get_ref();
+                let fd = tcp_stream.as_raw_fd();
+                let socket: Socket = unsafe { Socket::from_raw_fd(fd) };
+
+                let keepalive = TcpKeepalive::new()
+                    .with_time(Duration::from_secs(30))
+                    .with_interval(Duration::from_secs(30));
+
+                if let Err(e) = socket.set_tcp_keepalive(&keepalive) {
+                    warn!("Failed to set TCP keep-alive: {}", e);
+                } else {
+                    info!("✓ TCP keep-alive enabled (30s interval)");
+                }
+
+                // Prevent socket from being closed when dropped
+                std::mem::forget(socket);
+
+                stream
+            }
             Err(e) => {
                 error!("✗ WebSocket connection error: {}", e);
                 tokio::time::sleep(Duration::from_millis(RECONNECT_DELAY_MS)).await;

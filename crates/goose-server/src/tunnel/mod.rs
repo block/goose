@@ -6,47 +6,28 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelMode {
+    #[default]
     Lapstone,
     Tailscale,
 }
 
-impl Default for TunnelMode {
-    fn default() -> Self {
-        TunnelMode::Lapstone
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelState {
+    #[default]
     Idle,
     Starting,
     Running,
     Error,
 }
 
-impl Default for TunnelState {
-    fn default() -> Self {
-        TunnelState::Idle
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TunnelPids {
     pub goosed: u32,
     pub tailscale_serve: u32,
-}
-
-impl Default for TunnelPids {
-    fn default() -> Self {
-        TunnelPids {
-            goosed: 0,
-            tailscale_serve: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,23 +41,16 @@ pub struct TunnelInfo {
     pub pids: TunnelPids,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TunnelConfig {
+    #[serde(default)]
     pub mode: TunnelMode,
+    #[serde(default)]
     pub auto_start: bool,
+    #[serde(default)]
     pub secret: Option<String>,
+    #[serde(default)]
     pub agent_id: Option<String>,
-}
-
-impl Default for TunnelConfig {
-    fn default() -> Self {
-        TunnelConfig {
-            mode: TunnelMode::default(),
-            auto_start: false,
-            secret: None,
-            agent_id: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,14 +118,9 @@ impl TunnelManager {
                 // Use the server secret from env var (same secret that authenticates API requests)
                 // This ensures the QR code secret matches what goosed expects
                 let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-                    .unwrap_or_else(|_| {
-                        config.secret.clone().unwrap_or_else(|| generate_secret())
-                    });
-                    
-                let agent_id = config
-                    .agent_id
-                    .clone()
-                    .unwrap_or_else(|| generate_agent_id());
+                    .unwrap_or_else(|_| config.secret.clone().unwrap_or_else(generate_secret));
+
+                let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
                 // Update config with values (but don't persist server secret to disk for security)
                 self.update_config(|c| {
@@ -159,15 +128,14 @@ impl TunnelManager {
                 })
                 .await;
 
-                let info = lapstone::start(port, secret, agent_id, self.lapstone_handle.clone()).await?;
+                let info =
+                    lapstone::start(port, secret, agent_id, self.lapstone_handle.clone()).await?;
                 Ok(info)
             }
             TunnelMode::Tailscale => {
                 // Use server secret for tailscale too
                 let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-                    .unwrap_or_else(|_| {
-                        config.secret.clone().unwrap_or_else(|| generate_secret())
-                    });
+                    .unwrap_or_else(|_| config.secret.clone().unwrap_or_else(generate_secret));
 
                 tailscale::start(port, secret).await
             }

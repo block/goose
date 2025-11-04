@@ -41,7 +41,7 @@ pub async fn save_config(config: &TunnelConfig) -> Result<(), Box<dyn std::error
 
     // Save non-secret config to config.yaml
     cfg.set_param(CONFIG_KEY_MODE, &config.mode)?;
-    cfg.set_param(CONFIG_KEY_AUTO_START, &config.auto_start)?;
+    cfg.set_param(CONFIG_KEY_AUTO_START, config.auto_start)?;
 
     // Save secrets to keyring or secrets.yaml
     if let Some(secret) = &config.secret {
@@ -69,11 +69,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_and_load_config() {
-        let mut config = TunnelConfig::default();
-        config.auto_start = true;
-        config.mode = TunnelMode::Lapstone;
-        config.secret = Some("test_secret_12345".to_string());
-        config.agent_id = Some("test_agent_id_67890".to_string());
+        let config = TunnelConfig {
+            auto_start: true,
+            mode: TunnelMode::Lapstone,
+            secret: Some("test_secret_12345".to_string()),
+            agent_id: Some("test_agent_id_67890".to_string()),
+        };
 
         // Save config
         save_config(&config).await.unwrap();
@@ -102,7 +103,7 @@ mod tests {
         // Load should return defaults
         let loaded = load_config().await;
 
-        assert_eq!(loaded.auto_start, false);
+        assert!(!loaded.auto_start);
         assert_eq!(loaded.mode, TunnelMode::default());
         assert_eq!(loaded.secret, None);
         assert_eq!(loaded.agent_id, None);

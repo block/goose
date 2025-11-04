@@ -44,6 +44,7 @@ url = "2.5.7"
 rand = "0.9.2"
 hex = "0.4.3"
 dirs = "6.0.0"
+socket2 = "0.6.1"
 
 [[bin]]
 name = "goosed"
