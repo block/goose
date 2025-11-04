@@ -72,8 +72,8 @@ describe('CustomColorPicker', () => {
       render(<CustomColorPicker {...defaultProps} />);
 
       const colorInput = screen.getByLabelText('Color picker');
-      await userEvent.clear(colorInput);
-      await userEvent.type(colorInput, '#ff0000');
+      // Use fireEvent.change for color input since userEvent.type doesn't work with color inputs
+      fireEvent.change(colorInput, { target: { value: '#ff0000' } });
 
       await waitFor(() => {
         expect(mockOnChange).toHaveBeenCalledWith('#ff0000');

@@ -56,9 +56,13 @@ const getIsDarkMode = (mode: ThemeMode): boolean => {
 
 const getThemeMode = (): ThemeMode => {
   if (typeof window === 'undefined' || !window.localStorage) return 'light';
-  if (localStorage.getItem('use_system_theme') === 'true') return 'system';
-  const savedTheme = localStorage.getItem('theme');
-  return savedTheme === 'dark' ? 'dark' : savedTheme === 'light' ? 'light' : 'light';
+  try {
+    if (localStorage.getItem('use_system_theme') === 'true') return 'system';
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark' ? 'dark' : savedTheme === 'light' ? 'light' : 'light';
+  } catch {
+    return 'light';
+  }
 };
 
 const setThemeModeStorage = (mode: ThemeMode) => {
@@ -85,11 +89,19 @@ export function ThemeSelector({
   const [isDarkMode, setDarkMode] = useState(() => getIsDarkMode(getThemeMode()));
   const [customColor, setCustomColor] = useState(() => {
     if (typeof window === 'undefined' || !window.localStorage) return DEFAULT_THEME_COLOR;
-    return localStorage.getItem('custom_theme_color') || DEFAULT_THEME_COLOR;
+    try {
+      return localStorage.getItem('custom_theme_color') || DEFAULT_THEME_COLOR;
+    } catch {
+      return DEFAULT_THEME_COLOR;
+    }
   });
   const [customColorEnabled, setCustomColorEnabled] = useState(() => {
     if (typeof window === 'undefined' || !window.localStorage) return false;
-    return localStorage.getItem('custom_theme_enabled') === 'true';
+    try {
+      return localStorage.getItem('custom_theme_enabled') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
