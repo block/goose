@@ -6,7 +6,7 @@ import {
   getCompactingMessage,
   hasCompletedToolCalls,
 } from '../types/message';
-import { Conversation, Message, Role } from '../api';
+import { Conversation, Message, Role, TokenState } from '../api';
 
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
@@ -35,7 +35,7 @@ export interface NotificationEvent {
 
 // Event types for SSE stream
 type MessageEvent =
-  | { type: 'Message'; message: Message }
+  | { type: 'Message'; message: Message; token_state: TokenState }
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
@@ -165,6 +165,9 @@ export interface UseMessageStreamHelpers {
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
+
+  /** Real-time token state from server */
+  tokenState: TokenState;
 }
 
 /**
@@ -197,6 +200,14 @@ export function useMessageStream({
     null
   );
   const [session, setSession] = useState<Session | null>(null);
+  const [tokenState, setTokenState] = useState<TokenState>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    accumulatedInputTokens: 0,
+    accumulatedOutputTokens: 0,
+    accumulatedTotalTokens: 0,
+  });
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -280,6 +291,8 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
+                    setTokenState(parsedEvent.token_state);
+
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage: Message = {
                       ...parsedEvent.message,
@@ -341,6 +354,8 @@ export function useMessageStream({
                   }
 
                   case 'UpdateConversation': {
+                    // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+                    // Longterm fix is to only send the agent the new messages, not the entire conversation.
                     currentMessages = parsedEvent.conversation;
                     setMessages(parsedEvent.conversation);
                     break;
@@ -650,5 +665,6 @@ export function useMessageStream({
     currentModelInfo,
     session,
     setError,
+    tokenState,
   };
 }

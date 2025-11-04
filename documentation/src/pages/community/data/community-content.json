@@ -17,13 +17,12 @@
       "submittedDate": "2025-09-26",
       "tags": [
         "hacktoberfest",
-        "open-source",
-        "contributing"
+        "open-source"
       ],
       "hacktoberfest": true
     },
     {
-      "title": "Running Goose in Containers (Without Losing Your Mind)",
+      "title": "Running goose in Containers (Without Losing Your Mind)",
       "author": {
         "name": "Rupam Golui",
         "handle": "Itz-Agasta"
@@ -38,7 +37,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Goose with Goose Docs MCP",
+      "title": "Goose with goose Docs MCP",
       "author": {
         "name": "Dakshata Mishra",
         "handle": "the-matrixneo"
@@ -52,7 +51,7 @@
       "hacktoberfest": true
     },
     {
-      "title": "Best Practices for Using Goose in Enterprise Environments",
+      "title": "Best Practices for Using goose in Enterprise Environments",
       "author": {
         "name": "Anudhyan Datta",
         "handle": "Anudhyan"
@@ -62,13 +61,12 @@
       "submittedDate": "2025-10-15",
       "tags": [
         "hacktoberfest",
-        "goose",
         "enterprise"
       ],
       "hacktoberfest": true
     },
     {
-      "title": "Getting started with Goose on Windows",
+      "title": "Getting started with goose on Windows",
       "author": {
         "name": "Halimah",
         "handle": "lymah123"
@@ -136,7 +134,169 @@
       "type": "blog",
       "url": "https://goose123.hashnode.dev/adopting-goose-in-the-enterprise-a-guide-to-security-scalability-and-governance",
       "submittedDate": "2025-10-26",
-      "tags": ["hacktoberfest"],
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Creating and Sharing Effective goose Recipes",
+      "author": {
+        "name": "Shreyansh Singh Gautam",
+        "handle": "Shreyanshsingh23"
+      },
+      "type": "blog",
+      "url": "https://medium.com/@shreyanshrewa/creating-and-sharing-effective-goose-recipes-abf9767d5128",
+      "thumbnail": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=400&h=225&fit=crop&crop=entropy&auto=format",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "goose with Context7 MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/EmLcx5gKHsE",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Stop Chasing Stale Docs: Creating Automated Documentation Workflows with goose",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/stop-chasing-stale-docs-creating-automated-documentation-workflows-with-goose",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Building Effective Prompts and Workflows for Code Review with goose",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/building-effective-prompts-and-workflows-for-code-review-with-goose-51m1",
+      "thumbnail": "https://i.imgur.com/2cRXct5.png",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Optimizing goose Performance on Windows",
+      "author": {
+        "name": "Mohammed Thaha",
+        "handle": "mohammed-thaha"
+      },
+      "type": "blog",
+      "url": "https://dev.to/mohammed_thaha/boosting-goose-performance-on-windows-real-benchmarks-power-tweaks-and-results-54gf",
+      "thumbnail": "https://media2.dev.to/dynamic/image/width=400,height=225,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fkxdtne8rxn4l2nctajv1.png",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "goose with Neon MCP",
+      "author": {
+        "name": "Dakshata Mishra",
+        "handle": "the-matrixneo"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/IxUPo2QDg_8",
+      "submittedDate": "2025-10-29",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Goose with Canva MCP",
+      "author": {
+        "name": "BestCodes",
+        "handle": "the-best-codes"
+      },
+      "type": "video",
+      "url": "https://www.youtube.com/shorts/xBGTa8XenVc",
+      "submittedDate": "2025-10-30",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "goose with Apify MCP",
+      "author": {
+        "name": "abhi",
+        "handle": "Better-Boy"
+      },
+      "type": "video",
+      "url": "https://youtube.com/shorts/XhA2YqjNF7M",
+      "submittedDate": "2025-10-30",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Building Custom Tools and Extensions for goose: A Developer's Guide",
+      "author": {
+        "name": "Anudhyan Datta",
+        "handle": "Anudhyan"
+      },
+      "type": "blog",
+      "url": "https://anudhyan.hashnode.dev/building-custom-tools-and-extensions-for-goose-a-developers-guide",
+      "submittedDate": "2025-10-30",
+      "tags": [
+        "hacktoberfest",
+        "mcp"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Managing goose Configurations Across Multiple Projects",
+      "author": {
+        "name": "Halimah",
+        "handle": "lymah123"
+      },
+      "type": "blog",
+      "url": "https://dev.to/lymah/managing-goose-configurations-across-multiple-projects-58i3",
+      "thumbnail": "https://i.imgur.com/VvM8sMR.png",
+      "submittedDate": "2025-10-30",
+      "tags": [
+        "hacktoberfest"
+      ],
+      "hacktoberfest": true
+    },
+    {
+      "title": "Managing Goose Configurations Across Multiple Projects: A Practical Guide",
+      "author": {
+        "name": "Viet Bui",
+        "handle": "vietbui1999ru"
+      },
+      "type": "blog",
+      "url": "https://dev.to/vietbui1999ru/managing-goose-configurations-across-multiple-projects-a-practical-guide-48ei",
+      "thumbnail": "https://imgur.com/a/ubyYbVJ",
+      "submittedDate": "2025-10-31",
+      "tags": [
+        "hacktoberfest"
+      ],
       "hacktoberfest": true
     }
   ]

@@ -1,8 +1,8 @@
-import { FixedExtensionEntry } from '../../../ConfigContext';
-import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs, removeShims } from '../utils';
+import { combineCmdAndArgs } from '../utils';
+import { ExtensionConfig } from '../../../../api';
+import { FixedExtensionEntry } from '../../../ConfigContext';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -132,7 +132,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(removeShims(config.cmd), config.args) : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
       };
   }
 }

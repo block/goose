@@ -4,6 +4,11 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
+    session_id: string;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -280,7 +285,7 @@ export type GetToolsQuery = {
 
 export type Icon = {
     mimeType?: string;
-    sizes?: string;
+    sizes?: Array<string>;
     src: string;
 };
 
@@ -362,6 +367,7 @@ export type MessageContent = (TextContent & {
 
 export type MessageEvent = {
     message: Message;
+    token_state: TokenState;
     type: 'Message';
 } | {
     error: string;
@@ -578,6 +584,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -656,7 +667,6 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
-    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
@@ -678,6 +688,7 @@ export type Session = {
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
+    session_type?: SessionType;
     total_tokens?: number | null;
     updated_at: string;
     user_recipe_values?: {
@@ -713,6 +724,8 @@ export type SessionListResponse = {
      */
     sessions: Array<Session>;
 };
+
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
     limit?: number;
@@ -777,6 +790,15 @@ export type TextContent = {
 export type ThinkingContent = {
     signature: string;
     thinking: string;
+};
+
+export type TokenState = {
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
 };
 
 export type Tool = {
@@ -895,6 +917,68 @@ export type UpsertConfigQuery = {
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
+
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/add_extension';
+};
+
+export type AgentAddExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
+
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/remove_extension';
+};
+
+export type AgentRemoveExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;

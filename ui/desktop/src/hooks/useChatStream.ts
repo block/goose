@@ -7,6 +7,7 @@ import {
   reply,
   resumeAgent,
   Session,
+  TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
 } from '../api';
@@ -60,6 +61,7 @@ interface UseChatStreamReturn {
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  tokenState: TokenState;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -88,6 +90,7 @@ async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
   updateMessages: (messages: Message[]) => void,
+  updateTokenState: (tokenState: TokenState) => void,
   updateChatState: (state: ChatState) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
@@ -119,6 +122,8 @@ async function streamFromResponse(
             });
           }
 
+          updateTokenState(event.token_state);
+
           updateMessages(currentMessages);
           break;
         }
@@ -141,6 +146,8 @@ async function streamFromResponse(
         }
         case 'UpdateConversation': {
           log.messages('conversation-update', event.conversation.length);
+          // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+          // Longterm fix is to only send the agent the new messages, not the entire conversation.
           currentMessages = event.conversation;
           updateMessages(event.conversation);
           break;
@@ -171,6 +178,14 @@ export function useChatStream({
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const [tokenState, setTokenState] = useState<TokenState>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    accumulatedInputTokens: 0,
+    accumulatedOutputTokens: 0,
+    accumulatedTotalTokens: 0,
+  });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -288,6 +303,7 @@ export function useChatStream({
           stream,
           currentMessages,
           (messages: Message[]) => setMessagesAndLog(messages, 'streaming'),
+          setTokenState,
           setChatState,
           onFinish
         );
@@ -373,5 +389,6 @@ export function useChatStream({
     handleSubmit,
     stopStreaming,
     setRecipeUserParams,
+    tokenState,
   };
 }

@@ -15,10 +15,11 @@ fi
 SCRIPT_DIR=$(pwd)
 
 PROVIDERS=(
-  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
+  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder:z-ai/glm-4.6"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo:gpt-5"
   "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
   "google:gemini-2.5-pro:gemini-2.5-flash"
+  "tetrate:claude-sonnet-4-20250514"
 )
 
 # In CI, only run Databricks tests if DATABRICKS_HOST and DATABRICKS_TOKEN are set
