@@ -225,7 +225,17 @@ where
         SessionType::Hidden,
     )
     .await?;
-    let mut cli_session = CliSession::new(agent, session.id, false, None, None, None, None).await;
+    let mut cli_session = CliSession::new(
+        agent,
+        session.id,
+        false,
+        None,
+        None,
+        None,
+        None,
+        "text".to_string(),
+    )
+    .await;
 
     let mut error = None;
     for message in &messages {
