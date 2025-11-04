@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Moon, Sliders, Sun, Palette, type LucideIcon } from 'lucide-react';
+import { Moon, Sliders, Sun, type LucideIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { CustomColorPicker } from './CustomColorPicker';
@@ -219,8 +219,7 @@ export function ThemeSelector({
       <div className={cn(!horizontal && 'px-3', 'py-3')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <Palette className="h-4 w-4 text-text-muted" />
+            <div className="mb-1">
               <span className="leading-none text-text-default">Custom Accent</span>
             </div>
             <p className="text-sm text-text-muted">Customize the look and feel of goose</p>
