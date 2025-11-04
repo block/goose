@@ -221,9 +221,9 @@ export function ThemeSelector({
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <Palette className="h-4 w-4 text-text-muted" />
-              <span className="text-xs text-text-default">Custom Accent</span>
+              <span className="leading-none text-text-default">Custom Accent</span>
             </div>
-            <p className="text-xs text-text-muted">Customize the look and feel of goose</p>
+            <p className="text-sm text-text-muted">Customize the look and feel of goose</p>
           </div>
           <Switch
             checked={customColorEnabled}
