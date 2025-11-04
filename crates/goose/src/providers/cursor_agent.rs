@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::RequestLog;
+use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -101,34 +101,11 @@ impl CursorAgentProvider {
         None
     }
 
-    /// Filter out the Extensions section from the system prompt
-    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
-        if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
-            let after_extensions = &system[extensions_start..];
-            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
-                let before_extensions = &system[..extensions_start];
-                let next_section_start = extensions_start + next_section_pos + 1;
-                let after_next_section = &system[next_section_start..];
-                format!("{}{}", before_extensions.trim_end(), after_next_section)
-            } else {
-                // No next section found, just remove everything from Extensions onward
-                system[..extensions_start].trim_end().to_string()
-            }
-        } else {
-            // No Extensions section found, return original
-            system.to_string()
-        }
-    }
-
     /// Convert goose messages to a simple prompt format for cursor-agent CLI
     fn messages_to_cursor_agent_format(&self, system: &str, messages: &[Message]) -> String {
         let mut full_prompt = String::new();
 
-        // Add system prompt
-        let filtered_system = self.filter_extensions_from_system_prompt(system);
+        let filtered_system = filter_extensions_from_system_prompt(system);
         full_prompt.push_str(&filtered_system);
         full_prompt.push_str("\n\n");
 

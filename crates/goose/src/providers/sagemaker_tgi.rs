@@ -246,7 +246,7 @@ impl SageMakerTgiProvider {
         // Remove any remaining HTML-like tags using a simple pattern
         // This is a basic implementation - for production use, consider using a proper HTML parser
         while let Some(start) = result.find('<') {
-            if let Some(end) = result[start..].find('>') {
+            if let Some(end) = result.get(start..).and_then(|s| s.find('>')) {
                 result.replace_range(start..start + end + 1, "");
             } else {
                 break;

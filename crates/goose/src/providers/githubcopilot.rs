@@ -169,7 +169,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }
