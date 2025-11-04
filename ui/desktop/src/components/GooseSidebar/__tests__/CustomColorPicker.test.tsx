@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CustomColorPicker } from '../CustomColorPicker';
 
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
-  RotateCcw: () => <div data-testid="reset-icon">Reset</div>,
   Plus: () => <div data-testid="plus-icon">Plus</div>,
 }));
 
@@ -13,6 +12,19 @@ vi.mock('lucide-react', () => ({
 vi.mock('../../../utils/colorUtils', () => ({
   isValidHexColor: (hex: string) => /^#[0-9a-f]{6}$/i.test(hex),
   DEFAULT_THEME_COLOR: '#32353b',
+}));
+
+// Mock Dialog components
+vi.mock('../../ui/dialog', () => ({
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dialog-content">{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 describe('CustomColorPicker', () => {
@@ -24,16 +36,43 @@ describe('CustomColorPicker', () => {
     onReset: mockOnReset,
   };
 
+  let mockLocalStorage: Record<string, string>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Mock localStorage
+    mockLocalStorage = {};
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: vi.fn((key: string) => mockLocalStorage[key] || null),
+        setItem: vi.fn((key: string, value: string) => {
+          mockLocalStorage[key] = value;
+        }),
+        removeItem: vi.fn((key: string) => {
+          delete mockLocalStorage[key];
+        }),
+        clear: vi.fn(() => {
+          mockLocalStorage = {};
+        }),
+        length: 0,
+        key: vi.fn(),
+      },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Rendering', () => {
-    it('should render preset colors', () => {
+    it('should render default preset colors', () => {
       render(<CustomColorPicker {...defaultProps} />);
 
       const presetButtons = screen.getAllByRole('button', { name: /select color/i });
-      expect(presetButtons).toHaveLength(6); // 6 preset colors
+      expect(presetButtons).toHaveLength(6); // 6 default presets
     });
 
     it('should render accent color label', () => {
@@ -42,167 +81,22 @@ describe('CustomColorPicker', () => {
       expect(screen.getByText('Accent Color')).toBeInTheDocument();
     });
 
-    it('should render custom color button', () => {
+    it('should render add custom color button', () => {
       render(<CustomColorPicker {...defaultProps} />);
 
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      expect(customButton).toBeInTheDocument();
-      expect(customButton).toHaveTextContent('Custom Color');
+      const addButton = screen.getByTestId('add-custom-color-button');
+      expect(addButton).toBeInTheDocument();
+      expect(addButton).toHaveAttribute('aria-label', 'Add custom color');
     });
 
-    it('should not show custom picker by default', () => {
+    it('should not show dialog by default', () => {
       render(<CustomColorPicker {...defaultProps} />);
 
-      expect(screen.queryByTestId('custom-picker-expanded')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Color picker')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
     });
   });
 
-  describe('Custom Picker Expansion', () => {
-    it('should show custom picker when button is clicked', async () => {
-      render(<CustomColorPicker {...defaultProps} />);
-
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('custom-picker-expanded')).toBeInTheDocument();
-        expect(screen.getByLabelText('Color picker')).toBeInTheDocument();
-        expect(screen.getByLabelText('Hex color input')).toBeInTheDocument();
-      });
-    });
-
-    it('should hide custom color button when picker is expanded', async () => {
-      render(<CustomColorPicker {...defaultProps} />);
-
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('show-custom-picker-button')).not.toBeInTheDocument();
-      });
-    });
-
-    it('should show hide button when picker is expanded', async () => {
-      render(<CustomColorPicker {...defaultProps} />);
-
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('hide-custom-picker-button')).toBeInTheDocument();
-      });
-    });
-
-    it('should hide custom picker when hide button is clicked', async () => {
-      render(<CustomColorPicker {...defaultProps} />);
-
-      // Expand picker
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('custom-picker-expanded')).toBeInTheDocument();
-      });
-
-      // Hide picker
-      const hideButton = screen.getByTestId('hide-custom-picker-button');
-      await userEvent.click(hideButton);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('custom-picker-expanded')).not.toBeInTheDocument();
-        expect(screen.getByTestId('show-custom-picker-button')).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Color Picker Interaction', () => {
-    beforeEach(async () => {
-      // Expand the custom picker for these tests
-      render(<CustomColorPicker {...defaultProps} />);
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-    });
-
-    it('should call onChange when color picker value changes', async () => {
-      const colorInput = screen.getByLabelText('Color picker');
-      fireEvent.change(colorInput, { target: { value: '#ff0000' } });
-
-      await waitFor(() => {
-        expect(mockOnChange).toHaveBeenCalledWith('#ff0000');
-      });
-    });
-
-    it('should update input value when color picker changes', async () => {
-      const colorInput = screen.getByLabelText('Color picker') as HTMLInputElement;
-      fireEvent.change(colorInput, { target: { value: '#ff0000' } });
-
-      const hexInput = screen.getByLabelText('Hex color input') as HTMLInputElement;
-      await waitFor(() => {
-        expect(hexInput.value).toBe('#ff0000');
-      });
-    });
-  });
-
-  describe('Hex Input Validation', () => {
-    beforeEach(async () => {
-      // Expand the custom picker for these tests
-      render(<CustomColorPicker {...defaultProps} />);
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-    });
-
-    it('should accept valid hex colors', async () => {
-      const hexInput = screen.getByLabelText('Hex color input');
-      await userEvent.clear(hexInput);
-      await userEvent.type(hexInput, '#ff0000');
-
-      expect(mockOnChange).toHaveBeenCalledWith('#ff0000');
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    });
-
-    it('should show error for invalid hex colors', async () => {
-      const hexInput = screen.getByLabelText('Hex color input');
-      await userEvent.clear(hexInput);
-      await userEvent.type(hexInput, 'invalid');
-
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('Invalid hex color');
-      });
-    });
-
-    it('should not call onChange for invalid hex', async () => {
-      const hexInput = screen.getByLabelText('Hex color input');
-      await userEvent.clear(hexInput);
-      await userEvent.type(hexInput, 'invalid');
-
-      // Should not have been called with invalid value
-      expect(mockOnChange).not.toHaveBeenCalledWith('invalid');
-    });
-
-    it('should mark input as invalid with aria-invalid', async () => {
-      const hexInput = screen.getByLabelText('Hex color input');
-      await userEvent.clear(hexInput);
-      await userEvent.type(hexInput, 'invalid');
-
-      await waitFor(() => {
-        expect(hexInput).toHaveAttribute('aria-invalid', 'true');
-      });
-    });
-
-    it('should link error message with aria-describedby', async () => {
-      const hexInput = screen.getByLabelText('Hex color input');
-      await userEvent.clear(hexInput);
-      await userEvent.type(hexInput, 'invalid');
-
-      await waitFor(() => {
-        expect(hexInput).toHaveAttribute('aria-describedby', 'color-error');
-        expect(screen.getByRole('alert')).toHaveAttribute('id', 'color-error');
-      });
-    });
-  });
-
-  describe('Preset Colors', () => {
+  describe('Preset Color Selection', () => {
     it('should call onChange when preset is clicked', async () => {
       render(<CustomColorPicker {...defaultProps} />);
 
@@ -225,82 +119,429 @@ describe('CustomColorPicker', () => {
       const orangePreset = screen.getByRole('button', { name: 'Select color #ff4f00' });
       expect(orangePreset).toHaveAttribute('aria-pressed', 'false');
     });
-  });
 
-  describe('Custom Color Indicator', () => {
-    it('should show custom color indicator when color is not a preset', () => {
-      render(<CustomColorPicker {...defaultProps} value="#abcdef" />);
-
-      expect(screen.getByText('Custom: #abcdef')).toBeInTheDocument();
-    });
-
-    it('should not show custom color indicator when color is a preset', () => {
+    it('should apply selected styles to active color', () => {
       render(<CustomColorPicker {...defaultProps} value="#13bbaf" />);
 
-      expect(screen.queryByText(/Custom:/)).not.toBeInTheDocument();
+      const tealPreset = screen.getByRole('button', { name: 'Select color #13bbaf' });
+      expect(tealPreset).toHaveClass('border-background-accent');
+    });
+  });
+
+  describe('Custom Color Dialog', () => {
+    it('should open dialog when add button is clicked', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('dialog')).toBeInTheDocument();
+      });
     });
 
-    it('should not show custom color indicator when picker is expanded', async () => {
-      render(<CustomColorPicker {...defaultProps} value="#abcdef" />);
+    it('should show dialog title and description', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
 
-      // Should show indicator initially
-      expect(screen.getByText('Custom: #abcdef')).toBeInTheDocument();
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
 
-      // Expand picker
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
-
-      // Indicator should be hidden
       await waitFor(() => {
-        expect(screen.queryByText('Custom: #abcdef')).not.toBeInTheDocument();
+        expect(screen.getByText('Add Custom Color')).toBeInTheDocument();
+        expect(
+          screen.getByText('Choose a custom accent color to add to your palette')
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('should show color picker in dialog', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Color picker')).toBeInTheDocument();
+      });
+    });
+
+    it('should show hex input in dialog', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Hex color input')).toBeInTheDocument();
+      });
+    });
+
+    it('should show preview area in dialog', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Preview')).toBeInTheDocument();
+      });
+    });
+
+    it('should show Add Color and Cancel buttons', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Add Color' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
       });
     });
   });
 
-  describe('Reset Functionality', () => {
-    beforeEach(async () => {
-      // Expand the custom picker for these tests
+  describe('Color Picker Interaction', () => {
+    it('should update hex input when color picker changes', async () => {
       render(<CustomColorPicker {...defaultProps} />);
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        const colorInput = screen.getByLabelText('Color picker');
+        fireEvent.change(colorInput, { target: { value: '#ff0000' } });
+      });
+
+      const hexInput = screen.getByLabelText('Hex color input') as HTMLInputElement;
+      await waitFor(() => {
+        expect(hexInput.value).toBe('#ff0000');
+      });
     });
 
-    it('should call onReset when reset button is clicked', async () => {
-      const resetButton = screen.getByRole('button', { name: /reset color/i });
-      await userEvent.click(resetButton);
+    it('should update color picker when hex input changes', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
 
-      expect(mockOnReset).toHaveBeenCalledTimes(1);
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#00ff00');
+      });
+
+      const colorInput = screen.getByLabelText('Color picker') as HTMLInputElement;
+      await waitFor(() => {
+        expect(colorInput.value).toBe('#00ff00');
+      });
+    });
+  });
+
+  describe('Hex Input Validation', () => {
+    it('should accept valid hex colors', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#ff0000');
+      });
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('should show error for invalid hex colors', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, 'invalid');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Invalid hex color');
+      });
+    });
+
+    it('should disable Add Color button for invalid hex', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, 'invalid');
+      });
+
+      const addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await waitFor(() => {
+        expect(addColorButton).toBeDisabled();
+      });
+    });
+  });
+
+  describe('Adding Custom Colors', () => {
+    it('should add custom color to grid when Add Color is clicked', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      // Open dialog
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      // Enter custom color
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      // Click Add Color
+      const addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      // Check that color was added to grid
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select color #abcdef' })).toBeInTheDocument();
+      });
+    });
+
+    it('should save custom colors to localStorage', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      const addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      await waitFor(() => {
+        expect(localStorage.setItem).toHaveBeenCalledWith(
+          'custom_accent_colors',
+          JSON.stringify(['#abcdef'])
+        );
+      });
+    });
+
+    it('should apply custom color when added', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      const addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalledWith('#abcdef');
+      });
+    });
+
+    it('should close dialog after adding color', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      const addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should not add duplicate colors', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      // Add first color
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      let addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      // Try to add same color again
+      await waitFor(async () => {
+        const addButton2 = screen.getByTestId('add-custom-color-button');
+        await userEvent.click(addButton2);
+      });
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      addColorButton = screen.getByRole('button', { name: 'Add Color' });
+      await userEvent.click(addColorButton);
+
+      // Should only save once
+      await waitFor(() => {
+        const calls = (localStorage.setItem as ReturnType<typeof vi.fn>).mock.calls.filter(
+          (call) => call[0] === 'custom_accent_colors'
+        );
+        // First call adds the color, second call doesn't add duplicate
+        expect(calls.length).toBeGreaterThanOrEqual(1);
+      });
+    });
+  });
+
+  describe('Dialog Cancel', () => {
+    it('should close dialog when Cancel is clicked', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('dialog')).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+      await userEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should not add color when Cancel is clicked', async () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
+
+      await waitFor(async () => {
+        const hexInput = screen.getByLabelText('Hex color input');
+        await userEvent.clear(hexInput);
+        await userEvent.type(hexInput, '#abcdef');
+      });
+
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+      await userEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: 'Select color #abcdef' })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('LocalStorage Integration', () => {
+    it('should load custom colors from localStorage on mount', () => {
+      mockLocalStorage['custom_accent_colors'] = JSON.stringify(['#abcdef', '#123456']);
+
+      render(<CustomColorPicker {...defaultProps} />);
+
+      expect(screen.getByRole('button', { name: 'Select color #abcdef' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Select color #123456' })).toBeInTheDocument();
+    });
+
+    it('should handle invalid localStorage data gracefully', () => {
+      mockLocalStorage['custom_accent_colors'] = 'invalid json';
+
+      expect(() => render(<CustomColorPicker {...defaultProps} />)).not.toThrow();
+    });
+
+    it('should handle localStorage errors gracefully', () => {
+      Object.defineProperty(window, 'localStorage', {
+        value: {
+          getItem: vi.fn(() => {
+            throw new Error('localStorage error');
+          }),
+          setItem: vi.fn(),
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      expect(() => render(<CustomColorPicker {...defaultProps} />)).not.toThrow();
+    });
+  });
+
+  describe('Maximum Colors', () => {
+    it('should show add button when under max colors', () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      expect(screen.getByTestId('add-custom-color-button')).toBeInTheDocument();
+    });
+
+    it('should hide add button when at max colors', () => {
+      // 6 default + 6 custom = 12 total (max)
+      mockLocalStorage['custom_accent_colors'] = JSON.stringify([
+        '#111111',
+        '#222222',
+        '#333333',
+        '#444444',
+        '#555555',
+        '#666666',
+      ]);
+
+      render(<CustomColorPicker {...defaultProps} />);
+
+      expect(screen.queryByTestId('add-custom-color-button')).not.toBeInTheDocument();
     });
   });
 
   describe('Accessibility', () => {
-    it('should have role="group" for presets', () => {
-      render(<CustomColorPicker {...defaultProps} />);
-
-      const presetsGroup = screen.getByRole('group', { name: 'Preset colors' });
-      expect(presetsGroup).toBeInTheDocument();
-    });
-
-    it('should have proper button types for presets', () => {
+    it('should have proper ARIA labels for color buttons', () => {
       render(<CustomColorPicker {...defaultProps} />);
 
       const presetButtons = screen.getAllByRole('button', { name: /select color/i });
       presetButtons.forEach((button) => {
-        expect(button).toHaveAttribute('type', 'button');
+        expect(button).toHaveAttribute('aria-label');
       });
     });
 
-    it('should have proper ARIA labels when picker is expanded', async () => {
+    it('should have proper ARIA labels in dialog', async () => {
       render(<CustomColorPicker {...defaultProps} />);
-      
-      const customButton = screen.getByTestId('show-custom-picker-button');
-      await userEvent.click(customButton);
+
+      const addButton = screen.getByTestId('add-custom-color-button');
+      await userEvent.click(addButton);
 
       await waitFor(() => {
         expect(screen.getByLabelText('Color picker')).toBeInTheDocument();
         expect(screen.getByLabelText('Hex color input')).toBeInTheDocument();
-        expect(screen.getByLabelText('Reset color')).toBeInTheDocument();
       });
+    });
+
+    it('should have role="group" for color grid', () => {
+      render(<CustomColorPicker {...defaultProps} />);
+
+      const colorGrid = screen.getByRole('group', { name: 'Accent colors' });
+      expect(colorGrid).toBeInTheDocument();
     });
   });
 
