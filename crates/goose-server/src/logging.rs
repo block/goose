@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::path::PathBuf;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
@@ -8,20 +7,15 @@ use tracing_subscriber::{
 
 use goose::tracing::{langfuse_layer, otlp_layer};
 
-/// Returns the directory where log files should be stored.
-/// Creates the directory structure if it doesn't exist.
-fn get_log_directory() -> Result<PathBuf> {
-    goose::logging::get_log_directory("server", true)
-}
-
 /// Sets up the logging infrastructure for the application.
 /// This includes:
 /// - File-based logging with JSON formatting (DEBUG level)
 /// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
 pub fn setup_logging(name: Option<&str>) -> Result<()> {
-    // Set up file appender for goose module logs
-    let log_dir = get_log_directory()?;
+    let _ = goose::logging::cleanup_old_logs("server");
+    let _ = goose::logging::cleanup_old_logs("llm");
+    let log_dir = goose::logging::get_log_directory("server", true)?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
     // Create log file name by prefixing with timestamp
@@ -31,9 +25,9 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         format!("{}.log", timestamp)
     };
 
-    // Create non-rolling file appender for detailed logs
+    // Create daily rolling file appender for detailed logs
     let file_appender =
-        tracing_appender::rolling::RollingFileAppender::new(Rotation::NEVER, log_dir, log_filename);
+        tracing_appender::rolling::RollingFileAppender::new(Rotation::DAILY, log_dir, log_filename);
 
     // Create JSON file logging layer
     let file_layer = fmt::layer()

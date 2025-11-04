@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Once;
 use tokio::sync::Mutex;
@@ -15,12 +14,6 @@ use goose_bench::error_capture::ErrorCaptureLayer;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
-
-/// Returns the directory where log files should be stored.
-/// Creates the directory structure if it doesn't exist.
-fn get_log_directory() -> Result<PathBuf> {
-    goose::logging::get_log_directory("cli", true)
-}
 
 /// Sets up the logging infrastructure for the application.
 /// This includes:
@@ -50,8 +43,9 @@ fn setup_logging_internal(
 
     let mut setup = || {
         result = (|| {
-            // Set up file appender for goose module logs
-            let log_dir = get_log_directory()?;
+            let _ = goose::logging::cleanup_old_logs("cli");
+            let _ = goose::logging::cleanup_old_logs("llm");
+            let log_dir = goose::logging::get_log_directory("cli", true)?;
             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
             // Create log file name by prefixing with timestamp
@@ -61,9 +55,9 @@ fn setup_logging_internal(
                 format!("{}.log", timestamp)
             };
 
-            // Create non-rolling file appender for detailed logs
+            // Create daily rolling file appender for detailed logs
             let file_appender = tracing_appender::rolling::RollingFileAppender::new(
-                Rotation::NEVER,
+                Rotation::DAILY,
                 log_dir,
                 log_filename,
             );
@@ -177,7 +171,7 @@ mod tests {
     #[test]
     fn test_log_directory_creation() {
         let _temp_dir = setup_temp_home();
-        let log_dir = get_log_directory().unwrap();
+        let log_dir = goose::logging::get_log_directory("cli", true).unwrap();
         assert!(log_dir.exists());
         assert!(log_dir.is_dir());
 

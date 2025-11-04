@@ -2,6 +2,7 @@ use crate::config::paths::Paths;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 
 /// Returns the directory where log files should be stored for a specific component.
 /// Creates the directory structure if it doesn't exist.
@@ -27,6 +28,42 @@ pub fn get_log_directory(component: &str, use_date_subdir: bool) -> Result<PathB
     fs::create_dir_all(&log_dir).context("Failed to create log directory")?;
 
     Ok(log_dir)
+}
+
+pub fn cleanup_old_logs(component: &str) -> Result<()> {
+    let base_log_dir = Paths::in_state_dir("logs");
+    let component_dir = base_log_dir.join(component);
+
+    if !component_dir.exists() {
+        return Ok(());
+    }
+
+    let two_weeks = SystemTime::now() - Duration::from_secs(14 * 24 * 60 * 60);
+    let entries = fs::read_dir(&component_dir).context("Failed to read log directory")?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if let Ok(metadata) = entry.metadata() {
+            if let Ok(modified) = metadata.modified() {
+                if modified < two_weeks {
+                    if path.is_dir() {
+                        if let Err(e) = fs::remove_dir_all(&path) {
+                            tracing::warn!("Failed to remove old log directory {:?}: {}", path, e);
+                        } else {
+                            tracing::debug!("Removed old log directory: {:?}", path);
+                        }
+                    } else if let Err(e) = fs::remove_file(&path) {
+                        tracing::warn!("Failed to remove old log file {:?}: {}", path, e);
+                    } else {
+                        tracing::debug!("Removed old log file: {:?}", path);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

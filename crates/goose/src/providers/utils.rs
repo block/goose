@@ -471,7 +471,7 @@ impl RequestLog {
     where
         Payload: Serialize,
     {
-        let logs_dir = Paths::in_state_dir("logs");
+        let logs_dir = Paths::in_state_dir("logs").join("llm");
         std::fs::create_dir_all(&logs_dir)?;
 
         let request_id = Uuid::new_v4();
@@ -529,7 +529,7 @@ impl RequestLog {
     fn finish(&mut self) -> Result<()> {
         if let Some(mut writer) = self.writer.take() {
             writer.flush()?;
-            let logs_dir = Paths::in_state_dir("logs");
+            let logs_dir = Paths::in_state_dir("logs").join("llm");
             let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
             for i in (0..LOGS_TO_KEEP - 1).rev() {
