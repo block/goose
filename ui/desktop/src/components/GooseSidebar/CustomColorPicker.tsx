@@ -136,7 +136,7 @@ export function CustomColorPicker({ value, onChange, onReset, className }: Custo
   return (
     <div className={cn(className)}>
       {/* Color Grid */}
-      <div className="grid grid-cols-6 gap-1.5" role="group" aria-label="Accent colors">
+      <div className="grid grid-cols-6 gap-1" role="group" aria-label="Accent colors">
         {allColors.map((color) => (
           <button
             key={color}
