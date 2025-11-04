@@ -244,7 +244,7 @@ impl CursorAgentProvider {
             println!("Original system prompt length: {} chars", system.len());
             println!(
                 "Filtered system prompt length: {} chars",
-                self.filter_extensions_from_system_prompt(system).len()
+                filter_extensions_from_system_prompt(system).len()
             );
             println!("Full prompt: {}", prompt);
             println!("Model: {}", self.model.model_name);
