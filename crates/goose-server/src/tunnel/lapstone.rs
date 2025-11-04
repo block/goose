@@ -286,6 +286,8 @@ async fn run_tunnel_loop(
 
     let url = format!("{}/connect?agent_id={}", ws_url, agent_id);
 
+    let ws_tx: WebSocketSender = Arc::new(RwLock::new(None));
+
     loop {
         info!("Connecting to {}...", url);
 
@@ -315,7 +317,6 @@ async fn run_tunnel_loop(
                     info!("✓ TCP keep-alive enabled (30s interval)");
                 }
 
-                // Prevent socket from being closed when dropped
                 std::mem::forget(socket);
 
                 stream
@@ -333,7 +334,7 @@ async fn run_tunnel_loop(
         info!("✓ Public URL: {}", public_url);
 
         let (write, mut read) = ws_stream.split();
-        let ws_tx = Arc::new(RwLock::new(Some(write)));
+        *ws_tx.write().await = Some(write);
         let last_activity = Arc::new(RwLock::new(Instant::now()));
 
         // Spawn idle timeout checker
