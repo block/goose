@@ -145,11 +145,10 @@ pub async fn check_if_compaction_needed(
     agent: &Agent,
     conversation: &Conversation,
     threshold_override: Option<f64>,
-    session_metadata: Option<&crate::session::Session>,
+    session: &crate::session::Session,
 ) -> Result<bool> {
     let messages = conversation.messages();
     let config = Config::global();
-    // TODO(Douwe): check the default here; it seems to reset to 0.3 sometimes
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
@@ -159,7 +158,7 @@ pub async fn check_if_compaction_needed(
     let provider = agent.provider().await?;
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
+    let (current_tokens, token_source) = match session.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()

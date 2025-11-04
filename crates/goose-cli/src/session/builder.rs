@@ -11,6 +11,7 @@ use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 
 use goose::agents::extension::PlatformExtensionContext;
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
@@ -25,7 +26,7 @@ use tokio::task::JoinSet;
 /// including session identification, extension configuration, and debug settings.
 #[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
-    /// Optional session ID for resuming or identifying an existing session
+    /// Session id, optional need to deduce from context
     pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
@@ -132,8 +133,14 @@ async fn offer_extension_debugging_help(
         }
     }
 
-    // Create the debugging session
-    let mut debug_session = CliSession::new(debug_agent, None, false, None, None, None, None).await;
+    let session = SessionManager::create_session(
+        std::env::current_dir()?,
+        "CLI Session".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+    let mut debug_session =
+        CliSession::new(debug_agent, session.id, false, None, None, None, None).await;
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -278,12 +285,20 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    let session_id: Option<String> = if session_config.no_session {
-        None
+    let session_id: String = if session_config.no_session {
+        let working_dir = std::env::current_dir().expect("Could not get working directory");
+        let session = SessionManager::create_session(
+            working_dir,
+            "CLI Session".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("Could not create session");
+        session.id
     } else if session_config.resume {
         if let Some(session_id) = session_config.session_id {
             match SessionManager::get_session(&session_id, false).await {
-                Ok(_) => Some(session_id),
+                Ok(_) => session_id,
                 Err(_) => {
                     output::render_error(&format!(
                         "Cannot resume session {} - no such session exists",
@@ -294,7 +309,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         } else {
             match SessionManager::list_sessions().await {
-                Ok(sessions) if !sessions.is_empty() => Some(sessions[0].id.clone()),
+                Ok(sessions) if !sessions.is_empty() => sessions[0].id.clone(),
                 _ => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
@@ -302,46 +317,44 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         }
     } else {
-        session_config.session_id
+        session_config.session_id.unwrap()
     };
 
     agent
         .extension_manager
         .set_context(PlatformExtensionContext {
-            session_id: session_id.clone(),
+            session_id: Some(session_id.clone()),
             extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
             tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
         })
         .await;
 
     if session_config.resume {
-        if let Some(session_id) = session_id.as_ref() {
-            let metadata = SessionManager::get_session(session_id, false)
-                .await
-                .unwrap_or_else(|e| {
-                    output::render_error(&format!("Failed to read session metadata: {}", e));
-                    process::exit(1);
-                });
+        let session = SessionManager::get_session(&session_id, false)
+            .await
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to read session metadata: {}", e));
+                process::exit(1);
+            });
 
-            let current_workdir =
-                std::env::current_dir().expect("Failed to get current working directory");
-            if current_workdir != metadata.working_dir {
-                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
+        let current_workdir =
+            std::env::current_dir().expect("Failed to get current working directory");
+        if current_workdir != session.working_dir {
+            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
                     .initial_value(true)
                     .interact().expect("Failed to get user input");
 
-                if change_workdir {
-                    if !metadata.working_dir.exists() {
-                        output::render_error(&format!(
-                            "Cannot switch to original working directory - {} no longer exists",
-                            style(metadata.working_dir.display()).cyan()
-                        ));
-                    } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
-                        output::render_error(&format!(
-                            "Failed to switch to original working directory: {}",
-                            e
-                        ));
-                    }
+            if change_workdir {
+                if !session.working_dir.exists() {
+                    output::render_error(&format!(
+                        "Cannot switch to original working directory - {} no longer exists",
+                        style(session.working_dir.display()).cyan()
+                    ));
+                } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
+                    output::render_error(&format!(
+                        "Failed to switch to original working directory: {}",
+                        e
+                    ));
                 }
             }
         }
@@ -354,22 +367,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else if session_config.resume {
-        if let Some(session_id) = session_id.as_ref() {
-            match SessionManager::get_session(session_id, false).await {
-                Ok(session_data) => {
-                    if let Some(saved_state) =
-                        EnabledExtensionsState::from_extension_data(&session_data.extension_data)
-                    {
-                        check_missing_extensions_or_exit(&saved_state.extensions);
-                        saved_state.extensions
-                    } else {
-                        get_enabled_extensions()
-                    }
+        match SessionManager::get_session(&session_id, false).await {
+            Ok(session_data) => {
+                if let Some(saved_state) =
+                    EnabledExtensionsState::from_extension_data(&session_data.extension_data)
+                {
+                    check_missing_extensions_or_exit(&saved_state.extensions);
+                    saved_state.extensions
+                } else {
+                    get_enabled_extensions()
                 }
-                _ => get_enabled_extensions(),
             }
-        } else {
-            get_enabled_extensions()
+            _ => get_enabled_extensions(),
         }
     } else {
         get_enabled_extensions()
@@ -560,23 +569,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         }
     }
 
-    if let Some(session_id) = session_id.as_ref() {
-        let session_config_for_save = SessionConfig {
-            id: session_id.clone(),
-            working_dir: std::env::current_dir().unwrap_or_default(),
-            schedule_id: None,
-            execution_mode: None,
-            max_turns: None,
-            retry_config: None,
-        };
+    let session_config_for_save = SessionConfig {
+        id: session_id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
 
-        if let Err(e) = session
-            .agent
-            .save_extension_state(&session_config_for_save)
-            .await
-        {
-            tracing::warn!("Failed to save initial extension state: {}", e);
-        }
+    if let Err(e) = session
+        .agent
+        .save_extension_state(&session_config_for_save)
+        .await
+    {
+        tracing::warn!("Failed to save initial extension state: {}", e);
     }
 
     // Add CLI-specific system prompt extension
@@ -603,7 +608,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             session_config.resume,
             &provider_name,
             &model_name,
-            &session_id,
+            &Some(session_id),
             Some(&provider_for_display),
         );
     }
