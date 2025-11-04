@@ -83,7 +83,9 @@ pub fn extract_function_name_for_kind(
         for i in 0..node.child_count() {
             if let Some(child) = node.child(i) {
                 if child.kind() == "type_identifier" {
-                    return source.get(child.byte_range()).map(|s| format!("impl {}", s));
+                    return source
+                        .get(child.byte_range())
+                        .map(|s| format!("impl {}", s));
                 }
             }
         }

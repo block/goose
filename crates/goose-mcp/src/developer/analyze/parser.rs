@@ -103,7 +103,8 @@ impl ElementExtractor {
         source: &str,
         kinds: &[&str],
     ) -> Option<String> {
-        Self::find_child_by_kind(node, kinds).and_then(|child| source.get(child.byte_range()).map(|s| s.to_string()))
+        Self::find_child_by_kind(node, kinds)
+            .and_then(|child| source.get(child.byte_range()).map(|s| s.to_string()))
     }
 
     pub fn extract_with_depth(
@@ -219,7 +220,8 @@ impl ElementExtractor {
                 let Some(text) = source.get(node.byte_range()) else {
                     continue;
                 };
-                let line = source.get(..node.start_byte())
+                let line = source
+                    .get(..node.start_byte())
                     .map(|s| s.lines().count() + 1)
                     .unwrap_or(1);
 
@@ -293,15 +295,20 @@ impl ElementExtractor {
                 };
                 let start_pos = node.start_position();
 
-                let line_start = source.get(..node.start_byte())
+                let line_start = source
+                    .get(..node.start_byte())
                     .and_then(|s| s.rfind('\n'))
                     .map(|i| i + 1)
                     .unwrap_or(0);
-                let line_end = source.get(node.end_byte()..)
+                let line_end = source
+                    .get(node.end_byte()..)
                     .and_then(|s| s.find('\n'))
                     .map(|i| node.end_byte() + i)
                     .unwrap_or(source.len());
-                let context = source.get(line_start..line_end).map(|s| s.trim().to_string()).unwrap_or_default();
+                let context = source
+                    .get(line_start..line_end)
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
 
                 let caller_name = Self::find_containing_function(&node, source, language);
 
@@ -367,15 +374,20 @@ impl ElementExtractor {
                 };
                 let start_pos = node.start_position();
 
-                let line_start = source.get(..node.start_byte())
+                let line_start = source
+                    .get(..node.start_byte())
                     .and_then(|s| s.rfind('\n'))
                     .map(|i| i + 1)
                     .unwrap_or(0);
-                let line_end = source.get(node.end_byte()..)
+                let line_end = source
+                    .get(node.end_byte()..)
                     .and_then(|s| s.find('\n'))
                     .map(|i| node.end_byte() + i)
                     .unwrap_or(source.len());
-                let context = source.get(line_start..line_end).map(|s| s.trim().to_string()).unwrap_or_default();
+                let context = source
+                    .get(line_start..line_end)
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
 
                 let capture_name = query.capture_names()[capture.index as usize];
 

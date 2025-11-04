@@ -3210,7 +3210,8 @@ mod tests {
             ) {
                 let start_idx = start + start_tag.len();
                 if start_idx < end {
-                    let Some(path) = assistant_content.text.get(start_idx..end).map(|s| s.trim()) else {
+                    let Some(path) = assistant_content.text.get(start_idx..end).map(|s| s.trim())
+                    else {
                         panic!("Failed to extract path from assistant content");
                     };
                     println!("Extracted path: {}", path);
