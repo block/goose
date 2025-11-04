@@ -182,13 +182,6 @@ export function ThemeSelector({
     }
   }, []);
 
-  const handleResetColor = useCallback(() => {
-    setCustomColor(DEFAULT_THEME_COLOR);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem('custom_theme_color', DEFAULT_THEME_COLOR);
-    }
-  }, []);
-
   return (
     <div className={cn(!horizontal && 'px-1 py-2 space-y-3', className)}>
       {!hideTitle && <div className="text-xs text-text-default px-3">Theme</div>}
@@ -231,11 +224,7 @@ export function ThemeSelector({
         </div>
 
         {customColorEnabled && (
-          <CustomColorPicker
-            value={customColor}
-            onChange={handleCustomColorChange}
-            onReset={handleResetColor}
-          />
+          <CustomColorPicker value={customColor} onChange={handleCustomColorChange} />
         )}
       </div>
     </div>

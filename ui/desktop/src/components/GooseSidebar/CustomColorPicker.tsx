@@ -16,7 +16,6 @@ import { Input } from '../ui/input';
 interface CustomColorPickerProps {
   value: string;
   onChange: (color: string) => void;
-  onReset: () => void;
   className?: string;
 }
 
