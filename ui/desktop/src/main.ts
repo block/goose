@@ -487,6 +487,7 @@ let appConfig = {
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
 const windowPowerSaveBlockers = new Map<number, number>();
+let tunnelPowerSaveBlockerId: number | null = null;
 
 const createChat = async (
   app: App,
@@ -1228,6 +1229,13 @@ ipcMain.handle('start-tunnel', async () => {
   try {
     const { startTunnel } = await import('./utils/tunnel');
     const tunnelInfo = await startTunnel(globalGoosedPort, SERVER_SECRET);
+
+    // Start power save blocker to keep computer awake while tunnel is running
+    if (tunnelPowerSaveBlockerId === null) {
+      tunnelPowerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log(`[Main] Started tunnel power save blocker ${tunnelPowerSaveBlockerId}`);
+    }
+
     return tunnelInfo;
   } catch (error) {
     console.error('Error starting tunnel:', error);
@@ -1239,6 +1247,17 @@ ipcMain.handle('stop-tunnel', async () => {
   try {
     const { stopTunnel } = await import('./utils/tunnel');
     await stopTunnel(globalGoosedPort, SERVER_SECRET);
+
+    // Stop power save blocker when tunnel stops
+    if (tunnelPowerSaveBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(tunnelPowerSaveBlockerId);
+        console.log(`[Main] Stopped tunnel power save blocker ${tunnelPowerSaveBlockerId}`);
+      } catch (error) {
+        console.error(`[Main] Failed to stop tunnel power save blocker:`, error);
+      }
+      tunnelPowerSaveBlockerId = null;
+    }
   } catch (error) {
     console.error('Error stopping tunnel:', error);
     throw error;
