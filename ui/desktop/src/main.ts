@@ -466,25 +466,9 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
-// Get or generate persistent server secret
-function getOrGenerateServerSecret(): string {
-  if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return 'test';
-  }
-
-  const settings = loadSettings();
-  if (settings.serverSecret) {
-    return settings.serverSecret;
-  }
-
-  // Generate new secret and save it
-  const newSecret = crypto.randomBytes(32).toString('hex');
-  settings.serverSecret = newSecret;
-  saveSettings(settings);
-  return newSecret;
-}
-
-const SERVER_SECRET = getOrGenerateServerSecret();
+const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
+  ? 'test'
+  : crypto.randomBytes(32).toString('hex');
 
 // Track goosed port for tunnel
 let globalGoosedPort = 0;

@@ -17,9 +17,6 @@ export interface Settings {
   showDockIcon: boolean;
   schedulingEngine: SchedulingEngine;
   enableWakelock: boolean;
-  serverSecret?: string; // Server authentication secret - persistent across restarts
-  tunnelSecret?: string; // Deprecated - use serverSecret
-  tunnelAgentId?: string;
   tunnelMode?: TunnelMode;
   tunnelAutoStart?: boolean;
 }

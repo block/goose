@@ -115,29 +115,30 @@ impl TunnelManager {
 
         let result = match mode {
             TunnelMode::Lapstone => {
-                // Use the server secret from env var (same secret that authenticates API requests)
-                // This ensures the QR code secret matches what goosed expects
-                let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-                    .unwrap_or_else(|_| config.secret.clone().unwrap_or_else(generate_secret));
-
+                let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
+                let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
+                    .expect("GOOSE_SERVER__SECRET_KEY must be set for tunnel to work");
                 let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
-                // Update config with values (but don't persist server secret to disk for security)
                 self.update_config(|c| {
+                    c.secret = Some(tunnel_secret.clone());
                     c.agent_id = Some(agent_id.clone());
                 })
                 .await;
 
-                let info =
-                    lapstone::start(port, secret, agent_id, self.lapstone_handle.clone()).await?;
+                let info = lapstone::start(
+                    port,
+                    tunnel_secret,
+                    server_secret,
+                    agent_id,
+                    self.lapstone_handle.clone(),
+                )
+                .await?;
                 Ok(info)
             }
             TunnelMode::Tailscale => {
-                // Use server secret for tailscale too
-                let secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-                    .unwrap_or_else(|_| config.secret.clone().unwrap_or_else(generate_secret));
-
-                tailscale::start(port, secret).await
+                let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
+                tailscale::start(port, tunnel_secret).await
             }
         };
 

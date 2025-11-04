@@ -73,7 +73,12 @@ struct TunnelResponse {
     is_last_chunk: Option<bool>,
 }
 
-async fn handle_request(message: TunnelMessage, port: u16, ws_tx: WebSocketSender) -> Result<()> {
+async fn handle_request(
+    message: TunnelMessage,
+    port: u16,
+    ws_tx: WebSocketSender,
+    server_secret: String,
+) -> Result<()> {
     let request_id = message.request_id.clone();
     info!("→ {} {} [{}]", message.method, message.path, request_id);
 
@@ -89,12 +94,16 @@ async fn handle_request(message: TunnelMessage, port: u16, ws_tx: WebSocketSende
         _ => client.get(&url),
     };
 
-    // Forward headers as-is from the client request
     if let Some(headers) = &message.headers {
         for (key, value) in headers {
+            if key.to_lowercase() == "x-secret-key" {
+                continue;
+            }
             request_builder = request_builder.header(key, value);
         }
     }
+    
+    request_builder = request_builder.header("X-Secret-Key", &server_secret);
 
     if let Some(body) = &message.body {
         if message.method != "GET" && message.method != "HEAD" {
@@ -266,6 +275,7 @@ async fn send_response(ws_tx: WebSocketSender, response: TunnelResponse) -> Resu
 async fn run_tunnel_loop(
     port: u16,
     agent_id: String,
+    server_secret: String,
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 ) {
     let worker_url =
@@ -351,8 +361,10 @@ async fn run_tunnel_loop(
                     match serde_json::from_str::<TunnelMessage>(&text) {
                         Ok(tunnel_msg) => {
                             let ws_tx_clone = ws_tx.clone();
+                            let server_secret_clone = server_secret.clone();
                             tokio::spawn(async move {
-                                if let Err(e) = handle_request(tunnel_msg, port, ws_tx_clone).await
+                                if let Err(e) =
+                                    handle_request(tunnel_msg, port, ws_tx_clone, server_secret_clone).await
                                 {
                                     error!("Error handling request: {}", e);
                                 }
@@ -393,15 +405,17 @@ async fn run_tunnel_loop(
 
 pub async fn start(
     port: u16,
-    secret: String,
+    tunnel_secret: String,
+    server_secret: String,
     agent_id: String,
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 ) -> Result<TunnelInfo> {
     let agent_id_clone = agent_id.clone();
+    let server_secret_clone = server_secret;
     let handle_clone = handle.clone();
 
     let task = tokio::spawn(async move {
-        run_tunnel_loop(port, agent_id_clone, handle_clone).await;
+        run_tunnel_loop(port, agent_id_clone, server_secret_clone, handle_clone).await;
     });
 
     *handle.write().await = Some(task);
@@ -419,7 +433,7 @@ pub async fn start(
         ipv4: String::new(),
         ipv6: String::new(),
         hostname,
-        secret,
+        secret: tunnel_secret,
         port,
         pids: TunnelPids::default(),
     })
