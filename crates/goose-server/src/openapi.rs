@@ -6,7 +6,7 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights};
+use goose::session::{Session, SessionInsights, SessionType};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -458,6 +458,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::database::RestoreBackupResponse,
         super::routes::database::DeleteBackupsRequest,
         super::routes::database::DeleteBackupsResponse,
+        SessionType,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,

@@ -255,6 +255,7 @@ impl Agent {
     pub(crate) async fn update_session_metrics(
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
+        is_compaction_usage: bool,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
         let session = SessionManager::get_session(session_id, false).await?;
@@ -273,11 +274,23 @@ impl Agent {
         let accumulated_output =
             accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
 
+        let (current_total, current_input, current_output) = if is_compaction_usage {
+            // After compaction: summary output becomes new input context
+            let new_input = usage.usage.output_tokens;
+            (new_input, new_input, None)
+        } else {
+            (
+                usage.usage.total_tokens,
+                usage.usage.input_tokens,
+                usage.usage.output_tokens,
+            )
+        };
+
         SessionManager::update_session(session_id)
             .schedule_id(session_config.schedule_id.clone())
-            .total_tokens(usage.usage.total_tokens)
-            .input_tokens(usage.usage.input_tokens)
-            .output_tokens(usage.usage.output_tokens)
+            .total_tokens(current_total)
+            .input_tokens(current_input)
+            .output_tokens(current_output)
             .accumulated_total_tokens(accumulated_total)
             .accumulated_input_tokens(accumulated_input)
             .accumulated_output_tokens(accumulated_output)

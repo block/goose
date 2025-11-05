@@ -2,7 +2,7 @@
   [
     {
       "type": "text",
-      "text": "Command '['npm', 'install']' returned non-zero exit status 1."
+      "text": "Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue"
     }
   ]
 ]

@@ -1335,20 +1335,22 @@ impl DeveloperServer {
 
                 // Find the last space before AM/PM and replace it with U+202F
                 let space_pos = filename.rfind(meridian)
-                    .map(|pos| filename[..pos].trim_end().len())
+                    .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
                     .unwrap_or(0);
 
                 if space_pos > 0 {
                     let parent = path.parent().unwrap_or(Path::new(""));
-                    let new_filename = format!(
-                        "{}{}{}",
-                        &filename[..space_pos],
-                        '\u{202F}',
-                        &filename[space_pos+1..]
-                    );
-                    let new_path = parent.join(new_filename);
+                    if let (Some(before), Some(after)) = (filename.get(..space_pos), filename.get(space_pos+1..)) {
+                        let new_filename = format!(
+                            "{}{}{}",
+                            before,
+                            '\u{202F}',
+                            after
+                        );
+                        let new_path = parent.join(new_filename);
 
-                    return new_path;
+                        return new_path;
+                    }
                 }
             }
         }
@@ -3208,7 +3210,10 @@ mod tests {
             ) {
                 let start_idx = start + start_tag.len();
                 if start_idx < end {
-                    let path = assistant_content.text[start_idx..end].trim();
+                    let Some(path) = assistant_content.text.get(start_idx..end).map(|s| s.trim())
+                    else {
+                        panic!("Failed to extract path from assistant content");
+                    };
                     println!("Extracted path: {}", path);
 
                     let file_contents =

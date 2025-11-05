@@ -41,7 +41,7 @@ This shows that `authenticate` is a central function in your authentication flow
 
 ## Analysis Modes
 
-The `analyze` tool operates in three modes&mdash;Structure, Semantic, and Focus&mdash;depending on whether you’re analyzing directories, files, or symbols. Invoke it through natural language or direct commands with [parameters](#parameters).
+The `analyze` tool operates in three modes&mdash;Structure, Semantic, and Focus&mdash;depending on whether you’re analyzing directories, files, or symbols. Invoke it through natural language or direct commands with [parameters](#common-parameters).
 
 ### Understanding Project Organization
 

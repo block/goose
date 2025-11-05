@@ -354,6 +354,9 @@ export function useMessageStream({
                   }
 
                   case 'UpdateConversation': {
+                    // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+                    // Longterm fix is to only send the agent the new messages, not the entire conversation.
+                    currentMessages = parsedEvent.conversation;
                     setMessages(parsedEvent.conversation);
                     break;
                   }

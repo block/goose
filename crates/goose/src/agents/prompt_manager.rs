@@ -3,13 +3,16 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::Value;
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
-use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
+use crate::{
+    config::{Config, GooseMode},
+    prompt_template,
+    utils::sanitize_unicode_tags,
+};
 
 const MAX_EXTENSIONS: usize = 5;
 const MAX_TOOLS: usize = 50;
@@ -34,7 +37,7 @@ struct SystemPromptContext {
     current_date_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extension_tool_limits: Option<(usize, usize)>,
-    goose_mode: String,
+    goose_mode: GooseMode,
     is_autonomous: bool,
     enable_subagents: bool,
     max_extensions: usize,
@@ -106,9 +109,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .collect();
 
         let config = Config::global();
-        let goose_mode = config
-            .get_param("GOOSE_MODE")
-            .unwrap_or_else(|_| Cow::from("auto"));
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
         let extension_tool_limits = self
             .extension_tool_count
@@ -119,8 +120,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
-            goose_mode: goose_mode.to_string(),
-            is_autonomous: goose_mode == "auto",
+            goose_mode,
+            is_autonomous: goose_mode == GooseMode::Auto,
             enable_subagents: should_enabled_subagents(self.model_name.as_str()),
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
@@ -137,7 +138,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         });
 
         let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
-        if goose_mode == "chat" {
+        if goose_mode == GooseMode::Chat {
             system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),
