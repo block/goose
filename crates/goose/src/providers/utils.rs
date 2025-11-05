@@ -1,18 +1,21 @@
 use super::base::Usage;
 use super::errors::GoogleErrorCode;
+use crate::config::paths::Paths;
 use crate::model::ModelConfig;
-use anyhow::Result;
+use crate::providers::errors::{OpenAIError, ProviderError};
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::io::Read;
-use std::path::Path;
+use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-
-use crate::providers::errors::{OpenAIError, ProviderError};
+use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -45,6 +48,31 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
+pub fn filter_extensions_from_system_prompt(system: &str) -> String {
+    let Some(extensions_start) = system.find("# Extensions") else {
+        return system.to_string();
+    };
+
+    let Some(after_extensions) = system.get(extensions_start + 1..) else {
+        return system.to_string();
+    };
+
+    if let Some(next_section_pos) = after_extensions.find("\n# ") {
+        let Some(before) = system.get(..extensions_start) else {
+            return system.to_string();
+        };
+        let Some(after) = system.get(extensions_start + next_section_pos + 1..) else {
+            return system.to_string();
+        };
+        format!("{}{}", before.trim_end(), after)
+    } else {
+        system
+            .get(..extensions_start)
+            .map(|s| s.trim_end().to_string())
+            .unwrap_or_else(|| system.to_string())
+    }
+}
+
 fn check_context_length_exceeded(text: &str) -> bool {
     let check_phrases = [
         "too long",
@@ -65,6 +93,16 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
+fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>) -> String {
+    match payload {
+        Some(Value::Null) | None => format!(
+            "HTTP {}: No response body received from server",
+            status_code.as_u16()
+        ),
+        Some(p) => format!("HTTP {}: {}", status_code.as_u16(), p),
+    }
+}
+
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
@@ -76,41 +114,46 @@ pub fn map_http_error_to_provider_error(
                 "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
         Status: {}{}",
                 status,
-                payload.as_ref().map(|p| format!(". Response: {:?}", p)).unwrap_or_default()
+                payload.as_ref().map(|p| format!(". Response: {}", p)).unwrap_or_default()
             );
             ProviderError::Authentication(message)
         }
+        StatusCode::PAYLOAD_TOO_LARGE => {
+            let payload_str = if let Some(payload) = &payload {
+                payload.to_string()
+            } else {
+                "Payload is too large.".to_string()
+            };
+            ProviderError::ContextLengthExceeded(payload_str)
+        }
         StatusCode::BAD_REQUEST => {
-            let mut error_msg = "Unknown error".to_string();
+            let base_msg = format!("Request failed with status: {}", status);
             if let Some(payload) = &payload {
                 let payload_str = payload.to_string();
                 if check_context_length_exceeded(&payload_str) {
                     ProviderError::ContextLengthExceeded(payload_str)
                 } else {
-                    if let Some(error) = payload.get("error") {
-                        error_msg = error
-                            .get("message")
+                    ProviderError::RequestFailed(
+                        payload
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .or_else(|| payload.get("message"))
                             .and_then(|m| m.as_str())
-                            .unwrap_or("Unknown error")
-                            .to_string();
-                    }
-                    ProviderError::RequestFailed(format!(
-                        "Request failed with status: {}. Message: {}",
-                        status, error_msg
-                    ))
+                            .map(|msg| format!("{}. Message: {}", base_msg, msg))
+                            .unwrap_or(base_msg),
+                    )
                 }
             } else {
-                ProviderError::RequestFailed(format!(
-                    "Request failed with status: {}. Message: {}",
-                    status, error_msg
-                ))
+                ProviderError::RequestFailed(base_msg)
             }
         }
         StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
             details: format!("{:?}", payload),
             retry_delay: None,
         },
-        _ if status.is_server_error() => ProviderError::ServerError(format!("{:?}", payload)),
+        _ if status.is_server_error() => {
+            ProviderError::ServerError(format_server_error_message(status, payload.as_ref()))
+        }
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
@@ -289,12 +332,9 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                 retry_delay,
             })
         }
-        _ if final_status.is_server_error() => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
-        }
-        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
-        }
+        _ if final_status.is_server_error() => Err(ProviderError::ServerError(
+            format_server_error_message(final_status, payload.as_ref()),
+        )),
         _ => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
@@ -444,23 +484,95 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace<T1, T2>(
-    model_config: &ModelConfig,
-    payload: &T1,
-    response: &T2,
-    usage: &Usage,
-) where
-    T1: ?Sized + Serialize,
-    T2: ?Sized + Serialize,
-{
-    tracing::debug!(
-        model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
-        input = %serde_json::to_string_pretty(payload).unwrap_or_default(),
-        output = %serde_json::to_string_pretty(response).unwrap_or_default(),
-        input_tokens = ?usage.input_tokens.unwrap_or_default(),
-        output_tokens = ?usage.output_tokens.unwrap_or_default(),
-        total_tokens = ?usage.total_tokens.unwrap_or_default(),
-    );
+pub struct RequestLog {
+    writer: Option<BufWriter<File>>,
+    temp_path: PathBuf,
+}
+
+pub const LOGS_TO_KEEP: usize = 10;
+
+impl RequestLog {
+    pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
+    where
+        Payload: Serialize,
+    {
+        let logs_dir = Paths::in_state_dir("logs");
+
+        let request_id = Uuid::new_v4();
+        let temp_name = format!("llm_request.{request_id}.jsonl");
+        let temp_path = logs_dir.join(PathBuf::from(temp_name));
+
+        let mut writer = BufWriter::new(
+            File::options()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&temp_path)?,
+        );
+
+        let data = serde_json::json!({
+            "model_config": model_config,
+            "input": payload,
+        });
+        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
+
+        Ok(Self {
+            writer: Some(writer),
+            temp_path,
+        })
+    }
+
+    fn write_json(&mut self, line: &serde_json::Value) -> Result<()> {
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| anyhow!("logger is finished"))?;
+        writeln!(writer, "{}", serde_json::to_string(line)?)?;
+        Ok(())
+    }
+
+    pub fn error<E>(&mut self, error: E) -> Result<()>
+    where
+        E: Display,
+    {
+        self.write_json(&serde_json::json!({
+            "error": format!("{}", error),
+        }))
+    }
+
+    pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
+    where
+        Payload: Serialize,
+    {
+        self.write_json(&serde_json::json!({
+            "data": data,
+            "usage": usage,
+        }))
+    }
+
+    fn finish(&mut self) -> Result<()> {
+        if let Some(mut writer) = self.writer.take() {
+            writer.flush()?;
+            let logs_dir = crate::logging::prepare_log_directory("llm", true)?;
+            let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
+
+            for i in (0..LOGS_TO_KEEP - 1).rev() {
+                let _ = std::fs::rename(log_path(i), log_path(i + 1));
+            }
+
+            std::fs::rename(&self.temp_path, log_path(0))?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for RequestLog {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let _ = self.finish();
+    }
 }
 
 /// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.
@@ -929,12 +1041,12 @@ mod tests {
                     "The model 'gpt-5' does not exist (code: model_not_found, type: invalid_request_error) (status 404)".to_string(),
                 )),
             ),
-            // Non-JSON body error (tests parse failure path)
+            // Non-JSON body error (tests 413 PAYLOAD_TOO_LARGE -> ContextLengthExceeded)
             (
                 413,
                 Some(Value::String("Payload Too Large".to_string())),
-                Err(ProviderError::RequestFailed(
-                    "Request failed with status: 413 Payload Too Large".to_string(),
+                Err(ProviderError::ContextLengthExceeded(
+                    "Payload is too large.".to_string(),
                 )),
             ),
         ];
@@ -980,15 +1092,13 @@ mod tests {
     #[test]
     fn test_map_http_error_to_provider_error() {
         let test_cases = vec![
-            // UNAUTHORIZED/FORBIDDEN - with payload
             (
                 StatusCode::UNAUTHORIZED,
                 Some(json!({"error": "auth failed"})),
                 ProviderError::Authentication(
-                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: Object {\"error\": String(\"auth failed\")}".to_string(),
+                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: {\"error\":\"auth failed\"}".to_string(),
                 ),
             ),
-            // UNAUTHORIZED/FORBIDDEN - without payload
             (
                 StatusCode::FORBIDDEN,
                 None,
@@ -996,7 +1106,6 @@ mod tests {
                     "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 403 Forbidden".to_string(),
                 ),
             ),
-            // BAD_REQUEST - with context_length_exceeded detection
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "context_length_exceeded"}})),
@@ -1004,7 +1113,6 @@ mod tests {
                     "{\"error\":{\"message\":\"context_length_exceeded\"}}".to_string(),
                 ),
             ),
-            // BAD_REQUEST - with error.message extraction
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "Custom error"}})),
@@ -1012,15 +1120,13 @@ mod tests {
                     "Request failed with status: 400 Bad Request. Message: Custom error".to_string(),
                 ),
             ),
-            // BAD_REQUEST - without payload
             (
                 StatusCode::BAD_REQUEST,
                 None,
                 ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request. Message: Unknown error".to_string(),
+                    "Request failed with status: 400 Bad Request".to_string(),
                 ),
             ),
-            // TOO_MANY_REQUESTS
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 Some(json!({"retry_after": 60})),
@@ -1029,17 +1135,29 @@ mod tests {
                     retry_delay: None,
                 },
             ),
-            // is_server_error() without payload
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
-                ProviderError::ServerError("None".to_string()),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    None,
+                )),
             ),
-            // is_server_error() with payload
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some(Value::Null),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Some(&Value::Null),
+                )),
+            ),
             (
                 StatusCode::BAD_GATEWAY,
                 Some(json!({"error": "upstream error"})),
-                ProviderError::ServerError("Some(Object {\"error\": String(\"upstream error\")})".to_string()),
+                ProviderError::ServerError(format_server_error_message(
+                    StatusCode::BAD_GATEWAY,
+                    Some(&json!({"error": "upstream error"})),
+                )),
             ),
             // Default - any other status code
             (

@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import { PanelLeft, Settings } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/2IVPcjEr-yQ" /> 
 
@@ -28,7 +29,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="filesystem"
     extensionName="filesystem"
@@ -41,9 +42,17 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         "/path/to/other/allowed/dir"
     ]}
   />
+
+  After installing, update the extension with the actual paths to allowed directories:
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click `Extensions` in the sidebar
+  3. On the `Filesystem` card, click the <Settings className="inline" size={16} /> button
+  4. Edit the command to replace the placeholder paths with space-separated paths to allowed directories
+  5. Click `Save Changes`
+
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     1. Run the `configure` command:
     ```sh
     goose configure

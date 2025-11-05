@@ -11,6 +11,7 @@ import may2025Data from "./data/may-2025.json";
 import june2025Data from "./data/june-2025.json";
 import july2025Data from "./data/july-2025.json";
 import august2025Data from "./data/august-2025.json";
+import september2025Data from "./data/september-2025.json";
 import communityContentData from "./data/community-content.json";
 
 // Create a data map for easy access
@@ -20,6 +21,7 @@ const communityDataMap = {
   "june-2025": june2025Data,
   "july-2025": july2025Data,
   "august-2025": august2025Data,
+  "september-2025": september2025Data,
 };
 
 function UpcomingEventsSection() {
@@ -40,7 +42,7 @@ function UpcomingEventsSection() {
       {/* Call to Action */}
       <p className="italic text-textStandard">
         Want to join us on a livestream or have ideas for future events? 
-        Reach out to the team on <Link href="https://discord.gg/block-opensource">Discord</Link>.
+        Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>.
       </p>
     </section>
   );
@@ -201,7 +203,7 @@ function CommunityAllStarsSection() {
           <div className="text-sm">
             Want to be a Community All Star? Just start contributing on{' '}
             <Link href="https://github.com/block/goose">GitHub</Link>, helping others on{' '}
-            <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
+            <Link href="https://discord.gg/goose-oss">Discord</Link>, or share your 
             goose projects with the community! You can check out the{' '}
             <Link href="https://github.com/block/goose/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
             for more tips.

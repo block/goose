@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Diagram</title>
+
+    <script>
+        {{MERMAID_MIN}}
+    </script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            padding: 30px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2em;
+            font-weight: 300;
+            color: #333;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+        }
+
+        /* Mermaid specific styles */
+        .mermaid .node {
+            fill: #667eea !important;
+            stroke: #4a5fc1 !important;
+            stroke-width: 2px !important;
+        }
+
+        .mermaid .node text {
+            fill: white !important;
+            font-weight: 500 !important;
+        }
+
+        .mermaid .edgePath path {
+            stroke: #667eea !important;
+            stroke-width: 2px !important;
+        }
+
+        .mermaid .edgeLabel text {
+            fill: #333 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mermaid Diagram</h1>
+        </div>
+        <div class="mermaid">
+            {{MERMAID_CODE}}
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#4a5fc1',
+                lineColor: '#667eea',
+                sectionBkgColor: '#f8f9fa',
+                altSectionBkgColor: '#e9ecef',
+                gridColor: '#e9ecef',
+                tertiaryColor: '#f8f9fa'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50,
+                width: 150,
+                height: 65,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35,
+                mirrorActors: true,
+                bottomMarginAdj: 1,
+                useMaxWidth: true
+            },
+            gantt: {
+                useMaxWidth: true,
+                titleTopMargin: 25,
+                barHeight: 20,
+                barGap: 4,
+                topPadding: 50,
+                leftPadding: 75,
+                gridLineStartPadding: 35,
+                fontSize: 11,
+                fontFamily: '"Open Sans", sans-serif',
+                numberSectionStyles: 4,
+                axisFormat: '%Y-%m-%d'
+            }
+        });
+
+        function reportContentSize() {
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',
+                    payload: {
+                        height: contentHeight
+                    }
+                }, '*');
+            }
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
+    </script>
+</body>
+</html>

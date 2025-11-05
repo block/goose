@@ -34,7 +34,7 @@ To help you make the most of each of your contributions, below is a quick guide 
 
 ## ✅ Key Rules
 1. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
-2. Refer to the [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/ai-assisted-coding-guide.md), [Contributing Guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/block/goose/blob/main/README.md) for your contributions.
+2. Refer to the [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md), [Contributing Guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/block/goose/blob/main/README.md) for your contributions.
 3. Choose a task from this project's Hacktoberfest [Project Hub](https://github.com/block/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
 4. Comment ".take" on the corresponding issue to get assigned the task.
 5. Fork the repository and create a new branch for your work.
@@ -74,8 +74,8 @@ You can keep an eye on your progress all month long in our Hacktoberfest 2025 Le
 When in doubt, don't stress! The goose team is here to help you make the most of your contributions. Here's where to go when you have specific questions:
 
 1. 🆘 Maintainer Help: Connect with the maintainers by commenting on the issue or chat with them directly in the #🎃┃hacktoberfest channel on Discord.
-2. 🫶 Community Support: [Join us on Discord](https://discord.gg/block-opensource) to live chat with fellow contributors and get tips for success from participants!
-3. 🎙️ Office Hours: Join us every Tuesday at 1pm Eastern Time on [Discord](https://discord.gg/block-opensource) through the month of October to get live-over-voice help with open PRs, questions you may have, and general help. Keep an eye out on the [goose events calendar](https://block.github.io/goose/community/) for future events centered around Hacktoberfest!
+2. 🫶 Community Support: [Join us on Discord](https://discord.gg/goose-oss) to live chat with fellow contributors and get tips for success from participants!
+3. 🎙️ Office Hours: Join us every Tuesday at 1pm Eastern Time on [Discord](https://discord.gg/goose-oss) through the month of October to get live-over-voice help with open PRs, questions you may have, and general help. Keep an eye out on the [goose events calendar](https://block.github.io/goose/community/) for future events centered around Hacktoberfest!
 
 
 Happy hacking and cheers to goose x Hacktoberfest 2025! 🎉

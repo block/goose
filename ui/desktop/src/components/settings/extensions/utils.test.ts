@@ -6,8 +6,6 @@ import {
   createExtensionConfig,
   splitCmdAndArgs,
   combineCmdAndArgs,
-  replaceWithShims,
-  removeShims,
   extractCommand,
   extractExtensionName,
   DEFAULT_EXTENSION_TIMEOUT,
@@ -339,54 +337,6 @@ describe('Extension Utils', () => {
       expect(combineCmdAndArgs('node', [])).toBe('node');
 
       expect(combineCmdAndArgs('', ['arg1', 'arg2'])).toBe(' arg1 arg2');
-    });
-  });
-
-  describe('replaceWithShims', () => {
-    beforeEach(() => {
-      mockElectron.getBinaryPath.mockImplementation((binary: string) => {
-        const paths: Record<string, string> = {
-          goosed: '/path/to/goosed',
-          jbang: '/path/to/jbang',
-          npx: '/path/to/npx',
-          uvx: '/path/to/uvx',
-        };
-        return Promise.resolve(paths[binary] || binary);
-      });
-    });
-
-    it('should replace known commands with shim paths', async () => {
-      expect(await replaceWithShims('goosed')).toBe('/path/to/goosed');
-      expect(await replaceWithShims('jbang')).toBe('/path/to/jbang');
-      expect(await replaceWithShims('npx')).toBe('/path/to/npx');
-      expect(await replaceWithShims('uvx')).toBe('/path/to/uvx');
-    });
-
-    it('should leave unknown commands unchanged', async () => {
-      expect(await replaceWithShims('python')).toBe('python');
-      expect(await replaceWithShims('node')).toBe('node');
-    });
-  });
-
-  describe('removeShims', () => {
-    it('should remove shim paths and return command name', () => {
-      expect(removeShims('/path/to/goosed')).toBe('goosed');
-      expect(removeShims('/usr/local/bin/jbang')).toBe('jbang');
-      expect(removeShims('/Applications/Docker.app/Contents/Resources/bin/docker')).toBe('docker');
-      expect(removeShims('/path/to/npx.cmd')).toBe('npx.cmd');
-    });
-
-    it('should handle paths with trailing slashes', () => {
-      // The removeShims function only works if the path ends with the shim pattern
-      // Trailing slashes prevent the pattern from matching
-      expect(removeShims('/path/to/goosed/')).toBe('/path/to/goosed/');
-      expect(removeShims('/path/to/uvx//')).toBe('/path/to/uvx//');
-    });
-
-    it('should leave non-shim commands unchanged', () => {
-      expect(removeShims('python')).toBe('python');
-      expect(removeShims('node')).toBe('node');
-      expect(removeShims('/usr/bin/python3')).toBe('/usr/bin/python3');
     });
   });
 

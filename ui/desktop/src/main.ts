@@ -50,24 +50,8 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
-import { decodeRecipe } from './api';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-
-async function decodeRecipeMain(client: Client, deeplink: string): Promise<Recipe | null> {
-  try {
-    return (
-      await decodeRecipe({
-        client,
-        throwOnError: true,
-        body: { deeplink },
-      })
-    ).data.recipe;
-  } catch (e) {
-    console.error('Failed to decode recipe:', e);
-  }
-  return null;
-}
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -346,6 +330,7 @@ app.on('open-url', async (_event, url) => {
         recipeDeeplink || undefined,
         scheduledJobId || undefined
       );
+      windowDeeplinkURL = null;
       return; // Skip the rest of the handler
     }
 
@@ -366,6 +351,7 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
+    pendingDeepLink = null;
   }
 });
 
@@ -497,9 +483,7 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-
-// Track power save blockers per window
-const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+const windowPowerSaveBlockers = new Map<number, number>();
 
 const createChat = async (
   app: App,
@@ -542,12 +526,6 @@ const createChat = async (
   }
 
   // Create window config with loading state for recipe deeplinks
-  let isLoadingRecipe = false;
-  if (!recipe && recipeDeeplink) {
-    isLoadingRecipe = true;
-    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
-  }
-
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940, // large enough to show the sidebar on launch
@@ -582,8 +560,9 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
-          recipe: recipe,
           recipeId: recipeId,
+          recipeDeeplink: recipeDeeplink,
+          scheduledJobId: scheduledJobId,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -695,7 +674,10 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipe !== undefined || recipeDeeplink !== undefined)) {
+  if (
+    appPath === '/' &&
+    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined)
+  ) {
     appPath = '/pair';
   }
 
@@ -745,37 +727,6 @@ const createChat = async (
 
   windowMap.set(windowId, mainWindow);
 
-  // Handle recipe decoding in the background after window is created
-  if (isLoadingRecipe && recipeDeeplink) {
-    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
-
-    // Decode recipe asynchronously after window is created
-    decodeRecipeMain(goosedClient, recipeDeeplink)
-      .then((decodedRecipe) => {
-        if (decodedRecipe) {
-          console.log('[Main] Recipe decoded successfully, updating window config');
-
-          // Handle scheduled job parameters if present
-          if (scheduledJobId) {
-            decodedRecipe.scheduledJobId = scheduledJobId;
-            decodedRecipe.isScheduledExecution = true;
-          }
-
-          // Send the decoded recipe to the renderer process
-          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-        } else {
-          console.error('[Main] Failed to decode recipe from deeplink');
-          // Send error to renderer
-          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
-        }
-      })
-      .catch((error) => {
-        console.error('[Main] Error decoding recipe:', error);
-        // Send error to renderer
-        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
-      });
-  }
-
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
@@ -813,30 +764,43 @@ const destroyTray = () => {
   }
 };
 
+const disableTray = () => {
+  const settings = loadSettings();
+  settings.showMenuBarIcon = false;
+  saveSettings(settings);
+};
+
 const createTray = () => {
-  // If tray already exists, destroy it first
   destroyTray();
 
-  const isDev = process.env.NODE_ENV === 'development';
-  let iconPath: string;
+  const possiblePaths = [
+    path.join(process.resourcesPath, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'src', 'images', 'iconTemplate.png'),
+    path.join(__dirname, '..', 'images', 'iconTemplate.png'),
+    path.join(__dirname, 'images', 'iconTemplate.png'),
+    path.join(process.cwd(), 'images', 'iconTemplate.png'),
+  ];
 
-  if (isDev) {
-    iconPath = path.join(process.cwd(), 'src', 'images', 'iconTemplate.png');
-  } else {
-    iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
+  const iconPath = possiblePaths.find((p) => fsSync.existsSync(p));
+
+  if (!iconPath) {
+    console.warn('[Main] Tray icon not found. App will continue without system tray.');
+    disableTray();
+    return;
   }
 
-  tray = new Tray(iconPath);
+  try {
+    tray = new Tray(iconPath);
+    setTrayRef(tray);
+    updateTrayMenu(getUpdateAvailable());
 
-  // Set tray reference for auto-updater
-  setTrayRef(tray);
-
-  // Initially build menu based on update status
-  updateTrayMenu(getUpdateAvailable());
-
-  // On Windows, clicking the tray icon should show the window
-  if (process.platform === 'win32') {
-    tray.on('click', showWindow);
+    if (process.platform === 'win32') {
+      tray.on('click', showWindow);
+    }
+  } catch (error) {
+    console.error('[Main] Tray creation failed. App will continue without system tray.', error);
+    disableTray();
+    tray = null;
   }
 };
 
@@ -851,7 +815,6 @@ const showWindow = async () => {
     return;
   }
 
-  // Define the initial offset values
   const initialOffsetX = 30;
   const initialOffsetY = 30;
 
@@ -1038,8 +1001,6 @@ ipcMain.on('react-ready', () => {
     log.info('No pending deep link to process');
   }
 
-  // We don't need to handle pending deep links here anymore
-  // since we're handling them in the window creation flow
   log.info('React ready - window is prepared for deep links');
 });
 
@@ -1921,6 +1882,50 @@ async function appMain() {
     );
   }
 
+  if (menu) {
+    let windowMenu = menu.items.find((item) => item.label === 'Window');
+
+    if (!windowMenu) {
+      windowMenu = new MenuItem({
+        label: 'Window',
+        submenu: Menu.buildFromTemplate([]),
+      });
+
+      const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
+      if (helpMenuIndex >= 0) {
+        menu.items.splice(helpMenuIndex, 0, windowMenu);
+      } else {
+        menu.items.push(windowMenu);
+      }
+    }
+
+    if (windowMenu.submenu) {
+      windowMenu.submenu.append(
+        new MenuItem({
+          label: 'Always on Top',
+          type: 'checkbox',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
+          click(menuItem) {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              const isAlwaysOnTop = menuItem.checked;
+
+              if (process.platform === 'darwin') {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
+              } else {
+                focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+              }
+
+              console.log(
+                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+              );
+            }
+          },
+        })
+      );
+    }
+  }
+
   // on macOS, the topbar is hidden
   if (menu && process.platform !== 'darwin') {
     let helpMenu = menu.items.find((item) => item.label === 'Help');
@@ -1984,7 +1989,6 @@ async function appMain() {
       // Log the recipe for debugging
       console.log('Creating chat window with recipe:', recipe);
 
-      // Pass recipe as part of viewOptions when viewType is recipeEditor
       createChat(
         app,
         query,
@@ -2057,6 +2061,17 @@ async function appMain() {
     } catch (error) {
       console.error('Error logging info:', error);
     }
+  });
+
+  ipcMain.on('broadcast-theme-change', (event, themeData) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const allWindows = BrowserWindow.getAllWindows();
+
+    allWindows.forEach((window) => {
+      if (window.id !== senderWindow?.id) {
+        window.webContents.send('theme-changed', themeData);
+      }
+    });
   });
 
   ipcMain.on('reload-app', (event) => {

@@ -48,11 +48,8 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::ContextLengthExceeded(_) => {
-            bail!("ContextLengthExceeded should not get passed to the provider")
-        }
-        MessageContent::SummarizationRequested(_) => {
-            bail!("SummarizationRequested should not get passed to the provider")
+        MessageContent::SystemNotification(_) => {
+            bail!("SystemNotification should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
@@ -97,12 +94,18 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(_) => None,
+                Err(error) => {
+                    // For errors, create a text content block with the error message
+                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                        "The tool call returned the following error:\n{}",
+                        error
+                    ))])
+                }
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
                     .tool_use_id(tool_res.id.to_string())
-                    .status(if content.is_some() {
+                    .status(if tool_res.tool_result.is_ok() {
                         bedrock::ToolResultStatus::Success
                     } else {
                         bedrock::ToolResultStatus::Error
@@ -188,6 +191,14 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 }
 
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
+    let mut input_schema = tool.input_schema.as_ref().clone();
+
+    // If the schema doesn't have a "type" field, add it
+    // This is required by Bedrock
+    if !input_schema.contains_key("type") {
+        input_schema.insert("type".to_string(), Value::String("object".to_string()));
+    }
+
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
             .name(tool.name.to_string())
@@ -198,7 +209,7 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
                     .unwrap_or_default(),
             )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &Value::Object(tool.input_schema.as_ref().clone()),
+                &Value::Object(input_schema),
             )))
             .build()?,
     ))
@@ -334,11 +345,11 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage {
-        input_tokens: Some(usage.input_tokens),
-        output_tokens: Some(usage.output_tokens),
-        total_tokens: Some(usage.total_tokens),
-    }
+    Usage::new(
+        Some(usage.input_tokens),
+        Some(usage.output_tokens),
+        Some(usage.total_tokens),
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {

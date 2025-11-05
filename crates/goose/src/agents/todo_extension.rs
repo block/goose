@@ -63,8 +63,8 @@ impl TodoClient {
                 - [ ] Implement feature X
                   - [ ] Update API
                   - [ ] Write tests
-                  - [ ] Run tests (subagent in parallel)
-                  - [ ] Run lint (subagent in parallel)
+                  - [ ] Run tests
+                  - [ ] Run lint
                 - [ ] Blocked: waiting on credentials
             "#}.to_string()),
         };

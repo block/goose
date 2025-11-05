@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
-import { safeJsonParse } from './jsonUtils';
+import { safeJsonParse } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -91,16 +91,16 @@ export class GitHubUpdater {
       if (platform === 'darwin') {
         // macOS
         if (arch === 'arm64') {
-          assetName = 'goose.zip';
+          assetName = 'Goose.zip';
         } else {
-          assetName = 'goose_intel_mac.zip';
+          assetName = 'Goose_intel_mac.zip';
         }
       } else if (platform === 'win32') {
         // Windows - for future support
-        assetName = 'goose-win32-x64.zip';
+        assetName = 'Goose-win32-x64.zip';
       } else {
         // Linux - for future support
-        assetName = `goose-linux-${arch}.zip`;
+        assetName = `Goose-linux-${arch}.zip`;
       }
 
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);

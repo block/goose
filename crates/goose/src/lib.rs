@@ -17,7 +17,7 @@ pub mod scheduler_factory;
 pub mod scheduler_trait;
 pub mod security;
 pub mod session;
-pub mod temporal_scheduler;
+pub mod session_context;
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;
@@ -26,5 +26,3 @@ pub mod utils;
 
 #[cfg(test)]
 mod cron_test;
-#[macro_use]
-mod macros;

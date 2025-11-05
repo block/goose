@@ -48,7 +48,7 @@ The end result is a personalized cookbook of recipes tailored to your own specif
 
 [I demonstrated on a livestream](https://www.youtube.com/watch?v=-_1GALH2ER0) my whole process of creating this generator using "[vibe prompting](https://www.youtube.com/watch?v=IjXmT0W4f2Q)" -- having an extended conversation with goose to refine the idea and answer potential questions upfront. This approach uses fewer tokens than iterative coding, resulting in higher success rates.
 
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=-_1GALH2ER0" title="Vibe Code with goose: Automate my workflow" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/-_1GALH2ER0" title="Vibe Code with goose: Automate my workflow" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 During my own conversation with goose, goose asked smart questions like:
 
@@ -169,7 +169,7 @@ Start building your own cookbook generator, and stop doing the same work twice. 
 
 ## Contribute to Our Community Cookbook
 
-Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/block-opensource) or check out our [GitHub repository](https://github.com/block/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/block/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
+Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/goose-oss) or check out our [GitHub repository](https://github.com/block/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/block/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
 
 
 ## My Own Cookbook Generator Recipe

@@ -14,6 +14,10 @@
 - [ ] Build / Release
 - [ ] Other (specify below)
 
+### AI Assistance
+<!-- great that you got assistance 🔥, just check out the HOWTOAI guidance: https://github.com/block/goose/blob/main/HOWTOAI.md-->
+- [ ] This PR was created or reviewed with AI assistance
+
 ### Testing
 <!-- How have this change been tested? Unit/integration tests? Manual testing? -->
 
@@ -27,5 +31,6 @@ Before:
 
 After:   
 
-<!-- For Recipe Cookbook Submissions ONLY: Include your email below to receive $10 OpenRouter credits once approved & merged -->
+### Submitting a Recipe?
+<!-- For Recipe Cookbook Submissions ONLY: Include your email below to receive $10 OpenRouter credits once approved and merged -->
 **Email**: 

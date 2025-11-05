@@ -7,7 +7,6 @@ import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
 import { Button } from '../../ui/button';
 import { RecipeFormApi } from './recipeFormSchema';
-import { extractTemplateVariables } from '../../../utils/providerUtils';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,6 +24,27 @@ interface RecipeFormFieldsProps {
   onJsonSchemaChange?: (value: string) => void;
 }
 
+export const extractTemplateVariables = (content: string): string[] => {
+  const templateVarRegex = /\{\{(.*?)\}\}/g;
+  const variables: string[] = [];
+  let match;
+
+  while ((match = templateVarRegex.exec(content)) !== null) {
+    const variable = match[1].trim();
+
+    if (variable && !variables.includes(variable)) {
+      // Filter out complex variables that aren't valid parameter names
+      // This matches the backend logic in filter_complex_variables()
+      const validVarRegex = /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$/;
+      if (validVarRegex.test(variable)) {
+        variables.push(variable);
+      }
+    }
+  }
+
+  return variables;
+};
+
 export function RecipeFormFields({
   form,
   onTitleChange,
@@ -37,6 +57,16 @@ export function RecipeFormFields({
   const [showInstructionsEditor, setShowInstructionsEditor] = useState(false);
   const [newParameterName, setNewParameterName] = useState('');
   const [expandedParameters, setExpandedParameters] = useState<Set<string>>(new Set());
+
+  // Force re-render when instructions, prompt, or activities change
+  const [_forceRender, setForceRender] = useState(0);
+
+  React.useEffect(() => {
+    return form.store.subscribe(() => {
+      // Force re-render when any form field changes to update parameter usage indicators
+      setForceRender((prev) => prev + 1);
+    });
+  }, [form.store]);
 
   const parseParametersFromInstructions = React.useCallback(
     (instructions: string, prompt?: string, activities?: string[]): Parameter[] => {

@@ -15,11 +15,11 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
@@ -113,12 +113,12 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(GithubCopilotProvider);
-
 impl GithubCopilotProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -129,6 +129,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -168,7 +169,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }
@@ -234,7 +237,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
                     token
                 }
                 _ => return Err(err.into()),
@@ -394,6 +397,10 @@ impl Provider for GithubCopilotProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -410,6 +417,7 @@ impl Provider for GithubCopilotProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
         let response = self
@@ -426,7 +434,7 @@ impl Provider for GithubCopilotProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -494,7 +502,7 @@ impl Provider for GithubCopilotProvider {
 
         // Save the token
         config
-            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
         Ok(())

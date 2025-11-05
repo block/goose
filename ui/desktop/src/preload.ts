@@ -95,6 +95,11 @@ type ElectronAPI = {
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
+  broadcastThemeChange: (themeData: {
+    mode: string;
+    useSystemTheme: boolean;
+    theme: string;
+  }) => void;
   // Functions for image pasting
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
   deleteTempFile: (filePath: string) => void;
@@ -209,6 +214,9 @@ const electronAPI: ElectronAPI = {
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
   },
+  broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
+    ipcRenderer.send('broadcast-theme-change', themeData);
+  },
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
     return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
   },
@@ -254,11 +262,6 @@ const appConfigAPI: AppConfigAPI = {
   get: (key: string) => config[key],
   getAll: () => config,
 };
-
-// Listen for recipe updates and update config directly
-ipcRenderer.on('recipe-decoded', (_, decodedRecipe) => {
-  config.recipe = decodedRecipe;
-});
 
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);

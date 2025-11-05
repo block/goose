@@ -37,7 +37,7 @@ if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
 fi
 
 # Check for required extraction tools based on detected OS
-if [ "$OS" = "windows" ]; then
+if [ "${OS:-}" = "windows" ]; then
   # Windows uses PowerShell's built-in Expand-Archive - check if PowerShell is available
   if ! command -v powershell.exe >/dev/null 2>&1 && ! command -v pwsh >/dev/null 2>&1; then
     echo "Warning: PowerShell is recommended to extract Windows packages but was not found."
@@ -45,7 +45,7 @@ if [ "$OS" = "windows" ]; then
   fi
 else
   if ! command -v tar >/dev/null 2>&1; then
-    echo "Error: 'tar' is required to extract packages for $OS. Please install tar and try again."
+    echo "Error: 'tar' is required to extract packages for ${OS:-unknown}. Please install tar and try again."
     exit 1
   fi
 fi
@@ -54,7 +54,23 @@ fi
 # --- 2) Variables ---
 REPO="block/goose"
 OUT_FILE="goose"
-GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+
+# Set default bin directory based on detected OS environment
+if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    # Native Windows environments - use Windows user profile path
+    DEFAULT_BIN_DIR="$USERPROFILE/goose"
+elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL - use Linux-style path but make sure it exists
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+else
+    # Default for Linux/macOS
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+fi
+
+GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-$DEFAULT_BIN_DIR}"
 RELEASE="${CANARY:-false}"
 CONFIGURE="${CONFIGURE:-true}"
 if [ -n "${GOOSE_VERSION:-}" ]; then
@@ -72,26 +88,52 @@ else
 fi
 
 # --- 3) Detect OS/Architecture ---
-# Better OS detection for Windows environments
-if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+# Allow explicit override for automation or when auto-detection is wrong:
+#   INSTALL_OS=linux|windows|darwin
+if [ -n "${INSTALL_OS:-}" ]; then
+  case "${INSTALL_OS}" in
+    linux|windows|darwin) OS="${INSTALL_OS}" ;;
+    *) echo "[error]: unsupported INSTALL_OS='${INSTALL_OS}' (expected: linux|windows|darwin)"; exit 1 ;;
+  esac
+else
+  # Better OS detection for Windows environments, with safer WSL handling.
+  # If explicit Windows-like shells/variables are present (MSYS/Cygwin), treat as windows.
+  if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     OS="windows"
-elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
-    # WSL detection
+  elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL detected. Prefer Linux unless there are clear signs we should install the Windows build:
+    # - running on a Windows-mounted path like /mnt/c/...   OR
+    # - Windows executables are available AND we're on a Windows mount
+    if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+      OS="windows"
+    else
+      # If powershell/cmd exist, only treat as Windows when in a Windows mount
+      if command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+        if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]] || [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+          OS="windows"
+        else
+          OS="linux"
+        fi
+      else
+        # No strong Windows interop present — install Linux build inside WSL by default
+        OS="linux"
+      fi
+    fi
+  elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection (like /mnt/c/) outside of /proc/version check
     OS="windows"
-elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
-    # WSL mount point detection (like /mnt/c/)
-    OS="windows"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="darwin"
-elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
-    # Check if Windows executables are available (another Windows indicator)
+  elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+    # Presence of Windows executables (likely a Windows environment)
     OS="windows"
-elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+  elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
     # Check for Windows-style mount points (like in Git Bash)
     OS="windows"
-else
+  else
     # Fallback to uname for other systems
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  fi
 fi
 
 ARCH=$(uname -m)
@@ -234,41 +276,14 @@ else
   mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
-# Also move temporal-service and temporal CLI if they exist
+# Copy Windows runtime DLLs if they exist
 if [ "$OS" = "windows" ]; then
-  if [ -f "$EXTRACT_DIR/temporal-service.exe" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
-    mv "$EXTRACT_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal.exe" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal.exe"
-    mv "$EXTRACT_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal.exe"
-  fi
-  
-  # Copy Windows runtime DLLs if they exist
   for dll in "$EXTRACT_DIR"/*.dll; do
     if [ -f "$dll" ]; then
       echo "Moving Windows runtime DLL: $(basename "$dll")"
       mv "$dll" "$GOOSE_BIN_DIR/"
     fi
   done
-else
-  if [ -f "$EXTRACT_DIR/temporal-service" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-    mv "$EXTRACT_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal"
-    mv "$EXTRACT_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
-    chmod +x "$GOOSE_BIN_DIR/temporal"
-  fi
 fi
 
 # skip configuration for non-interactive installs e.g. automation, docker

@@ -1,3 +1,4 @@
+use crate::session::session_manager::SessionType;
 use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
@@ -5,9 +6,10 @@ use crate::{
     session::SessionManager,
 };
 use anyhow::{anyhow, Result};
-use futures::future::BoxFuture;
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use std::future::Future;
+use std::pin::Pin;
 use tracing::debug;
 
 /// Standalone function to run a complete subagent task with output options
@@ -93,7 +95,7 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     text_instruction: String,
     task_config: TaskConfig,
-) -> BoxFuture<'static, Result<Conversation>> {
+) -> Pin<Box<dyn Future<Output = Result<Conversation>> + Send>> {
     Box::pin(async move {
         let agent_manager = AgentManager::instance()
             .await
@@ -103,6 +105,7 @@ fn get_agent_messages(
         let session = SessionManager::create_session(
             working_dir.clone(),
             format!("Subagent task for: {}", parent_session_id),
+            SessionType::SubAgent,
         )
         .await
         .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
@@ -111,6 +114,7 @@ fn get_agent_messages(
             .get_or_create_agent(session.id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+
         agent
             .update_provider(task_config.provider)
             .await
@@ -126,29 +130,28 @@ fn get_agent_messages(
             }
         }
 
-        let mut session_messages =
-            Conversation::new_unvalidated(
-                vec![Message::user().with_text(text_instruction.clone())],
-            );
+        let user_message = Message::user().with_text(text_instruction);
+        let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+
         let session_config = SessionConfig {
-            id: session.id,
-            working_dir,
+            id: session.id.clone(),
             schedule_id: None,
-            execution_mode: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,
         };
 
-        let mut stream = agent
-            .reply(session_messages.clone(), Some(session_config), None)
-            .await
-            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+        let mut stream = crate::session_context::with_session_id(Some(session.id.clone()), async {
+            agent.reply(user_message, session_config, None).await
+        })
+        .await
+        .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
-                Ok(AgentEvent::Message(msg)) => session_messages.push(msg),
-                Ok(AgentEvent::McpNotification(_))
-                | Ok(AgentEvent::ModelChange { .. })
-                | Ok(AgentEvent::HistoryReplaced(_)) => {} // Handle informational events
+                Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
                 Err(e) => {
                     tracing::error!("Error receiving message from subagent: {}", e);
                     break;
@@ -156,6 +159,6 @@ fn get_agent_messages(
             }
         }
 
-        Ok(session_messages)
+        Ok(conversation)
     })
 }

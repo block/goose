@@ -9,9 +9,8 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::conversation::message::{Message, MessageContent};
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -24,12 +23,12 @@ pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview"
 pub struct CursorAgentProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(CursorAgentProvider);
-
 impl CursorAgentProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
             .get_param("CURSOR_AGENT_COMMAND")
@@ -44,7 +43,19 @@ impl CursorAgentProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
+    }
+
+    /// Get authentication status from cursor-agent
+    async fn get_authentication_status(&self) -> bool {
+        Command::new(&self.command)
+            .arg("status")
+            .output()
+            .await
+            .ok()
+            .map(|output| String::from_utf8_lossy(&output.stdout).contains("✓ Logged in as"))
+            .unwrap_or(false)
     }
 
     /// Search for cursor-agent executable in common installation locations
@@ -101,34 +112,11 @@ impl CursorAgentProvider {
         None
     }
 
-    /// Filter out the Extensions section from the system prompt
-    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
-        if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
-            let after_extensions = &system[extensions_start..];
-            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
-                let before_extensions = &system[..extensions_start];
-                let next_section_start = extensions_start + next_section_pos + 1;
-                let after_next_section = &system[next_section_start..];
-                format!("{}{}", before_extensions.trim_end(), after_next_section)
-            } else {
-                // No next section found, just remove everything from Extensions onward
-                system[..extensions_start].trim_end().to_string()
-            }
-        } else {
-            // No Extensions section found, return original
-            system.to_string()
-        }
-    }
-
     /// Convert goose messages to a simple prompt format for cursor-agent CLI
     fn messages_to_cursor_agent_format(&self, system: &str, messages: &[Message]) -> String {
         let mut full_prompt = String::new();
 
-        // Add system prompt
-        let filtered_system = self.filter_extensions_from_system_prompt(system);
+        let filtered_system = filter_extensions_from_system_prompt(system);
         full_prompt.push_str(&filtered_system);
         full_prompt.push_str("\n\n");
 
@@ -256,7 +244,7 @@ impl CursorAgentProvider {
             println!("Original system prompt length: {} chars", system.len());
             println!(
                 "Filtered system prompt length: {} chars",
-                self.filter_extensions_from_system_prompt(system).len()
+                filter_extensions_from_system_prompt(system).len()
             );
             println!("Full prompt: {}", prompt);
             println!("Model: {}", self.model.model_name);
@@ -319,6 +307,11 @@ impl CursorAgentProvider {
         })?;
 
         if !exit_status.success() {
+            if !self.get_authentication_status().await {
+                return Err(ProviderError::Authentication(
+                    "You are not logged in to cursor-agent. Please run 'cursor-agent login' to authenticate first."
+                        .to_string()));
+            }
             return Err(ProviderError::RequestFailed(format!(
                 "Command failed with exit code: {:?}",
                 exit_status.code()
@@ -398,6 +391,10 @@ impl Provider for CursorAgentProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Cursor models
         self.model.clone()
@@ -436,7 +433,8 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(&self.model, &payload)?;
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,
@@ -450,46 +448,13 @@ mod tests {
     use super::ModelConfig;
     use super::*;
 
-    #[test]
-    fn test_cursor_agent_model_config() {
-        let provider = CursorAgentProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "auto");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
-    fn test_cursor_agent_invalid_model_no_fallback() {
-        // Test that an invalid model is kept as-is (no fallback)
-        let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = CursorAgentProvider::from_env(invalid_model).unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "invalid-model");
-    }
-
-    #[test]
-    fn test_cursor_agent_valid_model() {
+    #[tokio::test]
+    async fn test_cursor_agent_valid_model() {
         // Test that a valid model is preserved
         let valid_model = ModelConfig::new_or_fail("gpt-5");
-        let provider = CursorAgentProvider::from_env(valid_model).unwrap();
+        let provider = CursorAgentProvider::from_env(valid_model).await.unwrap();
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "gpt-5");
-    }
-
-    #[test]
-    fn test_filter_extensions_from_system_prompt() {
-        let provider = CursorAgentProvider::default();
-
-        let system_with_extensions = "Some system prompt\n\n# Extensions\nSome extension info\n\n# Next Section\nMore content";
-        let filtered = provider.filter_extensions_from_system_prompt(system_with_extensions);
-        assert_eq!(filtered, "Some system prompt\n# Next Section\nMore content");
-
-        let system_without_extensions = "Some system prompt\n\n# Other Section\nContent";
-        let filtered = provider.filter_extensions_from_system_prompt(system_without_extensions);
-        assert_eq!(filtered, system_without_extensions);
     }
 }

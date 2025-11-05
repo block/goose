@@ -1,6 +1,6 @@
 ---
 title: GitMCP Extension
-description: Add Git MCP Server as a Goose Extension
+description: Add Git MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,14 +12,14 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/6aV8pinnUS8" /> 
 
-This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/git-mcp) as a Goose extension to give LLMs live access to GitHub repos, enabling smart documentation search, code exploration, and accurate project insights.
+This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/git-mcp) as a goose extension to give LLMs live access to GitHub repos, enabling smart documentation search, code exploration, and accurate project insights.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fgitmcp.io%2Fdocs&id=gitmcp&name=GitMCP&description=Remote%20MCP%20server%20from%20gitmcp.io)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y mcp-remote https://gitmcp.io/docs
@@ -32,7 +32,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
         extensionId="Git-mcp"
         extensionName="Git mcp"
@@ -44,9 +44,10 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
         note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
     />
  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
         name="Git MCP"
+        description="Git MCP server for up-to-date docs and project insights"
         command="npx -y mcp-remote https://gitmcp.io/docs"
         timeout={300}
       />
@@ -55,15 +56,15 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 
 ## Example Usage
 
-In this example, Goose uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
+In this example, goose uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-   1. Open a new session in Goose Desktop
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Open a new session in goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session
@@ -72,7 +73,7 @@ In this example, Goose uses GitMCP to pull real-time documentation from the `ope
   </TabItem>
 </Tabs>
 
-### Goose Prompt
+### goose Prompt
 ```
   Can you help me understand how the OpenAI Whisper speech-to-text model works?
 
@@ -86,7 +87,7 @@ In this example, Goose uses GitMCP to pull real-time documentation from the `ope
 
   Give me the response in a Markdown guide format.
 ```
-### Goose Output
+### goose Output
 
 :::note Desktop
 

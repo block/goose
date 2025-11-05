@@ -275,7 +275,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }
@@ -325,7 +327,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }
@@ -377,7 +381,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }

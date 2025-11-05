@@ -2,11 +2,14 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
-use crate::config::custom_providers::CustomProviderConfig;
+use super::utils::{
+    get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
+};
+use crate::config::declarative_providers::DeclarativeProviderConfig;
+use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::impl_provider_default;
+
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
@@ -30,9 +33,13 @@ use url::Url;
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600; // seconds
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
-pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
+pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 // Ollama can run many models, we only provide the default
-pub const OLLAMA_KNOWN_MODELS: &[&str] = &[OLLAMA_DEFAULT_MODEL];
+pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
+    OLLAMA_DEFAULT_MODEL,
+    "qwen3-coder:30b",
+    "qwen3-coder:480b-cloud",
+];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 
 #[derive(serde::Serialize)]
@@ -41,12 +48,11 @@ pub struct OllamaProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    name: String,
 }
 
-impl_provider_default!(OllamaProvider);
-
 impl OllamaProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OLLAMA_HOST")
@@ -88,10 +94,14 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: true,
+            name: Self::metadata().name,
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        model: ModelConfig,
+        config: DeclarativeProviderConfig,
+    ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
         // Parse and normalize the custom URL
@@ -124,6 +134,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            name: config.name.clone(),
         })
     }
 
@@ -169,6 +180,10 @@ impl Provider for OllamaProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -185,8 +200,12 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = crate::config::Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let filtered_tools = if goose_mode == GooseMode::Chat {
+            &[]
+        } else {
+            tools
+        };
 
         let payload = create_request(
             &self.model,
@@ -208,7 +227,8 @@ impl Provider for OllamaProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -265,16 +285,53 @@ impl Provider for OllamaProvider {
         let model_config = self.model.clone();
 
         Ok(Box::pin(try_stream! {
+            let mut log = RequestLog::start(&model_config, &payload)?;
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| &f.usage))?;
                 yield (message, usage);
             }
         }))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self
+            .api_client
+            .response_get("api/tags")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        // Sort alphabetically
+        model_names.sort();
+
+        Ok(Some(model_names))
     }
 }
 

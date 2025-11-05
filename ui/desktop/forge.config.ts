@@ -26,12 +26,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -65,29 +65,32 @@ module.exports = {
     {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'goose',
-        bin: 'goose',
+        name: 'Goose',
+        bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+          prefix: '/opt',
+        },
       },
     },
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'goose',
-        bin: 'goose',
+        name: 'Goose',
+        bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+          prefix: '/opt',
+          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+        },
       },
     },
   ],

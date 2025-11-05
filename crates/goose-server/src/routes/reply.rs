@@ -8,7 +8,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
@@ -121,11 +121,12 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
-enum MessageEvent {
+pub enum MessageEvent {
     Message {
         message: Message,
+        token_state: TokenState,
     },
     Error {
         error: String,
@@ -139,7 +140,11 @@ enum MessageEvent {
     },
     Notification {
         request_id: String,
+        #[schema(value_type = Object)]
         message: ServerNotification,
+    },
+    UpdateConversation {
+        conversation: Conversation,
     },
     Ping,
 }
@@ -155,6 +160,7 @@ async fn stream_event(
             e
         )
     });
+
     if tx.send(format!("data: {}\n\n", json)).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
@@ -167,7 +173,9 @@ async fn stream_event(
     path = "/reply",
     request_body = ChatRequest,
     responses(
-        (status = 200, description = "Streaming response initiated", content_type = "text/event-stream"),
+        (status = 200, description = "Streaming response initiated",
+         body = MessageEvent,
+         content_type = "text/event-stream"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )
@@ -249,17 +257,30 @@ pub async fn reply(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            execution_mode: None,
             max_turns: None,
             retry_config: None,
         };
 
+        let user_message = match messages.last() {
+            Some(msg) => msg,
+            _ => {
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: "Reply started with empty messages".to_string(),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
+
         let mut stream = match agent
             .reply(
-                messages.clone(),
-                Some(session_config.clone()),
+                user_message.clone(),
+                session_config,
                 Some(task_cancel.clone()),
             )
             .await
@@ -300,16 +321,36 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            // Only send message to client if it's user_visible
-                            if message.is_user_visible() {
-                                stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
-                            }
+                            let token_state = match SessionManager::get_session(&session_id, false).await {
+                                Ok(session) => {
+                                    TokenState {
+                                        input_tokens: session.input_tokens.unwrap_or(0),
+                                        output_tokens: session.output_tokens.unwrap_or(0),
+                                        total_tokens: session.total_tokens.unwrap_or(0),
+                                        accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+                                        accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+                                        accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+                                    }
+                                },
+                                Err(e) => {
+                                    tracing::warn!("Failed to fetch session for token state: {}", e);
+                                    TokenState {
+                                        input_tokens: 0,
+                                        output_tokens: 0,
+                                        total_tokens: 0,
+                                        accumulated_input_tokens: 0,
+                                        accumulated_output_tokens: 0,
+                                        accumulated_total_tokens: 0,
+                                    }
+                                }
+                            };
+
+                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
-                            // Replace the message history with the compacted messages
-                            all_messages = Conversation::new_unvalidated(new_messages);
-                            // Note: We don't send this as a stream event since it's an internal operation
-                            // The client will see the compaction notification message that was sent before this event
+                            all_messages = new_messages.clone();
+                            stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
+
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;

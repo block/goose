@@ -18,10 +18,10 @@ use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+    RequestLog,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
-use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use crate::providers::retry::{
@@ -46,7 +46,6 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
     "databricks-dbrx-instruct",
-    "databricks-mixtral-8x7b-instruct",
 ];
 
 pub const DATABRICKS_DOC_URL: &str =
@@ -107,12 +106,12 @@ pub struct DatabricksProvider {
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(DatabricksProvider);
-
 impl DatabricksProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -149,31 +148,28 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
+            name: Self::metadata().name,
         };
 
         // Check if the default fast model exists in the workspace
-        let model_with_fast = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                if let Ok(Some(models)) = provider.fetch_supported_models().await {
-                    if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                        tracing::debug!(
-                            "Found {} in Databricks workspace, setting as fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
-                    } else {
-                        tracing::debug!(
-                            "{} not found in Databricks workspace, not setting fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model
-                    }
-                } else {
-                    tracing::debug!("Could not fetch Databricks models, not setting fast model");
-                    model
-                }
-            })
-        });
+        let model_with_fast = if let Ok(Some(models)) = provider.fetch_supported_models().await {
+            if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
+                tracing::debug!(
+                    "Found {} in Databricks workspace, setting as fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
+            } else {
+                tracing::debug!(
+                    "{} not found in Databricks workspace, not setting fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model
+            }
+        } else {
+            tracing::debug!("Could not fetch Databricks models, not setting fast model");
+            model
+        };
 
         provider.model = model_with_fast;
         Ok(provider)
@@ -225,6 +221,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
+            name: Self::metadata().name,
         })
     }
 
@@ -263,6 +260,10 @@ impl Provider for DatabricksProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -289,6 +290,8 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
         let response = self
             .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
             .await?;
@@ -299,7 +302,7 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
@@ -325,6 +328,7 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
+        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
@@ -338,11 +342,13 @@ impl Provider for DatabricksProvider {
                 }
                 Ok(resp)
             })
-            .await?;
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
-        let model = self.model.clone();
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
@@ -351,7 +357,7 @@ impl Provider for DatabricksProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))

@@ -18,11 +18,10 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext,
 };
 
-use crate::impl_provider_default;
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::emit_debug_trace;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
@@ -77,6 +76,8 @@ pub struct GcpVertexAIProvider {
     /// Retry configuration for handling rate limit errors
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GcpVertexAIProvider {
@@ -87,23 +88,7 @@ impl GcpVertexAIProvider {
     ///
     /// # Arguments
     /// * `model` - Configuration for the model to be used
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
-        Self::new(model)
-    }
-
-    /// Creates a new provider instance with the specified model configuration.
-    ///
-    /// # Arguments
-    /// * `model` - Configuration for the model to be used
-    pub fn new(model: ModelConfig) -> Result<Self> {
-        futures::executor::block_on(Self::new_async(model))
-    }
-
-    /// Async implementation of new provider instance creation.
-    ///
-    /// # Arguments
-    /// * `model` - Configuration for the model to be used
-    async fn new_async(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
@@ -126,6 +111,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -445,8 +431,6 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl_provider_default!(GcpVertexAIProvider);
-
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
     /// Returns metadata about the GCP Vertex AI provider.
@@ -513,6 +497,10 @@ impl Provider for GcpVertexAIProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     /// Completes a model interaction by sending a request and processing the response.
     ///
     /// # Arguments
@@ -537,7 +525,8 @@ impl Provider for GcpVertexAIProvider {
         let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(model_config, &request, &response, &usage);
+        let mut log = RequestLog::start(model_config, &request)?;
+        log.write(&response, Some(&usage))?;
 
         // Convert response to message
         let message = response_to_message(response, context)?;
