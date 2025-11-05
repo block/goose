@@ -45,7 +45,11 @@ async fn handle_recipe_task(
     }
 
     if let Some(ref settings) = recipe.settings {
-        let new_provider = match (&settings.goose_provider, &settings.goose_model, settings.temperature) {
+        let new_provider = match (
+            &settings.goose_provider,
+            &settings.goose_model,
+            settings.temperature,
+        ) {
             (Some(provider), Some(model), temp) => {
                 let config = ModelConfig::new_or_fail(model).with_temperature(temp);
                 Some((provider.clone(), config))
@@ -53,17 +57,19 @@ async fn handle_recipe_task(
             (Some(_), None, _) => {
                 return Err("Recipe specifies provider but no model".to_string());
             }
-            (None, model_or_temp, _) if model_or_temp.is_some() || settings.temperature.is_some() => {
+            (None, model_or_temp, _)
+                if model_or_temp.is_some() || settings.temperature.is_some() =>
+            {
                 let provider_name = task_config.provider.get_name().to_string();
                 let mut config = task_config.provider.get_model_config();
-                
+
                 if let Some(model) = &settings.goose_model {
                     config.model_name = model.clone();
                 }
                 if let Some(temp) = settings.temperature {
                     config = config.with_temperature(Some(temp));
                 }
-                
+
                 Some((provider_name, config))
             }
             _ => None,
