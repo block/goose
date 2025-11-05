@@ -679,50 +679,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           </div>
 
           <div>
-            <label className={modalLabelClassName}>Execution Mode:</label>
-            <div className="space-y-2">
-              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
-                <button
-                  type="button"
-                  onClick={() => setExecutionMode('background')}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
-                    executionMode === 'background'
-                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  Background
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExecutionMode('foreground')}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
-                    executionMode === 'foreground'
-                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  Foreground
-                </button>
-              </div>
-
-              <div className="text-xs text-gray-500 dark:text-gray-400 px-2">
-                {executionMode === 'background' ? (
-                  <p>
-                    <strong>Background:</strong> Runs silently in the background without opening a
-                    window. Results are saved to session storage.
-                  </p>
-                ) : (
-                  <p>
-                    <strong>Foreground:</strong> Opens in a desktop window when the Goose app is
-                    running. Falls back to background if the app is not available.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div>
             <label htmlFor="frequency-modal" className={modalLabelClassName}>
               Frequency:
             </label>
