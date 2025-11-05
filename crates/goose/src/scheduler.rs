@@ -766,38 +766,34 @@ async fn run_scheduled_job_internal(
         retry_config: None,
     };
 
-    let session_id = Some(session_config.id.clone());
-    match crate::session_context::with_session_id(session_id, async {
+    let session_id = session_config.id.clone();
+    let stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
         agent.reply(user_message, session_config, None).await
     })
     .await
-    {
-        Ok(mut stream) => {
-            use futures::StreamExt;
+    .map_err(|e| JobExecutionError {
+        job_id: job.id.clone(),
+        error: format!("Agent failed: {}", e),
+    })?;
 
-            while let Some(message_result) = stream.next().await {
-                tokio::task::yield_now().await;
+    use futures::StreamExt;
+    let mut stream = std::pin::pin!(stream);
 
-                match message_result {
-                    Ok(AgentEvent::Message(msg)) => {
-                        conversation.push(msg);
-                    }
-                    Ok(AgentEvent::HistoryReplaced(updated)) => {
-                        conversation = updated;
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Error in agent stream: {}", e);
-                        break;
-                    }
-                }
+    while let Some(message_result) = stream.next().await {
+        tokio::task::yield_now().await;
+
+        match message_result {
+            Ok(AgentEvent::Message(msg)) => {
+                conversation.push(msg);
             }
-        }
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Agent failed: {}", e),
-            });
+            Ok(AgentEvent::HistoryReplaced(updated)) => {
+                conversation = updated;
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Error in agent stream: {}", e);
+                break;
+            }
         }
     }
 
