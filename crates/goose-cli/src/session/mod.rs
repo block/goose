@@ -13,6 +13,8 @@ use crate::session::task_execution_display::{
 use goose::conversation::Conversation;
 use std::io::Write;
 use std::str::FromStr;
+use tokio::signal::ctrl_c;
+use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -790,11 +792,12 @@ impl CliSession {
             .ok_or_else(|| anyhow::anyhow!("No user message"))?;
 
         let cancel_token_interrupt = cancel_token.clone();
-        tokio::spawn(async move {
-            if tokio::signal::ctrl_c().await.is_ok() {
+        let handle = tokio::spawn(async move {
+            if ctrl_c().await.is_ok() {
                 cancel_token_interrupt.cancel();
             }
         });
+        let _drop_handle = AbortOnDropHandle::new(handle);
 
         let mut stream = self
             .agent
