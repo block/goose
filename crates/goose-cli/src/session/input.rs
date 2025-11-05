@@ -319,7 +319,9 @@ fn print_help() {
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
 Ctrl+J - Add a newline
-Up/Down arrows - Navigate through command history"
+Up/Down arrows - Navigate through command history
+Tab - Complete slash commands, prompt names, arguments, and file paths after @ symbol
+    Example: Type '@READ' and press Tab to complete to '@README.md'"
     );
 }
 
