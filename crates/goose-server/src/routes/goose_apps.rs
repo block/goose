@@ -250,10 +250,6 @@ async fn store_app(
 ) -> Result<Json<SuccessResponse>, ErrorResponse> {
     let manager = GooseAppsManager::new()?;
 
-    if !manager.app_exists(&name) {
-        return Err(ErrorResponse::internal(format!("App '{}' not found", name)));
-    }
-
     manager.update_app(&request.app)?;
 
     Ok(Json(SuccessResponse {

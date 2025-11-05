@@ -3,6 +3,7 @@ import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { GooseApp, iterateApp, storeApp } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface GooseAppEditorProps {
   app?: GooseApp;
@@ -128,10 +129,10 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
           },
         },
       });
-    } catch (_e) {
-      console.log(_e);
+      onReturn();
+    } catch (e) {
+      window.alert('Failed to save:' + errorMessage(e));
     }
-    onReturn();
   };
 
   return (
