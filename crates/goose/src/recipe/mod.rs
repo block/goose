@@ -145,7 +145,7 @@ where
     D: Deserializer<'de>,
 {
     let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-    
+
     match value {
         None => Ok(None),
         Some(serde_json::Value::String(s)) => Ok(Some(s)),
