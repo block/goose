@@ -80,4 +80,3 @@ jobs:
           --body-file pr_body.txt
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        ISSUE: ${{ github.event.issue.html_url }}
