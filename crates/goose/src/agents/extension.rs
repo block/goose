@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use rmcp::model::Tool;
 use rmcp::service::ClientInitializeError;
 use rmcp::ServiceError as ClientError;
+use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -215,7 +216,7 @@ pub enum ExtensionConfig {
     Sse {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         uri: String,
@@ -236,7 +237,7 @@ pub enum ExtensionConfig {
     Stdio {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         cmd: String,
@@ -256,7 +257,7 @@ pub enum ExtensionConfig {
     Builtin {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         display_name: Option<String>, // needed for the UI
@@ -271,7 +272,7 @@ pub enum ExtensionConfig {
     Platform {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         #[serde(default)]
@@ -284,7 +285,7 @@ pub enum ExtensionConfig {
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         uri: String,
@@ -307,7 +308,7 @@ pub enum ExtensionConfig {
     Frontend {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         /// The tools provided by the frontend
@@ -324,7 +325,7 @@ pub enum ExtensionConfig {
     InlinePython {
         /// The name used to identify this extension
         name: String,
-        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
         /// The Python code to execute
@@ -542,6 +543,15 @@ impl ExtensionInfo {
             has_resources,
         }
     }
+}
+
+fn deserialize_null_with_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
 }
 
 /// Information about the tool used for building prompts
