@@ -6,7 +6,7 @@ inputs:
     description: 'The version being released'
     required: true
   head_ref:
-    description: 'The version being released'
+    description: 'The commit SHA or reference of the head of the release branch'
     required: true
   prior_ref:
     description: 'The previous version to compare against'

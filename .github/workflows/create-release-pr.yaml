@@ -68,7 +68,7 @@ jobs:
       uses: ./.github/actions/generate-release-pr-body
       with:
         version: ${{ env.version }}
-        head_ref: ${{ github.event.pull_request.head.sha }}
+        head_ref: ${{ github.event.pull_request.head.sha || github.sha }}
         prior_ref: ${{ env.prior_ref }}
 
     - name: Create Pull Request
