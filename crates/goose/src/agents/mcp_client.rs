@@ -78,7 +78,7 @@ pub trait McpClientTrait: Send + Sync {
     fn get_info(&self) -> Option<&InitializeResult>;
 
     async fn get_moim(&self) -> Option<String> {
-        None // Default: most extensions won't provide MOIM
+        None
     }
 }
 

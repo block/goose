@@ -1,6 +1,6 @@
 use crate::agents::extension_manager::ExtensionManager;
-use crate::agents::SessionConfig;
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use rmcp::model::{AnnotateAble, RawTextContent, Role};
 use uuid::Uuid;
 
@@ -12,23 +12,23 @@ use uuid::Uuid;
 /// The MOIM content is prepended to the latest user message to ensure
 /// it appears in the correct context position.
 pub async fn inject_moim(
-    messages: &[Message],
+    conversation: Conversation,
     extension_manager: &ExtensionManager,
-    _session: &Option<SessionConfig>,
-) -> Vec<Message> {
+) -> Conversation {
     let moim_content = match extension_manager.collect_moim().await {
         Some(content) if !content.trim().is_empty() => content,
         _ => {
             tracing::debug!("No MOIM content available");
-            return messages.to_vec();
+            return conversation;
         }
     };
 
     tracing::debug!("Injecting MOIM: {} chars", moim_content.len());
 
+    let messages: Vec<Message> = conversation.into_iter().collect();
     let last_user_index = messages.iter().rposition(|msg| msg.role == Role::User);
 
-    let mut messages_with_moim = messages.to_vec();
+    let mut messages_with_moim = messages.clone();
 
     match last_user_index {
         Some(index) => {
@@ -65,7 +65,7 @@ pub async fn inject_moim(
         }
     }
 
-    messages_with_moim
+    Conversation::new_unvalidated(messages_with_moim)
 }
 
 #[cfg(test)]
@@ -79,32 +79,38 @@ mod tests {
     async fn test_moim_injection_empty_conversation() {
         let extension_manager = ExtensionManager::new_without_provider();
 
-        let messages = vec![];
-        let result = inject_moim(&messages, &extension_manager, &None).await;
-        assert_eq!(result.len(), 1);
-        assert!(result[0].id.as_ref().unwrap().starts_with("moim_"));
+        let conversation = Conversation::new_unvalidated(vec![]);
+        let result = inject_moim(conversation, &extension_manager).await;
+        let messages = result.messages();
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].id.as_ref().unwrap().starts_with("moim_"));
 
-        let content = result[0].content.first().and_then(|c| c.as_text()).unwrap();
+        let content = messages[0]
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .unwrap();
         assert!(content.contains("<info-msg>"));
         assert!(content.contains("Datetime:"));
-        assert!(!result[0].is_user_visible());
-        assert!(result[0].is_agent_visible());
+        assert!(!messages[0].is_user_visible());
+        assert!(messages[0].is_agent_visible());
     }
 
     #[tokio::test]
     async fn test_moim_injection_prepends_to_last_user_message() {
         let extension_manager = ExtensionManager::new_without_provider();
 
-        let messages = vec![
+        let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi there"),
             Message::user().with_text("How are you?"),
-        ];
-        let result = inject_moim(&messages, &extension_manager, &None).await;
+        ]);
+        let result = inject_moim(conversation, &extension_manager).await;
+        let messages = result.messages();
 
-        assert_eq!(result.len(), 3);
+        assert_eq!(messages.len(), 3);
 
-        let last_user_msg = &result[2];
+        let last_user_msg = &messages[2];
         assert_eq!(last_user_msg.role, Role::User);
 
         let first_content = last_user_msg
@@ -140,19 +146,20 @@ mod tests {
             tool_result: Ok(vec![Content::text("Tool executed successfully")]),
         };
 
-        let messages = vec![
+        let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("Please use a tool"),
             Message::assistant()
                 .with_text("I'll use the tool now.")
                 .with_content(MessageContent::ToolRequest(tool_request)),
             Message::user().with_content(MessageContent::ToolResponse(tool_response)),
-        ];
+        ]);
 
-        let result = inject_moim(&messages, &extension_manager, &None).await;
+        let result = inject_moim(conversation, &extension_manager).await;
+        let messages = result.messages();
 
-        assert_eq!(result.len(), 3);
+        assert_eq!(messages.len(), 3);
 
-        let last_user_msg = &result[2];
+        let last_user_msg = &messages[2];
         assert_eq!(last_user_msg.role, Role::User);
 
         let first_content = last_user_msg
@@ -172,22 +179,27 @@ mod tests {
     async fn test_moim_injection_no_user_messages() {
         let extension_manager = ExtensionManager::new_without_provider();
 
-        let messages = vec![
+        let conversation = Conversation::new_unvalidated(vec![
             Message::assistant().with_text("Hello from assistant"),
             Message::assistant().with_text("Another assistant message"),
-        ];
+        ]);
 
-        let result = inject_moim(&messages, &extension_manager, &None).await;
+        let result = inject_moim(conversation, &extension_manager).await;
+        let messages = result.messages();
 
-        assert_eq!(result.len(), 3);
+        assert_eq!(messages.len(), 3);
 
-        assert_eq!(result[0].role, Role::User);
-        assert!(result[0].id.as_ref().unwrap().starts_with("moim_"));
+        assert_eq!(messages[0].role, Role::User);
+        assert!(messages[0].id.as_ref().unwrap().starts_with("moim_"));
 
-        let content = result[0].content.first().and_then(|c| c.as_text()).unwrap();
+        let content = messages[0]
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .unwrap();
         assert!(content.contains("<info-msg>"));
 
-        assert_eq!(result[1].role, Role::Assistant);
-        assert_eq!(result[2].role, Role::Assistant);
+        assert_eq!(messages[1].role, Role::Assistant);
+        assert_eq!(messages[2].role, Role::Assistant);
     }
 }

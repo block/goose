@@ -1127,7 +1127,6 @@ impl ExtensionManager {
             .map(|ext| ext.get_client())
     }
 
-    /// Collect and aggregate MOIM content from all platform extensions.
     pub async fn collect_moim(&self) -> Option<String> {
         use chrono::Local;
 

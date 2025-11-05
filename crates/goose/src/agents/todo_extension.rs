@@ -10,12 +10,18 @@ use rmcp::model::{
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
     ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
-use rmcp::object;
+use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "todo";
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct TodoWriteParams {
+    content: String,
+}
 
 pub struct TodoClient {
     info: InitializeResult,
@@ -137,6 +143,10 @@ impl TodoClient {
     }
 
     fn get_tools() -> Vec<Tool> {
+        let schema = schema_for!(TodoWriteParams);
+        let schema_value =
+            serde_json::to_value(schema).expect("Failed to serialize TodoWriteParams schema");
+
         vec![Tool::new(
             "todo_write".to_string(),
             indoc! {r#"
@@ -150,16 +160,7 @@ impl TodoClient {
                     all content you want to keep, not just the changes.
                 "#}
             .to_string(),
-            object!({
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": "The TODO list content to save"
-                    }
-                },
-                "required": ["content"]
-            }),
+            schema_value.as_object().unwrap().clone(),
         )
         .annotate(ToolAnnotations {
             title: Some("Write TODO".to_string()),
