@@ -77,7 +77,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_empty_conversation() {
-        let extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new_without_provider();
 
         let messages = vec![];
         let result = inject_moim(&messages, &extension_manager, &None).await;
@@ -93,7 +93,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_prepends_to_last_user_message() {
-        let extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new_without_provider();
 
         let messages = vec![
             Message::user().with_text("Hello"),
@@ -125,7 +125,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_with_tool_responses() {
-        let extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new_without_provider();
 
         let tool_request = ToolRequest {
             id: "test_tool_1".to_string(),
@@ -170,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_no_user_messages() {
-        let extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new_without_provider();
 
         let messages = vec![
             Message::assistant().with_text("Hello from assistant"),
