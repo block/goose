@@ -286,10 +286,10 @@ async fn run_tunnel_loop(
 
     let url = format!("{}/connect?agent_id={}", ws_url, agent_id);
 
-    let ws_tx: WebSocketSender = Arc::new(RwLock::new(None));
-
     loop {
         info!("Connecting to {}...", url);
+
+        let ws_tx: WebSocketSender = Arc::new(RwLock::new(None));
 
         let _url_parsed = match Url::parse(&url) {
             Ok(u) => u,
@@ -337,66 +337,76 @@ async fn run_tunnel_loop(
         *ws_tx.write().await = Some(write);
         let last_activity = Arc::new(RwLock::new(Instant::now()));
 
-        // Spawn idle timeout checker
         let last_activity_clone = last_activity.clone();
-        let idle_task = tokio::spawn(async move {
+        let idle_task = async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(60)).await;
                 let elapsed = last_activity_clone.read().await.elapsed();
                 if elapsed > Duration::from_secs(IDLE_TIMEOUT_SECS) {
                     warn!(
-                        "No activity for {} minutes, will reconnect",
+                        "No activity for {} minutes, forcing reconnect",
                         IDLE_TIMEOUT_SECS / 60
                     );
                     break;
                 }
             }
-        });
+        };
 
-        // Main message loop
-        while let Some(msg) = read.next().await {
-            match msg {
-                Ok(Message::Text(text)) => {
-                    *last_activity.write().await = Instant::now();
+        tokio::select! {
+            _ = idle_task => {
+                info!("✗ Idle timeout triggered, reconnecting...");
+            }
+            _ = async {
+                // Main message loop
+                while let Some(msg) = read.next().await {
+                    match msg {
+                        Ok(Message::Text(text)) => {
+                            *last_activity.write().await = Instant::now();
 
-                    match serde_json::from_str::<TunnelMessage>(&text) {
-                        Ok(tunnel_msg) => {
-                            let ws_tx_clone = ws_tx.clone();
-                            let server_secret_clone = server_secret.clone();
-                            tokio::spawn(async move {
-                                if let Err(e) = handle_request(
-                                    tunnel_msg,
-                                    port,
-                                    ws_tx_clone,
-                                    server_secret_clone,
-                                )
-                                .await
-                                {
-                                    error!("Error handling request: {}", e);
+                            match serde_json::from_str::<TunnelMessage>(&text) {
+                                Ok(tunnel_msg) => {
+                                    let ws_tx_clone = ws_tx.clone();
+                                    let server_secret_clone = server_secret.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = handle_request(
+                                            tunnel_msg,
+                                            port,
+                                            ws_tx_clone,
+                                            server_secret_clone,
+                                        )
+                                        .await
+                                        {
+                                            error!("Error handling request: {}", e);
+                                        }
+                                    });
                                 }
-                            });
+                                Err(e) => {
+                                    error!("Error parsing tunnel message: {}", e);
+                                }
+                            }
+                        }
+                        Ok(Message::Close(_)) => {
+                            info!("✗ Connection closed by server");
+                            break;
+                        }
+                        Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {
+                            *last_activity.write().await = Instant::now();
                         }
                         Err(e) => {
-                            error!("Error parsing tunnel message: {}", e);
+                            error!("✗ WebSocket error: {}", e);
+                            break;
                         }
+                        _ => {}
                     }
                 }
-                Ok(Message::Close(_)) => {
-                    info!("✗ Connection closed by server");
-                    break;
-                }
-                Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {
-                    *last_activity.write().await = Instant::now();
-                }
-                Err(e) => {
-                    error!("✗ WebSocket error: {}", e);
-                    break;
-                }
-                _ => {}
+            } => {
+                info!("✗ Connection ended");
             }
         }
 
-        idle_task.abort();
+        if let Some(mut tx) = ws_tx.write().await.take() {
+            let _ = tx.close().await;
+        }
 
         // Check if we should continue running
         if handle.read().await.is_none() {
