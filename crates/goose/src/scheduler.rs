@@ -207,7 +207,16 @@ impl Scheduler {
         let normalized_cron = normalize_cron_expression(&job.cron);
         let tokio_cron = to_tokio_cron(&normalized_cron);
 
+        tracing::info!(
+            "Creating cron task for job '{}' with expression '{}' (normalized: '{}', tokio: '{}')",
+            job.id,
+            job.cron,
+            normalized_cron,
+            tokio_cron
+        );
+
         Job::new_async(&tokio_cron, move |_uuid, _l| {
+            tracing::info!("Cron task triggered for job '{}'", job_for_task.id);
             let task_job_id = job_for_task.id.clone();
             let current_jobs_arc = jobs_arc.clone();
             let local_storage_path = storage_path.clone();

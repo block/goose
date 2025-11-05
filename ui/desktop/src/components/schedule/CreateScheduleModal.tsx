@@ -68,8 +68,6 @@ interface CleanRecipe {
     metadata?: string;
   };
   schedule?: {
-    foreground: boolean;
-    fallback_to_background: boolean;
     window_title?: string;
     working_directory?: string;
   };
@@ -107,9 +105,7 @@ const checkboxInputClassName =
   'h-4 w-4 text-accent-default border-border-subtle rounded focus:ring-accent-default mr-2';
 
 type SourceType = 'file' | 'deeplink';
-type ExecutionMode = 'background' | 'foreground';
 
-// Function to parse deep link and extract recipe config
 async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
   try {
     const url = new URL(deepLink);
@@ -130,7 +126,7 @@ async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
 }
 
 // Function to convert recipe to YAML with schedule configuration
-function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
+function recipeToYaml(recipe: Recipe): string {
   // Create a clean recipe object for YAML conversion
   const cleanRecipe: CleanRecipe = {
     title: recipe.title,
@@ -251,9 +247,7 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
 
   // Add schedule configuration based on execution mode
   cleanRecipe.schedule = {
-    foreground: executionMode === 'foreground',
-    fallback_to_background: true, // Always allow fallback
-    window_title: executionMode === 'foreground' ? `${recipe.title} - Scheduled` : undefined,
+    window_title: `${recipe.title} - Scheduled`,
   };
 
   return yaml.stringify(cleanRecipe);
@@ -269,7 +263,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('file');
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('background');
   const [recipeSourcePath, setRecipeSourcePath] = useState<string>('');
   const [deepLinkInput, setDeepLinkInput] = useState<string>('');
   const [parsedRecipe, setParsedRecipe] = useState<Recipe | null>(null);
@@ -335,7 +328,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const resetForm = () => {
     setScheduleId('');
     setSourceType('file');
-    setExecutionMode('background');
     setRecipeSourcePath('');
     setDeepLinkInput('');
     setParsedRecipe(null);
@@ -494,8 +486,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       }
 
       try {
-        // Convert recipe to YAML and save to a temporary file
-        const yamlContent = recipeToYaml(parsedRecipe, executionMode);
+        const yamlContent = recipeToYaml(parsedRecipe);
         console.log('Generated YAML content:', yamlContent); // Debug log
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
@@ -535,7 +526,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       id: scheduleId.trim(),
       recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
-      execution_mode: executionMode,
     };
 
     await onSubmit(newSchedulePayload);
@@ -634,19 +624,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
                       Selected: {recipeSourcePath}
                     </p>
-                  )}
-                  {executionMode === 'foreground' && (
-                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        <strong>Note:</strong> For foreground execution with YAML files, add this to
-                        your recipe:
-                      </p>
-                      <pre className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-blue-100 dark:bg-blue-900/40 p-1 rounded">
-                        {`schedule:
-  foreground: true
-  fallback_to_background: true`}
-                      </pre>
-                    </div>
                   )}
                 </div>
               )}
