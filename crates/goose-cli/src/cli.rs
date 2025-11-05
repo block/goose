@@ -49,8 +49,8 @@ pub struct Identifier {
     pub name: Option<String>,
 
     #[arg(
-        short = 'i',
         long = "session-id",
+        alias = "id",
         value_name = "SESSION_ID",
         help = "Session ID (e.g., '20250921_143022')",
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
@@ -58,7 +58,6 @@ pub struct Identifier {
     pub session_id: Option<String>,
 
     #[arg(
-        short = 'p',
         long,
         value_name = "PATH",
         help = "Legacy: Path for the chat session",
@@ -178,6 +177,7 @@ enum SessionCommand {
 
         #[arg(
             short = 'w',
+            short_alias = 'p',
             long = "working_dir",
             help = "Filter sessions by working directory"
         )]
@@ -240,7 +240,10 @@ enum SessionCommand {
 enum SchedulerCommand {
     #[command(about = "Add a new scheduled job")]
     Add {
-        #[arg(short = 'i', long = "schedule-id", help = "Unique ID for the job")]
+        #[arg(
+            long = "schedule-id",
+            help = "Unique ID for the recurring scheduled job"
+        )]
         schedule_id: String,
         #[arg(
             long,
@@ -258,14 +261,17 @@ enum SchedulerCommand {
     List {},
     #[command(about = "Remove a scheduled job by ID")]
     Remove {
-        #[arg(short = 'i', long = "schedule-id", help = "ID of the job to remove")]
+        #[arg(
+            long = "schedule-id",
+            help = "ID of the scheduled job to remove (removes the recurring schedule)"
+        )]
         schedule_id: String,
     },
     /// List sessions created by a specific schedule
     #[command(about = "List sessions created by a specific schedule")]
     Sessions {
         /// ID of the schedule
-        #[arg(short = 'i', long = "schedule-id", help = "ID of the schedule")]
+        #[arg(long = "schedule-id", help = "ID of the schedule")]
         schedule_id: String,
         #[arg(short = 'l', long, help = "Maximum number of sessions to return")]
         limit: Option<usize>,
@@ -273,14 +279,14 @@ enum SchedulerCommand {
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
         /// ID of the schedule to run
-        #[arg(short = 'i', long = "schedule-id", help = "ID of the schedule to run")]
+        #[arg(long = "schedule-id", help = "ID of the schedule to run")]
         schedule_id: String,
     },
     /// Check status of scheduler services (deprecated - no external services needed)
-    #[command(about = "Check status of scheduler services")]
+    #[command(about = "[Deprecated] Check status of scheduler services")]
     ServicesStatus {},
     /// Stop scheduler services (deprecated - no external services needed)
-    #[command(about = "Stop scheduler services")]
+    #[command(about = "[Deprecated] Stop scheduler services")]
     ServicesStop {},
     /// Show cron expression examples and help
     #[command(about = "Show cron expression examples and help")]
@@ -429,8 +435,8 @@ enum Command {
         #[arg(
             short,
             long,
-            help = "Resume a previous session (last used or specified by --name)",
-            long_help = "Continue from a previous chat session. If --name or --path is provided, resumes that specific session. Otherwise resumes the last used session."
+            help = "Resume a previous session (last used or specified by --name/--session-id)",
+            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise resumes the most recently used session."
         )]
         resume: bool,
 
