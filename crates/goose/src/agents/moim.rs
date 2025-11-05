@@ -1,12 +1,16 @@
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::SessionConfig;
 use crate::conversation::message::{Message, MessageContent};
+use rmcp::model::{AnnotateAble, RawTextContent, Role};
 use uuid::Uuid;
 
 /// Inject MOIM (Minus One Info Message) into conversation.
 ///
 /// MOIM provides ephemeral context that's included in LLM calls
 /// but never persisted to conversation history.
+///
+/// The MOIM content is prepended to the latest user message to ensure
+/// it appears in the correct context position.
 pub async fn inject_moim(
     messages: &[Message],
     extension_manager: &ExtensionManager,
@@ -22,53 +26,46 @@ pub async fn inject_moim(
 
     tracing::debug!("Injecting MOIM: {} chars", moim_content.len());
 
-    let moim_message = Message::user()
-        .with_text(moim_content)
-        .with_id(format!("moim_{}", Uuid::new_v4()))
-        .agent_only();
+    let last_user_index = messages.iter().rposition(|msg| msg.role == Role::User);
 
     let mut messages_with_moim = messages.to_vec();
 
-    if messages_with_moim.is_empty() {
-        messages_with_moim.push(moim_message);
-    } else {
-        let insert_pos = find_moim_insertion_point(&messages_with_moim);
-        messages_with_moim.insert(insert_pos, moim_message);
-    }
+    match last_user_index {
+        Some(index) => {
+            let original_user_msg = &messages[index];
 
-    messages_with_moim
-}
+            let moim_text_content = MessageContent::Text(
+                RawTextContent {
+                    text: moim_content,
+                    meta: None,
+                }
+                .no_annotation(),
+            );
 
-/// Find a safe insertion point for MOIM that won't break tool call/response pairs.
-fn find_moim_insertion_point(messages: &[Message]) -> usize {
-    if messages.is_empty() {
-        return 0;
-    }
+            let mut combined_content = vec![moim_text_content];
+            combined_content.extend(original_user_msg.content.clone());
 
-    let last_pos = messages.len() - 1;
+            let modified_user_msg = Message {
+                id: original_user_msg.id.clone(),
+                role: original_user_msg.role.clone(),
+                created: original_user_msg.created,
+                content: combined_content,
+                metadata: original_user_msg.metadata,
+            };
 
-    // Don't break tool call/response pairs
-    if last_pos > 0 {
-        let prev_msg = &messages[last_pos - 1];
-        let curr_msg = &messages[last_pos];
-
-        let prev_has_tool_calls = prev_msg
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_)));
-
-        let curr_has_tool_responses = curr_msg
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_)));
-
-        if prev_has_tool_calls && curr_has_tool_responses {
-            tracing::debug!("MOIM: Adjusting position to avoid breaking tool pair");
-            return last_pos.saturating_sub(1);
+            messages_with_moim[index] = modified_user_msg;
+        }
+        None => {
+            // No user message found, create a standalone MOIM message
+            let moim_message = Message::user()
+                .with_text(moim_content)
+                .with_id(format!("moim_{}", Uuid::new_v4()))
+                .agent_only();
+            messages_with_moim.insert(0, moim_message);
         }
     }
 
-    last_pos
+    messages_with_moim
 }
 
 #[cfg(test)]
@@ -78,126 +75,58 @@ mod tests {
     use rmcp::model::{CallToolRequestParam, Content};
     use rmcp::object;
 
-    #[test]
-    fn test_find_insertion_point_edge_cases() {
-        // Test empty messages
-        let messages = vec![];
-        assert_eq!(find_moim_insertion_point(&messages), 0);
-
-        // Test single message - should return 0 (insert at beginning)
-        let messages = vec![Message::user().with_text("Hello")];
-        assert_eq!(find_moim_insertion_point(&messages), 0);
-
-        // Test multiple messages - should return last position
-        let messages = vec![
-            Message::user().with_text("Hello"),
-            Message::assistant().with_text("Hi"),
-            Message::user().with_text("How are you?"),
-        ];
-        assert_eq!(find_moim_insertion_point(&messages), 2);
-    }
-
-    #[test]
-    fn test_find_insertion_point_tool_pair_detection() {
-        // Helper to create tool request and response
-        let tool_request = ToolRequest {
-            id: "test_tool_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({"key": "value"})),
-            }),
-        };
-
-        let tool_response = ToolResponse {
-            id: "test_tool_1".to_string(),
-            tool_result: Ok(vec![Content::text("Tool executed successfully")]),
-        };
-
-        // Test: Tool call/response pair at the end - should back up
-        let messages = vec![
-            Message::user().with_text("Please use a tool"),
-            Message::assistant()
-                .with_text("I'll use the tool now.")
-                .with_content(MessageContent::ToolRequest(tool_request.clone())),
-            Message::user().with_content(MessageContent::ToolResponse(tool_response.clone())),
-        ];
-        assert_eq!(find_moim_insertion_point(&messages), 1); // Should back up to position 1
-
-        // Test: Tool pair in the middle with more messages after
-        let messages_with_more = vec![
-            Message::user().with_text("First request"),
-            Message::assistant().with_content(MessageContent::ToolRequest(tool_request.clone())),
-            Message::user().with_content(MessageContent::ToolResponse(tool_response)),
-            Message::assistant().with_text("Tool completed, here's the result"),
-        ];
-        assert_eq!(find_moim_insertion_point(&messages_with_more), 3); // Should use last position
-    }
-
-    #[test]
-    fn test_find_insertion_point_non_tool_pairs() {
-        let tool_request = ToolRequest {
-            id: "test_tool_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({"key": "value"})),
-            }),
-        };
-
-        let tool_response = ToolResponse {
-            id: "test_tool_1".to_string(),
-            tool_result: Ok(vec![Content::text("Tool executed")]),
-        };
-
-        // Test: Tool request without matching response
-        let messages = vec![
-            Message::user().with_text("Please use a tool"),
-            Message::assistant().with_content(MessageContent::ToolRequest(tool_request)),
-            Message::assistant().with_text("Actually, let me reconsider."),
-        ];
-        assert_eq!(find_moim_insertion_point(&messages), 2); // No pair, use last position
-
-        // Test: Tool response without preceding request
-        let messages = vec![
-            Message::user().with_text("Here's a tool response from earlier"),
-            Message::assistant().with_text("Okay, I see that."),
-            Message::user().with_content(MessageContent::ToolResponse(tool_response)),
-        ];
-        assert_eq!(find_moim_insertion_point(&messages), 2); // No pair, use last position
-    }
-
     #[tokio::test]
-    async fn test_moim_injection_basic() {
+    async fn test_moim_injection_empty_conversation() {
         let extension_manager = ExtensionManager::new();
 
-        // Test empty conversation
         let messages = vec![];
         let result = inject_moim(&messages, &extension_manager, &None).await;
         assert_eq!(result.len(), 1);
         assert!(result[0].id.as_ref().unwrap().starts_with("moim_"));
 
-        // Verify MOIM content and metadata
         let content = result[0].content.first().and_then(|c| c.as_text()).unwrap();
         assert!(content.contains("<info-msg>"));
         assert!(content.contains("Datetime:"));
         assert!(!result[0].is_user_visible());
         assert!(result[0].is_agent_visible());
+    }
 
-        // Test with existing messages
+    #[tokio::test]
+    async fn test_moim_injection_prepends_to_last_user_message() {
+        let extension_manager = ExtensionManager::new();
+
         let messages = vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi there"),
+            Message::user().with_text("How are you?"),
         ];
         let result = inject_moim(&messages, &extension_manager, &None).await;
 
         assert_eq!(result.len(), 3);
-        // MOIM should be at position 1 (before the last message)
-        assert!(result[1].id.as_ref().unwrap().starts_with("moim_"));
-        assert!(!result[1].is_user_visible());
-        assert!(result[1].is_agent_visible());
+
+        let last_user_msg = &result[2];
+        assert_eq!(last_user_msg.role, Role::User);
+
+        let first_content = last_user_msg
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .unwrap();
+        assert!(first_content.contains("<info-msg>"));
+        assert!(first_content.contains("Datetime:"));
+
+        let second_content = last_user_msg
+            .content
+            .get(1)
+            .and_then(|c| c.as_text())
+            .unwrap();
+        assert_eq!(second_content, "How are you?");
     }
 
     #[tokio::test]
-    async fn test_moim_injection_preserves_tool_pair() {
+    async fn test_moim_injection_with_tool_responses() {
+        let extension_manager = ExtensionManager::new();
+
         let tool_request = ToolRequest {
             id: "test_tool_1".to_string(),
             tool_call: Ok(CallToolRequestParam {
@@ -219,23 +148,46 @@ mod tests {
             Message::user().with_content(MessageContent::ToolResponse(tool_response)),
         ];
 
-        let extension_manager = ExtensionManager::new();
         let result = inject_moim(&messages, &extension_manager, &None).await;
 
-        // Should have 4 messages total (3 original + 1 MOIM)
-        assert_eq!(result.len(), 4);
+        assert_eq!(result.len(), 3);
 
-        // MOIM should be at position 1 (before the tool request/response pair)
-        assert!(result[1].id.as_ref().unwrap().starts_with("moim_"));
+        let last_user_msg = &result[2];
+        assert_eq!(last_user_msg.role, Role::User);
 
-        // Verify the tool pair is still together (positions 2 and 3)
-        assert!(result[2]
+        let first_content = last_user_msg
             .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
-        assert!(result[3]
+            .first()
+            .and_then(|c| c.as_text())
+            .unwrap();
+        assert!(first_content.contains("<info-msg>"));
+
+        assert!(last_user_msg
             .content
             .iter()
             .any(|c| matches!(c, MessageContent::ToolResponse(_))));
+    }
+
+    #[tokio::test]
+    async fn test_moim_injection_no_user_messages() {
+        let extension_manager = ExtensionManager::new();
+
+        let messages = vec![
+            Message::assistant().with_text("Hello from assistant"),
+            Message::assistant().with_text("Another assistant message"),
+        ];
+
+        let result = inject_moim(&messages, &extension_manager, &None).await;
+
+        assert_eq!(result.len(), 3);
+
+        assert_eq!(result[0].role, Role::User);
+        assert!(result[0].id.as_ref().unwrap().starts_with("moim_"));
+
+        let content = result[0].content.first().and_then(|c| c.as_text()).unwrap();
+        assert!(content.contains("<info-msg>"));
+
+        assert_eq!(result[1].role, Role::Assistant);
+        assert_eq!(result[2].role, Role::Assistant);
     }
 }
