@@ -26,6 +26,14 @@ fn default_version() -> String {
     "1.0.0".to_string()
 }
 
+fn skip_serializing_recipe_extensions(value: &Option<Option<Vec<ExtensionConfig>>>) -> bool {
+    match value {
+        None => true,
+        Some(None) => false,
+        Some(Some(extensions)) => extensions.is_empty(),
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
@@ -45,11 +53,11 @@ pub struct Recipe {
     pub prompt: Option<String>, // the prompt to start the session with
 
     #[serde(
-        skip_serializing_if = "Option::is_none",
+        skip_serializing_if = "skip_serializing_recipe_extensions",
         default,
         deserialize_with = "recipe_extension_adapter::deserialize_recipe_extensions"
     )]
-    pub extensions: Option<Vec<ExtensionConfig>>, // a list of extensions to enable
+    pub extensions: Option<Option<Vec<ExtensionConfig>>>, // explicit override, disable, or inherit
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Vec<String>>, // any additional context
@@ -203,7 +211,7 @@ pub struct RecipeBuilder {
 
     // Optional fields
     prompt: Option<String>,
-    extensions: Option<Vec<ExtensionConfig>>,
+    extensions: Option<Option<Vec<ExtensionConfig>>>,
     context: Option<Vec<String>>,
     settings: Option<Settings>,
     activities: Option<Vec<String>>,
@@ -234,6 +242,21 @@ impl Recipe {
         false
     }
 
+    /// Resolves the extensions for this recipe based on the extensions configuration.
+    /// - If extensions is None or Some(Some([])), inherits from global config
+    /// - If extensions is Some(None), explicitly no extensions. ie: extensions: null
+    /// - If extensions is Some(Some([...])), uses the specified extensions
+    pub fn resolve_extensions(&self) -> Vec<ExtensionConfig> {
+        match &self.extensions {
+            None => crate::config::get_enabled_extensions(),
+            Some(None) => Vec::new(),
+            Some(Some(extensions)) if extensions.is_empty() => {
+                crate::config::get_enabled_extensions()
+            }
+            Some(Some(extensions)) => extensions.clone(),
+        }
+    }
+
     pub fn builder() -> RecipeBuilder {
         RecipeBuilder {
             version: default_version(),
@@ -259,18 +282,42 @@ impl Recipe {
     }
 
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
-            Ok(yaml_value) => {
-                if let Some(nested_recipe) = yaml_value.get("recipe") {
-                    serde_yaml::from_value(nested_recipe.clone())
-                        .map_err(|e| anyhow::anyhow!("Failed to parse nested recipe: {}", e))?
-                } else {
-                    serde_yaml::from_str(content)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?
+        let (mut recipe, extensions_value) =
+            match serde_yaml::from_str::<serde_yaml::Value>(content) {
+                Ok(yaml_value) => {
+                    let recipe_value = yaml_value
+                        .as_mapping()
+                        .and_then(|mapping| {
+                            mapping.get(&serde_yaml::Value::String("recipe".to_string()))
+                        })
+                        .cloned()
+                        .unwrap_or_else(|| yaml_value.clone());
+
+                    let extensions_value = recipe_value
+                        .as_mapping()
+                        .and_then(|mapping| {
+                            mapping.get(&serde_yaml::Value::String("extensions".to_string()))
+                        })
+                        .cloned();
+
+                    let recipe: Recipe = serde_yaml::from_value(recipe_value)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?;
+
+                    (recipe, extensions_value)
                 }
-            }
-            Err(_) => serde_yaml::from_str(content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+                Err(_) => (
+                    serde_yaml::from_str::<Recipe>(content)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+                    None,
+                ),
+            };
+
+        let parsed_extensions = recipe.extensions;
+        recipe.extensions = match extensions_value {
+            None => None,
+            Some(serde_yaml::Value::Null) => Some(None),
+            Some(serde_yaml::Value::Sequence(seq)) if seq.is_empty() => None,
+            Some(_) => parsed_extensions,
         };
 
         if let Some(ref retry_config) = recipe.retry {
@@ -312,8 +359,8 @@ impl RecipeBuilder {
         self
     }
 
-    pub fn extensions(mut self, extensions: Vec<ExtensionConfig>) -> Self {
-        self.extensions = Some(extensions);
+    pub fn extensions(mut self, extensions: Option<Option<Vec<ExtensionConfig>>>) -> Self {
+        self.extensions = extensions;
         self
     }
 
@@ -388,6 +435,28 @@ impl RecipeBuilder {
 mod tests {
     use super::*;
 
+    fn expect_override<'a>(recipe: &'a Recipe) -> &'a [ExtensionConfig] {
+        match &recipe.extensions {
+            Some(Some(exts)) if !exts.is_empty() => exts,
+            other => panic!("expected override extensions, got {:?}", other),
+        }
+    }
+
+    fn expect_disabled(recipe: &Recipe) {
+        assert!(
+            matches!(recipe.extensions, Some(None)),
+            "expected explicit disable"
+        );
+    }
+
+    fn expect_inherit(recipe: &Recipe) {
+        match &recipe.extensions {
+            None => {}
+            Some(Some(exts)) if exts.is_empty() => {}
+            other => panic!("expected inherit, got {:?}", other),
+        }
+    }
+
     #[test]
     fn test_from_content_with_json() {
         let content = r#"{
@@ -446,8 +515,7 @@ mod tests {
         assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
-        assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = expect_override(&recipe);
         assert_eq!(extensions.len(), 1);
 
         assert!(recipe.parameters.is_some());
@@ -529,8 +597,7 @@ sub_recipes:
         assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
-        assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = expect_override(&recipe);
         assert_eq!(extensions.len(), 1);
 
         assert!(recipe.parameters.is_some());
@@ -629,8 +696,7 @@ sub_recipes:
 
         let recipe = Recipe::from_content(content).unwrap();
 
-        assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = expect_override(&recipe);
         assert_eq!(extensions.len(), 1);
 
         match &extensions[0] {
@@ -695,11 +761,9 @@ isGlobal: true"#;
         );
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
         assert!(recipe.activities.is_some());
-        let activities = recipe.activities.unwrap();
+        let activities = recipe.activities.clone().unwrap();
         assert_eq!(activities, vec!["Test activity 1", "Test activity 2"]);
-        assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 0);
+        expect_inherit(&recipe);
     }
 
     #[test]
@@ -760,8 +824,7 @@ isGlobal: true"#;
 
         let recipe = Recipe::from_content(content).unwrap();
 
-        assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = expect_override(&recipe);
         assert_eq!(extensions.len(), 1);
 
         if let ExtensionConfig::Stdio {
@@ -773,5 +836,46 @@ isGlobal: true"#;
         } else {
             panic!("Expected Stdio extension");
         }
+    }
+
+    #[test]
+    fn test_extensions_null_disables_extensions() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "extensions": null
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        expect_disabled(&recipe);
+    }
+
+    #[test]
+    fn test_extensions_field_omitted_inherits() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions"
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        expect_inherit(&recipe);
+    }
+
+    #[test]
+    fn test_extensions_empty_array_inherits() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "extensions": []
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        expect_inherit(&recipe);
     }
 }

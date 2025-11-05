@@ -182,16 +182,18 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
 
 pub fn deserialize_recipe_extensions<'de, D>(
     deserializer: D,
-) -> Result<Option<Vec<ExtensionConfig>>, D::Error>
+) -> Result<Option<Option<Vec<ExtensionConfig>>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let remotes = Option::<Vec<RecipeExtensionConfigInternal>>::deserialize(deserializer)?;
-    Ok(remotes.map(|items| {
-        items
-            .into_iter()
-            .map(ExtensionConfig::from)
-            .collect::<Vec<_>>()
+    let remotes = Option::<Option<Vec<RecipeExtensionConfigInternal>>>::deserialize(deserializer)?;
+    Ok(remotes.map(|maybe_items| {
+        maybe_items.map(|items| {
+            items
+                .into_iter()
+                .map(ExtensionConfig::from)
+                .collect::<Vec<_>>()
+        })
     }))
 }
 
@@ -204,7 +206,7 @@ mod tests {
     #[derive(Deserialize)]
     struct Wrapper {
         #[serde(deserialize_with = "deserialize_recipe_extensions")]
-        extensions: Option<Vec<ExtensionConfig>>,
+        extensions: Option<Option<Vec<ExtensionConfig>>>,
     }
 
     #[test]
@@ -221,7 +223,10 @@ mod tests {
         }))
         .expect("failed to deserialize extensions");
 
-        let extensions = wrapper.extensions.expect("expected extensions");
+        let extensions = wrapper
+            .extensions
+            .expect("expected extensions wrapper state")
+            .expect("expected extensions list");
         assert_eq!(extensions.len(), 1);
 
         match &extensions[0] {
@@ -258,7 +263,10 @@ mod tests {
         }))
         .expect("failed to deserialize extensions with null description");
 
-        let extensions = wrapper.extensions.expect("expected extensions");
+        let extensions = wrapper
+            .extensions
+            .expect("expected extensions wrapper state")
+            .expect("expected extensions list");
         assert_eq!(extensions.len(), 1);
 
         match &extensions[0] {

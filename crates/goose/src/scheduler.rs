@@ -1140,16 +1140,15 @@ async fn run_scheduled_job_internal(
                 })?;
     }
 
-    if let Some(ref recipe_extensions) = recipe.extensions {
-        for extension in recipe_extensions {
-            agent
-                .add_extension(extension.clone())
-                .await
-                .map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to add extension '{}': {}", extension.name(), e),
-                })?;
-        }
+    for extension in recipe.resolve_extensions() {
+        let extension_name = extension.name().to_string();
+        agent
+            .add_extension(extension)
+            .await
+            .map_err(|e| JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Failed to add extension '{}': {}", extension_name, e),
+            })?;
     }
 
     if let Err(e) = agent.update_provider(agent_provider).await {

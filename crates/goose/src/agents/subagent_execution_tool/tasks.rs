@@ -91,11 +91,7 @@ async fn handle_inline_recipe_task(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    // If extensions are explicitly provided in the recipe (even if empty),
-    // override the task_config extensions. Empty array means no extensions.
-    if let Some(exts) = recipe.extensions {
-        task_config.extensions = exts.clone();
-    }
+    task_config.extensions = recipe.resolve_extensions();
 
     let instruction = recipe
         .instructions

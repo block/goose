@@ -1478,7 +1478,7 @@ impl Agent {
             .description(description)
             .instructions(instructions)
             .activities(activities)
-            .extensions(extension_configs)
+            .extensions(Some(Some(extension_configs)))
             .settings(settings)
             .author(author)
             .build()
