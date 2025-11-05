@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   "paths": {
     "/agent/add_extension": {

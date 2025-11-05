@@ -169,15 +169,17 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             }
         }
         s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(
-            s[CMD_EXTENSION.len()..].to_string(),
+            s.get(CMD_EXTENSION.len()..).unwrap_or("").to_string(),
         )),
-        s if s.starts_with(CMD_BUILTIN) => {
-            Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string()))
+        s if s.starts_with(CMD_BUILTIN) => Some(InputResult::AddBuiltin(
+            s.get(CMD_BUILTIN.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_MODE) => Some(InputResult::GooseMode(
+            s.get(CMD_MODE.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_PLAN) => {
+            parse_plan_command(s.get(CMD_PLAN.len()..).unwrap_or("").trim().to_string())
         }
-        s if s.starts_with(CMD_MODE) => {
-            Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
-        }
-        s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s == CMD_CLEAR => Some(InputResult::Clear),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
@@ -199,7 +201,7 @@ fn parse_recipe_command(s: &str) -> Option<InputResult> {
     }
 
     // Extract the filepath from the command
-    let filepath = s[CMD_RECIPE.len()..].trim();
+    let filepath = s.get(CMD_RECIPE.len()..).unwrap_or("").trim();
 
     if filepath.is_empty() {
         return Some(InputResult::Recipe(None));

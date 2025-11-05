@@ -1365,17 +1365,9 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
-        tracing::debug!(
-            "Cleaned content for parsing: {}",
-            &clean_content[..std::cmp::min(200, clean_content.len())]
-        );
 
-        // try to parse json response from the LLM
-        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
-                tracing::debug!("Successfully parsed JSON content");
-
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?

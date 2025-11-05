@@ -1,5 +1,6 @@
 use super::base::Usage;
 use super::errors::GoogleErrorCode;
+use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::{OpenAIError, ProviderError};
 use anyhow::{anyhow, Result};
@@ -44,6 +45,31 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
                 "data": image.data,
             }
         }),
+    }
+}
+
+pub fn filter_extensions_from_system_prompt(system: &str) -> String {
+    let Some(extensions_start) = system.find("# Extensions") else {
+        return system.to_string();
+    };
+
+    let Some(after_extensions) = system.get(extensions_start + 1..) else {
+        return system.to_string();
+    };
+
+    if let Some(next_section_pos) = after_extensions.find("\n# ") {
+        let Some(before) = system.get(..extensions_start) else {
+            return system.to_string();
+        };
+        let Some(after) = system.get(extensions_start + next_section_pos + 1..) else {
+            return system.to_string();
+        };
+        format!("{}{}", before.trim_end(), after)
+    } else {
+        system
+            .get(..extensions_start)
+            .map(|s| s.trim_end().to_string())
+            .unwrap_or_else(|| system.to_string())
     }
 }
 
@@ -470,7 +496,7 @@ impl RequestLog {
     where
         Payload: Serialize,
     {
-        let logs_dir = crate::logging::prepare_log_directory("llm", true)?;
+        let logs_dir = Paths::in_state_dir("logs");
 
         let request_id = Uuid::new_v4();
         let temp_name = format!("llm_request.{request_id}.jsonl");
