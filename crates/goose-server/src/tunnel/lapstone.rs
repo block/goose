@@ -5,7 +5,10 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 use socket2::{Socket, TcpKeepalive};
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, FromRawSocket};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -294,8 +297,18 @@ async fn run_tunnel_loop(
             Ok((stream, _)) => {
                 // Enable TCP keep-alive to detect dead connections faster
                 let tcp_stream = stream.get_ref().get_ref();
-                let fd = tcp_stream.as_raw_fd();
-                let socket: Socket = unsafe { Socket::from_raw_fd(fd) };
+
+                #[cfg(unix)]
+                let socket: Socket = {
+                    let fd = tcp_stream.as_raw_fd();
+                    unsafe { Socket::from_raw_fd(fd) }
+                };
+
+                #[cfg(windows)]
+                let socket: Socket = {
+                    let sock = tcp_stream.as_raw_socket();
+                    unsafe { Socket::from_raw_socket(sock) }
+                };
 
                 let keepalive = TcpKeepalive::new()
                     .with_time(Duration::from_secs(30))

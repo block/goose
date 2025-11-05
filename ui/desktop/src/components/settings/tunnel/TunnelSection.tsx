@@ -5,15 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { QRCodeSVG } from 'qrcode.react';
 import { Loader2, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
-import type { TunnelInfo, TunnelState } from '../../../utils/tunnel';
-
-interface TunnelStatus {
-  state: TunnelState;
-  info: TunnelInfo | null;
-}
+import type { TunnelStatus } from '../../../utils/tunnel';
 
 export default function TunnelSection() {
-  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus>({ state: 'idle', info: null });
+  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus>({
+    state: 'idle',
+    info: null,
+    auto_start: false,
+  });
   const [showQRModal, setShowQRModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -21,40 +20,39 @@ export default function TunnelSection() {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    checkTunnelStatus();
-  }, []);
+    const loadTunnelStatus = async () => {
+      try {
+        const status = await window.electron.getTunnelStatus();
+        setTunnelStatus(status);
+      } catch (err) {
+        setError(errorMessage(err, 'Failed to load tunnel status'));
+        setTunnelStatus({ state: 'error', info: null, auto_start: false });
+      }
+    };
 
-  const checkTunnelStatus = async () => {
-    try {
-      const status = await window.electron.getTunnelStatus();
-      setTunnelStatus(status as TunnelStatus);
-    } catch (err) {
-      console.error('Error checking tunnel status:', err);
-    }
-  };
+    loadTunnelStatus();
+  }, []);
 
   const handleStartTunnel = async () => {
     setError(null);
-    setTunnelStatus({ state: 'starting', info: null });
+    setTunnelStatus((prev) => ({ ...prev, state: 'starting', info: null }));
 
     try {
       const tunnelInfo = await window.electron.startTunnel();
-      setTunnelStatus({ state: 'running', info: tunnelInfo as TunnelInfo });
+      setTunnelStatus((prev) => ({ ...prev, state: 'running', info: tunnelInfo }));
       setShowQRModal(true);
     } catch (err) {
-      console.error('Error starting tunnel:', err);
       setError(errorMessage(err, 'Failed to start tunnel'));
-      setTunnelStatus({ state: 'error', info: null });
+      setTunnelStatus((prev) => ({ ...prev, state: 'error', info: null }));
     }
   };
 
   const handleStopTunnel = async () => {
     try {
       await window.electron.stopTunnel();
-      setTunnelStatus({ state: 'idle', info: null });
+      setTunnelStatus((prev) => ({ ...prev, state: 'idle', info: null }));
       setShowQRModal(false);
     } catch (err) {
-      console.error('Error stopping tunnel:', err);
       setError(errorMessage(err, 'Failed to stop tunnel'));
     }
   };
