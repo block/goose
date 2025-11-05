@@ -9,7 +9,7 @@ interface EnvVar {
 
 interface CLIExtensionInstructionsProps {
   name: string;
-  description?: string;
+  description: string;
   type?: 'stdio' | 'sse' | 'http';
   command?: string; // Only for stdio
   url?: string; // For both sse and http
@@ -43,8 +43,6 @@ export default function CLIExtensionInstructions({
     : isHttp
     ? 'Choose No when asked to add custom headers.'
     : 'Choose No when asked to add environment variables.';
-
-  const descriptionValue = description ?? '<description>';
 
   return (
     <div>
@@ -196,7 +194,7 @@ ${
 │
 // highlight-start
 ◆  Enter a description for this extension:
-│  ${descriptionValue}
+│  ${description}
 // highlight-end
 └`}</CodeBlock>
 
@@ -234,7 +232,7 @@ ${
 │  ${timeout}
 │
 ◇  Enter a description for this extension:
-│  ${descriptionValue}
+│  ${description}
 │
 // highlight-start
 ◆  ${lastStepText}
@@ -275,7 +273,7 @@ ${
 │  ${timeout}
 │
 ◇  Enter a description for this extension:
-│  ${descriptionValue}
+│  ${description}
 │
 // highlight-start
 ◆  ${lastStepText}
