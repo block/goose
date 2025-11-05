@@ -12,7 +12,7 @@ Goose provides a command-line interface (CLI) with several commands for managing
 Goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
 
 - **`-i, --session-id`**: Used for session identifiers (e.g., `20250305_113223`)
-- **`-i, --schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
+- **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
 - **`-n, --name`**: Used for human-readable names
 - **`-p, --path`**: Used for file paths (legacy support)
 - **`-o, --output`**: Used for output file paths
@@ -21,8 +21,6 @@ Goose CLI follows consistent patterns for flag naming to make commands intuitive
 - **`-l, --limit`**: Used for limiting result counts
 - **`-f, --format`**: Used for specifying output formats
 - **`-w, --working-dir`**: Used for working directory filters
-
-Context determines whether `-i` refers to a session ID or schedule ID. Within session commands, `-i` always means session ID. Within schedule commands, `-i` always means schedule ID.
 
 ### Core Commands
 
@@ -116,7 +114,7 @@ goose session -n my-project
 
 # Resume a previous session
 goose session --resume -n my-project
-goose session --resume -i 2025250620_013617
+goose session --resume -i 20250620_013617
 goose session --resume -p ./session.jsonl
 
 # Start with extensions
@@ -347,7 +345,7 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `run-now`: Run a scheduled recipe immediately
 
 **Options:**
-- `-i, --schedule-id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
+- `--schedule-id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression)
 - `--recipe-source <PATH>`: Path to the recipe YAML file
 - `-l, --limit <NUMBER>`: Max number of sessions to display when using the `sessions` command
@@ -357,19 +355,19 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 goose schedule <COMMAND>
 
 # Add a new scheduled recipe which runs every day at 9 AM
-goose schedule add -i daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+goose schedule add --schedule-id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
 
 # List all scheduled jobs
 goose schedule list
 
 # List the 10 most recent Goose sessions created by a scheduled job
-goose schedule sessions -i daily-report -l 10
+goose schedule sessions --schedule-id daily-report -l 10
 
 # Run a recipe immediately
-goose schedule run-now -i daily-report
+goose schedule run-now --schedule-id daily-report
 
 # Remove a scheduled job
-goose schedule remove -i daily-report
+goose schedule remove --schedule-id daily-report
 ```
 
 ---
