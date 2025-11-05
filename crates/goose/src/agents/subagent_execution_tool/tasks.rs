@@ -40,25 +40,19 @@ async fn handle_recipe_task(
     let recipe = task.payload.recipe;
     let return_last_only = task.payload.return_last_only;
 
-    // Apply recipe extensions if specified
     if let Some(ref exts) = recipe.extensions {
         task_config.extensions = exts.clone();
     }
 
-    // Apply recipe provider settings if specified
     if let Some(ref settings) = recipe.settings {
-        // Build new provider configuration if any overrides specified
         let new_provider = match (&settings.goose_provider, &settings.goose_model, settings.temperature) {
-            // Case 1: Provider switch (requires model)
             (Some(provider), Some(model), temp) => {
                 let config = ModelConfig::new_or_fail(model).with_temperature(temp);
                 Some((provider.clone(), config))
             }
-            // Case 2: Provider without model (error)
             (Some(_), None, _) => {
                 return Err("Recipe specifies provider but no model".to_string());
             }
-            // Case 3: Model/temperature override (keep same provider)
             (None, model_or_temp, _) if model_or_temp.is_some() || settings.temperature.is_some() => {
                 let provider_name = task_config.provider.get_name().to_string();
                 let mut config = task_config.provider.get_model_config();
@@ -72,11 +66,9 @@ async fn handle_recipe_task(
                 
                 Some((provider_name, config))
             }
-            // Case 4: No changes needed
             _ => None,
         };
 
-        // Apply the new provider if needed
         if let Some((provider_name, model_config)) = new_provider {
             task_config.provider = providers::create(&provider_name, model_config)
                 .await
@@ -84,7 +76,6 @@ async fn handle_recipe_task(
         }
     }
 
-    // Execute the task
     tokio::select! {
         result = run_complete_subagent_task(recipe, task_config, return_last_only) => {
             result.map(|text| serde_json::json!({"result": text}))

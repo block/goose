@@ -34,9 +34,7 @@ pub async fn run_complete_subagent_task(
         return Ok(output);
     }
 
-    // Extract text content based on return_last_only flag
     let response_text = if return_last_only {
-        // Get only the last message's text content
         messages
             .messages()
             .last()
@@ -50,7 +48,6 @@ pub async fn run_complete_subagent_task(
             })
             .unwrap_or_else(|| String::from("No text content in last message"))
     } else {
-        // Extract all text content from all messages (original behavior)
         let all_text_content: Vec<String> = messages
             .iter()
             .flat_map(|message| {
@@ -94,7 +91,6 @@ pub async fn run_complete_subagent_task(
         all_text_content.join("\n")
     };
 
-    // Return the result
     Ok(response_text)
 }
 
@@ -144,11 +140,9 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
 
-        // Build initial conversation
         let user_message = Message::user().with_text(text_instruction);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
-        // Log activities if provided
         if let Some(activities) = recipe.activities {
             for activity in activities {
                 info!("Recipe activity: {}", activity);
@@ -158,7 +152,7 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             id: session.id.clone(),
             schedule_id: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
-            retry_config: recipe.retry, // Use recipe's retry config instead of None
+            retry_config: recipe.retry,
         };
 
         let mut stream = crate::session_context::with_session_id(Some(session.id.clone()), async {
