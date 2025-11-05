@@ -75,7 +75,8 @@ function normalizeRecipe(recipe: any): Recipe {
     prompt: cleaned.prompt,
     activities: cleaned.activities,
     extensions: cleaned.extensions,
-    parameters: (cleaned as any).parameters || []
+    parameters: (cleaned as any).parameters || [],
+    sub_recipes: recipe.sub_recipes || undefined
   };
   
   const encoded = toBase64(JSON.stringify(configForGoose));
