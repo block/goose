@@ -542,6 +542,13 @@ impl acp::Agent for GooseAcpAgent {
 
         // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
+        {
+            let mut sessions = self.sessions.lock().await;
+            let session = sessions
+                .get_mut(&session_id)
+                .ok_or_else(acp::Error::invalid_params)?;
+            session.cancel_token = Some(cancel_token.clone());
+        }
 
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
