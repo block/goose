@@ -6,6 +6,7 @@ on:
       - synchronize
     branches:
       - main
+      - release/**
 
 permissions:
   contents: read
