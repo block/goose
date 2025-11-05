@@ -775,8 +775,6 @@ impl CliSession {
         interactive: bool,
         cancel_token: CancellationToken,
     ) -> Result<()> {
-        let cancel_token_clone = cancel_token.clone();
-
         // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
 
@@ -790,6 +788,14 @@ impl CliSession {
             .messages
             .last()
             .ok_or_else(|| anyhow::anyhow!("No user message"))?;
+
+        let cancel_token_interrupt = cancel_token.clone();
+        tokio::spawn(async move {
+            if tokio::signal::ctrl_c().await.is_ok() {
+                cancel_token_interrupt.cancel();
+            }
+        });
+
         let mut stream = self
             .agent
             .reply(
@@ -800,6 +806,7 @@ impl CliSession {
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
+        let cancel_token_clone = cancel_token.clone();
 
         use futures::StreamExt;
         loop {
@@ -1075,8 +1082,7 @@ impl CliSession {
                         None => break,
                     }
                 }
-                _ = tokio::signal::ctrl_c() => {
-                    cancel_token_clone.cancel();
+                _ = cancel_token_clone.cancelled() => {
                     drop(stream);
                     if let Err(e) = self.handle_interrupted_messages(true).await {
                         eprintln!("Error handling interruption: {}", e);
