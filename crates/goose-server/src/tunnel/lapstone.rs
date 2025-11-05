@@ -9,6 +9,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use url::Url;
@@ -337,6 +338,9 @@ async fn run_tunnel_loop(
         *ws_tx.write().await = Some(write);
         let last_activity = Arc::new(RwLock::new(Instant::now()));
 
+        // we need to track active request tasks so we can abort them on disconnect
+        let active_tasks: Arc<RwLock<Vec<JoinHandle<()>>>> = Arc::new(RwLock::new(Vec::new()));
+
         let last_activity_clone = last_activity.clone();
         let idle_task = async move {
             loop {
@@ -367,7 +371,7 @@ async fn run_tunnel_loop(
                                 Ok(tunnel_msg) => {
                                     let ws_tx_clone = ws_tx.clone();
                                     let server_secret_clone = server_secret.clone();
-                                    tokio::spawn(async move {
+                                    let task = tokio::spawn(async move {
                                         if let Err(e) = handle_request(
                                             tunnel_msg,
                                             port,
@@ -379,6 +383,7 @@ async fn run_tunnel_loop(
                                             error!("Error handling request: {}", e);
                                         }
                                     });
+                                    active_tasks.write().await.push(task);
                                 }
                                 Err(e) => {
                                     error!("Error parsing tunnel message: {}", e);
@@ -408,7 +413,12 @@ async fn run_tunnel_loop(
             let _ = tx.close().await;
         }
 
-        // Check if we should continue running
+        let tasks = active_tasks.write().await.drain(..).collect::<Vec<_>>();
+        info!("Aborting {} active request tasks", tasks.len());
+        for task in tasks {
+            task.abort();
+        }
+
         if handle.read().await.is_none() {
             info!("Tunnel stopped, not reconnecting");
             break;
