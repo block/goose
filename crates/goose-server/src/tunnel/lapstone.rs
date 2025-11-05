@@ -290,17 +290,6 @@ async fn run_tunnel_loop(
     loop {
         info!("Connecting to {}...", url);
 
-        let ws_tx: WebSocketSender = Arc::new(RwLock::new(None));
-
-        let _url_parsed = match Url::parse(&url) {
-            Ok(u) => u,
-            Err(e) => {
-                error!("Invalid URL: {}", e);
-                tokio::time::sleep(Duration::from_secs(5)).await;
-                continue;
-            }
-        };
-
         let ws_stream = match connect_async(url.clone()).await {
             Ok((stream, _)) => {
                 // Enable TCP keep-alive to detect dead connections faster
@@ -335,7 +324,7 @@ async fn run_tunnel_loop(
         info!("✓ Public URL: {}", public_url);
 
         let (write, mut read) = ws_stream.split();
-        *ws_tx.write().await = Some(write);
+        let ws_tx: WebSocketSender = Arc::new(RwLock::new(Some(write)));
         let last_activity = Arc::new(RwLock::new(Instant::now()));
 
         // we need to track active request tasks so we can abort them on disconnect
