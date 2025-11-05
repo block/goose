@@ -20,7 +20,6 @@ export interface ScheduledJob {
   paused?: boolean;
   current_session_id?: string | null;
   process_start_time?: string | null;
-  execution_mode?: string | null; // "foreground" or "background"
 }
 
 export interface ScheduleSession {

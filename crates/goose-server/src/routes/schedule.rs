@@ -16,8 +16,6 @@ pub struct CreateScheduleRequest {
     id: String,
     recipe_source: String,
     cron: String,
-    #[serde(default)]
-    execution_mode: Option<String>, // "foreground" or "background"
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]

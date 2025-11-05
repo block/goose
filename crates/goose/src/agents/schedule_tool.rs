@@ -123,19 +123,6 @@ impl Agent {
             .and_then(|v| v.as_str())
             .unwrap_or("background");
 
-        // Validate execution_mode is either "foreground" or "background"
-        if execution_mode != "foreground" && execution_mode != "background" {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "Invalid execution_mode: {}. Must be 'foreground' or 'background'",
-                    execution_mode
-                ),
-                None,
-            ));
-        }
-
-        // Validate recipe file exists and is readable
         if !std::path::Path::new(recipe_path).exists() {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,

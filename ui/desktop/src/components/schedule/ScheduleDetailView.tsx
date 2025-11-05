@@ -310,22 +310,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     <span className="font-semibold">Last Run:</span>{' '}
                     {formatToLocalDateWithTimezone(scheduleDetails.last_run)}
                   </p>
-                  {scheduleDetails.execution_mode && (
-                    <p className="text-sm text-text-default">
-                      <span className="font-semibold">Execution Mode:</span>{' '}
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          scheduleDetails.execution_mode === 'foreground'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                        }`}
-                      >
-                        {scheduleDetails.execution_mode === 'foreground'
-                          ? '🖥️ Foreground'
-                          : '⚡ Background'}
-                      </span>
-                    </p>
-                  )}
                   {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
                     <p className="text-sm text-text-default">
                       <span className="font-semibold">Current Session:</span>{' '}
